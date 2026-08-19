@@ -13,10 +13,10 @@ linked from [`README.md`](README.md), especially `PRINCIPLES.md`, `ARCHITECTURE.
 - Do not add secrets, private identifiers, real network details, or unsanitized diagnostics.
 - Keep changes limited to the active roadmap slice and state explicit non-goals.
 
-Apache License 2.0 is the accepted source license and inbound contribution policy, without a CLA
-or copyright assignment. The repository remains private and outside contributions may not be
-merged until the active public-readiness milestone adds the canonical license/notices and the
-owner approves public visibility.
+Balls source and documentation use [Apache License 2.0](LICENSE). By submitting a contribution,
+you license it under the same terms without a CLA or copyright assignment. The repository remains
+private, and outside contributions may not be merged until its reachable history is sanitized and
+the owner explicitly approves public visibility.
 
 ## Verification
 

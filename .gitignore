@@ -8,6 +8,7 @@ TestResults/
 *.suo
 *.ncrunch*
 artifacts/
+.worktrees/
 
 # Local Balls state
 .balls-state

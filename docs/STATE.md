@@ -43,9 +43,17 @@ Linux becomes a runnable Canary in `0.2.0-alpha.1` when its native runtime lands
 The active GitHub milestone owns executable tickets. Do not start product features from a future
 milestone while a ready active-milestone ticket exists.
 
-Ready frontier:
+Owner-gated transition:
 
 - [#3 — Prepare and approve the public repository transition](https://github.com/scwlkr/balls/issues/3)
+
+The source-tree preparation and disposable history-rewrite trial are recorded in the
+[dated readiness evidence](verification/2026-08-19-public-readiness.md). Existing read-only GitHub
+pull refs retain the legacy history, so the owner must choose the publication lineage before a
+final visibility confirmation. The repository remains private.
+
+Ready frontier:
+
 - [#4 — Create the sub-minute developer verification command](https://github.com/scwlkr/balls/issues/4)
 
 Issues #5–#8 are intentionally blocked by recorded dependencies in GitHub.

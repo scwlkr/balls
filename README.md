@@ -76,10 +76,12 @@ not a public issue.
 
 ## License
 
-Apache License 2.0 is the accepted source-license choice. The active public-readiness milestone
-adds the canonical license/notices and completes the privacy/history audit before the owner is
-asked to approve public visibility. Until that checkpoint lands, the private repository is not
-open for external contribution.
+Balls source and documentation are licensed under the
+[Apache License 2.0](LICENSE). See [`NOTICE`](NOTICE) for the current attribution status.
+Contributions are accepted under the same terms without a CLA or copyright assignment.
+
+The repository remains private until its reachable history is sanitized and the owner explicitly
+approves public visibility. It is not yet open for external contribution.
 
 ## Prior research
 

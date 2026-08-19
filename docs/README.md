@@ -36,3 +36,4 @@ Use this directory for ADRs, threat models, protocol specifications, milestone d
 ## Verification
 
 - [`verification/phase-1-slice-1.md`](verification/phase-1-slice-1.md) — automated and real Windows evidence for the local checkpoint.
+- [`verification/2026-08-19-public-readiness.md`](verification/2026-08-19-public-readiness.md) — licensing, privacy/history audit, rewrite trial, and owner-gated public-transition evidence.
