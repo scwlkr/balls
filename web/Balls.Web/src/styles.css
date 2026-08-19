@@ -468,6 +468,121 @@ h1 {
   border-radius: 50%;
 }
 
+.circle-switcher {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  padding: 1rem 2rem;
+  overflow-x: auto;
+  border-bottom: 1px solid var(--line);
+}
+
+.circle-switcher > span {
+  margin-right: 0.35rem;
+  color: var(--muted);
+  font-size: 0.68rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+}
+
+.circle-switcher button,
+.empty-workspace button {
+  appearance: none;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  font: inherit;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.circle-switcher button {
+  padding: 0.55rem 0.85rem;
+  color: var(--ink);
+  background: var(--surface);
+  white-space: nowrap;
+}
+
+.circle-switcher button[aria-current="page"] {
+  color: white;
+  background: var(--cobalt);
+  border-color: var(--cobalt);
+}
+
+.circle-switcher button:disabled,
+.empty-workspace button:disabled {
+  cursor: wait;
+  opacity: 0.65;
+}
+
+.loading-state,
+.error-state,
+.empty-workspace {
+  min-height: 34rem;
+  padding: clamp(4rem, 10vw, 8rem) clamp(1.5rem, 7vw, 6rem);
+}
+
+.loading-state h1,
+.error-state h1,
+.empty-workspace h1 {
+  max-width: 11ch;
+}
+
+.error-state p:last-child,
+.empty-workspace > div > p:last-child {
+  max-width: 38rem;
+  color: var(--muted);
+  font-size: 1.05rem;
+  line-height: 1.7;
+}
+
+.empty-workspace {
+  display: grid;
+  grid-template-columns: minmax(0, 1.1fr) minmax(18rem, 0.9fr);
+  gap: clamp(3rem, 8vw, 7rem);
+  align-items: center;
+}
+
+.empty-workspace form {
+  display: grid;
+  gap: 0.75rem;
+  padding: 1.5rem;
+  background: var(--paper);
+  border: 1px solid var(--line);
+  border-radius: 1rem;
+}
+
+.empty-workspace label {
+  font-size: 0.78rem;
+  font-weight: 750;
+}
+
+.empty-workspace input {
+  width: 100%;
+  padding: 0.8rem 0.9rem;
+  color: var(--ink);
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 0.55rem;
+  font: inherit;
+}
+
+.empty-workspace button {
+  margin-top: 0.5rem;
+  padding: 0.85rem 1rem;
+  color: white;
+  background: var(--cobalt);
+  border-color: var(--cobalt);
+}
+
+.inline-error {
+  margin: 1rem 2rem 0;
+  padding: 0.8rem 1rem;
+  color: #7d2416;
+  background: #fff0ec;
+  border-left: 4px solid var(--coral);
+}
+
 footer {
   display: flex;
   justify-content: space-between;
@@ -485,6 +600,10 @@ footer code {
 }
 
 @media (max-width: 900px) {
+  .empty-workspace {
+    grid-template-columns: 1fr;
+  }
+
   .circle-intro {
     grid-template-columns: 1fr;
     gap: 2rem;
@@ -535,6 +654,18 @@ footer code {
 
   main {
     padding: 1rem;
+  }
+
+  .circle-switcher {
+    margin-inline: -1rem;
+    padding-inline: 1rem;
+  }
+
+  .loading-state,
+  .error-state,
+  .empty-workspace {
+    min-height: 30rem;
+    padding: 4rem 0.25rem;
   }
 
   .status-banner {
