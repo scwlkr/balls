@@ -306,7 +306,8 @@ A future self-hosted implementation should be possible.
 
 ## Platform integration
 
-Core logic talks to typed platform interfaces.
+Core logic talks to typed capability interfaces. Executable host composition uses a separate set
+of typed host-edge contracts for protected local state and local control IPC.
 
 ```text
 Balls Core
@@ -332,6 +333,25 @@ Adapters may implement:
 - container/workload runtimes;
 - network inspection;
 - OS-specific privilege.
+
+The implemented host edge is composed once for both `ballsd` and `balls`:
+
+```text
+ballsd / balls
+      │
+Balls.Host selector
+      │
+HostPlatform aggregate
+      │
+Balls.Platform contracts
+      │
+Balls.Platform.Windows adapter
+```
+
+`HostPlatform` supplies platform defaults plus independent seams for local-state preparation,
+local-control server transport, and local-control client transport. `Balls.Host` is the only
+project that selects an OS adapter. Unsupported hosts return one typed, fail-closed selection
+result; executable entry points do not perform their own OS checks or construct adapter types.
 
 ## Privilege model
 
@@ -497,6 +517,8 @@ src/
   Balls.Protocol/
   Balls.Daemon/
   Balls.Cli/
+  Balls.Host/
+  Balls.Platform/
   Balls.Platform.Windows/
   Balls.Platform.Linux/
   Balls.Platform.MacOS/
@@ -533,16 +555,17 @@ GUI / CLI / integrations
   OS-specific adapters
 ```
 
-The arrows above describe runtime calls. Compile-time dependencies point
-inward: Core owns the platform and persistence contracts it consumes;
-adapters implement those contracts and depend on Core; the daemon references
-and composes the selected adapters. Core never references an adapter.
+The arrows above describe runtime calls. Compile-time dependencies point inward for product
+capabilities: Core owns the capability and persistence contracts it consumes; adapters implement
+those contracts and depend on Core. Core never references an adapter.
 
 Host-edge adapters are a separate category. Local IPC clients/servers and
 state-directory OS policy support the CLI or daemon composition boundary and
-need not implement or reference a Core port. `Balls.Platform.Windows` contains
-that host-edge behavior in Slice 1; future Windows capability adapters that
-implement Core-owned ports should be split by capability when they become real.
+need not implement or reference a Core port. Their neutral contracts live in `Balls.Platform`,
+the Windows implementations live in `Balls.Platform.Windows`, and `Balls.Host` centralizes the
+selection. The executable projects reference the selector and contracts, not the Windows adapter.
+Future Windows capability adapters that implement Core-owned ports should be split by capability
+when they become real.
 
 Avoid:
 

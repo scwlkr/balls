@@ -84,9 +84,18 @@ readback, and next executable milestone are reconciled in the
 
 Ready frontier:
 
+- [#18 — Run protected local state and control IPC natively on Linux](https://github.com/scwlkr/balls/issues/18)
+
+Completed in the active milestone:
+
 - [#17 — Compose daemon and CLI through cross-platform host seams](https://github.com/scwlkr/balls/issues/17)
 
-#18–#23 remain dependency-blocked behind the issue chain recorded in their acceptance contracts.
+The executable layers now consume neutral host contracts and one centralized selector; the
+existing Windows state and same-user named-pipe behavior is composed without direct Windows
+dependencies in `ballsd` or `balls`. Non-Windows hosts fail closed through one typed result until
+their real adapter is registered.
+
+#19–#23 remain dependency-blocked behind the issue chain recorded in their acceptance contracts.
 
 ## Working rules
 

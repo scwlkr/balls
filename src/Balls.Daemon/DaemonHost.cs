@@ -1,6 +1,7 @@
 using System.Reflection;
 using Balls.Core;
-using Balls.Platform.Windows;
+using Balls.Host;
+using Balls.Platform;
 using Balls.Protocol.Control.V1;
 using Balls.Storage.Sqlite;
 using Microsoft.AspNetCore.Builder;
@@ -16,14 +17,28 @@ public static class DaemonHost
         CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(options);
-        if (!OperatingSystem.IsWindows())
+        var selection = HostPlatformSelector.SelectCurrent();
+        if (selection is UnsupportedHostPlatform unsupported)
         {
-            throw new PlatformNotSupportedException(
-                "Phase 1 currently provides a Windows named-pipe local control transport.");
+            throw new PlatformNotSupportedException(unsupported.Message);
         }
 
+        return await StartAsync(
+            options,
+            ((SupportedHostPlatform)selection).Platform,
+            cancellationToken).ConfigureAwait(false);
+    }
+
+    internal static async Task<DaemonInstance> StartAsync(
+        DaemonOptions options,
+        HostPlatform host,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(options);
+        ArgumentNullException.ThrowIfNull(host);
+
         ArgumentException.ThrowIfNullOrWhiteSpace(options.DataDirectory);
-        WindowsNamedPipeControl.ValidatePipeName(options.PipeName);
+        host.LocalControlServer.ValidateEndpoint(options.LocalControlEndpoint);
         if (string.IsNullOrWhiteSpace(options.NodeDisplayName))
         {
             throw new InputValidationException(
@@ -37,7 +52,7 @@ public static class DaemonHost
                 "Node display name cannot exceed 100 characters.");
         }
 
-        var securedDataDirectory = WindowsDataDirectorySecurity.Prepare(options.DataDirectory);
+        var securedDataDirectory = host.LocalState.Prepare(options.DataDirectory);
         var dataDirectoryLease = DataDirectoryLease.Acquire(securedDataDirectory);
         SqliteLocalStateStore? store = null;
         WebApplication? application = null;
@@ -59,9 +74,12 @@ public static class DaemonHost
                 EnvironmentName = Environments.Production,
             });
             builder.Configuration.Sources.Clear();
-            WindowsNamedPipeControl.ConfigureServices(builder.Services);
+            host.LocalControlServer.ConfigureServices(builder.Services);
             builder.WebHost.ConfigureKestrel(
-                server => ConfigureWindowsServer(server, options.PipeName));
+                server => ConfigureServer(
+                    server,
+                    host.LocalControlServer,
+                    options.LocalControlEndpoint));
             builder.Services.AddOpenApi();
             builder.Services.ConfigureHttpJsonOptions(
                 json => ControlJson.Configure(json.SerializerOptions));
@@ -208,17 +226,13 @@ public static class DaemonHost
             ?? "unknown";
     }
 
-    private static void ConfigureWindowsServer(
+    private static void ConfigureServer(
         Microsoft.AspNetCore.Server.Kestrel.Core.KestrelServerOptions server,
-        string pipeName)
+        ILocalControlServerTransport transport,
+        string endpoint)
     {
-        if (!OperatingSystem.IsWindows())
-        {
-            throw new PlatformNotSupportedException();
-        }
-
         server.Limits.MaxRequestBodySize = 32 * 1024;
-        WindowsNamedPipeControl.ConfigureServer(server, pipeName);
+        transport.ConfigureServer(server, endpoint);
     }
 
     private static async Task<CircleLookup> FindCircleAsync(

@@ -144,15 +144,29 @@
       "balls": {
         "type": "Project",
         "dependencies": {
-          "Balls.Platform.Windows": "[0.1.0-alpha.2, )",
+          "Balls.Host": "[0.1.0-alpha.2, )",
+          "Balls.Platform": "[0.1.0-alpha.2, )",
           "Balls.Protocol": "[0.1.0-alpha.2, )"
         }
       },
       "balls.core": {
         "type": "Project"
       },
-      "balls.platform.windows": {
+      "balls.host": {
+        "type": "Project",
+        "dependencies": {
+          "Balls.Platform": "[0.1.0-alpha.2, )",
+          "Balls.Platform.Windows": "[0.1.0-alpha.2, )"
+        }
+      },
+      "balls.platform": {
         "type": "Project"
+      },
+      "balls.platform.windows": {
+        "type": "Project",
+        "dependencies": {
+          "Balls.Platform": "[0.1.0-alpha.2, )"
+        }
       },
       "balls.protocol": {
         "type": "Project"
@@ -168,7 +182,8 @@
         "type": "Project",
         "dependencies": {
           "Balls.Core": "[0.1.0-alpha.2, )",
-          "Balls.Platform.Windows": "[0.1.0-alpha.2, )",
+          "Balls.Host": "[0.1.0-alpha.2, )",
+          "Balls.Platform": "[0.1.0-alpha.2, )",
           "Balls.Protocol": "[0.1.0-alpha.2, )",
           "Balls.Storage.Sqlite": "[0.1.0-alpha.2, )",
           "Microsoft.AspNetCore.OpenApi": "[10.0.11, )"

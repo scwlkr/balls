@@ -1,7 +1,7 @@
 using System.Net.Http.Json;
 using System.Reflection;
 using System.Text.Json;
-using Balls.Platform.Windows;
+using Balls.Host;
 using Balls.Protocol.Control.V1;
 
 namespace Balls.Cli;
@@ -24,15 +24,16 @@ public static class CliApplication
             return CliExitCodes.Success;
         }
 
-        if (!OperatingSystem.IsWindows())
+        var selection = HostPlatformSelector.SelectCurrent();
+        if (selection is UnsupportedHostPlatform unsupported)
         {
-            await standardError.WriteLineAsync(
-                "balls: the Phase 1 local control transport currently requires Windows.");
+            await standardError.WriteLineAsync($"balls: {unsupported.Message}");
             return CliExitCodes.PlatformUnsupported;
         }
 
+        var host = ((SupportedHostPlatform)selection).Platform;
         var tokens = arguments.ToList();
-        string pipeName;
+        string localControlEndpoint;
         if (TryTakeOption(tokens, "--pipe-name", out var requestedPipeName))
         {
             if (requestedPipeName is null)
@@ -42,11 +43,11 @@ public static class CliApplication
                     "--pipe-name requires a value.");
             }
 
-            pipeName = requestedPipeName;
+            localControlEndpoint = requestedPipeName;
         }
         else
         {
-            pipeName = WindowsNamedPipeDefaults.GetCurrentUserPipeName();
+            localControlEndpoint = host.Defaults.LocalControlEndpoint;
         }
 
         var outputFormat = "text";
@@ -65,7 +66,7 @@ public static class CliApplication
         HttpClient client;
         try
         {
-            client = WindowsNamedPipeHttpClient.Create(pipeName);
+            client = host.LocalControlClient.CreateClient(localControlEndpoint);
         }
         catch (ArgumentException)
         {
@@ -130,7 +131,7 @@ public static class CliApplication
                     or TimeoutException)
             {
                 await standardError.WriteLineAsync(
-                    "balls: ballsd is unavailable on the selected local control pipe.");
+                    $"balls: ballsd is unavailable on the selected local control {host.Defaults.LocalControlEndpointDescription}.");
                 return CliExitCodes.DaemonUnavailable;
             }
     }

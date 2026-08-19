@@ -1,6 +1,8 @@
 using Balls.Cli;
 using Balls.Core;
 using Balls.Daemon;
+using Balls.Host;
+using Balls.Platform;
 using Balls.Platform.Windows;
 using Balls.Protocol.Control.V1;
 using Balls.Storage.Sqlite;
@@ -30,11 +32,18 @@ public sealed class DependencyDirectionTests
     }
 
     [TestMethod]
-    public void Cli_depends_only_on_Protocol_and_the_local_transport_adapter()
+    public void Platform_contracts_have_no_product_layer_dependency()
+    {
+        AssertBallsReferences(typeof(HostPlatform).Assembly);
+    }
+
+    [TestMethod]
+    public void Cli_depends_only_on_host_contracts_selection_and_Protocol()
     {
         AssertBallsReferences(
             typeof(CliApplication).Assembly,
-            "Balls.Platform.Windows",
+            "Balls.Host",
+            "Balls.Platform",
             "Balls.Protocol");
     }
 
@@ -44,15 +53,25 @@ public sealed class DependencyDirectionTests
         AssertBallsReferences(
             typeof(DaemonHost).Assembly,
             "Balls.Core",
-            "Balls.Platform.Windows",
+            "Balls.Host",
+            "Balls.Platform",
             "Balls.Protocol",
             "Balls.Storage.Sqlite");
     }
 
     [TestMethod]
-    public void Windows_adapter_has_no_product_layer_dependency()
+    public void Host_selection_depends_only_on_contracts_and_OS_adapters()
     {
-        AssertBallsReferences(typeof(WindowsNamedPipeControl).Assembly);
+        AssertBallsReferences(
+            typeof(HostPlatformSelector).Assembly,
+            "Balls.Platform",
+            "Balls.Platform.Windows");
+    }
+
+    [TestMethod]
+    public void Windows_adapter_depends_only_on_platform_contracts()
+    {
+        AssertBallsReferences(typeof(WindowsNamedPipeControl).Assembly, "Balls.Platform");
     }
 
     private static void AssertBallsReferences(

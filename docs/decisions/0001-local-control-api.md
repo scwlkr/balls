@@ -23,6 +23,12 @@ The contract and transport remain separate. A future Linux/macOS adapter can
 carry the same HTTP contract over a protected Unix-domain socket. The remote
 Circle protocol is a separate decision.
 
+Host composition is explicit: `Balls.Platform` defines typed client and server transport seams,
+`Balls.Platform.Windows` implements them with the current same-user named pipe, and the centralized
+`Balls.Host` selector supplies the same selected host to both executables. `ballsd` and `balls` do
+not inspect the OS or construct Windows transport types. Until a real Linux adapter is registered,
+selection returns one typed unsupported-host result and both executables fail closed.
+
 ## Why not gRPC now
 
 gRPC remains viable when measured requirements justify Protobuf generation,
@@ -36,6 +42,8 @@ transport configuration and would make the first contract harder to inspect.
 - OpenAPI documents the v1 HTTP surface.
 - Windows named-pipe setup and client connection code live in the Windows
   adapter, outside Core.
+- Adding Unix-domain sockets requires a real host adapter and selector registration; it does not
+  require copying daemon routes, CLI behavior, or local-control v1 DTOs.
 - Same-user processes are inside the local-control trust boundary for this
   slice. Sensitive future operations may require stronger per-operation
   authorization even over protected local IPC.
