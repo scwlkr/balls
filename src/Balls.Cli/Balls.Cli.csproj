@@ -1,0 +1,10 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <AssemblyName>balls</AssemblyName>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\Balls.Protocol\Balls.Protocol.csproj" />
+    <ProjectReference Include="..\Balls.Platform.Windows\Balls.Platform.Windows.csproj" />
+  </ItemGroup>
+</Project>

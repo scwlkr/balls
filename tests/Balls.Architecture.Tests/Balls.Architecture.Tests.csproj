@@ -1,0 +1,19 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <IsPackable>false</IsPackable>
+    <IsTestProject>true</IsTestProject>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\Balls.Cli\Balls.Cli.csproj" />
+    <ProjectReference Include="..\..\src\Balls.Core\Balls.Core.csproj" />
+    <ProjectReference Include="..\..\src\Balls.Daemon\Balls.Daemon.csproj" />
+    <ProjectReference Include="..\..\src\Balls.Platform.Windows\Balls.Platform.Windows.csproj" />
+    <ProjectReference Include="..\..\src\Balls.Protocol\Balls.Protocol.csproj" />
+    <ProjectReference Include="..\..\src\Balls.Storage.Sqlite\Balls.Storage.Sqlite.csproj" />
+  </ItemGroup>
+  <ItemGroup>
+    <PackageReference Include="Microsoft.NET.Test.Sdk" />
+    <PackageReference Include="MSTest.TestAdapter" />
+    <PackageReference Include="MSTest.TestFramework" />
+  </ItemGroup>
+</Project>

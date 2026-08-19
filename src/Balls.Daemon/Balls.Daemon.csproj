@@ -1,0 +1,14 @@
+<Project Sdk="Microsoft.NET.Sdk.Web">
+  <PropertyGroup>
+    <AssemblyName>ballsd</AssemblyName>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\Balls.Core\Balls.Core.csproj" />
+    <ProjectReference Include="..\Balls.Protocol\Balls.Protocol.csproj" />
+    <ProjectReference Include="..\Balls.Storage.Sqlite\Balls.Storage.Sqlite.csproj" />
+    <ProjectReference Include="..\Balls.Platform.Windows\Balls.Platform.Windows.csproj" />
+  </ItemGroup>
+  <ItemGroup>
+    <PackageReference Include="Microsoft.AspNetCore.OpenApi" />
+  </ItemGroup>
+</Project>
