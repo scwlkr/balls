@@ -1,0 +1,152 @@
+name: Canary
+
+on:
+  workflow_run:
+    workflows:
+      - CI
+    types:
+      - completed
+
+concurrency:
+  group: canary-${{ github.event.workflow_run.head_sha }}
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+env:
+  DOTNET_CLI_TELEMETRY_OPTOUT: 1
+  DOTNET_NOLOGO: true
+
+jobs:
+  windows-canary:
+    name: Windows Canary
+    if: >-
+      github.event.workflow_run.conclusion == 'success' &&
+      github.event.workflow_run.event == 'push' &&
+      github.event.workflow_run.head_branch == 'main'
+    runs-on: windows-2025
+    timeout-minutes: 15
+
+    steps:
+      - name: Check out accepted main commit
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.event.workflow_run.head_sha }}
+          persist-credentials: false
+
+      - name: Install .NET SDK
+        uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6.0.0
+        with:
+          global-json-file: global.json
+          cache: true
+          cache-dependency-path: '**/packages.lock.json'
+
+      - name: Build and package Windows Canary once
+        id: package
+        shell: pwsh
+        run: |
+          $canaryRoot = Join-Path $env:RUNNER_TEMP 'balls-canary'
+          $cliDirectory = Join-Path $canaryRoot 'input\balls'
+          $daemonDirectory = Join-Path $canaryRoot 'input\ballsd'
+          $outputDirectory = Join-Path $canaryRoot 'output'
+
+          dotnet restore Balls.slnx --locked-mode
+          dotnet publish src/Balls.Cli/Balls.Cli.csproj --configuration Release --no-restore --output $cliDirectory
+          dotnet publish src/Balls.Daemon/Balls.Daemon.csproj --configuration Release --no-restore --output $daemonDirectory
+          dotnet run --project eng/Balls.Canary --configuration Release --no-restore -- package `
+            --repository-root . `
+            --cli-directory $cliDirectory `
+            --daemon-directory $daemonDirectory `
+            --output-directory $outputDirectory `
+            --platform windows `
+            --architecture x64 `
+            --commit '${{ github.event.workflow_run.head_sha }}'
+
+          $archives = @(Get-ChildItem -LiteralPath $outputDirectory -Filter '*.zip' -File)
+          if ($archives.Count -ne 1) {
+            throw "Expected exactly one Windows Canary archive; found $($archives.Count)."
+          }
+          $archive = $archives[0]
+          "artifact_name=$($archive.BaseName)" >> $env:GITHUB_OUTPUT
+
+      - name: Smoke packaged Windows Canary
+        shell: pwsh
+        run: |
+          $outputDirectory = Join-Path $env:RUNNER_TEMP 'balls-canary\output'
+          $archives = @(Get-ChildItem -LiteralPath $outputDirectory -Filter '*.zip' -File)
+          if ($archives.Count -ne 1) {
+            throw "Expected exactly one Windows Canary archive; found $($archives.Count)."
+          }
+          $archive = $archives[0]
+          & .\eng\canary\Test-WindowsCanary.ps1 `
+            -PackagePath $archive.FullName `
+            -ChecksumPath ($archive.FullName + '.sha256') `
+            -InstallerPath (Join-Path $outputDirectory 'Install-BallsCanary.ps1')
+
+      - name: Upload Windows Canary
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: ${{ steps.package.outputs.artifact_name }}
+          path: ${{ runner.temp }}/balls-canary/output/*
+          if-no-files-found: error
+          retention-days: 14
+          compression-level: 0
+
+  linux-build-test-canary:
+    name: Linux build/test Canary (runtime unsupported)
+    if: >-
+      github.event.workflow_run.conclusion == 'success' &&
+      github.event.workflow_run.event == 'push' &&
+      github.event.workflow_run.head_branch == 'main'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+
+    steps:
+      - name: Check out accepted main commit
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.event.workflow_run.head_sha }}
+          persist-credentials: false
+
+      - name: Install .NET SDK
+        uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6.0.0
+        with:
+          global-json-file: global.json
+          cache: true
+          cache-dependency-path: '**/packages.lock.json'
+
+      - name: Build and package Linux build/test Canary once
+        id: package
+        shell: bash
+        run: |
+          set -euo pipefail
+          canary_root="$RUNNER_TEMP/balls-canary"
+          cli_directory="$canary_root/input/balls"
+          daemon_directory="$canary_root/input/ballsd"
+          output_directory="$canary_root/output"
+
+          dotnet restore Balls.slnx --locked-mode
+          dotnet publish src/Balls.Cli/Balls.Cli.csproj --configuration Release --no-restore --output "$cli_directory"
+          dotnet publish src/Balls.Daemon/Balls.Daemon.csproj --configuration Release --no-restore --output "$daemon_directory"
+          dotnet run --project eng/Balls.Canary --configuration Release --no-restore -- package \
+            --repository-root . \
+            --cli-directory "$cli_directory" \
+            --daemon-directory "$daemon_directory" \
+            --output-directory "$output_directory" \
+            --platform linux \
+            --architecture x64 \
+            --commit '${{ github.event.workflow_run.head_sha }}'
+
+          archive="$(find "$output_directory" -maxdepth 1 -name '*.zip' -type f -print -quit)"
+          unzip -p "$archive" canary.json | grep -F '"runtimeSupported": false'
+          echo "artifact_name=$(basename "$archive" .zip)" >> "$GITHUB_OUTPUT"
+
+      - name: Upload Linux build/test Canary
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: ${{ steps.package.outputs.artifact_name }}
+          path: ${{ runner.temp }}/balls-canary/output/*
+          if-no-files-found: error
+          retention-days: 14
+          compression-level: 0

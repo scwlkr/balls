@@ -1,6 +1,7 @@
 # Balls
 
 [![CI](https://github.com/scwlkr/balls/actions/workflows/ci.yml/badge.svg)](https://github.com/scwlkr/balls/actions/workflows/ci.yml)
+[![Canary](https://github.com/scwlkr/balls/actions/workflows/canary.yml/badge.svg)](https://github.com/scwlkr/balls/actions/workflows/canary.yml)
 
 **Balls gives trusted Circles their own digital environment, where their people, computers, data, services, and intelligence can work together under their control.**
 
@@ -68,6 +69,28 @@ Use a new dedicated state directory, not a general-purpose folder. See the
 listing commands. The [`docs index`](docs/README.md) links the local-control, storage, security,
 and decision records.
 
+## Canary artifacts
+
+Every successful `main` commit publishes two short-lived workflow artifacts from the exact commit
+that passed CI:
+
+- a runnable `windows-x64` development Canary containing `balls`, `ballsd`, identity metadata,
+  and SHA-256 checksums;
+- a `linux-x64` build/test artifact whose manifest and README explicitly say that the runtime is
+  unsupported until `0.2.0-alpha.1`.
+
+Download the artifacts from the latest successful
+[`Canary` workflow](https://github.com/scwlkr/balls/actions/workflows/canary.yml). After extracting
+the downloaded Windows workflow artifact, install and start it with one command:
+
+```powershell
+pwsh -File .\Install-BallsCanary.ps1 -PackagePath .\balls-*-canary-windows-x64-*.zip
+```
+
+The installer verifies both checksum layers and uses the dedicated
+`%LOCALAPPDATA%\Balls-Canary\state` directory. Canary artifacts expire after 14 days. They are not
+GitHub Releases, tags, stable installers, signed binaries, or support claims.
+
 ## Contributing and security
 
 Read [`CONTRIBUTING.md`](CONTRIBUTING.md) before proposing a change. Report suspected
@@ -80,8 +103,8 @@ Balls source and documentation are licensed under the
 [Apache License 2.0](LICENSE). See [`NOTICE`](NOTICE) for the current attribution status.
 Contributions are accepted under the same terms without a CLA or copyright assignment.
 
-The repository remains private until its reachable history is sanitized and the owner explicitly
-approves public visibility. It is not yet open for external contribution.
+The public repository uses a sanitized lineage and is open for issue reports and contributions
+under the guidance above.
 
 ## Prior research
 
