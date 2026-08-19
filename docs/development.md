@@ -28,8 +28,9 @@ dotnet run --project eng/Balls.Verify --configuration Release -- full
 ```
 
 These commands are shell-neutral .NET CLI invocations; use them unchanged in PowerShell or Bash.
-Ubuntu CI runs `fast`. Windows CI runs `full`. WSL may be used as a Linux development executor,
-but it is not the Balls product runtime.
+The required Ubuntu and Windows pull-request lanes both run `fast`; use `full` locally and for
+release/risk gates that require every OS-integration test. WSL may be used as a Linux development
+executor, but it is not the Balls product runtime.
 
 `fast` and `full` each run locked restore, format verification, and exactly one Release build.
 They then reject uncategorized tests. `fast` runs the portable-safe categories; `full` runs every

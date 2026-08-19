@@ -19,18 +19,10 @@ env:
   DOTNET_NOLOGO: true
 
 jobs:
-  build-and-test:
-    name: Build and test (${{ matrix.os }})
-    runs-on: ${{ matrix.os }}
-    timeout-minutes: 20
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - os: windows-latest
-            verification: full
-          - os: ubuntu-latest
-            verification: fast
+  windows-fast:
+    name: Windows fast
+    runs-on: windows-2025
+    timeout-minutes: 10
 
     steps:
       - name: Check out repository
@@ -45,5 +37,47 @@ jobs:
           cache: true
           cache-dependency-path: '**/packages.lock.json'
 
-      - name: Run ${{ matrix.verification }} verification
-        run: dotnet run --project eng/Balls.Verify --configuration Release -- ${{ matrix.verification }}
+      - name: Run fast verification
+        run: dotnet run --project eng/Balls.Verify --configuration Release -- fast
+
+  ubuntu-fast:
+    name: Ubuntu fast
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Install .NET SDK
+        uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6.0.0
+        with:
+          global-json-file: global.json
+          cache: true
+          cache-dependency-path: '**/packages.lock.json'
+
+      - name: Run fast verification
+        run: dotnet run --project eng/Balls.Verify --configuration Release -- fast
+
+  required:
+    name: Required
+    needs: [windows-fast, ubuntu-fast]
+    if: ${{ always() }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 2
+
+    steps:
+      - name: Require successful platform lanes
+        shell: bash
+        env:
+          WINDOWS_RESULT: ${{ needs.windows-fast.result }}
+          UBUNTU_RESULT: ${{ needs.ubuntu-fast.result }}
+        run: |
+          if [[ "$WINDOWS_RESULT" != "success" || "$UBUNTU_RESULT" != "success" ]]; then
+            echo "Required lane failure: Windows=$WINDOWS_RESULT Ubuntu=$UBUNTU_RESULT" >&2
+            exit 1
+          fi
+
+          echo "Required Windows and Ubuntu lanes passed."

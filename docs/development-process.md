@@ -85,6 +85,19 @@ Do not schedule a nightly or weekly heavyweight suite until actual failures demo
 signal is worth its cost. A risky change cannot avoid its specific risk gate merely because the
 suite is normally rare.
 
+## Pull-request merge decision
+
+The required CI path uses fixed `windows-2025` and `ubuntu-24.04` hosted images. Each platform
+runs the repository `fast` command in parallel under stable `Windows fast` and `Ubuntu fast`
+names. A final `Required` job runs with `always()`, inspects both dependency results, and fails if
+either lane failed, was cancelled, or was skipped. Only `Required` is a branch-ruleset status,
+giving every pull request one fail-closed merge decision while retaining platform-specific logs.
+
+The workflow keeps read-only repository permission, SHA-pinned third-party actions, dependency
+caches, ten-minute lane timeouts, and stale-run cancellation. The repository allows squash merges
+only, deletes merged branches automatically, and enables auto-merge; `main` blocks deletion,
+force-pushes, and direct changes through its active ruleset.
+
 The implemented repository entry point is:
 
 ```text
