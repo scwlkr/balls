@@ -1,4 +1,15 @@
-# Relationship to `balls-server`
+# Relationship to archived `balls-server`
+
+## Repository status
+
+[`scwlkr/balls-server`](https://github.com/scwlkr/balls-server) was retired and publicly archived
+on August 19, 2026. Its sanitized public history, three pilot tags, prerelease assets, and one
+unmerged WIP preservation branch remain available as historical provenance. The default branch
+and preservation branch both refuse installation, and every pilot release is explicitly marked
+retired and unsupported.
+
+The archive was not deleted, renamed, made private, merged into this repository, or presented as a
+completed v0.4.0 release.
 
 ## Original prototype
 

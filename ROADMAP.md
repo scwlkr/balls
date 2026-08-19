@@ -30,11 +30,12 @@ No need for a polished GUI yet.
 
 ### Phase 0 checkpoint — 2026-08-19
 
-The local repository now has its foundational documents, enforced dependency tests, locked .NET
+The repository now has its foundational documents, enforced dependency tests, locked .NET
 toolchain and dependencies, Semantic Versioning policy, CI workflow, test conventions, threat
-model starter, and developer workflow. The CI definition is committed but cannot produce a hosted
-run until the repository has a configured remote. The source-license choice remains deliberately
-open until the first external release.
+model starter, and developer workflow. The private canonical GitHub repository is connected over
+SSH, and its Windows and Linux hosted CI jobs first passed on August 19, 2026. The source-license
+choice remains deliberately open, so public visibility and the first external release remain
+deferred.
 
 ## Phase 1 — First Circle
 

@@ -5,6 +5,10 @@ it is not the two-machine Phase 1 exit proof.
 
 ## Automated evidence
 
+- [GitHub Actions run 32269579896](https://github.com/scwlkr/balls/actions/runs/32269579896)
+  passed the locked restore, formatting, Release build, and full test gate on both
+  `windows-latest` and `ubuntu-latest` for commit `1b918c2`.
+
 The verified Release gate is:
 
 ```powershell

@@ -226,6 +226,10 @@ This is research territory and should be approached workload by workload.
 Balls is intended to remain open source. The exact license is an owner decision that must be made
 before the first external release; this checkpoint does not guess it.
 
+The canonical GitHub repository remains private until that decision is recorded. Before changing
+visibility, the owner must also decide whether the current human and company-like example names
+are intentional public product examples or should be replaced and removed from Git history.
+
 ## Decision rule
 
 When deciding between two technical designs, prefer the design that:
