@@ -49,7 +49,8 @@ jobs:
       - name: Locate pnpm store
         id: pnpm-store
         shell: pwsh
-        run: "store_path=$(pnpm store path --silent)" >> $env:GITHUB_OUTPUT
+        run: |
+          "store_path=$(pnpm store path --silent)" >> $env:GITHUB_OUTPUT
 
       - name: Cache pnpm store
         uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
