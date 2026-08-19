@@ -52,11 +52,14 @@ public sealed partial class RepositoryWorkflowTests
     {
         var root = FindRepositoryRoot();
         var rootPackage = File.ReadAllText(Path.Combine(root, "package.json"));
+        var gitAttributes = File.ReadAllText(Path.Combine(root, ".gitattributes"));
         var apiDirectory = Path.Combine(root, "web", "Balls.Web", "src", "api");
         var componentDirectory = Path.Combine(root, "web", "Balls.Web", "src", "components");
 
         Assert.AreEqual("24.18.0", File.ReadAllText(Path.Combine(root, ".node-version")).Trim());
         StringAssert.Contains(rootPackage, "\"packageManager\": \"pnpm@11.19.0\"");
+        StringAssert.Contains(gitAttributes, "*.ts text eol=lf");
+        StringAssert.Contains(gitAttributes, "*.tsx text eol=lf");
         Assert.IsTrue(File.Exists(Path.Combine(root, "pnpm-lock.yaml")));
         Assert.IsTrue(File.Exists(Path.Combine(
             root,
