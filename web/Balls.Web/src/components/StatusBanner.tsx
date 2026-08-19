@@ -1,0 +1,27 @@
+import type { DashboardSnapshot } from "../presentation/DashboardSnapshot";
+
+interface StatusBannerProps {
+  snapshot: DashboardSnapshot;
+}
+
+export function StatusBanner({ snapshot }: StatusBannerProps) {
+  return (
+    <aside className="status-banner" aria-label="Local Node status">
+      <span className="status-dot" aria-hidden="true" />
+      <div>
+        <strong>{snapshot.localNode.name}</strong>
+        <span>ballsd is ready on this device</span>
+      </div>
+      <dl className="status-facts">
+        <div>
+          <dt>Control</dt>
+          <dd>v{snapshot.protocolVersion}</dd>
+        </div>
+        <div>
+          <dt>Build</dt>
+          <dd>{snapshot.productVersion}</dd>
+        </div>
+      </dl>
+    </aside>
+  );
+}

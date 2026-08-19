@@ -1,0 +1,323 @@
+{
+  "openapi": "3.1.1",
+  "info": {
+    "title": "ballsd | v1",
+    "version": "1.0.0"
+  },
+  "servers": [{ "url": "http://localhost/" }],
+  "paths": {
+    "/control/v1/status": {
+      "get": {
+        "tags": ["ballsd"],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/StatusResponse" }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/control/v1/circles": {
+      "post": {
+        "tags": ["ballsd"],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/CreateCircleRequest" }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "Created",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/CircleDetailsResponse" }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ErrorResponse" }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ErrorResponse" }
+              }
+            }
+          }
+        }
+      },
+      "get": {
+        "tags": ["ballsd"],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/CircleListResponse" }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/control/v1/circles/{circleId}": {
+      "get": {
+        "tags": ["ballsd"],
+        "parameters": [
+          {
+            "name": "circleId",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "string" }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/CircleDetailsResponse" }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ErrorResponse" }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ErrorResponse" }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/control/v1/circles/{circleId}/members": {
+      "get": {
+        "tags": ["ballsd"],
+        "parameters": [
+          {
+            "name": "circleId",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "string" }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/MemberListResponse" }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ErrorResponse" }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ErrorResponse" }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/control/v1/circles/{circleId}/nodes": {
+      "get": {
+        "tags": ["ballsd"],
+        "parameters": [
+          {
+            "name": "circleId",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "string" }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/NodeListResponse" }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ErrorResponse" }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ErrorResponse" }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "CircleDetailsResponse": {
+        "required": ["circle", "members", "nodes"],
+        "type": "object",
+        "properties": {
+          "circle": { "$ref": "#/components/schemas/CircleResponse" },
+          "members": {
+            "type": "array",
+            "items": { "$ref": "#/components/schemas/MemberResponse" }
+          },
+          "nodes": {
+            "type": "array",
+            "items": { "$ref": "#/components/schemas/CircleNodeResponse" }
+          }
+        }
+      },
+      "CircleListResponse": {
+        "required": ["circles"],
+        "type": "object",
+        "properties": {
+          "circles": {
+            "type": "array",
+            "items": { "$ref": "#/components/schemas/CircleResponse" }
+          }
+        }
+      },
+      "CircleNodeResponse": {
+        "required": ["id", "displayName", "joinedAtUtc"],
+        "type": "object",
+        "properties": {
+          "id": { "type": "string" },
+          "displayName": { "type": "string" },
+          "joinedAtUtc": { "type": "string", "format": "date-time" }
+        }
+      },
+      "CircleResponse": {
+        "required": ["id", "name", "createdAtUtc", "memberCount", "nodeCount"],
+        "type": "object",
+        "properties": {
+          "id": { "type": "string" },
+          "name": { "type": "string" },
+          "createdAtUtc": { "type": "string", "format": "date-time" },
+          "memberCount": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": ["integer", "string"],
+            "format": "int32"
+          },
+          "nodeCount": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": ["integer", "string"],
+            "format": "int32"
+          }
+        }
+      },
+      "CreateCircleRequest": {
+        "required": ["requestId", "name", "ownerDisplayName"],
+        "type": "object",
+        "properties": {
+          "requestId": { "type": "string" },
+          "name": { "type": "string" },
+          "ownerDisplayName": { "type": "string" }
+        }
+      },
+      "ErrorResponse": {
+        "required": ["code", "message"],
+        "type": "object",
+        "properties": {
+          "code": { "type": "string" },
+          "message": { "type": "string" }
+        }
+      },
+      "MemberListResponse": {
+        "required": ["circleId", "members"],
+        "type": "object",
+        "properties": {
+          "circleId": { "type": "string" },
+          "members": {
+            "type": "array",
+            "items": { "$ref": "#/components/schemas/MemberResponse" }
+          }
+        }
+      },
+      "MemberResponse": {
+        "required": ["id", "displayName", "role", "joinedAtUtc"],
+        "type": "object",
+        "properties": {
+          "id": { "type": "string" },
+          "displayName": { "type": "string" },
+          "role": { "type": "string" },
+          "joinedAtUtc": { "type": "string", "format": "date-time" }
+        }
+      },
+      "NodeListResponse": {
+        "required": ["circleId", "nodes"],
+        "type": "object",
+        "properties": {
+          "circleId": { "type": "string" },
+          "nodes": {
+            "type": "array",
+            "items": { "$ref": "#/components/schemas/CircleNodeResponse" }
+          }
+        }
+      },
+      "NodeResponse": {
+        "required": ["id", "displayName", "createdAtUtc"],
+        "type": "object",
+        "properties": {
+          "id": { "type": "string" },
+          "displayName": { "type": "string" },
+          "createdAtUtc": { "type": "string", "format": "date-time" }
+        }
+      },
+      "StatusResponse": {
+        "required": ["productVersion", "protocolVersion", "node"],
+        "type": "object",
+        "properties": {
+          "productVersion": { "type": "string" },
+          "protocolVersion": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": ["integer", "string"],
+            "format": "int32"
+          },
+          "node": { "$ref": "#/components/schemas/NodeResponse" }
+        }
+      }
+    }
+  },
+  "tags": [{ "name": "ballsd" }]
+}

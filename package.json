@@ -1,0 +1,19 @@
+{
+  "name": "balls",
+  "private": true,
+  "packageManager": "pnpm@11.19.0",
+  "engines": {
+    "node": ">=24.18.0 <25",
+    "pnpm": "11.19.0"
+  },
+  "scripts": {
+    "web:build": "pnpm --dir web/Balls.Web build",
+    "web:format": "pnpm --dir web/Balls.Web format",
+    "web:format:check": "pnpm --dir web/Balls.Web format:check",
+    "web:generate": "pnpm --dir web/Balls.Web generate:api",
+    "web:generate:check": "pnpm --dir web/Balls.Web generate:check",
+    "web:lint": "pnpm --dir web/Balls.Web lint",
+    "web:test": "pnpm --dir web/Balls.Web test",
+    "web:typecheck": "pnpm --dir web/Balls.Web typecheck"
+  }
+}

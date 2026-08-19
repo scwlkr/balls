@@ -106,9 +106,11 @@ dotnet run --project eng/Balls.Verify --configuration Release -- fast
 dotnet run --project eng/Balls.Verify --configuration Release -- full
 ```
 
-It prints its underlying `dotnet` commands, builds only once in `fast` and `full`, rejects unknown
-categories, and makes an empty focused selection fail. The browser workspace will extend the same
-visible orchestration with standard `pnpm` commands when that workspace exists.
+It prints its underlying `dotnet` and `pnpm` commands, builds .NET only once in `fast` and `full`,
+rejects unknown categories, and makes an empty focused selection fail. The browser workspace uses
+the same visible orchestration for locked install, generated-client drift, format, lint, typecheck,
+component tests, and production build. Focused web verification accepts only named repository
+scripts rather than arbitrary shell input.
 
 ## Test taxonomy
 

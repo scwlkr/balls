@@ -32,7 +32,9 @@ can supply equivalent local IPC without changing the HTTP/JSON product contract.
 - Additive optional response fields may be introduced in v1. A breaking semantic or shape change
   requires a new versioned path.
 
-An inspectable OpenAPI document is available at `GET /control/v1/openapi.json`.
+An inspectable OpenAPI document is available at `GET /control/v1/openapi.json`. Its committed
+counterpart is [`local-control-v1.openapi.json`](local-control-v1.openapi.json); a daemon contract
+test detects drift, and the browser client is deterministically generated from that exact file.
 
 ## CLI output compatibility
 

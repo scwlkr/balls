@@ -20,6 +20,35 @@ public sealed class VerificationTests
     }
 
     [TestMethod]
+    public void Focused_web_request_accepts_only_repository_standard_scripts()
+    {
+        var request = VerificationRequestParser.Parse(
+            ["focused", "--web", "generate:check"]);
+
+        Assert.AreEqual(VerificationMode.Focused, request.Mode);
+        Assert.AreEqual("generate:check", request.WebScript);
+        Assert.ThrowsExactly<UsageException>(() =>
+            VerificationRequestParser.Parse(["focused", "--web", "arbitrary"]));
+    }
+
+    [TestMethod]
+    public void Focused_web_plan_installs_the_lockfile_and_runs_one_selected_script()
+    {
+        var plan = VerificationPlanner.Create(
+            new VerificationRequest(VerificationMode.Focused, WebScript: "test"),
+            "C:/repo",
+            "C:/results");
+
+        Assert.AreEqual(2, plan.Steps.Count);
+        CollectionAssert.AreEqual(
+            new[] { "install", "--frozen-lockfile" },
+            plan.Steps[0].Command.Arguments.TakeLast(2).ToArray());
+        CollectionAssert.AreEqual(
+            new[] { "web:test" },
+            plan.Steps[1].Command.Arguments.TakeLast(1).ToArray());
+    }
+
+    [TestMethod]
     public void Fast_plan_builds_once_and_selects_only_portable_safe_categories()
     {
         var plan = VerificationPlanner.Create(
@@ -29,14 +58,25 @@ public sealed class VerificationTests
 
         Assert.AreEqual(1, CountDotnetVerb(plan, "restore"));
         Assert.AreEqual(1, CountDotnetVerb(plan, "build"));
-        Assert.AreEqual(5, plan.Steps.Count);
-        Assert.AreEqual(TestCountRule.RequireZero, plan.Steps[3].TestCountRule);
+        Assert.AreEqual(12, plan.Steps.Count);
+        Assert.AreEqual(TestCountRule.RequireZero, plan.Steps[8].TestCountRule);
         CollectionAssert.Contains(
-            plan.Steps[4].Command.Arguments.ToArray(),
+            plan.Steps[9].Command.Arguments.ToArray(),
             "(TestCategory=Unit|TestCategory=Contract|TestCategory=ProcessIntegration)");
         CollectionAssert.DoesNotContain(
-            plan.Steps[4].Command.Arguments.ToArray(),
+            plan.Steps[9].Command.Arguments.ToArray(),
             "TestCategory=OSIntegration");
+        CollectionAssert.AreEqual(
+            new[]
+            {
+                "web:generate:check",
+                "web:format:check",
+                "web:lint",
+                "web:typecheck",
+                "web:test",
+                "web:build",
+            },
+            PnpmScripts(plan));
     }
 
     [TestMethod]
@@ -47,14 +87,17 @@ public sealed class VerificationTests
             "C:/repo",
             "C:/results");
 
-        Assert.AreEqual(5, plan.Steps.Count);
+        Assert.AreEqual(12, plan.Steps.Count);
         CollectionAssert.AreEqual(
             new[] { "restore", "format", "build", "test", "test" },
-            plan.Steps.Select(step => step.Command.Arguments[0]).ToArray());
-        Assert.AreEqual(TestCountRule.RequireZero, plan.Steps[3].TestCountRule);
-        CollectionAssert.DoesNotContain(plan.Steps[4].Command.Arguments.ToArray(), "--filter");
-        CollectionAssert.Contains(plan.Steps[4].Command.Arguments.ToArray(), "--no-build");
-        CollectionAssert.Contains(plan.Steps[4].Command.Arguments.ToArray(), "--no-restore");
+            plan.Steps
+                .Where(step => step.Command.FileName == "dotnet")
+                .Select(step => step.Command.Arguments[0])
+                .ToArray());
+        Assert.AreEqual(TestCountRule.RequireZero, plan.Steps[8].TestCountRule);
+        CollectionAssert.DoesNotContain(plan.Steps[9].Command.Arguments.ToArray(), "--filter");
+        CollectionAssert.Contains(plan.Steps[9].Command.Arguments.ToArray(), "--no-build");
+        CollectionAssert.Contains(plan.Steps[9].Command.Arguments.ToArray(), "--no-restore");
     }
 
     [TestMethod]
@@ -121,6 +164,15 @@ public sealed class VerificationTests
     private static int CountDotnetVerb(VerificationPlan plan, string verb) =>
         plan.Steps.Count(step =>
             step.Command.FileName == "dotnet" && step.Command.Arguments[0] == verb);
+
+    private static string[] PnpmScripts(VerificationPlan plan) =>
+        plan.Steps
+            .Where(step =>
+                step.Command.FileName == "pnpm"
+                || step.Command.Arguments.Contains("pnpm", StringComparer.Ordinal))
+            .Select(step => step.Command.Arguments[^1])
+            .Where(argument => argument.StartsWith("web:", StringComparison.Ordinal))
+            .ToArray();
 
     private static void WriteTrx(string directory, string fileName, int total)
     {
