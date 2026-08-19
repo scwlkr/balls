@@ -40,7 +40,8 @@ executor, but it is not the Balls product runtime.
 `fast` and `full` each run locked .NET and pnpm restore, format verification, and exactly one .NET
 Release build. They reject uncategorized tests, check generated browser-client drift, and run web
 lint, typecheck, component tests, and a production build. `fast` runs the portable-safe .NET
-categories; `full` runs every .NET test. Expanded, those standard commands include:
+categories; `full` runs every .NET test. Both finish with one real Playwright Chromium journey.
+Expanded, those standard commands include:
 
 ```powershell
 dotnet restore Balls.slnx --locked-mode
@@ -54,6 +55,7 @@ pnpm web:typecheck
 dotnet test Balls.slnx --configuration Release --no-build --no-restore --filter "(TestCategory=Unit|TestCategory=Contract|TestCategory=ProcessIntegration)"
 pnpm web:test
 pnpm web:build
+pnpm web:e2e
 dotnet test Balls.slnx --configuration Release --no-build --no-restore
 ```
 
@@ -67,14 +69,31 @@ affected lock files, and then rerun the full sequence.
 
 ## Run the browser workspace
 
-The current React shell uses typed synthetic status, Circle, Member, and Node states. It is not yet
-served by `ballsd` and does not establish the future loopback security boundary. To work on it:
+Start `ballsd` with a dedicated state directory and endpoint using the platform examples below.
+Then open the production UI through the same protected endpoint:
+
+```powershell
+dotnet run --project src/Balls.Cli --configuration Release --no-build -- --pipe-name balls-dev ui
+```
+
+With the Linux defaults, omit the endpoint override:
+
+```bash
+dotnet run --project src/Balls.Cli --configuration Release --no-build -- ui
+```
+
+`balls ui` requests a short-lived launch over protected IPC and opens the system browser; it does
+not print the launch capability. The UI is served entirely by `ballsd`, works without an external
+network connection, and uses the same durable Circle application behavior as the CLI.
+
+For browser development and verification:
 
 ```powershell
 corepack enable
 pnpm install --frozen-lockfile
 pnpm web:generate:check
-pnpm --dir web/Balls.Web dev
+pnpm web:test
+pnpm web:e2e
 ```
 
 The generated client is committed at `web/Balls.Web/src/api/generated`. Update it only with
@@ -209,7 +228,7 @@ Every current test class declares one of these `TestCategory` values:
 | `Contract` | architecture, protocol, storage, daemon, and CLI contracts | Yes |
 | `ProcessIntegration` | real `ballsd`/`balls` process acceptance | Yes |
 | `OSIntegration` | Windows ACL and named-pipe defaults | Full only |
-| `Browser` | React component tests through the repository pnpm workspace | Yes |
+| `Browser` | React components plus a real Chrome launch/create/list/restart journey | Yes |
 | `Lab` | reserved for explicit VM/multi-node evidence | No |
 
 The category audit fails if a test is added without a recognized category. `focused` also fails

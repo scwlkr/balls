@@ -8,8 +8,9 @@ This is the versioned, machine-local contract between `balls` or another local i
 ## Transport and access
 
 - HTTP/1.1 with JSON over a Windows named pipe or Linux Unix-domain socket.
-- No TCP listener is configured. The client's `http://localhost` base address is only the logical
-  HTTP authority used over the local IPC connection.
+- The full control plane has no TCP route. The client's `http://localhost` base address is only
+  the logical HTTP authority used over the local IPC connection. `ballsd` separately binds one
+  ephemeral IPv4 loopback listener for the narrow browser adapter described below.
 - Windows server and client use `CurrentUserOnly`; Linux requires an owned `0600` socket in an
   owned `0700` runtime directory. The operating-system user is the v1 local principal.
 - The Windows default pipe is `balls-control-<hash>`, where `<hash>` is the lowercase hexadecimal
@@ -32,9 +33,12 @@ can supply equivalent local IPC without changing the HTTP/JSON product contract.
 - Additive optional response fields may be introduced in v1. A breaking semantic or shape change
   requires a new versioned path.
 
-An inspectable OpenAPI document is available at `GET /control/v1/openapi.json`. Its committed
-counterpart is [`local-control-v1.openapi.json`](local-control-v1.openapi.json); a daemon contract
-test detects drift, and the browser client is deterministically generated from that exact file.
+An inspectable OpenAPI document is available over protected IPC at
+`GET /control/v1/openapi.json`. Its committed counterpart is
+[`local-control-v1.openapi.json`](local-control-v1.openapi.json); a daemon contract test detects
+drift, and the browser client is deterministically generated from that exact file. The document
+includes both the protected control routes and narrow browser projection, but the daemon enforces
+their distinct transports at runtime.
 
 ## CLI output compatibility
 
@@ -94,6 +98,10 @@ JSON mode carries stable CLI codes such as `usage_error`, `daemon_unavailable`,
 local-control error code. An invalid `--output` value cannot select a format, so that usage error
 uses the default text form.
 
+`balls ui` is intentionally text-only. It requests a launch capability through protected IPC,
+validates the returned loopback URL, opens the system browser, and prints no capability or session
+material. Selecting JSON output for this interactive command is a usage error.
+
 ## Shared representations
 
 | Type | Fields |
@@ -146,6 +154,12 @@ normalized name, owner name, and local Node returns the original Circle without 
 Reusing that ID for different input returns `409 Conflict` with
 `creation_request_conflict`.
 
+### `POST /control/v1/ui/launch`
+
+Returns the ephemeral loopback URL and expiry for a one-minute, single-use browser launch
+capability. The capability is in the URL fragment, never its query. This endpoint exists only on
+protected local IPC; it is not reachable from the browser listener.
+
 ### Read endpoints
 
 | Request | Success response |
@@ -157,6 +171,23 @@ Reusing that ID for different input returns `409 Conflict` with
 
 Lists are returned in stable creation/identifier order as defined by the local store. An unknown
 Circle returns `404 Not Found`.
+
+## Browser adapter
+
+The browser listener serves the bundled production application and only these `/browser/v1`
+routes: session exchange, status, Circle list/create, and Circle details. The browser control
+plane is intentionally narrower than `/control/v1`; control routes return `404` on TCP and browser
+routes return `404` over IPC.
+
+`POST /browser/v1/session` exchanges the launch capability once. Success sets the
+`__Host-balls-session` cookie with `HttpOnly`, `Secure`, `SameSite=Strict`, and `Path=/`, and returns
+an antiforgery token that remains in JavaScript memory. The session expires after 30 minutes.
+Every other browser route requires that cookie. State-changing routes additionally require the
+exact loopback `Origin` and `X-Balls-Antiforgery` header.
+
+All browser requests require the exact selected Host authority. Duplicate or hostile Host/Origin
+values fail closed, no permissive CORS headers are emitted, request bodies are capped at 32 KiB,
+and security responses use bounded public messages without reflecting credential material.
 
 ## Application errors
 

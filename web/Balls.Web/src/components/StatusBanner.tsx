@@ -1,7 +1,10 @@
 import type { DashboardSnapshot } from "../presentation/DashboardSnapshot";
 
 interface StatusBannerProps {
-  snapshot: DashboardSnapshot;
+  snapshot: Pick<
+    DashboardSnapshot,
+    "localNode" | "productVersion" | "protocolVersion"
+  >;
 }
 
 export function StatusBanner({ snapshot }: StatusBannerProps) {

@@ -47,8 +47,9 @@ remote Files, a company Beta, and a focused v1.0. See the compact [`roadmap`](RO
 
 The active milestone has platform-neutral host composition, protected native Linux state/IPC,
 stable machine-readable CLI output, and one typed React workspace generated from local-control v1.
-It next serves that UI through a hardened loopback boundary. Issue
-[#21](https://github.com/scwlkr/balls/issues/21) is the ready frontier.
+`balls ui` now opens that offline bundle through a hardened loopback-only adapter, where the user
+can inspect the Node and create or revisit Circles, Members, and Nodes. Issue
+[#22](https://github.com/scwlkr/balls/issues/22) is the next frontier after this delivery lands.
 
 ## Quick start
 
@@ -67,6 +68,7 @@ Leave the daemon running. In a second PowerShell window:
 dotnet run --project src/Balls.Cli --configuration Release --no-build -- --pipe-name balls-dev status
 dotnet run --project src/Balls.Cli --configuration Release --no-build -- --pipe-name balls-dev circle create "My Circle" --owner $env:USERNAME
 dotnet run --project src/Balls.Cli --configuration Release --no-build -- --pipe-name balls-dev circle list
+dotnet run --project src/Balls.Cli --configuration Release --no-build -- --pipe-name balls-dev ui
 dotnet run --project src/Balls.Cli --configuration Release --no-build -- --output json --pipe-name balls-dev status
 ```
 

@@ -12,4 +12,24 @@
   <ItemGroup>
     <PackageReference Include="Microsoft.AspNetCore.OpenApi" />
   </ItemGroup>
+  <Target Name="BuildBrowserBundle" BeforeTargets="CoreCompile" Condition="'$(DesignTimeBuild)' != 'true'">
+    <Exec
+      Command="pnpm web:build"
+      WorkingDirectory="$(MSBuildProjectDirectory)\..\.." />
+    <ItemGroup>
+      <_BrowserBundle Include="$(MSBuildProjectDirectory)\..\..\web\Balls.Web\dist\**\*" />
+    </ItemGroup>
+    <Copy
+      SourceFiles="@(_BrowserBundle)"
+      DestinationFiles="@(_BrowserBundle->'$(OutDir)wwwroot\%(RecursiveDir)%(Filename)%(Extension)')"
+      SkipUnchangedFiles="true" />
+  </Target>
+  <Target Name="PublishBrowserBundle" BeforeTargets="ComputeFilesToPublish" DependsOnTargets="BuildBrowserBundle">
+    <ItemGroup>
+      <ResolvedFileToPublish Include="@(_BrowserBundle)">
+        <RelativePath>wwwroot\%(RecursiveDir)%(Filename)%(Extension)</RelativePath>
+        <CopyToPublishDirectory>PreserveNewest</CopyToPublishDirectory>
+      </ResolvedFileToPublish>
+    </ItemGroup>
+  </Target>
 </Project>

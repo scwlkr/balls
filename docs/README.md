@@ -42,3 +42,4 @@ Use this directory for ADRs, threat models, protocol specifications, milestone d
 - [`verification/2026-08-19-canary-artifacts.md`](verification/2026-08-19-canary-artifacts.md) — deterministic Windows and explicitly unsupported Linux artifact evidence.
 - [`verification/2026-08-19-security-automation.md`](verification/2026-08-19-security-automation.md) — dependency review, CodeQL, Scorecard, action policy, and fork boundary.
 - [`verification/2026-08-19-open-fast-foundation.md`](verification/2026-08-19-open-fast-foundation.md) — final feedback budgets, exact-artifact checks, repository state, and owner acceptance gate.
+- [`verification/2026-08-19-browser-ui.md`](verification/2026-08-19-browser-ui.md) — hardened loopback boundary, live browser workspace, and Chromium evidence.

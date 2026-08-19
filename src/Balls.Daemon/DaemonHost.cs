@@ -1,10 +1,15 @@
+using System.Net;
 using System.Reflection;
 using Balls.Core;
 using Balls.Host;
 using Balls.Platform;
+using Balls.Protocol.Browser.V1;
 using Balls.Protocol.Control.V1;
 using Balls.Storage.Sqlite;
 using Microsoft.AspNetCore.Builder;
+using Microsoft.AspNetCore.Hosting.Server;
+using Microsoft.AspNetCore.Hosting.Server.Features;
+using Microsoft.AspNetCore.Server.Kestrel.Core;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 
@@ -67,6 +72,11 @@ public static class DaemonHost
                 store,
                 TimeProvider.System,
                 options.NodeDisplayName);
+            var browserAccess = new BrowserAccessBroker(
+                TimeProvider.System,
+                launchLifetime: TimeSpan.FromMinutes(1),
+                sessionLifetime: TimeSpan.FromMinutes(30));
+            var browserEndpoint = new BrowserEndpointState();
             await circleApplication.GetLocalNodeAsync(cancellationToken).ConfigureAwait(false);
             host.LocalState.Prepare(securedDataDirectory);
             host.LocalControlServer.PrepareEndpoint(options.LocalControlEndpoint);
@@ -89,6 +99,7 @@ public static class DaemonHost
                 json => ControlJson.Configure(json.SerializerOptions));
 
             application = builder.Build();
+            BrowserAdapter.ConfigurePipeline(application, browserAccess, browserEndpoint);
             application.MapGet(
                 ControlRoutes.Status,
                 async (CancellationToken token) =>
@@ -103,6 +114,16 @@ public static class DaemonHost
                             node.CreatedAtUtc));
                 })
                 .Produces<StatusResponse>(StatusCodes.Status200OK);
+            application.MapPost(
+                    ControlRoutes.BrowserLaunch,
+                    () =>
+                    {
+                        var launch = browserAccess.IssueLaunch(browserEndpoint.BaseUri);
+                        return new LaunchBrowserResponse(
+                            launch.Url.AbsoluteUri,
+                            launch.ExpiresAtUtc);
+                    })
+                .Produces<LaunchBrowserResponse>(StatusCodes.Status200OK);
             application.MapPost(
                 ControlRoutes.Circles,
                 async (CreateCircleRequest request, CancellationToken token) =>
@@ -188,8 +209,10 @@ public static class DaemonHost
                 .Produces<ErrorResponse>(StatusCodes.Status400BadRequest)
                 .Produces<ErrorResponse>(StatusCodes.Status404NotFound);
             application.MapOpenApi(ControlRoutes.OpenApi);
+            BrowserAdapter.MapRoutes(application, circleApplication, browserAccess);
 
             await application.StartAsync(cancellationToken).ConfigureAwait(false);
+            browserEndpoint.Initialize(FindBrowserBaseUri(application));
             host.LocalControlServer.SecureEndpoint(options.LocalControlEndpoint);
             return new DaemonInstance(
                 application,
@@ -247,12 +270,37 @@ public static class DaemonHost
     }
 
     private static void ConfigureServer(
-        Microsoft.AspNetCore.Server.Kestrel.Core.KestrelServerOptions server,
+        KestrelServerOptions server,
         ILocalControlServerTransport transport,
         string endpoint)
     {
         server.Limits.MaxRequestBodySize = 32 * 1024;
         transport.ConfigureServer(server, endpoint);
+        server.Listen(
+            IPAddress.Loopback,
+            0,
+            listener => listener.Protocols = HttpProtocols.Http1);
+    }
+
+    private static Uri FindBrowserBaseUri(WebApplication application)
+    {
+        var addresses = application.Services
+            .GetRequiredService<IServer>()
+            .Features
+            .Get<IServerAddressesFeature>()?
+            .Addresses
+            ?? throw new InvalidOperationException("Kestrel did not report its bound addresses.");
+        foreach (var address in addresses)
+        {
+            if (Uri.TryCreate(address, UriKind.Absolute, out var uri)
+                && IPAddress.TryParse(uri.Host, out var ipAddress)
+                && IPAddress.IsLoopback(ipAddress))
+            {
+                return new Uri(uri.GetLeftPart(UriPartial.Authority) + "/", UriKind.Absolute);
+            }
+        }
+
+        throw new InvalidOperationException("ballsd did not bind a loopback browser listener.");
     }
 
     private static async Task<CircleLookup> FindCircleAsync(

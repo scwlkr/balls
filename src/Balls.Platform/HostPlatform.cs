@@ -35,8 +35,14 @@ public interface ILocalControlClientTransport
     HttpClient CreateClient(string endpoint, TimeSpan? timeout = null);
 }
 
+public interface ISystemBrowserLauncher
+{
+    void Open(Uri uri);
+}
+
 public sealed record HostPlatform(
     HostDefaults Defaults,
     ILocalStatePreparer LocalState,
     ILocalControlServerTransport LocalControlServer,
-    ILocalControlClientTransport LocalControlClient);
+    ILocalControlClientTransport LocalControlClient,
+    ISystemBrowserLauncher SystemBrowser);

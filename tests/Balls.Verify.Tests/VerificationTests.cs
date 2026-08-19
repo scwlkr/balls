@@ -58,7 +58,7 @@ public sealed class VerificationTests
 
         Assert.AreEqual(1, CountDotnetVerb(plan, "restore"));
         Assert.AreEqual(1, CountDotnetVerb(plan, "build"));
-        Assert.AreEqual(12, plan.Steps.Count);
+        Assert.AreEqual(13, plan.Steps.Count);
         Assert.AreEqual(TestCountRule.RequireZero, plan.Steps[8].TestCountRule);
         CollectionAssert.Contains(
             plan.Steps[9].Command.Arguments.ToArray(),
@@ -75,6 +75,7 @@ public sealed class VerificationTests
                 "web:typecheck",
                 "web:test",
                 "web:build",
+                "web:e2e",
             },
             PnpmScripts(plan));
     }
@@ -87,7 +88,7 @@ public sealed class VerificationTests
             "C:/repo",
             "C:/results");
 
-        Assert.AreEqual(12, plan.Steps.Count);
+        Assert.AreEqual(13, plan.Steps.Count);
         CollectionAssert.AreEqual(
             new[] { "restore", "format", "build", "test", "test" },
             plan.Steps

@@ -56,6 +56,7 @@ internal static class VerificationRequestParser
     private static readonly HashSet<string> WebScripts =
     [
         "build",
+        "e2e",
         "format:check",
         "generate:check",
         "lint",
@@ -111,7 +112,7 @@ internal static class VerificationRequestParser
 
     private static UsageException Usage() => new(
         "Usage: Balls.Verify focused --project <path> --filter <expression> | " +
-        "focused --web <build|format:check|generate:check|lint|test|typecheck> | fast | full");
+        "focused --web <build|e2e|format:check|generate:check|lint|test|typecheck> | fast | full");
 }
 
 internal static class VerificationPlanner
@@ -214,6 +215,7 @@ internal static class VerificationPlanner
                 new VerificationStep(new VerificationCommand("dotnet", finalArguments, repositoryRoot)),
                 new VerificationStep(Pnpm(repositoryRoot, "web:test")),
                 new VerificationStep(Pnpm(repositoryRoot, "web:build")),
+                new VerificationStep(Pnpm(repositoryRoot, "web:e2e")),
             ]);
     }
 

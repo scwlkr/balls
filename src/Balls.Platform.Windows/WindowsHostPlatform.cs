@@ -22,7 +22,8 @@ public static class WindowsHostPlatform
                 "pipe"),
             new WindowsLocalStatePreparer(),
             transport,
-            transport);
+            transport,
+            new WindowsSystemBrowserLauncher());
     }
 
     private sealed class WindowsLocalStatePreparer : ILocalStatePreparer
@@ -70,6 +71,23 @@ public static class WindowsHostPlatform
         public HttpClient CreateClient(string endpoint, TimeSpan? timeout = null)
         {
             return WindowsNamedPipeHttpClient.Create(endpoint, timeout);
+        }
+    }
+
+    private sealed class WindowsSystemBrowserLauncher : ISystemBrowserLauncher
+    {
+        public void Open(Uri uri)
+        {
+            ArgumentNullException.ThrowIfNull(uri);
+            using var process = System.Diagnostics.Process.Start(
+                new System.Diagnostics.ProcessStartInfo(uri.AbsoluteUri)
+                {
+                    UseShellExecute = true,
+                });
+            if (process is null)
+            {
+                throw new IOException("Windows did not start the default browser.");
+            }
         }
     }
 }
