@@ -2,10 +2,9 @@
 
 ## Status
 
-`0.1.0-alpha.2` is a verified release candidate awaiting explicit owner acceptance. No tag or
-GitHub Release has been created. The accepted publication target will be the exact protected
-`main` commit and Canary artifacts recorded on issue
-[#8](https://github.com/scwlkr/balls/issues/8) after this record lands.
+[`0.1.0-alpha.2`](https://github.com/scwlkr/balls/releases/tag/0.1.0-alpha.2) is an owner-accepted
+public prerelease. Its annotated tag peels to exact protected commit
+`66b94a3fce9485ce448736f3dc996f6611f1e742`.
 
 ## Completed outcomes
 
@@ -46,7 +45,7 @@ both remain visible outside the required aggregate.
   repository's deleted source archive.
 - Squash-only auto-merge and merged-branch deletion remain enabled. The default workflow token is
   read-only, action SHA enforcement is enabled, and the `Required` ruleset decision is active.
-- There are zero product tags and zero GitHub Releases before owner acceptance.
+- Before owner acceptance there were zero product tags and zero GitHub Releases.
 
 ## Exact artifact observation
 
@@ -60,9 +59,11 @@ and temporary state were removed afterward. The exact downloaded Linux artifact 
 passed SHA-256, named the full accepted commit, reported `runtimeSupported: false`, and retained
 `Runtime unsupported until 0.2.0-alpha.1` in its README. Both artifacts expire September 2, 2026.
 
-This pre-version-bump observation proves the current packaging path. After the milestone version
-record lands, issue #8 records and independently smokes the exact `0.1.0-alpha.2` artifacts that
-are eligible for owner acceptance; no locally rebuilt substitute may be promoted.
+The final accepted-main [CI run 32302751491](https://github.com/scwlkr/balls/actions/runs/32302751491)
+produced exact `0.1.0-alpha.2` Windows artifact `9383713101` and Linux artifact `9383688669` from
+commit `66b94a3fce9485ce448736f3dc996f6611f1e742`. Both were independently downloaded before
+acceptance. Windows passed both checksum layers, fresh install/state, daemon startup, CLI status,
+and cleanup. Linux passed its checksum, version/commit manifest, and unsupported-runtime contract.
 
 ## Security and quality
 
@@ -88,10 +89,13 @@ The `0.2.0-alpha.1 — Cross-platform Node and Web UI` milestone has seven execu
 6. [#22 — Prove the Windows and Ubuntu Node/UI outcome and publish runnable Canaries](https://github.com/scwlkr/balls/issues/22)
 7. [#23 — Verify and accept the Cross-platform Node and Web UI milestone](https://github.com/scwlkr/balls/issues/23)
 
-#17 is the first frontier after #8 is accepted. All seven remain blocked while the current
-milestone and owner publication decision are open.
+#17 is active and ready. #18–#23 remain dependency-blocked.
 
-## Owner gate
+## Publication verification
 
-Owner acceptance must explicitly authorize tagging and publishing `0.1.0-alpha.2`. Until then,
-the milestone remains open, #8 remains open, #17 remains blocked, and no tag or Release is created.
+The owner explicitly accepted tagging the exact candidate and publishing its exact artifacts,
+checksums, installer, and SPDX SBOM. The public prerelease contains six assets. Anonymous API/tag
+readback and every anonymous asset download passed; all assets matched the verified inputs
+byte-for-byte. The public Windows archive repeated the fresh-state smoke, the Linux archive
+remained explicitly unsupported, and the SPDX 2.3 SBOM contained 14 dependency packages. Release
+notes make no signing, attestation, Linux-runtime, Stable-support, or physical-machine claim.

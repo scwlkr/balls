@@ -32,8 +32,8 @@ Balls should first feel exceptional for **2–10 trusted, somewhat technical peo
 
 ## Current status
 
-**`0.1.0-alpha.2` Open and Fast Foundation is a verified release candidate awaiting explicit
-owner acceptance.**
+**[`0.1.0-alpha.2`](https://github.com/scwlkr/balls/releases/tag/0.1.0-alpha.2) Open and Fast
+Foundation is published; `0.2.0-alpha.1` Cross-platform Node and Web UI is active.**
 
 On Windows, `ballsd` now owns persistent local Node and Circle state, and `balls` can create a
 Circle and list its Circles, Members, and Nodes through a versioned HTTP/JSON API over a same-user
@@ -45,8 +45,9 @@ then a cross-platform daemon/CLI/browser foundation, trusted join, LAN Circle Fi
 remote Files, a company Beta, and a focused v1.0. See the compact [`roadmap`](ROADMAP.md), detailed
 [`files-first program`](docs/roadmap/files-first-v1.md), and [`current state`](docs/STATE.md).
 
-No `0.1.0-alpha.2` tag or GitHub Release exists before that acceptance. The next milestone's
-executable issues are prepared but remain blocked behind the current owner gate.
+The next milestone starts with platform-neutral host composition, then adds protected native Linux
+state/IPC and one hardened local TypeScript browser UI. Issue
+[#17](https://github.com/scwlkr/balls/issues/17) is the ready frontier.
 
 ## Quick start
 

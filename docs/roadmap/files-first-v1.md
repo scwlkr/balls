@@ -25,8 +25,9 @@ system grows.
 [#7 security automation](https://github.com/scwlkr/balls/issues/7), and
 [#8 milestone verification/acceptance](https://github.com/scwlkr/balls/issues/8).
 
-#3–#7 are closed with hosted evidence. #8 is the final explicit owner gate; no Alpha tag or GitHub
-Release is created before acceptance.
+#3–#8 are closed with hosted evidence. The owner accepted exact commit
+`66b94a3fce9485ce448736f3dc996f6611f1e742`; its annotated tag and public prerelease were verified
+through unauthenticated downloads.
 
 **Exit evidence:** fast-loop budgets measured; fixed Windows/Linux checks green; the Windows
 Canary starts; the Linux artifact builds/tests and is labeled runtime-unsupported until
@@ -50,8 +51,8 @@ cross-platform; the UI does not create a second product implementation.
 6. [#22 prove the Windows/Ubuntu outcome and runnable Canaries](https://github.com/scwlkr/balls/issues/22);
 7. [#23 verify and accept the milestone](https://github.com/scwlkr/balls/issues/23).
 
-All seven are blocked until #8 closes. #17 is the first ready frontier after owner acceptance;
-later issues form the dependency chain recorded in their acceptance contracts.
+#17 is the ready frontier. Later issues form the dependency chain recorded in their acceptance
+contracts.
 
 **Exit evidence:** Windows host and Ubuntu VM independently persist Node identity and pass the same
 CLI/API acceptance flow; the browser opens through `balls ui`; no non-loopback browser listener;

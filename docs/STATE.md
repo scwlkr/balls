@@ -17,7 +17,7 @@ replicated storage, richer messaging, macOS polish, and compute remain later pro
 
 ## Proven checkpoint
 
-The `0.1.0-alpha.2` release candidate currently proves on Windows:
+Published [`0.1.0-alpha.2`](https://github.com/scwlkr/balls/releases/tag/0.1.0-alpha.2) proves on Windows:
 
 - Core, Protocol, SQLite, Windows adapter, daemon, and CLI boundaries;
 - persistent local Node identity;
@@ -31,28 +31,25 @@ Linux currently builds and runs portable tests, but `ballsd` and `balls` reject 
 
 ## Active milestone
 
-**`0.1.0-alpha.2` — Open and Fast Foundation**
+**`0.2.0-alpha.1` — Cross-platform Node and Web UI**
 
-[Open the active GitHub milestone](https://github.com/scwlkr/balls/milestone/1).
+[Open the active GitHub milestone](https://github.com/scwlkr/balls/milestone/2).
 
-Exit outcome: the repository passes an early owner-approved public transition, every green `main`
-produces a runnable Windows Canary plus an explicitly unsupported Linux build/test artifact, and
-an agent has a sub-minute local workflow plus a sub-five-minute Windows/Linux pull-request gate.
-Linux becomes a runnable Canary in `0.2.0-alpha.1` when its native runtime lands.
-
-The exit outcome is implemented and verified. No `0.1.0-alpha.2` tag or GitHub Release exists;
-issue #8 and the milestone remain open until the owner explicitly accepts publication.
+Exit outcome: the same CLI and local browser experience controls a real Node on Windows and Linux;
+platform composition, protected state, and local IPC are genuinely cross-platform; green `main`
+publishes runnable Windows and Linux Canaries.
 
 The active GitHub milestone owns executable tickets. Do not start product features from a future
 milestone while a ready active-milestone ticket exists.
 
-Completed transition:
+Completed Open and Fast Foundation:
 
 - [#3 — Prepare and approve the public repository transition](https://github.com/scwlkr/balls/issues/3)
 - [#4 — Create the sub-minute developer verification command](https://github.com/scwlkr/balls/issues/4)
 - [#5 — Establish the protected pull-request workflow](https://github.com/scwlkr/balls/issues/5)
 - [#6 — Publish green-main Canary artifacts](https://github.com/scwlkr/balls/issues/6)
 - [#7 — Add the post-public security automation baseline](https://github.com/scwlkr/balls/issues/7)
+- [#8 — Verify and accept the Open and Fast Foundation milestone](https://github.com/scwlkr/balls/issues/8)
 
 The owner-approved clean lineage is public at `scwlkr/balls`. Private vulnerability reporting and
 the active `main` rules are verified, anonymous web/API/Git reads pass, and both the original
@@ -87,15 +84,9 @@ readback, and next executable milestone are reconciled in the
 
 Ready frontier:
 
-- [#8 — Verify and accept the Open and Fast Foundation milestone](https://github.com/scwlkr/balls/issues/8)
-
-Issue #8 is the final milestone verification and explicit owner-acceptance gate.
-
-Prepared next frontier after acceptance:
-
 - [#17 — Compose daemon and CLI through cross-platform host seams](https://github.com/scwlkr/balls/issues/17)
 
-#17–#23 are executable under milestone `0.2.0-alpha.1` but remain labeled `blocked` until #8 closes.
+#18–#23 remain dependency-blocked behind the issue chain recorded in their acceptance contracts.
 
 ## Working rules
 
