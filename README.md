@@ -1,5 +1,7 @@
 # Balls
 
+[![CI](https://github.com/scwlkr/balls/actions/workflows/ci.yml/badge.svg)](https://github.com/scwlkr/balls/actions/workflows/ci.yml)
+
 **Balls gives trusted Circles their own digital environment, where their people, computers, data, services, and intelligence can work together under their control.**
 
 Balls is an open-source platform for small, trusted groups. A Circle can combine people, computers, servers, VPSs, storage, messaging, files, AI, apps, and eventually contributed compute into one coherent workspace.
@@ -65,6 +67,18 @@ Use a new dedicated state directory, not a general-purpose folder. See the
 listing commands. The [`docs index`](docs/README.md) links the local-control, storage, security,
 and decision records.
 
+## Contributing and security
+
+Read [`CONTRIBUTING.md`](CONTRIBUTING.md) before proposing a change. Report suspected
+vulnerabilities through [GitHub private vulnerability reporting](https://github.com/scwlkr/balls/security/advisories/new),
+not a public issue.
+
+## License
+
+Balls is intended to remain open source, but the owner has not selected the source license yet.
+No external release will be made until that decision is recorded.
+
 ## Prior research
 
-The original Windows file-sharing prototype lives separately in `scwlkr/balls-server`. It is prior research, not the architecture of this project.
+The [original Windows file-sharing prototype](https://github.com/scwlkr/balls-server) is archived
+prior research, not the architecture of this project.
