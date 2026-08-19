@@ -19,7 +19,27 @@ public static class LinuxHostPlatform
                 "socket"),
             new LinuxLocalStatePreparer(),
             transport,
-            transport);
+            transport,
+            new LinuxSystemBrowserLauncher());
+    }
+
+    private sealed class LinuxSystemBrowserLauncher : ISystemBrowserLauncher
+    {
+        public void Open(Uri uri)
+        {
+            ArgumentNullException.ThrowIfNull(uri);
+            var startInfo = new System.Diagnostics.ProcessStartInfo("xdg-open")
+            {
+                UseShellExecute = false,
+                CreateNoWindow = true,
+            };
+            startInfo.ArgumentList.Add(uri.AbsoluteUri);
+            using var process = System.Diagnostics.Process.Start(startInfo);
+            if (process is null)
+            {
+                throw new IOException("Linux did not start the default browser.");
+            }
+        }
     }
 
     public static string GetDefaultStateDirectory()

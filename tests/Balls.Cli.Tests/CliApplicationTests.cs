@@ -1,6 +1,8 @@
 using System.Text.Json;
 using Balls.Cli;
 using Balls.Daemon;
+using Balls.Host;
+using Balls.Platform;
 using Balls.Platform.Windows;
 using Balls.Protocol.Control.V1;
 
@@ -101,7 +103,7 @@ public sealed class CliApplicationTests
         Assert.AreEqual(string.Empty, misplacedOutput.ToString());
         Assert.AreEqual(
             "balls: --output must be either 'text' or 'json'." + Environment.NewLine
-                + "commands: status | circle create | circle list | member list | node list"
+                + "commands: ui | status | circle create | circle list | member list | node list"
                 + Environment.NewLine,
             unsupportedError.ToString());
         StringAssert.StartsWith(misplacedError.ToString(), "balls: unknown command.");
@@ -276,6 +278,41 @@ public sealed class CliApplicationTests
     }
 
     [TestMethod]
+    public async Task Ui_requests_a_one_time_launch_and_opens_it_without_printing_the_capability()
+    {
+        using var directory = new TemporaryDirectory();
+        var endpoint = OperatingSystem.IsWindows()
+            ? $"balls-ui-{Guid.NewGuid():N}"
+            : Path.Combine(directory.Path, "runtime", "control.sock");
+        await using var daemon = await DaemonHost.StartAsync(
+            new DaemonOptions(Path.Combine(directory.Path, "state"), endpoint, "Browser-PC"));
+        var selection = HostPlatformSelector.SelectCurrent();
+        var host = ((SupportedHostPlatform)selection).Platform;
+        var browser = new RecordingBrowserLauncher();
+        host = host with { SystemBrowser = browser };
+        var output = new StringWriter();
+        var error = new StringWriter();
+
+        var exitCode = await CliApplication.RunAsync(
+            ["--pipe-name", endpoint, "ui"],
+            output,
+            error,
+            host);
+
+        Assert.AreEqual(CliExitCodes.Success, exitCode);
+        Assert.IsNotNull(browser.OpenedUri);
+        Assert.AreEqual("http", browser.OpenedUri.Scheme);
+        Assert.IsTrue(System.Net.IPAddress.IsLoopback(
+            System.Net.IPAddress.Parse(browser.OpenedUri.Host)));
+        Assert.AreEqual(string.Empty, browser.OpenedUri.Query);
+        StringAssert.StartsWith(browser.OpenedUri.Fragment, "#launch=");
+        Assert.AreEqual("Opened the local Balls workspace." + Environment.NewLine, output.ToString());
+        Assert.IsFalse(output.ToString().Contains("launch=", StringComparison.Ordinal));
+        Assert.IsFalse(error.ToString().Contains("launch=", StringComparison.Ordinal));
+        Assert.AreEqual(string.Empty, error.ToString());
+    }
+
+    [TestMethod]
     public async Task Cli_and_daemon_report_the_same_semantic_version_without_starting_services()
     {
         var cliOutput = new StringWriter();
@@ -318,6 +355,17 @@ public sealed class CliApplicationTests
     }
 
     private sealed record CliResult(int ExitCode, string StandardOutput, string StandardError);
+
+    private sealed class RecordingBrowserLauncher : ISystemBrowserLauncher
+    {
+        public Uri? OpenedUri { get; private set; }
+
+        public void Open(Uri uri)
+        {
+            Assert.IsNull(OpenedUri);
+            OpenedUri = uri;
+        }
+    }
 
     private sealed class TemporaryDirectory : IDisposable
     {

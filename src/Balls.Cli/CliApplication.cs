@@ -1,7 +1,10 @@
+using System.Net;
 using System.Net.Http.Json;
 using System.Reflection;
 using System.Text.Json;
 using Balls.Host;
+using Balls.Platform;
+using Balls.Protocol.Browser.V1;
 using Balls.Protocol.Control.V1;
 
 namespace Balls.Cli;
@@ -45,6 +48,56 @@ public static class CliApplication
         }
 
         var host = ((SupportedHostPlatform)selection).Platform;
+        return await RunWithHostAsync(
+            parseResult,
+            host,
+            standardOutput,
+            standardError,
+            cancellationToken).ConfigureAwait(false);
+    }
+
+    internal static async Task<int> RunAsync(
+        string[] arguments,
+        TextWriter standardOutput,
+        TextWriter standardError,
+        HostPlatform host,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(arguments);
+        ArgumentNullException.ThrowIfNull(standardOutput);
+        ArgumentNullException.ThrowIfNull(standardError);
+        ArgumentNullException.ThrowIfNull(host);
+
+        if (arguments.SequenceEqual(["--version"], StringComparer.Ordinal))
+        {
+            await standardOutput.WriteLineAsync(GetProductVersion());
+            return CliExitCodes.Success;
+        }
+
+        var parseResult = ParseGlobalOptions(arguments);
+        if (parseResult.Error is not null)
+        {
+            return await WriteUsageErrorAsync(
+                standardError,
+                parseResult.OutputFormat,
+                parseResult.Error);
+        }
+
+        return await RunWithHostAsync(
+            parseResult,
+            host,
+            standardOutput,
+            standardError,
+            cancellationToken).ConfigureAwait(false);
+    }
+
+    private static async Task<int> RunWithHostAsync(
+        GlobalOptionsParseResult parseResult,
+        HostPlatform host,
+        TextWriter standardOutput,
+        TextWriter standardError,
+        CancellationToken cancellationToken)
+    {
         var tokens = parseResult.CommandTokens;
         var localControlEndpoint = parseResult.LocalControlEndpoint
             ?? host.Defaults.LocalControlEndpoint;
@@ -65,6 +118,17 @@ public static class CliApplication
         using (client)
             try
             {
+                if (tokens.SequenceEqual(["ui"], StringComparer.Ordinal))
+                {
+                    return await LaunchBrowserAsync(
+                        client,
+                        host.SystemBrowser,
+                        parseResult.OutputFormat,
+                        standardOutput,
+                        standardError,
+                        cancellationToken).ConfigureAwait(false);
+                }
+
                 if (tokens.SequenceEqual(["status"], StringComparer.Ordinal))
                 {
                     return await GetStatusAsync(
@@ -129,6 +193,74 @@ public static class CliApplication
                     $"ballsd is unavailable on the selected local control {host.Defaults.LocalControlEndpointDescription}.");
                 return CliExitCodes.DaemonUnavailable;
             }
+    }
+
+    private static async Task<int> LaunchBrowserAsync(
+        HttpClient client,
+        ISystemBrowserLauncher browser,
+        CliOutputFormat outputFormat,
+        TextWriter output,
+        TextWriter error,
+        CancellationToken cancellationToken)
+    {
+        if (outputFormat != CliOutputFormat.Text)
+        {
+            return await WriteUsageErrorAsync(
+                error,
+                outputFormat,
+                "ui supports text output only.");
+        }
+
+        using var response = await client.PostAsync(
+            ControlRoutes.BrowserLaunch,
+            content: null,
+            cancellationToken).ConfigureAwait(false);
+        var result = await ReadResponseAsync<LaunchBrowserResponse>(
+            response,
+            outputFormat,
+            error,
+            cancellationToken).ConfigureAwait(false);
+        if (result.Value is null)
+        {
+            return result.ExitCode;
+        }
+
+        if (!Uri.TryCreate(result.Value.Url, UriKind.Absolute, out var launchUri)
+            || launchUri.Scheme != Uri.UriSchemeHttp
+            || !IPAddress.TryParse(launchUri.Host, out var address)
+            || !IPAddress.IsLoopback(address)
+            || !string.IsNullOrEmpty(launchUri.UserInfo)
+            || !string.IsNullOrEmpty(launchUri.Query)
+            || !launchUri.Fragment.StartsWith("#launch=", StringComparison.Ordinal)
+            || launchUri.Fragment.Length <= "#launch=".Length)
+        {
+            await WriteErrorAsync(
+                error,
+                outputFormat,
+                "invalid_daemon_response",
+                "ballsd returned an invalid browser launch address.");
+            return CliExitCodes.RequestRejected;
+        }
+
+        try
+        {
+            browser.Open(launchUri);
+        }
+        catch (Exception exception) when (
+            exception is InvalidOperationException
+                or IOException
+                or System.ComponentModel.Win32Exception)
+        {
+            await WriteErrorAsync(
+                error,
+                outputFormat,
+                "browser_launch_failed",
+                "The system browser could not be opened.");
+            return CliExitCodes.RequestRejected;
+        }
+
+        await output.WriteLineAsync("Opened the local Balls workspace.");
+        return CliExitCodes.Success;
     }
 
     private static async Task<int> GetStatusAsync(
@@ -508,7 +640,7 @@ public static class CliApplication
         if (outputFormat == CliOutputFormat.Text)
         {
             await error.WriteLineAsync(
-                "commands: status | circle create | circle list | member list | node list");
+                "commands: ui | status | circle create | circle list | member list | node list");
         }
 
         return CliExitCodes.UsageError;
