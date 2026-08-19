@@ -115,7 +115,42 @@ Use WSL as an optional Windows workload runtime where useful.
 
 Strongly typed, versioned APIs.
 
-gRPC/Protocol Buffers is a recommended starting point.
+Phase 1 starts with versioned HTTP/JSON over protected local OS IPC because its
+initial calls are unary and benefit from direct inspectability. gRPC/Protocol
+Buffers remains a candidate when streaming, code generation, or
+interoperability requirements justify it. See
+[`ADR 0001`](docs/decisions/0001-local-control-api.md) and the implemented
+[`local-control v1 contract`](docs/protocol/local-control-v1.md).
+
+### Phase 1 Slice 1 implementation checkpoint
+
+As of 2026-08-19, the first local vertical slice is implemented on Windows:
+
+- `ballsd` and `balls` communicate through versioned HTTP/JSON over a same-user named pipe;
+- Node and Circle identities persist in local SQLite state;
+- Circle creation atomically records one Owner and enrolls the local Node;
+- the CLI can inspect daemon status and list Circles, Members, and Nodes;
+- a dedicated marked state directory, Windows ACL protection, database application ID, exact
+  schema validation, and an exclusive daemon lease fail closed on unsafe state.
+
+This is a checkpoint, not Phase 1 completion. Invitation/admission, join, authenticated
+Node-to-Node transport, two-machine membership, and persistent messaging remain next-slice work.
+See the [`Slice 1 design`](docs/design/phase-1-slice-1.md),
+[`ADR 0002`](docs/decisions/0002-protected-local-state.md), and
+[`SQLite local-state v1`](docs/storage/sqlite-local-state-v1.md).
+
+### Local state
+
+SQLite is the first local durable-state provider, not the definition of Circle-wide replicated
+state. Each daemon owns a dedicated platform-protected directory, and the store identifies and
+validates its schema before use. Unknown, future, incomplete, or corrupt state is left unchanged
+and startup fails. See [`ADR 0002`](docs/decisions/0002-protected-local-state.md).
+
+### Versioning
+
+Product binaries follow Semantic Versioning from one repository-wide version; Slice 1 is
+`0.1.0-alpha.1`. Wire/API path versions and storage schema versions remain independent
+compatibility axes. A product version bump must not silently redefine either contract.
 
 ### Transport
 
@@ -185,6 +220,11 @@ Could include:
 ### Large-scale distributed compute
 
 This is research territory and should be approached workload by workload.
+
+### Source license
+
+Balls is intended to remain open source. The exact license is an owner decision that must be made
+before the first external release; this checkpoint does not guess it.
 
 ## Decision rule
 

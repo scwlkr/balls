@@ -15,8 +15,8 @@ Read these documents in order:
 3. [`PRINCIPLES.md`](PRINCIPLES.md) — decisions and boundaries that should survive implementation changes.
 4. [`ARCHITECTURE.md`](ARCHITECTURE.md) — recommended technical foundation.
 5. [`GLOSSARY.md`](GLOSSARY.md) — canonical product language.
-6. [`ROADMAP.md`](ROADMAP.md) — staged path from a fresh repo to the larger vision.
-7. [`DECISIONS.md`](DECISIONS.md) — confirmed decisions, recommendations, and intentionally open questions.
+6. [`DECISIONS.md`](DECISIONS.md) — confirmed decisions, recommendations, and intentionally open questions.
+7. [`ROADMAP.md`](ROADMAP.md) — staged path from a fresh repo to the larger vision.
 8. [`LEGACY.md`](LEGACY.md) — relationship to the original `balls-server` prototype.
 9. [`AGENTS.md`](AGENTS.md) — instructions for Codex and other coding agents.
 
@@ -28,8 +28,43 @@ Read these documents in order:
 
 Balls should first feel exceptional for **2–10 trusted, somewhat technical people**, with a **2–5 person small company** as the primary proving environment.
 
-## Status
+## Current status
 
-This repository seed defines the product and architecture before production code exists.
+**Phase 1 Slice 1 is implemented as a local checkpoint; Phase 1 is not complete.**
+
+On Windows, `ballsd` now owns persistent local Node and Circle state, and `balls` can create a
+Circle and list its Circles, Members, and Nodes through a versioned HTTP/JSON API over a same-user
+named pipe. SQLite state is held in a dedicated marked directory with protected Windows ACLs and
+fail-closed application-ID and schema validation.
+
+The next slice must add invitation/admission, join, authenticated Node-to-Node communication,
+two-real-machine membership evidence, and a persistent Circle message path. AI, apps, distributed
+compute, and a universal filesystem remain outside Phase 1.
+
+## Quick start
+
+On Windows with the .NET SDK selected by [`global.json`](global.json):
+
+```powershell
+dotnet restore Balls.slnx --locked-mode
+dotnet build Balls.slnx --configuration Release --no-restore
+$ballsDevState = Join-Path $env:LOCALAPPDATA "Balls-Dev"
+dotnet run --project src/Balls.Daemon --configuration Release --no-build -- --data-directory $ballsDevState --pipe-name balls-dev --node-name $env:COMPUTERNAME
+```
+
+Leave the daemon running. In a second PowerShell window:
+
+```powershell
+dotnet run --project src/Balls.Cli --configuration Release --no-build -- --pipe-name balls-dev status
+dotnet run --project src/Balls.Cli --configuration Release --no-build -- --pipe-name balls-dev circle create "My Circle" --owner $env:USERNAME
+dotnet run --project src/Balls.Cli --configuration Release --no-build -- --pipe-name balls-dev circle list
+```
+
+Use a new dedicated state directory, not a general-purpose folder. See the
+[`developer workflow`](docs/development.md) for the full verification sequence and participant
+listing commands. The [`docs index`](docs/README.md) links the local-control, storage, security,
+and decision records.
+
+## Prior research
 
 The original Windows file-sharing prototype lives separately in `scwlkr/balls-server`. It is prior research, not the architecture of this project.

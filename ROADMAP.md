@@ -28,6 +28,14 @@ Deliver:
 
 No need for a polished GUI yet.
 
+### Phase 0 checkpoint — 2026-08-19
+
+The local repository now has its foundational documents, enforced dependency tests, locked .NET
+toolchain and dependencies, Semantic Versioning policy, CI workflow, test conventions, threat
+model starter, and developer workflow. The CI definition is committed but cannot produce a hosted
+run until the repository has a configured remote. The source-license choice remains deliberately
+open until the first external release.
+
 ## Phase 1 — First Circle
 
 **Goal:** prove the core abstraction.
@@ -44,6 +52,30 @@ A user can:
 - establish trusted local connectivity.
 
 This phase should prove Circle identity and Node identity before adding many features.
+
+### Phase 1 Slice 1 checkpoint — 2026-08-19
+
+**Status: implemented checkpoint; Phase 1 remains in progress.**
+
+Proven locally on Windows:
+
+- clean Core, Protocol, daemon, CLI, SQLite, and Windows-platform boundaries;
+- persistent local Node identity;
+- atomic, idempotent Circle creation with one Owner and the local Node enrolled;
+- local Circle, Member, and Node inspection through typed local-control v1 contracts;
+- same-user named-pipe HTTP/JSON without a TCP listener;
+- a dedicated marked state directory with protected ACLs, exclusive daemon ownership, database
+  application ID, and fail-closed schema/integrity validation;
+- automated unit, integration, architecture, and Windows process-boundary coverage.
+
+Still required before Phase 1 can complete:
+
+- invitation, admission, and join semantics tied to durable Circle identity;
+- authenticated and authorized Node-to-Node protocol and transport;
+- two real machines participating in and recognizing the same Circle after restart;
+- one simple persistent Circle message path and its real-machine evidence.
+
+AI, apps, distributed compute, Circle Files, and a universal filesystem remain explicitly deferred.
 
 ### Exit idea
 

@@ -101,12 +101,16 @@ A future cross-platform desktop UI can be selected independently.
 
 `ballsd` exposes a versioned local control API.
 
-Recommended:
+Recommended contract qualities:
 
 - strongly typed schemas;
-- gRPC/Protocol Buffers or another equally explicit RPC contract;
+- an explicit, versioned RPC contract;
 - Windows local transport via named pipes where appropriate;
 - Linux/macOS local transport via Unix-domain sockets where appropriate.
+
+Phase 1 begins with versioned HTTP/JSON over local OS IPC. gRPC/Protocol
+Buffers remains an option when streaming, code generation, or interoperability
+requirements justify it. See `docs/decisions/0001-local-control-api.md`.
 
 The local API supports:
 
@@ -488,7 +492,7 @@ The exact names can evolve.
 
 The important part is dependency direction.
 
-## Dependency direction
+## Runtime call flow
 
 Prefer:
 
@@ -505,6 +509,17 @@ GUI / CLI / integrations
           │
   OS-specific adapters
 ```
+
+The arrows above describe runtime calls. Compile-time dependencies point
+inward: Core owns the platform and persistence contracts it consumes;
+adapters implement those contracts and depend on Core; the daemon references
+and composes the selected adapters. Core never references an adapter.
+
+Host-edge adapters are a separate category. Local IPC clients/servers and
+state-directory OS policy support the CLI or daemon composition boundary and
+need not implement or reference a Core port. `Balls.Platform.Windows` contains
+that host-edge behavior in Slice 1; future Windows capability adapters that
+implement Core-owned ports should be split by capability when they become real.
 
 Avoid:
 
