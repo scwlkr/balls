@@ -31,6 +31,12 @@ developer contract requires future browser commands to stay visible when that wo
 
 ## CI evidence
 
-The pull request must pass the same `fast` mode on `ubuntu-latest` and `full` mode on
-`windows-latest`. Their GitHub check URLs and observed durations are added to the issue after the
-pull request completes.
+Pull request [#11](https://github.com/scwlkr/balls/pull/11) passed both clean hosted paths:
+
+| Host | Mode | Result | Duration |
+| --- | --- | --- | ---: |
+| [`ubuntu-latest`](https://github.com/scwlkr/balls/actions/runs/32295032454/job/96204253136) | `fast` | Pass | 1m01s |
+| [`windows-latest`](https://github.com/scwlkr/balls/actions/runs/32295032454/job/96204252763) | `full` | Pass | 2m03s |
+
+The Ubuntu job executed the same portable fast path documented for Linux. The Windows job ran all
+62 tests. Both completed inside the pull-request wall-time budget.
