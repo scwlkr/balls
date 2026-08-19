@@ -1,112 +1,104 @@
 # Public repository readiness — 2026-08-19
 
-## Status and audited lineage
+## Status and published lineage
 
-**Status:** the sanitized private successor is prepared; publication is not approved or complete.
+**Status:** the clean sanitized lineage is public and the transition is complete.
 
-- The owner selected a clean sanitized lineage and authorized deletion of the private archive only
-  after the public successor is established and verified.
-- Sanitized final candidate: `scwlkr/balls-public-candidate`, observed `PRIVATE`.
-- Sanitized candidate base: `af3c03dd67663a1e2003827e948580f980b98090`.
-- The private source archive remains unchanged and private.
-- A separate final owner confirmation is still required before any repository rename, visibility
-  change, or archive deletion.
+- Canonical repository: `scwlkr/balls`, observed `PUBLIC`.
+- Sanitized pre-cutover base: `af3c03dd67663a1e2003827e948580f980b98090`.
+- Accepted transition PR head: `5b95ca7d6afcab16174d10b0a83faebc9147e5b5`.
+- Initial public `main`: `a2b01aa56496eceeae8e931c25b7d46c0da854ab`.
+- The owner selected the clean lineage, enabled GitHub commit-email privacy, and gave the separate
+  final visibility and deletion confirmation.
+- The original private source archive and rejected private staging repository were deleted only
+  after the public repository, security settings, rules, tracker, Git access, and CI were verified.
+  Both deleted repository API paths returned `404` afterward.
 
-No product release has been or will be published by this transition.
+No product release was created.
 
 ## Public tree
 
-- `LICENSE` is equal to Apache's canonical `LICENSE-2.0.txt` after newline normalization.
-- `NOTICE` states the current attribution status. No copied source or vendored dependency was found
-  that requires an additional attribution notice in the current source distribution.
+- `LICENSE` equals Apache's canonical `LICENSE-2.0.txt` after newline normalization.
+- `NOTICE` states the current attribution status. No copied source or vendored dependency requires
+  an additional attribution notice in the current source distribution.
 - `README.md`, `CONTRIBUTING.md`, ADR 0003, and package metadata consistently state Apache-2.0 and
   the same inbound contribution terms without a CLA or copyright assignment.
-- Personal, real company-like, host, and operational examples were replaced with conventional
-  synthetic people, Nodes, Circles, and the IANA-reserved `.example` domain.
+- Personal, real company-like, host, and operational examples use conventional synthetic people,
+  Nodes, Circles, and the IANA-reserved `.example` domain.
 - Necessary canonical repository-owner URLs, `CODEOWNERS`, and the public archived prior-research
-  repository are explicitly retained; these identify repositories, not example users or hosts.
+  repository identify repositories, not example users or hosts.
 - The tracked brand PNG contains only the Balls brand presentation. ImageMagick reported no
   embedded author, comment, EXIF, or profile metadata.
-- Gitleaks 8.30.1 found no leaks in the prepared tree.
 
-## Sanitized history and repository migration
+## Sanitized history and migration
 
-The final untouched mirror of the private source contained 19 unique commits across `main` and
-four GitHub pull-request refs. The complete mirror produced zero Gitleaks findings. A targeted
-privacy scan found 1,350 repeated identifier matches across 15 commits and one non-noreply author
-address, so publishing the source repository in place would not satisfy strict sanitization.
+The final untouched source mirror contained 19 unique commits across `main` and four GitHub pull
+refs. It produced zero Gitleaks findings, but a targeted privacy scan found 1,350 repeated legacy
+identifier matches across 15 commits and one private author address. Publishing that repository in
+place would therefore have failed strict sanitization.
 
-`git-filter-repo` 2.47.0 rewrote the targeted examples and author metadata. Verification of the
-final rewritten mirror observed:
+The clean successor rewrote examples and commit metadata without changing the accepted tree. A
+private staging audit then exposed a GitHub web-squash author email that required account-level
+commit-email privacy. The final candidate was rebuilt from the sanitized base, every commit used a
+public GitHub noreply or system identity, and the final squash merge preserved that boundary.
 
-- zero targeted identifier matches across every rewritten ref;
-- only GitHub noreply author and committer addresses;
+The final pre-public mirror explicitly fetched every pull ref and observed:
+
+- only `refs/heads/main` plus sanitized `refs/pull/1/head`, `refs/pull/2/head`, and
+  `refs/pull/9/head`;
+- 15 unique reachable commits;
+- zero targeted identifier matches in tracked history or GitHub issue/PR text;
 - zero Gitleaks findings;
+- no private-domain author or committer addresses and no unexpected identity names;
 - clean `git fsck --full --strict`;
-- canonical license equality, successful YAML lint, and all relative Markdown links resolving;
-- locked restore, format verification, zero-warning Release build, and 55 passing tests from a
-  fresh rewritten checkout in 29.88 seconds.
+- an exact tree match between accepted `main` and PR #9 head;
+- only `main` as a writable branch.
 
-A final metadata-only rewrite replaced the GitHub account's private squash-author address with its
-public noreply address. The candidate base tree is byte-for-byte equal to the previously tested
-sanitized base, every reachable candidate commit uses public noreply metadata, and the private
-staging repository that exposed this edge case will not enter the public lineage.
+Two closed empty-diff pull requests preserve the original shared issue/PR numbering. The six
+executable issues remain #3–#8. All 23 labels, all seven milestones, and every migrated issue body,
+label set, state, and milestone assignment matched the source before publication. There were no
+tags, releases, or forks to migrate.
 
-Only rewritten `main` was pushed to the private staging repository. Legacy source pull refs were
-not copied. Two closed empty-diff pull requests preserve the shared issue/PR numbering before the
-six executable issues were recreated as #3–#8. All 23 labels, all seven milestone records, each
-issue body, label set, state, and milestone assignment match the private source. There are no
-tags, releases, or forks to migrate. The old source evidence comment was not copied because its
-private Actions links will be deleted with the archive; replacement evidence will be recorded on
-issue #3 after staging CI and the final audit complete.
-
-This clean successor removes the immutable legacy pull refs from the publication lineage. The
-private source will become a temporary archive during the approved cutover and will be deleted
-only after the canonical public repository is verified ready.
-
-## Contribution and security surface
+## Contribution, security, and rules
 
 - Bug and feature forms are present, blank issues are disabled, and the `needs-triage` label used
-  by both forms exists. `yaml-lint` parses all issue-template YAML files successfully.
+  by both forms exists.
 - The bug form requires synthetic reproduction data and redirects suspected vulnerabilities away
   from public issues.
 - `CONTRIBUTING.md`, `SECURITY.md`, and the README agree on contribution scope and private security
   reporting.
-- Private vulnerability reporting is unavailable while staging is private. It must be enabled and
-  verified immediately after an approved public transition.
-- Public repository rules are not applied while staging is private. After approval, protect `main`
-  against deletion and force-push, require a pull request and linear history, require Windows/Linux
-  CI, and verify the effective rules through GitHub's API.
+- GitHub private vulnerability reporting is enabled and verified.
+- Active ruleset `21056510` targets the default branch and blocks deletion and force-push, requires
+  linear history and pull requests, permits squash only, requires resolved review threads, and
+  requires both `Build and test (ubuntu-latest)` and `Build and test (windows-latest)`.
+- Actions are restricted to GitHub-owned actions and the workflow token defaults to read-only.
+- Issues are enabled; Projects, Discussions, and Wiki are disabled.
 
 ## Verification performed
 
 - `git diff --check`.
-- Relative Markdown link validation: all links resolved.
-- `yaml-lint` on bug, feature, and issue-template configuration YAML: pass.
-- Apache canonical license text comparison: pass.
+- Relative Markdown link validation across 30 files: pass.
+- Apache canonical license comparison: pass.
+- Issue-form YAML validation: pass on the unchanged audited forms.
+- Targeted tracked-tree, all-ref history, issue, PR, and comment privacy scans: zero findings.
 - Gitleaks 8.30.1 prepared-tree and complete mirrored-history scans: zero findings.
-- Targeted tracked-tree, all-ref history, issue, and comment scans for identifiers, credentials,
-  private network details, user paths, and diagnostics: zero findings in the successor inputs.
-- Locked restore, format verification, Release build, and all 55 tests: pass on the prepared
-  Windows checkout and from a fresh rewritten checkout.
-- The private source preparation pull request passed Ubuntu and Windows CI before squash merge.
-- The final candidate reconciliation is reviewed in
-  [PR #9](https://github.com/scwlkr/balls-public-candidate/pull/9); its exact accepted commit and CI
-  evidence will be recorded on issue #3 after squash merge.
+- Locked restore and format verification: pass.
+- Release build: zero warnings and zero errors.
+- The final local candidate worktree passed 53 tests; Windows Application Control blocked only the
+  two child-process tests at that new path. The byte-identical code tree had already passed all 55
+  locally, and both clean GitHub-hosted platforms passed the full suite.
+- [PR #9 CI](https://github.com/scwlkr/balls/actions/runs/32290659663): Ubuntu passed in 1 minute
+  6 seconds and Windows passed in 2 minutes 11 seconds.
+- [Initial public `main` CI](https://github.com/scwlkr/balls/actions/runs/32291243070): Ubuntu passed
+  in 1 minute and Windows passed in 2 minutes 34 seconds.
+- Anonymous GitHub API, repository web page, and credential-free HTTPS Git reads: pass.
+- Anonymous issue continuity (#3–#8), seven milestones, Apache-2.0 detection, and exact public
+  `main` SHA: pass.
+- Effective rules API returned all five required rules; private vulnerability reporting returned
+  enabled.
+- Both authorized private deletion targets were rechecked by exact name, visibility, and `main`
+  SHA immediately before deletion, then returned `404` after deletion.
 
-No VM, installer, network, UI, multi-machine, or product-release gate is triggered by this
-documentation/privacy migration.
-
-## Approved cutover sequence
-
-After candidate PR #9 passes Windows and Linux CI and the final private audit is clean, stop and show
-the owner the exact readiness evidence. Only a separate final explicit confirmation authorizes:
-
-1. rename the private source to a temporary archive name;
-2. rename the sanitized staging repository to canonical `scwlkr/balls`;
-3. change only the sanitized canonical repository to public;
-4. enable and verify private vulnerability reporting and the available `main` rules;
-5. verify unauthenticated public access, issue/milestone continuity, and Git/CI health;
-6. delete the exact private archive after all preceding checks pass.
-
-Publication must not create a product release.
+No VM, installer, network, UI, multi-machine, or product-release gate was triggered by this
+documentation/privacy migration. The exact accepted commit for this post-cutover evidence update
+is recorded on issue #3 after its protected follow-up pull request lands.
