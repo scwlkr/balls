@@ -47,10 +47,12 @@ Owner-gated transition:
 
 - [#3 — Prepare and approve the public repository transition](https://github.com/scwlkr/balls/issues/3)
 
-The source-tree preparation and disposable history-rewrite trial are recorded in the
-[dated readiness evidence](verification/2026-08-19-public-readiness.md). Existing read-only GitHub
-pull refs retain the legacy history, so the owner must choose the publication lineage before a
-final visibility confirmation. The repository remains private.
+The owner selected a clean sanitized lineage. A private successor now contains only rewritten
+`main`, the six executable issues with their original #3–#8 numbering, and matching labels and
+milestones. The migration and remaining cutover are recorded in the
+[dated readiness evidence](verification/2026-08-19-public-readiness.md). Staging and the source
+archive remain private. Publication, repository renames, and archive deletion await the separate
+final visibility confirmation required after candidate PR and CI verification.
 
 Ready frontier:
 
