@@ -1,0 +1,164 @@
+# Development and Release Process
+
+## Objective
+
+Optimize Balls for safe, extremely fast AI-assisted development from one Windows laptop while
+keeping every green `main` promotable. Speed comes from short feedback loops, small vertical
+outcomes, deterministic automation, and rare high-cost evidence—not from skipping known
+security, data-integrity, or system-mutation risks.
+
+## Technology selection
+
+Prefer mainstream, stable, strongly typed, well-documented tools with abundant examples. The
+current default set is .NET/C#, HTTP/JSON/OpenAPI, SQLite, React, TypeScript, Vite, pnpm,
+Playwright, PowerShell, Git, and GitHub Actions. Adopt an unusual tool only after a small prototype
+demonstrates a material advantage.
+
+## Sources of truth
+
+- [`docs/STATE.md`](STATE.md): compact current state and active milestone.
+- [`ROADMAP.md`](../ROADMAP.md): outcome and release index.
+- GitHub milestone: committed scope for the active release target.
+- GitHub Issue: executable acceptance contract for one vertical outcome.
+- Linked design/protocol/security documents: deeper constraints for that issue.
+- Pull request: implementation and evidence review.
+
+An issue executes the roadmap; it does not silently redefine it. If implementation exposes a
+product or trust-boundary decision, record the decision first.
+
+## Ticket contract
+
+Every feature issue states:
+
+1. user outcome;
+2. acceptance checks;
+3. explicit non-goals;
+4. dependencies;
+5. platform and risk labels;
+6. fast verification commands;
+7. environment-specific evidence, if genuinely required;
+8. documentation that must change.
+
+A ticket should usually fit one focused agent session and produce one independently mergeable
+vertical outcome. Prefer three to seven substantial tickets per milestone. Do not split a coherent
+outcome merely to create activity.
+
+## Execution flow
+
+```text
+active milestone
+      ↓
+highest ready issue
+      ↓
+short-lived codex/ branch
+      ↓
+fast local feedback
+      ↓
+one pull request + automated review
+      ↓
+required Windows/Linux gate
+      ↓
+squash merge to main
+      ↓
+immutable canary artifact
+      ↓
+next ready issue
+```
+
+- Keep one active milestone and at most two non-overlapping issues in progress.
+- Open a pull request early when useful; keep branches short-lived.
+- Auto-merge only after acceptance criteria, documentation, and required checks pass.
+- Delete merged branches.
+- Never rebuild artifacts for promotion. Promote the exact files produced from the accepted commit.
+
+## Feedback loops
+
+| Loop | Target | Runs | Contents |
+| --- | ---: | --- | --- |
+| Focused | `<15s` | During edits | directly affected unit, contract, or component tests |
+| Local fast gate | `<60s` | Before push | format/analyzers, incremental build, unit/contract/process smoke |
+| Pull request | `<5m` wall time | Every PR | parallel fixed Windows/Linux build and fast suites; Chromium UI smoke when present |
+| Risk gate | No calendar target | Only when triggered | relevant VM, OS mutation, migration, installer, recovery, networking, or full UI scenario |
+| Release candidate | Outcome-driven | Before promotion | exact packaged bits and the minimum environment evidence for the release claim |
+
+Do not schedule a nightly or weekly heavyweight suite until actual failures demonstrate that its
+signal is worth its cost. A risky change cannot avoid its specific risk gate merely because the
+suite is normally rare.
+
+## Test taxonomy
+
+- **Unit:** millisecond-fast isolated domain/application behavior.
+- **Contract:** serialization, API, storage schema, and provider contracts.
+- **Process integration:** multiple real `ballsd`/`balls` child processes with isolated temporary state.
+- **OS integration:** one real adapter or privileged boundary.
+- **Browser:** TypeScript/component tests plus a minimal Playwright Chromium journey.
+- **Lab:** Windows host and virtual Nodes for install, restart, networking, or provider behavior.
+- **Pilot:** observed use of an accepted candidate; never a substitute for deterministic tests.
+
+New tests should use Microsoft.Testing.Platform when the selected framework/extensions fully
+support it. Build once and avoid redundant restore/build work. A filter must fail rather than
+silently run zero expected tests.
+
+## Development lab
+
+The initial lab is intentionally one-laptop:
+
+- Windows host: primary development machine and Windows Node;
+- WSL2 Ubuntu: optional sub-minute Linux development executor, never the product runtime definition;
+- dedicated Ubuntu Hyper-V VM: separate Linux Node on a dedicated internal/NAT lab network;
+- optional small Windows VM: started serially for installer, upgrade, and Windows-to-Windows checks;
+- GitHub-hosted Windows and Ubuntu runners: clean pull-request evidence.
+
+Create clean checkpoints before Balls persists Node identity. Never clone a VM after enrollment
+without regenerating its Node identity. Existing unrelated VMs and switches remain untouched.
+Virtual evidence is sufficient for releases when the release notes state the limitation; physical
+machines are opportunistic, not a general gate.
+
+## Evidence and release blockers
+
+An Alpha is blocked by a known:
+
+- credential or private-data exposure;
+- destructive data loss or corruption;
+- unsafe privileged/system mutation;
+- corrupt upgrade or unrecoverable migration;
+- inability to install, start, or exercise the release's headline outcome.
+
+Ordinary prerelease defects should be documented and shipped. Record untested environments as
+unverified; never convert them into implied support.
+
+## Release channels
+
+- **Canary:** automatically built from every green `main`; internal and short-lived.
+- **Alpha:** public immutable prerelease for one coherent product outcome.
+- **Beta:** accepted for the initial company pilot and broader real use.
+- **Stable:** explicitly owner-accepted and supported, with no known critical security or data-loss defect.
+
+Public publication uses an owner-gated GitHub environment. The release pipeline builds once,
+generates checksums and an SBOM, records provenance/attestation where available, and promotes the
+same artifacts. Windows public binaries must be signed before Stable.
+
+## Public-source boundary
+
+Apache 2.0 is the accepted source-license choice. Before changing repository visibility:
+
+1. add and verify the canonical license and notices;
+2. replace identifying examples with fictional data, including Git history where necessary;
+3. audit tracked files and history for credentials and private operational details;
+4. enable issue forms and contribution/security guidance;
+5. pass the full current gate;
+6. show the owner the exact readiness evidence;
+7. obtain a final explicit confirmation before publication.
+
+Dependency review, code scanning, Scorecard, Canary publication, and other supply-chain automation
+should follow immediately after publication but do not delay the initial visibility transition.
+
+External contributions use the same Apache 2.0 terms without a CLA or copyright assignment unless
+a later recorded business need changes that policy.
+
+## Automation-first interfaces
+
+Every important use case must be reachable through the CLI or a typed API with deterministic exit
+codes and structured output. The browser UI is one React/TypeScript application served locally by
+`ballsd`; it does not own product logic. Native shells are added only for a proven OS-specific UX
+need. This keeps AI verification fast and avoids separate GUI implementations per operating system.

@@ -1,0 +1,104 @@
+name: Feature ticket
+description: Define one independently mergeable vertical user outcome.
+title: "[Feature]: "
+labels:
+  - needs-triage
+body:
+  - type: markdown
+    attributes:
+      value: |
+        A feature ticket executes the active roadmap milestone. Keep one coherent user outcome and link every deeper constraint the implementer must load.
+  - type: textarea
+    id: outcome
+    attributes:
+      label: User outcome
+      description: What becomes possible for a Member, Owner, contributor, or operator?
+      placeholder: A Member can...
+    validations:
+      required: true
+  - type: textarea
+    id: acceptance
+    attributes:
+      label: Acceptance checks
+      description: Use observable, testable statements.
+      placeholder: |
+        - [ ] ...
+        - [ ] ...
+    validations:
+      required: true
+  - type: textarea
+    id: non_goals
+    attributes:
+      label: Explicit non-goals
+      description: State adjacent work this ticket must not absorb.
+      placeholder: |
+        - ...
+    validations:
+      required: true
+  - type: textarea
+    id: dependencies
+    attributes:
+      label: Dependencies
+      description: Link blocking issues or write None.
+      placeholder: None
+    validations:
+      required: true
+  - type: dropdown
+    id: platforms
+    attributes:
+      label: Platform scope
+      multiple: true
+      options:
+        - Portable/Core
+        - Windows
+        - Linux
+        - Browser
+        - GitHub/Release
+    validations:
+      required: true
+  - type: dropdown
+    id: risks
+    attributes:
+      label: Primary risk gate
+      description: Select the highest-cost gate; list any additional gates under Verification.
+      options:
+        - Fast gate only
+        - Security or privacy
+        - Durable state or migration
+        - Networking
+        - Privileged or OS mutation
+        - Installer, update, or removal
+        - Full browser/UI journey
+    validations:
+      required: true
+  - type: textarea
+    id: verification
+    attributes:
+      label: Verification
+      description: List fast commands and only the environment evidence required by the selected risks.
+      placeholder: |
+        Fast:
+        - ...
+
+        Triggered evidence:
+        - ...
+    validations:
+      required: true
+  - type: textarea
+    id: docs
+    attributes:
+      label: Documentation impact
+      description: Link the state, roadmap, contract, threat-model, or decision documents that must change.
+      placeholder: |
+        - docs/STATE.md
+    validations:
+      required: true
+  - type: checkboxes
+    id: contract
+    attributes:
+      label: Ticket contract
+      options:
+        - label: This ticket preserves the Circle-first model and does not silently redefine its milestone.
+          required: true
+        - label: No secrets, private identifiers, or real company data are required for testing.
+          required: true

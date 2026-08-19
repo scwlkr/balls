@@ -89,6 +89,22 @@ The Circle-level file experience.
 
 SMB is a possible provider, not a synonym.
 
+## Circle Files Provider
+
+A platform implementation that exposes an approved File Contribution through Circle Files.
+
+Examples may include SMB, synchronization, replicated storage, or a future Balls-native protocol.
+
+_Avoid_: File system, the share
+
+## Access Grant
+
+A Circle authorization allowing one Member to use one Contribution at a defined access level.
+
+Provider accounts or credentials may enforce an Access Grant, but they are not Member identity.
+
+_Avoid_: User account, share login
+
 ## Circle AI
 
 AI service belonging to a Circle and operating with explicitly permitted Circle context, tools, apps, and compute.

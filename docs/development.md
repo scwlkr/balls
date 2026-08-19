@@ -1,5 +1,9 @@
 # Developer Workflow
 
+The delivery model, ticket flow, feedback-loop budgets, release channels, and one-laptop virtual
+lab are defined in [`development-process.md`](development-process.md). This document records the
+commands and safety rules implemented by the current checkpoint.
+
 ## Current platform boundary
 
 The projects target .NET 10. The repository pins SDK `10.0.400` in
@@ -17,6 +21,9 @@ dotnet format Balls.slnx --verify-no-changes --no-restore
 dotnet build Balls.slnx --configuration Release --no-restore
 dotnet test Balls.slnx --configuration Release --no-build --no-restore
 ```
+
+This is the current full gate. The active `0.1.0-alpha.2` milestone will add a measured sub-minute
+fast gate without weakening this release-grade sequence.
 
 Package lock files are committed per project. Change dependencies deliberately, regenerate the
 affected lock files, and then rerun the full sequence.

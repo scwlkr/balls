@@ -106,6 +106,22 @@ The product abstraction is **Circle Files**.
 
 SMB, sync, mounts, object storage, replication, and future protocols are implementation providers underneath that abstraction.
 
+### Files-first v1
+
+The first supported product release is intentionally files-first. It proves the Circle model by
+letting two trusted Members join one Circle and work in the same contributed folder through
+Windows File Explorer.
+
+The initial provider is authenticated SMB 3.1.1 on a Windows hosting Node. Each Member receives a
+separate limited Access Grant with whole-folder `Read/write` or `Read-only` access. LAN access
+ships before an optional Tailscale path. The normal applications opening a file determine its SMB
+sharing/locking behavior; Balls certifies named application scenarios rather than promising a
+universal single-writer lock.
+
+This first provider is one live folder on one Node. Replication, offline synchronization, conflict
+merging, version history, and Balls-managed trash are later capabilities. The product must expose
+that limitation honestly and must never delete user files while removing Balls-owned access.
+
 ## Nodes
 
 A Node is a computer or server participating in a Circle.

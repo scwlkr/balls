@@ -2,9 +2,19 @@
 
 ## Purpose
 
-This repository is the fresh start for **Balls**.
+This repository builds **Balls**, an open-source platform for trusted Circles.
 
-Before writing production code, read:
+## Start with current state
+
+For ordinary ticket work, read only:
+
+1. this file;
+2. [`docs/STATE.md`](docs/STATE.md);
+3. the active GitHub Issue or pull request;
+4. the specific design, contract, security, or decision documents linked by that issue.
+
+Read the complete product canon when planning a milestone or changing product meaning,
+architecture, trust boundaries, public protocols, or durable state:
 
 1. `VISION.md`
 2. `PRODUCT.md`
@@ -15,33 +25,26 @@ Before writing production code, read:
 7. `ROADMAP.md`
 8. `LEGACY.md`
 
-These documents are the source of truth for project intent.
-
-## Critical instruction
-
-**Do not reinterpret Balls as merely a server manager, file-sharing utility, homelab dashboard, Discord clone, or self-hosted Google Workspace clone.**
-
-Those can be pieces of the system.
-
-The product is the **Circle**: a trusted digital environment whose people and approved infrastructure become more powerful together.
-
-## Protect these product truths
+## Protect these truths
 
 - Circle is the top-level object.
-- People are first-class.
-- Nodes support Circles.
+- People are first-class; Nodes support Circles.
 - Resource contribution is explicit.
-- One ordinary PC must not define the Circle.
+- One ordinary PC must not permanently define the Circle.
 - LAN/offline capability matters.
 - Cross-platform support is architectural.
 - Open source and eventual self-hostability matter.
-- Circle AI and Circle Apps are real long-term pillars.
+- Circle AI and Circle Apps remain real long-term pillars.
 - Distributed compute must be technically honest.
 - Simple UX and technical inspectability should coexist.
 
+Do not reinterpret Balls as merely a server manager, file-sharing utility, homelab dashboard,
+Discord clone, or self-hosted Google Workspace clone. Those can be pieces of the system; the
+product is the Circle.
+
 ## Architecture discipline
 
-Prefer dependency direction:
+Prefer:
 
 ```text
 UI / CLI / integrations
@@ -57,75 +60,36 @@ platform contracts
 OS adapters
 ```
 
-Platform-specific shell commands must not leak into core/domain logic.
+- Keep platform commands and types out of Core.
+- Keep `ballsd` native; WSL is a development or workload provider, not the product foundation.
+- Keep Tailscale a transport provider and SMB a Circle Files provider.
+- Keep ordinary processes unelevated; isolate typed privileged operations behind a narrow helper.
+- Keep the CLI and browser UI as clients of the same application behavior.
 
-Do not run the whole product as Administrator/root.
+## Delivery discipline
 
-Do not define Balls around WSL.
+- Follow the active milestone and next ready issue in `docs/STATE.md`.
+- Build one independently mergeable vertical outcome per issue.
+- Use mainstream, stable, typed, well-documented tools unless evidence justifies an exception.
+- Preserve unrelated work and keep no more than two non-overlapping tickets in progress.
+- Use a short-lived `codex/` branch, one issue per pull request, squash merge, and delete the branch.
+- After a verified merge, take the next unblocked issue without routine owner check-ins.
+- Stop for publication, secrets, spending, irreversible actions, or a material product/security
+  decision not already recorded.
 
-Do not define Balls around Tailscale.
+Every slice needs a user outcome, typed contracts, practical automated tests, explicit non-goals,
+and current documentation. Evidence must say what was actually observed; physical-machine proof
+is opportunistic unless an issue explicitly requires it.
 
-Do not define Circle Files around SMB.
+## Verification
 
-Those may all be useful providers.
+Use the smallest honest gate from [`docs/development-process.md`](docs/development-process.md).
+Fast checks belong on every pull request. Expensive VM, installer, migration, recovery, UI, or
+multi-machine checks run only for a release candidate or a change that touches the corresponding
+risk. Never weaken checks merely to obtain green status, and never claim an unobserved scenario.
 
-## Development style
+## Prior research
 
-Build small vertical slices.
-
-Every slice should have:
-
-- a real user outcome;
-- typed contracts;
-- automated tests where practical;
-- real-machine verification when OS/network behavior matters;
-- explicit non-goals;
-- docs updated when product behavior changes.
-
-Avoid speculative subsystems that are not required by the active milestone.
-
-## First implementation objective
-
-Start with **Phase 1 — First Circle** from `ROADMAP.md`.
-
-The first architectural proof should establish:
-
-- Balls Core;
-- Protocol contracts;
-- `ballsd`;
-- `balls` CLI;
-- persistent Node identity;
-- persistent Circle identity;
-- create/join Circle flow;
-- two-machine membership;
-- basic Member/Node listing;
-- one simple persistent Circle message path.
-
-Use Windows as the first real environment while keeping the boundaries required for future Linux/macOS Nodes.
-
-Do not begin with AI, apps, distributed compute, or a universal filesystem.
-
-## Use of the old prototype
-
-`scwlkr/balls-server` is prior research.
-
-Inspect it only when a specific implementation problem could benefit from its Windows/networking/security work.
-
-Port concepts deliberately.
-
-Do not transplant the old architecture wholesale.
-
-## When uncertain
-
-If a technical choice is unclear:
-
-1. preserve product principles;
-2. prefer a small prototype;
-3. record the decision;
-4. avoid turning a temporary implementation into a permanent product definition.
-
-## Owner intent
-
-The owner's long-term dream is that a trusted group can invite people and machines into a Circle and gain a private, customizable workspace for communication, data, AI, applications, services, and collective computing power.
-
-Do not optimize that dream out of the project while making the first version smaller.
+`scwlkr/balls-server` is archived prior research. Inspect it only for a specific
+Windows/networking/security problem. Port concepts deliberately; do not transplant its
+server-first architecture.

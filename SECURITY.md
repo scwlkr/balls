@@ -11,7 +11,9 @@ identifiers, real Circle state, or unsanitized diagnostics in a report.
 ## Supported versions
 
 Balls is pre-release software and has no supported production version yet. Security fixes target
-the latest commit on `main` until a release policy is recorded.
+the latest commit on `main`. Canary, Alpha, Beta, and Stable support meanings are defined in the
+[`development and release process`](docs/development-process.md); the supported-version table will
+be expanded when the first supported Stable release exists.
 
 The local control interface is not the future remote Node-to-Node security model. A separate
 threat-model review is required before remote admission or transport ships; see

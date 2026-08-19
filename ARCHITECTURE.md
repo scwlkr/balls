@@ -89,13 +89,22 @@ balls apps
 
 CLI and GUI should use the same application APIs.
 
-## Desktop UI
+## Browser UI
 
-The initial Windows desktop application may remain WPF if that is the fastest path.
+The primary GUI is one React/TypeScript browser application shared by Windows, Linux, and future
+macOS Nodes. It is a client of `ballsd`; it does not own Circle behavior, persistence, networking,
+or OS integration.
 
-Do not allow WPF types, Windows commands, or desktop lifecycle assumptions into Circle/core logic.
+`ballsd` serves the bundled offline-capable UI and a narrow browser-facing API on an authenticated
+loopback-only origin. `balls ui` creates a short-lived launch capability and opens the browser.
+Production uses same-origin requests, strict Host/Origin validation, antiforgery protection, a
+restrictive content-security policy, and no permissive CORS. The browser listener never binds to
+the LAN.
 
-A future cross-platform desktop UI can be selected independently.
+The CLI continues to use the protected named-pipe or Unix-domain-socket local-control API. A future
+remote browser experience uses a separate authenticated Circle endpoint; the loopback trust model
+must never be exposed remotely. Native shells may wrap the same UI only when a proven OS-specific
+UX need justifies them.
 
 ## Local API
 
@@ -119,6 +128,9 @@ The local API supports:
 - local integrations;
 - testing;
 - future web/desktop shells.
+
+The local browser adapter is intentionally separate from the full local-control transport. It may
+project only the capabilities needed by the UI even though it runs in the `ballsd` host.
 
 ## Remote Circle protocol
 
@@ -358,6 +370,15 @@ Initial Windows implementation may use SMB.
 
 Do not let SMB become the permanent Circle Files API.
 
+For the files-first v1, the Windows provider uses SMB 3.1.1 with SMB1 and guest access disabled,
+signing and encryption required, and one limited provider credential per Member Access Grant. A
+narrow privileged helper owns exact share, account, ACL, and firewall mutations; normal daemon,
+browser, CLI, and Explorer work remains unelevated.
+
+The provider preserves application-requested SMB share modes and locks. It does not claim that an
+arbitrary application becomes single-writer. The first certified matrix covers Windows 11 File
+Explorer and current Word, Excel, and PowerPoint desktop behavior.
+
 ## Messaging architecture
 
 Messaging needs:
@@ -479,7 +500,9 @@ src/
   Balls.Platform.Windows/
   Balls.Platform.Linux/
   Balls.Platform.MacOS/
-  Balls.Desktop.Windows/
+
+web/
+  Balls.Web/                 React/TypeScript browser client
 
 tests/
   Balls.Core.Tests/

@@ -4,7 +4,13 @@ Use this directory for ADRs, threat models, protocol specifications, milestone d
 
 ## Developer workflow
 
+- [`STATE.md`](STATE.md) — compact current checkpoint, active milestone, and continuation route.
 - [`development.md`](development.md) — locked build/test commands, local run instructions, state-directory safety, and exit codes.
+- [`development-process.md`](development-process.md) — ticket flow, feedback loops, virtual lab, release channels, and public-source gate.
+
+## Roadmap
+
+- [`roadmap/files-first-v1.md`](roadmap/files-first-v1.md) — detailed outcome path and candidate ticket maps through v1.0.
 
 ## Design checkpoints
 
@@ -14,6 +20,9 @@ Use this directory for ADRs, threat models, protocol specifications, milestone d
 
 - [`decisions/0001-local-control-api.md`](decisions/0001-local-control-api.md) — local API contract and Windows IPC decision.
 - [`decisions/0002-protected-local-state.md`](decisions/0002-protected-local-state.md) — dedicated state directory, platform protection, database identity, and fail-closed validation.
+- [`decisions/0003-apache-2.0-license.md`](decisions/0003-apache-2.0-license.md) — permissive public-source and inbound contribution decision.
+- [`decisions/0004-local-typescript-browser-ui.md`](decisions/0004-local-typescript-browser-ui.md) — one local cross-platform browser UI and loopback boundary.
+- [`decisions/0005-files-first-v1.md`](decisions/0005-files-first-v1.md) — focused v1 Circle Files outcome and provider boundary.
 
 ## Contracts and state
 

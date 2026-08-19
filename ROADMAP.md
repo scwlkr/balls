@@ -2,227 +2,67 @@
 
 ## Purpose
 
-The roadmap protects two things at once:
-
-1. the enormous long-term vision;
-2. the need to build small, real, testable vertical slices.
-
-Do not implement the whole platform in parallel.
-
-Do not reduce the mission to the current milestone.
-
-## Phase 0 — Foundation
-
-**Goal:** start the new `scwlkr/balls` repository without inheriting architectural baggage.
-
-Deliver:
-
-- foundational docs;
-- project skeleton;
-- core dependency rules;
-- CI;
-- test conventions;
-- semantic versioning approach;
-- threat-model starter;
-- local developer workflow.
-
-No need for a polished GUI yet.
-
-### Phase 0 checkpoint — 2026-08-19
-
-The repository now has its foundational documents, enforced dependency tests, locked .NET
-toolchain and dependencies, Semantic Versioning policy, CI workflow, test conventions, threat
-model starter, and developer workflow. The private canonical GitHub repository is connected over
-SSH, and its Windows and Linux hosted CI jobs first passed on August 19, 2026. The source-license
-choice remains deliberately open, so public visibility and the first external release remain
-deferred.
-
-## Phase 1 — First Circle
-
-**Goal:** prove the core abstraction.
-
-A user can:
-
-- install/run Balls on two Windows machines;
-- create a Circle;
-- invite another trusted person/device;
-- join the Circle;
-- see Members;
-- see Nodes;
-- exchange a simple persistent message;
-- establish trusted local connectivity.
-
-This phase should prove Circle identity and Node identity before adding many features.
-
-### Phase 1 Slice 1 checkpoint — 2026-08-19
-
-**Status: implemented checkpoint; Phase 1 remains in progress.**
-
-Proven locally on Windows:
-
-- clean Core, Protocol, daemon, CLI, SQLite, and Windows-platform boundaries;
-- persistent local Node identity;
-- atomic, idempotent Circle creation with one Owner and the local Node enrolled;
-- local Circle, Member, and Node inspection through typed local-control v1 contracts;
-- same-user named-pipe HTTP/JSON without a TCP listener;
-- a dedicated marked state directory with protected ACLs, exclusive daemon ownership, database
-  application ID, and fail-closed schema/integrity validation;
-- automated unit, integration, architecture, and Windows process-boundary coverage.
-
-Still required before Phase 1 can complete:
-
-- invitation, admission, and join semantics tied to durable Circle identity;
-- authenticated and authorized Node-to-Node protocol and transport;
-- two real machines participating in and recognizing the same Circle after restart;
-- one simple persistent Circle message path and its real-machine evidence.
-
-AI, apps, distributed compute, Circle Files, and a universal filesystem remain explicitly deferred.
-
-### Exit idea
-
-Two real machines can join one Circle and still recognize that Circle after restart.
-
-## Phase 2 — Useful Small-Team Workspace
-
-**Goal:** make the Circle genuinely useful for the 2–5 person company.
-
-Add:
-
-- channels;
-- DMs;
-- durable history;
-- initial Circle Files;
-- simple roles/permissions;
-- membership revocation;
-- one durable Anchor;
-- good Windows UX.
-
-The original `balls-server` SMB work can be referenced/ported selectively here.
-
-### Exit idea
-
-A small company can use Balls daily for private messaging and shared files.
-
-## Phase 3 — Cross-platform Nodes
-
-**Goal:** prove Balls is a platform, not a Windows application.
-
-Add supported Node implementations for:
-
-- Linux;
-- macOS;
-- headless/server installation;
-- VPS Node.
-
-Windows can remain the strongest GUI platform.
-
-### Exit idea
-
-Windows + Mac + Linux/VPS can all participate in the same Circle.
-
-## Phase 4 — Circle AI
-
-**Goal:** give the Circle shared intelligence.
-
-Start simple:
-
-- register an AI provider/runtime;
-- advertise capable GPU Nodes;
-- permit Circle members to use it;
-- permission approved files/context;
-- select an approved execution Node;
-- expose AI in Circle UX.
-
-Do not require distributed inference.
-
-### Exit idea
-
-A coworker can be told: "this is our company AI," and it genuinely understands permitted Circle information and runs on Circle-controlled infrastructure.
-
-## Phase 5 — Apps and Services
-
-**Goal:** turn the Circle into an extensible environment.
-
-Add:
-
-- app manifest;
-- permissions;
-- service discovery;
-- workload placement;
-- app lifecycle;
-- persistent storage bindings;
-- networking rules.
-
-Start with one compelling real app.
-
-Possible examples:
-
-- Minecraft;
-- internal dashboard;
-- Git service.
-
-### Exit idea
-
-Adding a service to a Circle is materially easier than manually deploying it onto a random computer.
-
-## Phase 6 — Resilience and Multiple Anchors
-
-**Goal:** remove single durable-node assumptions.
-
-Add:
-
-- multiple Anchors;
-- replicated state;
-- failure recovery;
-- authority transfer;
-- backup/restore;
-- self-hosted control-plane path.
-
-### Exit idea
-
-Losing one Anchor does not destroy the Circle.
-
-## Phase 7 — Circle Compute
-
-**Goal:** make contributed resources broadly useful.
-
-Add:
-
-- compute advertisement;
-- worker enrollment;
-- quotas;
-- scheduler;
-- workload isolation;
-- cancellation;
-- auditing;
-- failure handling.
-
-Start with embarrassingly parallel/distributable workloads.
-
-### Exit idea
-
-A Circle can intentionally distribute appropriate jobs across approved machines.
-
-## Long-term horizon
-
-At scale, Balls may support Circles containing:
-
-- thousands of Members;
-- thousands of Nodes;
-- substantial distributed storage;
-- substantial aggregate CPU/GPU capacity;
-- specialized Circle AI;
-- rich app ecosystems.
-
-This horizon should guide architecture.
-
-It should not dictate premature implementation complexity.
+This is the compact delivery index. The deeper files-first program, milestone boundaries, and
+candidate ticket maps live in [`docs/roadmap/files-first-v1.md`](docs/roadmap/files-first-v1.md).
+Current execution state lives in [`docs/STATE.md`](docs/STATE.md) and GitHub Issues.
+
+The roadmap protects both the long-term Circle vision and the need to ship small, useful releases.
+Future milestones describe outcomes, not promises that every detail is already designed.
+
+## Current checkpoint
+
+`0.1.0-alpha.1` is implemented locally on Windows. It proves Core/Protocol/daemon/CLI boundaries,
+persistent Node and Circle identity, protected SQLite state, Circle creation, participant listing,
+and same-user HTTP/JSON control over a named pipe. Phase 1 is not complete: secure admission,
+Node-to-Node communication, Unix runtime support, and persistent Circle communication remain.
+
+## Files-first path to v1
+
+| Target | Outcome | State |
+| --- | --- | --- |
+| `0.1.0-alpha.2` | **Open and Fast Foundation** — public-readiness, compact agent context, fast test lanes, issue workflow, and canary artifacts | Active |
+| `0.2.0-alpha.1` | **Cross-platform Node and Web UI** — real Windows/Linux daemon and CLI plus the local TypeScript browser shell | Planned |
+| `0.3.0-alpha.1` | **Trusted Circle** — invitation, authenticated membership/transport, two virtual Nodes, and one minimal persistent message | Planned |
+| `0.4.0-alpha.1` | **LAN Circle Files** — secure contributed Windows folder mapped in Explorer for two Members | Planned |
+| `0.5.0-alpha.1` | **Operable Remote Files** — Tailscale path, existing-folder adoption, repair, revocation, installer, and updates | Planned |
+| `0.6.0-beta.1` | **Company Pilot** — the accepted candidate is used by the owner and one coworker | Planned |
+| `1.0.0` | **Public Files Release** — a supported files-first Circle product | Planned |
+
+## v1 boundary
+
+The supported v1 outcome is focused:
+
+- create and join a Circle;
+- see Members and Nodes;
+- run native Windows and Linux Nodes;
+- use the local browser UI and first-class CLI;
+- contribute one Windows folder to a Circle;
+- map and edit it through Windows File Explorer;
+- grant, revoke, repair, install, update, and remove access safely;
+- use LAN first and Tailscale as an optional remote transport provider.
+
+One Anchor may be authoritative in v1, without automatic failover. Circle Files v1 is one live
+folder on one Node: no replication, offline sync, conflict merging, version history, or
+Balls-managed trash. Rich messaging, multiple Anchors, macOS polish, Circle AI, Circle Apps,
+distributed storage, and Circle Compute remain later work.
+
+## Later horizons
+
+After the files-first release, grow the same Circle foundation into:
+
+1. rich chat, durable history, roles, and multiple Anchors;
+2. macOS and headless/VPS polish;
+3. resilient and replicated Circle Files;
+4. Circle AI;
+5. Circle Apps and services;
+6. honest distributed workloads and Circle Compute.
 
 ## Roadmap rule
 
-Every milestone must answer:
+Every milestone must state:
 
-1. What useful user experience becomes possible?
-2. What architectural capability is proven?
-3. What is explicitly not being built yet?
-4. What real-machine evidence proves completion?
+1. the useful user outcome;
+2. the architectural capability proved;
+3. explicit non-goals;
+4. the smallest honest automated or environment-specific evidence;
+5. the exact artifact promoted to the next release channel.

@@ -1,6 +1,6 @@
 # ADR 0001 — Versioned HTTP/JSON over Local OS IPC
 
-- Status: accepted for Phase 1 Slice 1
+- Status: accepted for CLI/local integration control; refined for browser UI by ADR 0004
 - Date: 2026-08-19
 
 ## Context
@@ -16,7 +16,8 @@ local control API with the future Node-to-Node Circle protocol.
 Use HTTP/1.1 with JSON DTOs and explicit `/control/v1` routes, implemented with
 ASP.NET Core Minimal APIs. On Windows, Kestrel listens on a named pipe limited
 to the same Windows user. The CLI connects with `HttpClient` over that pipe.
-No TCP control listener is opened.
+No TCP listener exposes the full local-control API. ADR 0004 separately permits a narrow,
+authenticated, loopback-only browser adapter.
 
 The contract and transport remain separate. A future Linux/macOS adapter can
 carry the same HTTP contract over a protected Unix-domain socket. The remote

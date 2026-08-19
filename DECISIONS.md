@@ -79,6 +79,9 @@ LAN-hosted Circle functionality should continue where possible when internet con
 
 Balls is open source.
 
+Apache License 2.0 is the accepted source license. Incoming contributions use the same terms
+without a copyright assignment or CLA unless a later recorded business need changes that policy.
+
 ### Hosted service
 
 An official Balls service is acceptable if basic operation can remain effectively free/very inexpensive and the Circle does not become owned by that service.
@@ -160,11 +163,26 @@ LAN + Tailscale are sensible early providers.
 
 Do not make Tailscale a permanent definition of Balls.
 
-### Windows UI
+### Cross-platform UI
 
-WPF can remain the initial Windows desktop technology if it accelerates shipping.
+Use one React/TypeScript browser application as the primary GUI and retain `balls` as a first-class
+automation interface. `ballsd` serves the bundled UI through an authenticated loopback-only
+adapter; native shells are deferred until a proven OS-specific need appears. See
+[`ADR 0004`](docs/decisions/0004-local-typescript-browser-ui.md).
 
-Do not let WPF define the core.
+### Files-first v1
+
+The first supported release focuses on Circle creation/join, Member and Node visibility, the local
+browser UI and CLI, and one secure Windows Explorer Circle Files provider. One Anchor may be
+authoritative without automatic failover. Rich chat, replication, macOS polish, AI, Apps, and
+compute remain later milestones. See [`ADR 0005`](docs/decisions/0005-files-first-v1.md).
+
+### Development and release model
+
+Use GitHub Issues for executable tickets, one active milestone, no more than two non-overlapping
+tickets in progress, short-lived pull requests, green-main Canary artifacts, outcome-based Alphas,
+risk-triggered heavy tests, and explicit owner acceptance for public publication and Stable
+releases. See [`docs/development-process.md`](docs/development-process.md).
 
 ## Intentionally open technical questions
 
@@ -193,17 +211,22 @@ Possible approaches include:
 
 Do not choose full distributed consensus merely because the word "decentralized" sounds attractive.
 
+For v1, one selected Anchor may hold authoritative Circle state while other Nodes retain their own
+identities and membership records. Authority backup/export is required; automatic failover and
+multiple-Anchor replication remain open.
+
 ### Hosted control plane scope
 
-The minimum official service needed for exceptional onboarding is not yet fixed.
-
-### Desktop cross-platform UI
-
-No permanent UI framework has been chosen for macOS/Linux.
+No Balls Cloud dependency is planned for v1. Invitations are exchanged directly; LAN and an
+already configured Tailscale network provide initial reachability. The minimum future official
+service needed for exceptional onboarding remains open.
 
 ### Circle Files implementation
 
-SMB is useful on Windows.
+The v1 Windows provider uses authenticated SMB 3.1.1 with separate limited Access Grants. Normal
+application/SMB locking is preserved; universal single-writer enforcement is not promised. The
+provider initially exposes one live contributed folder without replication, sync, version history,
+or managed trash.
 
 The long-term unified filesystem/sync/storage architecture remains open.
 
@@ -221,14 +244,11 @@ Could include:
 
 This is research territory and should be approached workload by workload.
 
-### Source license
+### Public repository transition
 
-Balls is intended to remain open source. The exact license is an owner decision that must be made
-before the first external release; this checkpoint does not guess it.
-
-The canonical GitHub repository remains private until that decision is recorded. Before changing
-visibility, the owner must also decide whether the current human and company-like example names
-are intentional public product examples or should be replaced and removed from Git history.
+The repository remains private until the active public-readiness milestone adds the canonical
+Apache 2.0 license, replaces identifying examples with fictional data (including history where
+needed), audits for private material, passes the full gate, and receives a final owner confirmation.
 
 ## Decision rule
 

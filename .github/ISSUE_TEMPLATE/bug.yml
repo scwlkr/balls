@@ -1,0 +1,62 @@
+name: Bug report
+description: Report reproducible incorrect behavior without private data.
+title: "[Bug]: "
+labels:
+  - needs-triage
+body:
+  - type: textarea
+    id: outcome
+    attributes:
+      label: Observed behavior
+      description: What happened, and what user outcome failed?
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behavior
+    validations:
+      required: true
+  - type: textarea
+    id: reproduce
+    attributes:
+      label: Minimal reproduction
+      description: Use synthetic data and remove credentials, hostnames, addresses, paths, and private Circle information.
+      placeholder: |
+        1. ...
+        2. ...
+    validations:
+      required: true
+  - type: dropdown
+    id: platform
+    attributes:
+      label: Platform
+      options:
+        - Windows
+        - Linux
+        - Browser
+        - Portable/Core
+        - GitHub/Release
+    validations:
+      required: true
+  - type: textarea
+    id: version
+    attributes:
+      label: Version or commit
+      placeholder: 0.1.0-alpha.1 or commit SHA
+    validations:
+      required: true
+  - type: textarea
+    id: evidence
+    attributes:
+      label: Sanitized evidence
+      description: Paste only the smallest safe error or attach synthetic evidence.
+  - type: checkboxes
+    id: safety
+    attributes:
+      label: Safety confirmation
+      options:
+        - label: I removed credentials, tokens, personal data, private network details, and real Circle content.
+          required: true
+        - label: This is not a suspected vulnerability; security reports use private vulnerability reporting.
+          required: true

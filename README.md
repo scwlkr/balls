@@ -32,16 +32,17 @@ Balls should first feel exceptional for **2–10 trusted, somewhat technical peo
 
 ## Current status
 
-**Phase 1 Slice 1 is implemented as a local checkpoint; Phase 1 is not complete.**
+**`0.1.0-alpha.1` is implemented; `0.1.0-alpha.2` Open and Fast Foundation is the active milestone.**
 
 On Windows, `ballsd` now owns persistent local Node and Circle state, and `balls` can create a
 Circle and list its Circles, Members, and Nodes through a versioned HTTP/JSON API over a same-user
 named pipe. SQLite state is held in a dedicated marked directory with protected Windows ACLs and
 fail-closed application-ID and schema validation.
 
-The next slice must add invitation/admission, join, authenticated Node-to-Node communication,
-two-real-machine membership evidence, and a persistent Circle message path. AI, apps, distributed
-compute, and a universal filesystem remain outside Phase 1.
+The files-first path now establishes public-ready delivery and fast Windows/Linux development,
+then a cross-platform daemon/CLI/browser foundation, trusted join, LAN Circle Files, operable
+remote Files, a company Beta, and a focused v1.0. See the compact [`roadmap`](ROADMAP.md), detailed
+[`files-first program`](docs/roadmap/files-first-v1.md), and [`current state`](docs/STATE.md).
 
 ## Quick start
 
@@ -75,8 +76,10 @@ not a public issue.
 
 ## License
 
-Balls is intended to remain open source, but the owner has not selected the source license yet.
-No external release will be made until that decision is recorded.
+Apache License 2.0 is the accepted source-license choice. The active public-readiness milestone
+adds the canonical license/notices and completes the privacy/history audit before the owner is
+asked to approve public visibility. Until that checkpoint lands, the private repository is not
+open for external contribution.
 
 ## Prior research
 

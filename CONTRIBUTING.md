@@ -6,13 +6,17 @@ linked from [`README.md`](README.md), especially `PRINCIPLES.md`, `ARCHITECTURE.
 
 ## Before proposing code
 
+- Use the repository issue forms. Every feature issue must state its user outcome, acceptance
+  checks, non-goals, dependencies, risk/platform scope, verification, and documentation impact.
 - Open an issue before a large product, protocol, trust, or storage change.
 - Preserve the Circle-first model and the Core/Protocol/platform boundaries.
 - Do not add secrets, private identifiers, real network details, or unsanitized diagnostics.
 - Keep changes limited to the active roadmap slice and state explicit non-goals.
 
-The source license has not yet been selected. Until it is recorded, use issues for discussion;
-outside code contributions may not be merged.
+Apache License 2.0 is the accepted source license and inbound contribution policy, without a CLA
+or copyright assignment. The repository remains private and outside contributions may not be
+merged until the active public-readiness milestone adds the canonical license/notices and the
+owner approves public visibility.
 
 ## Verification
 
@@ -26,5 +30,5 @@ dotnet test Balls.slnx --configuration Release --no-build --no-restore
 ```
 
 Update the relevant design, decision, protocol, security, or verification document when behavior
-or a trust boundary changes. See [`docs/development.md`](docs/development.md) for the complete
-workflow.
+or a trust boundary changes. See [`docs/development.md`](docs/development.md) for the implemented
+commands and [`docs/development-process.md`](docs/development-process.md) for the delivery process.
