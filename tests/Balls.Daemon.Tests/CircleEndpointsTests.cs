@@ -136,8 +136,13 @@ public sealed class CircleEndpointsTests
             $"{{\"requestId\":\"0198c2d8-b000-7000-8000-000000000103\","
             + $"\"name\":\"{new string('x', 33 * 1024)}\",\"ownerDisplayName\":\"Alice\"}}";
         using var content = new StringContent(oversizedJson, Encoding.UTF8, "application/json");
+        using var request = new HttpRequestMessage(HttpMethod.Post, ControlRoutes.Circles)
+        {
+            Content = content,
+        };
+        request.Headers.ExpectContinue = true;
 
-        using var response = await client.PostAsync(ControlRoutes.Circles, content);
+        using var response = await client.SendAsync(request);
 
         Assert.AreEqual(HttpStatusCode.RequestEntityTooLarge, response.StatusCode);
     }
