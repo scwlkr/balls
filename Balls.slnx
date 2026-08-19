@@ -1,5 +1,6 @@
 <Solution>
   <Folder Name="/eng/">
+    <Project Path="eng/Balls.BrowserHarness/Balls.BrowserHarness.csproj" />
     <Project Path="eng/Balls.Canary/Balls.Canary.csproj" />
     <Project Path="eng/Balls.Verify/Balls.Verify.csproj" />
   </Folder>

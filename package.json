@@ -8,6 +8,7 @@
   },
   "scripts": {
     "web:build": "pnpm --dir web/Balls.Web build",
+    "web:e2e": "pnpm --dir web/Balls.Web e2e",
     "web:format": "pnpm --dir web/Balls.Web format",
     "web:format:check": "pnpm --dir web/Balls.Web format:check",
     "web:generate": "pnpm --dir web/Balls.Web generate:api",

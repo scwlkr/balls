@@ -12,6 +12,7 @@ artifacts/
 node_modules/
 web/Balls.Web/dist/
 web/Balls.Web/coverage/
+web/Balls.Web/test-results/
 
 # Local Balls state
 .balls-state
