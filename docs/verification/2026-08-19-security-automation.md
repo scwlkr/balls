@@ -15,7 +15,7 @@ persistent runner, repository secret, signing, attestation, or release requireme
 - Dependabot retains weekly NuGet and GitHub Actions updates.
 - All actions use full 40-character commit SHAs and fixed Ubuntu 24.04 runners.
 - One repository test rejects missing security workflows, floating runner labels, non-SHA actions,
-  `pull_request_target`, `secrets.*`, and `self-hosted` workflow paths.
+  `pull_request_target`, `workflow_run`, `secrets.*`, and `self-hosted` workflow paths.
 
 ## Repository readback before merge
 
@@ -38,5 +38,15 @@ permissions; no fork-triggered workflow references secrets or persistent infrast
 
 ## Hosted evidence
 
-Pull-request and first `main` security-run links are recorded on issue #7 after GitHub executes the
-new workflow files.
+Implementation pull request [#15](https://github.com/scwlkr/balls/pull/15) passed dependency review,
+C# CodeQL, and the Windows/Ubuntu required CI gate. Accepted commit
+`1d23741d786ab1332ef085de1d09b6aada634241` then passed
+[CodeQL run 32300400729](https://github.com/scwlkr/balls/actions/runs/32300400729) in 2m07s and
+[Scorecard run 32300400835](https://github.com/scwlkr/balls/actions/runs/32300400835) in 50s.
+CodeQL uploaded one C# analysis with no open CodeQL alerts.
+
+The first Scorecard result correctly exposed the Canary workflow's `workflow_run` checkout as a
+critical pattern that static analysis could not prove safe, despite its accepted-main condition and
+read-only credentials. Canary publication therefore moved behind the successful `Required` job in
+the same trusted main-push workflow. Pull requests now contain no privileged follow-on checkout,
+and the repository test rejects reintroducing `workflow_run` anywhere under `.github/workflows`.

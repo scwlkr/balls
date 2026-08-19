@@ -74,7 +74,7 @@ runtime-unsupported. Evidence is in the
 [Canary artifact record](verification/2026-08-19-canary-artifacts.md).
 
 Dependency review, C# CodeQL, scheduled OpenSSF Scorecard, Dependabot security updates, action
-SHA enforcement, and the fork trust boundary are verified in the
+SHA enforcement, and the structurally separate fork trust boundary are verified in the
 [security automation record](verification/2026-08-19-security-automation.md).
 
 Ready frontier:

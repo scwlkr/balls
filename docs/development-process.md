@@ -166,10 +166,11 @@ Public publication uses an owner-gated GitHub environment. The release pipeline 
 generates checksums and an SBOM, records provenance/attestation where available, and promotes the
 same artifacts. Windows public binaries must be signed before Stable.
 
-Canary publication is a separate `workflow_run` boundary after required CI succeeds for a `main`
-push. It checks out the accepted SHA with read-only permissions, packages version/OS/architecture/
-commit identity and checksums, smokes the Windows archive from fresh state, and uploads with a
-bounded retention period. It does not create a product tag or GitHub Release.
+Canary publication is downstream of the successful `Required` job in the same CI workflow for a
+`main` push. It checks out the accepted SHA with read-only permissions, packages version/OS/
+architecture/commit identity and checksums, smokes the Windows archive from fresh state, and
+uploads with a bounded retention period. Pull-request runs skip both publication jobs. It does not
+create a product tag or GitHub Release.
 
 ## Public security automation
 
@@ -182,7 +183,7 @@ Repository workflow tokens default to read-only and cannot approve pull requests
 and Scorecard analysis jobs receive narrowly scoped security-result writes; only Scorecard receives
 OIDC. All third-party actions require full commit SHAs, and the sole non-GitHub action allowlist
 entry is the exact pinned OpenSSF Scorecard commit. Fork-triggered workflows contain no secrets,
-`pull_request_target`, or self-hosted runner path.
+`pull_request_target`, `workflow_run`, or self-hosted runner path.
 
 ## Public-source boundary
 

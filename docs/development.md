@@ -53,9 +53,10 @@ affected lock files, and then rerun the full sequence.
 
 ## Download and run a Windows Canary
 
-The `Canary` workflow starts only after the required CI workflow succeeds for a `main` push. It
-checks out that exact accepted commit, builds each platform package once, and retains the results
-for 14 days. Artifact names have this deterministic shape:
+The CI workflow starts its Canary jobs only after the required Windows and Ubuntu lanes succeed for
+a `main` push. It checks out that exact accepted commit, builds each platform package once, and
+retains the results for 14 days. Pull-request runs skip publication. Artifact names have this
+deterministic shape:
 
 ```text
 balls-<version>-canary-<windows|linux>-x64-<12-character-commit>
