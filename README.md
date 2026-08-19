@@ -1,7 +1,6 @@
 # Balls
 
 [![CI](https://github.com/scwlkr/balls/actions/workflows/ci.yml/badge.svg)](https://github.com/scwlkr/balls/actions/workflows/ci.yml)
-[![Canary](https://github.com/scwlkr/balls/actions/workflows/canary.yml/badge.svg)](https://github.com/scwlkr/balls/actions/workflows/canary.yml)
 
 **Balls gives trusted Circles their own digital environment, where their people, computers, data, services, and intelligence can work together under their control.**
 
@@ -80,7 +79,7 @@ that passed CI:
   unsupported until `0.2.0-alpha.1`.
 
 Download the artifacts from the latest successful
-[`Canary` workflow](https://github.com/scwlkr/balls/actions/workflows/canary.yml). After extracting
+[`CI` workflow](https://github.com/scwlkr/balls/actions/workflows/ci.yml). After extracting
 the downloaded Windows workflow artifact, install and start it with one command:
 
 ```powershell

@@ -35,7 +35,18 @@ Implementation pull request [#14](https://github.com/scwlkr/balls/pull/14) passe
 [CI run 32298686664](https://github.com/scwlkr/balls/actions/runs/32298686664): Ubuntu fast in
 1m09s, Windows fast in 1m58s, and the aggregate `Required` decision in 3s.
 
-The first hosted Canary can only run after this document is accepted onto `main`. Its workflow and
-artifact URLs, downloaded Windows smoke observation, Linux unsupported-manifest readback, exact
-names, sizes, and expiry are recorded on issue #6 after publication. This avoids creating a second
-accepted commit solely to describe artifacts from the preceding accepted commit.
+The first hosted [Canary run 32299340551](https://github.com/scwlkr/balls/actions/runs/32299340551)
+passed for accepted commit `930e68a89538289e5e6a16af3dbb18e2d66dfa2f`. Windows completed in
+1m19s and Linux in 29s. GitHub retained these public artifacts through September 2, 2026:
+
+- `balls-0.1.0-alpha.1-canary-windows-x64-930e68a89538`, artifact `9382437085`,
+  18,086,786 bytes;
+- `balls-0.1.0-alpha.1-canary-linux-x64-930e68a89538`, artifact `9382409808`,
+  17,997,661 bytes.
+
+The downloaded Windows outer checksum passed and the packaged installer revalidated internal
+checksums, installed into fresh temporary state, started `ballsd`, and observed CLI status. The
+downloaded Linux outer checksum passed; its manifest named the exact commit and reported
+`runtimeSupported: false`, and its README retained the unsupported-until-`0.2.0-alpha.1` statement.
+Issue [#6](https://github.com/scwlkr/balls/issues/6#issuecomment-5347718965) records the hosted
+artifact URLs and readback.

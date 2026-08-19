@@ -37,7 +37,7 @@ public sealed partial class RepositoryWorkflowTests
     {
         StringAssert.Contains(Workflow, "permissions:");
         StringAssert.Contains(Workflow, "contents: read");
-        StringAssert.Contains(Workflow, "cancel-in-progress: true");
+        StringAssert.Contains(Workflow, "cancel-in-progress: ${{ github.event_name == 'pull_request' }}");
         StringAssert.Contains(Workflow, "cache: true");
 
         var usesLines = Workflow.Split('\n')
@@ -45,6 +45,17 @@ public sealed partial class RepositoryWorkflowTests
             .ToArray();
         Assert.IsNotEmpty(usesLines);
         Assert.IsTrue(usesLines.All(line => ShaPinnedAction().IsMatch(line)));
+    }
+
+    [TestMethod]
+    public void Canary_publication_follows_successful_required_main_push()
+    {
+        StringAssert.Contains(Workflow, "windows-canary:");
+        StringAssert.Contains(Workflow, "linux-build-test-canary:");
+        Assert.AreEqual(2, Regex.Matches(Workflow, @"(?m)^    needs: required$").Count);
+        Assert.AreEqual(2, Regex.Matches(Workflow, @"github.event_name == 'push'").Count);
+        Assert.AreEqual(2, Regex.Matches(Workflow, @"github.ref == 'refs/heads/main'").Count);
+        Assert.AreEqual(2, Regex.Matches(Workflow, @"needs.required.result == 'success'").Count);
     }
 
     [TestMethod]
@@ -62,6 +73,7 @@ public sealed partial class RepositoryWorkflowTests
             .ToArray();
         var combined = string.Join(Environment.NewLine, workflows);
         Assert.IsFalse(combined.Contains("pull_request_target", StringComparison.Ordinal));
+        Assert.IsFalse(combined.Contains("workflow_run", StringComparison.Ordinal));
         Assert.IsFalse(combined.Contains("self-hosted", StringComparison.Ordinal));
         Assert.IsFalse(combined.Contains("secrets.", StringComparison.Ordinal));
         Assert.IsFalse(combined.Contains("-latest", StringComparison.Ordinal));
