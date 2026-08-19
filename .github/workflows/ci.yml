@@ -26,9 +26,11 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os:
-          - windows-latest
-          - ubuntu-latest
+        include:
+          - os: windows-latest
+            verification: full
+          - os: ubuntu-latest
+            verification: fast
 
     steps:
       - name: Check out repository
@@ -43,14 +45,5 @@ jobs:
           cache: true
           cache-dependency-path: '**/packages.lock.json'
 
-      - name: Restore locked dependencies
-        run: dotnet restore Balls.slnx --locked-mode
-
-      - name: Verify formatting
-        run: dotnet format Balls.slnx --verify-no-changes --no-restore
-
-      - name: Build Release
-        run: dotnet build Balls.slnx --configuration Release --no-restore
-
-      - name: Test Release
-        run: dotnet test Balls.slnx --configuration Release --no-build --no-restore
+      - name: Run ${{ matrix.verification }} verification
+        run: dotnet run --project eng/Balls.Verify --configuration Release -- ${{ matrix.verification }}

@@ -3,6 +3,7 @@ using Balls.Core;
 namespace Balls.Core.Tests;
 
 [TestClass]
+[TestCategory("Unit")]
 public sealed class CircleApplicationTests
 {
     private static readonly DateTimeOffset Now = new(2026, 8, 19, 12, 0, 0, TimeSpan.Zero);

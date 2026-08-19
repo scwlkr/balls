@@ -9,6 +9,7 @@ using Balls.Protocol.Control.V1;
 namespace Balls.Daemon.Tests;
 
 [TestClass]
+[TestCategory("Contract")]
 public sealed class DaemonStatusTests
 {
     [TestMethod]

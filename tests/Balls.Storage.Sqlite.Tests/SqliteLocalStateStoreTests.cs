@@ -6,6 +6,7 @@ using Microsoft.Data.Sqlite;
 namespace Balls.Storage.Sqlite.Tests;
 
 [TestClass]
+[TestCategory("Contract")]
 public sealed class SqliteLocalStateStoreTests
 {
     private static readonly DateTimeOffset Now = new(2026, 8, 19, 12, 0, 0, TimeSpan.Zero);

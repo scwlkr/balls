@@ -8,6 +8,7 @@ using Balls.Protocol.Control.V1;
 namespace Balls.Cli.Tests;
 
 [TestClass]
+[TestCategory("ProcessIntegration")]
 public sealed class ProcessAcceptanceTests
 {
     [TestMethod]

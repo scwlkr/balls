@@ -25,7 +25,7 @@ replicated storage, richer messaging, macOS polish, and compute remain later pro
 - Circle, Member, and Node listing;
 - versioned HTTP/JSON over a same-user named pipe;
 - protected, marked, fail-closed SQLite state;
-- 55 automated tests and Windows process-boundary evidence.
+- 62 automated tests and Windows process-boundary evidence.
 
 Linux currently builds and runs portable tests, but `ballsd` and `balls` reject non-Windows hosts.
 
@@ -46,6 +46,7 @@ milestone while a ready active-milestone ticket exists.
 Completed transition:
 
 - [#3 — Prepare and approve the public repository transition](https://github.com/scwlkr/balls/issues/3)
+- [#4 — Create the sub-minute developer verification command](https://github.com/scwlkr/balls/issues/4)
 
 The owner-approved clean lineage is public at `scwlkr/balls`. Private vulnerability reporting and
 the active `main` rules are verified, anonymous web/API/Git reads pass, and both the original
@@ -53,11 +54,17 @@ private archive and rejected staging repository were deleted after verification.
 migration is recorded in the
 [dated readiness evidence](verification/2026-08-19-public-readiness.md).
 
+The repository-owned focused, fast, and full verifier enforces the six-category test taxonomy,
+prevents empty focused selections, and exposes its standard tool commands. Warm Windows evidence
+is 2.92 seconds focused and 29.49 seconds fast; Ubuntu runs the same portable fast path in CI.
+Details are in the
+[developer verification record](verification/2026-08-19-developer-verification.md).
+
 Ready frontier:
 
-- [#4 — Create the sub-minute developer verification command](https://github.com/scwlkr/balls/issues/4)
+- [#5 — Establish the protected pull-request workflow](https://github.com/scwlkr/balls/issues/5)
 
-Issues #5–#8 are intentionally blocked by recorded dependencies in GitHub.
+Issues #6–#8 remain blocked by recorded dependencies in GitHub.
 
 ## Working rules
 

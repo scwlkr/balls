@@ -3,6 +3,7 @@ using Balls.Daemon;
 namespace Balls.Daemon.Tests;
 
 [TestClass]
+[TestCategory("Contract")]
 public sealed class DaemonCommandTests
 {
     [TestMethod]

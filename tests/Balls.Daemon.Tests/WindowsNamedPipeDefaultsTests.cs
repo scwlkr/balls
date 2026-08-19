@@ -3,6 +3,7 @@ using Balls.Platform.Windows;
 namespace Balls.Daemon.Tests;
 
 [TestClass]
+[TestCategory("OSIntegration")]
 public sealed class WindowsNamedPipeDefaultsTests
 {
     [TestMethod]

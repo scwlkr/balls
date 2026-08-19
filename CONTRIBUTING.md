@@ -14,21 +14,20 @@ linked from [`README.md`](README.md), especially `PRINCIPLES.md`, `ARCHITECTURE.
 - Keep changes limited to the active roadmap slice and state explicit non-goals.
 
 Balls source and documentation use [Apache License 2.0](LICENSE). By submitting a contribution,
-you license it under the same terms without a CLA or copyright assignment. The repository remains
-private, and outside contributions may not be merged until its reachable history is sanitized and
-the owner explicitly approves public visibility.
+you license it under the same terms without a CLA or copyright assignment.
 
 ## Verification
 
-Run the repository gate before submitting a change:
+Run the fast repository gate before pushing:
 
 ```powershell
-dotnet restore Balls.slnx --locked-mode
-dotnet format Balls.slnx --verify-no-changes --no-restore
-dotnet build Balls.slnx --configuration Release --no-restore
-dotnet test Balls.slnx --configuration Release --no-build --no-restore
+dotnet run --project eng/Balls.Verify --configuration Release -- fast
 ```
 
+Use `focused` while editing and `full` for the complete Windows gate. The same commands work in
+PowerShell, Bash, and other shells supported by the .NET CLI. See
+[`docs/development.md`](docs/development.md) for examples and the commands each mode runs.
+
 Update the relevant design, decision, protocol, security, or verification document when behavior
-or a trust boundary changes. See [`docs/development.md`](docs/development.md) for the implemented
-commands and [`docs/development-process.md`](docs/development-process.md) for the delivery process.
+or a trust boundary changes. See [`docs/development-process.md`](docs/development-process.md) for
+the delivery process.

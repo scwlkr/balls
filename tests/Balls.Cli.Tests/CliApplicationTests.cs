@@ -7,6 +7,7 @@ using Balls.Protocol.Control.V1;
 namespace Balls.Cli.Tests;
 
 [TestClass]
+[TestCategory("Contract")]
 public sealed class CliApplicationTests
 {
     [TestMethod]
