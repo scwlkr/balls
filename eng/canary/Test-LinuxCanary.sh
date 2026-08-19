@@ -12,11 +12,26 @@ package_directory="$(dirname "$package_path")"
 smoke_root="$(mktemp -d)"
 daemon_pid=""
 
-cleanup() {
+terminate_daemon() {
   if [[ -n "$daemon_pid" ]] && kill -0 "$daemon_pid" 2>/dev/null; then
-    kill -INT "$daemon_pid" 2>/dev/null || true
+    kill -TERM "$daemon_pid" 2>/dev/null || true
+    for _ in $(seq 1 100); do
+      if ! kill -0 "$daemon_pid" 2>/dev/null; then
+        wait "$daemon_pid" 2>/dev/null || true
+        daemon_pid=""
+        return
+      fi
+      sleep 0.05
+    done
+
+    kill -KILL "$daemon_pid" 2>/dev/null || true
     wait "$daemon_pid" 2>/dev/null || true
+    daemon_pid=""
   fi
+}
+
+cleanup() {
+  terminate_daemon
   rm -rf -- "$smoke_root"
 }
 trap cleanup EXIT
@@ -44,6 +59,7 @@ chmod 700 "$XDG_RUNTIME_DIR"
   2>"$smoke_root/ballsd.err" &
 daemon_pid=$!
 
+ready=false
 for _ in $(seq 1 100); do
   if ! kill -0 "$daemon_pid" 2>/dev/null; then
     cat "$smoke_root/ballsd.err" >&2
@@ -53,13 +69,23 @@ for _ in $(seq 1 100); do
 
   if "$smoke_root/package/balls/balls" status >"$smoke_root/status.out" 2>/dev/null; then
     grep -F "Node: Balls Linux Canary Smoke" "$smoke_root/status.out"
-    echo "Linux Canary archive smoke passed with fresh XDG state."
-    exit 0
+    ready=true
+    break
   fi
 
   sleep 0.05
 done
 
-cat "$smoke_root/ballsd.err" >&2
-echo "Linux Canary daemon did not become ready." >&2
-exit 1
+if [[ "$ready" != true ]]; then
+  cat "$smoke_root/ballsd.err" >&2
+  echo "Linux Canary daemon did not become ready." >&2
+  exit 1
+fi
+
+terminate_daemon
+if [[ -e "$XDG_RUNTIME_DIR/balls/control.sock" ]]; then
+  echo "Linux Canary daemon did not clean up its Unix-domain socket." >&2
+  exit 1
+fi
+
+echo "Linux Canary archive smoke passed with fresh XDG state and orderly shutdown."
