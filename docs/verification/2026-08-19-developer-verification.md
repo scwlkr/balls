@@ -47,3 +47,18 @@ Issue [#8](https://github.com/scwlkr/balls/issues/8) repeated the warm Windows m
 the complete Open and Fast Foundation change set. The same focused selection passed 8 tests in
 6.03s. The complete fast gate passed against the 72-test repository in 33.69s. Both retained their
 `<15s` and `<60s` budgets.
+
+## Browser-workspace remeasurement
+
+Issue [#20](https://github.com/scwlkr/balls/issues/20) added the pinned Node/pnpm workspace and made
+its standard commands visible in the same verifier. On the warm Windows checkout:
+
+- `focused --web generate:check` passed the committed OpenAPI generated-client comparison;
+- `focused --web test` passed all 3 React component tests;
+- `fast` passed 80 portable .NET tests, 3 component tests, generation drift, both formatters,
+  ESLint, TypeScript typecheck, and the Vite production build in 35.92s.
+
+The local browser rendered the accessible Circle shell at the desktop viewport and at 390 by 844
+CSS pixels. The mobile document width remained within its viewport with one Circle, one Member
+region, and one Node region. Hosted Windows and Ubuntu evidence is recorded on the delivery pull
+request after both fixed lanes execute the same `fast` plan.

@@ -59,9 +59,9 @@ migration is recorded in the
 [dated readiness evidence](verification/2026-08-19-public-readiness.md).
 
 The repository-owned focused, fast, and full verifier enforces the six-category test taxonomy,
-prevents empty focused selections, and exposes its standard tool commands. Final warm Windows
-measurements are 6.03 seconds focused and 33.69 seconds fast; Ubuntu runs the same portable fast
-path in CI.
+prevents empty focused selections, and exposes its standard .NET and pnpm commands. The browser-
+enabled warm Windows fast path passed in 37.90 seconds, within its 60-second budget; Ubuntu runs the
+same portable path in CI.
 Details are in the
 [developer verification record](verification/2026-08-19-developer-verification.md).
 
@@ -85,13 +85,14 @@ readback, and next executable milestone are reconciled in the
 
 Ready frontier:
 
-- [#20 — Create the typed React workspace and generated local API client](https://github.com/scwlkr/balls/issues/20)
+- [#21 — Serve a hardened local browser UI from ballsd](https://github.com/scwlkr/balls/issues/21)
 
 Completed in the active milestone:
 
 - [#17 — Compose daemon and CLI through cross-platform host seams](https://github.com/scwlkr/balls/issues/17)
 - [#18 — Run protected local state and control IPC natively on Linux](https://github.com/scwlkr/balls/issues/18)
 - [#19 — Add stable structured CLI output and dual-platform process acceptance](https://github.com/scwlkr/balls/issues/19)
+- [#20 — Create the typed React workspace and generated local API client](https://github.com/scwlkr/balls/issues/20)
 
 The executable layers consume neutral host contracts and one centralized selector. Windows keeps
 its protected state and same-user named pipe; Linux adds owned `0700` state, `0600` known files,
@@ -103,7 +104,12 @@ error envelope for every current command. Global option placement, exit codes, i
 timestamps, roles, and list ordering have contract coverage, and the same separate-process
 create/list/restart acceptance runs on Windows and Ubuntu.
 
-#21–#23 remain dependency-blocked behind the issue chain recorded in their acceptance contracts.
+The repository now has one pinned React/TypeScript/Vite workspace. Its local-control client is
+reproducibly generated from the committed OpenAPI contract, protocol DTOs stay at the API edge,
+and an accessible synthetic Circle shell makes Node, Circle, Member, and Node states concrete.
+Focused/fast/full verification and both fixed CI lanes execute the visible locked pnpm workflow.
+
+#22–#23 remain dependency-blocked behind the issue chain recorded in their acceptance contracts.
 
 ## Working rules
 

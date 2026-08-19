@@ -1,6 +1,7 @@
 using System.Net;
 using System.Net.Http.Json;
 using System.Net.Sockets;
+using System.Text.Json.Nodes;
 using Balls.Core;
 using Balls.Daemon;
 using Balls.Platform.Windows;
@@ -177,12 +178,37 @@ public sealed class DaemonStatusTests
 
         using var response = await client.GetAsync(ControlRoutes.OpenApi);
         var document = await response.Content.ReadAsStringAsync();
+        var committedDocument = File.ReadAllText(
+            Path.Combine(
+                FindRepositoryRoot(),
+                "docs",
+                "protocol",
+                "local-control-v1.openapi.json"));
 
         Assert.AreEqual(HttpStatusCode.OK, response.StatusCode);
+        Assert.IsTrue(
+            JsonNode.DeepEquals(JsonNode.Parse(committedDocument), JsonNode.Parse(document)),
+            "The committed local-control OpenAPI contract must match ballsd.");
         StringAssert.Contains(document, ControlRoutes.Status);
         StringAssert.Contains(document, ControlRoutes.Circles);
         StringAssert.Contains(document, nameof(CreateCircleRequest));
         StringAssert.Contains(document, nameof(ErrorResponse));
+    }
+
+    private static string FindRepositoryRoot()
+    {
+        var current = new DirectoryInfo(AppContext.BaseDirectory);
+        while (current is not null)
+        {
+            if (File.Exists(Path.Combine(current.FullName, "Balls.slnx")))
+            {
+                return current.FullName;
+            }
+
+            current = current.Parent;
+        }
+
+        throw new InvalidOperationException("Repository root was not found.");
     }
 
     private sealed class TemporaryDirectory : IDisposable

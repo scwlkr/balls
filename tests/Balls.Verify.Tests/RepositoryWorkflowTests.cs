@@ -33,6 +33,51 @@ public sealed partial class RepositoryWorkflowTests
     }
 
     [TestMethod]
+    public void Required_lanes_install_the_pinned_web_toolchain_and_cache_pnpm()
+    {
+        Assert.AreEqual(2, Regex.Matches(Workflow, "node-version-file: .node-version").Count);
+        Assert.AreEqual(2, Regex.Matches(Workflow, "name: Enable pinned pnpm").Count);
+        Assert.AreEqual(2, Regex.Matches(Workflow, "name: Cache pnpm store").Count);
+        Assert.AreEqual(2, Regex.Matches(Workflow, "hashFiles\\('pnpm-lock.yaml'\\)").Count);
+        StringAssert.Contains(
+            Workflow,
+            "actions/setup-node@2028fbc5c25fe9cf00d9f06a71cc4710d4507903");
+        StringAssert.Contains(
+            Workflow,
+            "actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830");
+    }
+
+    [TestMethod]
+    public void Browser_workspace_is_pinned_and_keeps_protocol_dtos_at_the_api_edge()
+    {
+        var root = FindRepositoryRoot();
+        var rootPackage = File.ReadAllText(Path.Combine(root, "package.json"));
+        var apiDirectory = Path.Combine(root, "web", "Balls.Web", "src", "api");
+        var componentDirectory = Path.Combine(root, "web", "Balls.Web", "src", "components");
+
+        Assert.AreEqual("24.18.0", File.ReadAllText(Path.Combine(root, ".node-version")).Trim());
+        StringAssert.Contains(rootPackage, "\"packageManager\": \"pnpm@11.19.0\"");
+        Assert.IsTrue(File.Exists(Path.Combine(root, "pnpm-lock.yaml")));
+        Assert.IsTrue(File.Exists(Path.Combine(
+            root,
+            "docs",
+            "protocol",
+            "local-control-v1.openapi.json")));
+        StringAssert.Contains(
+            File.ReadAllText(Path.Combine(apiDirectory, "localControl.ts")),
+            "openapi-fetch");
+        StringAssert.Contains(
+            File.ReadAllText(Path.Combine(apiDirectory, "demoSnapshot.ts")),
+            "satisfies CircleDetailsDto");
+
+        var componentSource = string.Join(
+            Environment.NewLine,
+            Directory.GetFiles(componentDirectory, "*.tsx").Select(File.ReadAllText));
+        Assert.IsFalse(componentSource.Contains("api/generated", StringComparison.Ordinal));
+        Assert.IsFalse(componentSource.Contains("localControl", StringComparison.Ordinal));
+    }
+
+    [TestMethod]
     public void Workflow_preserves_supply_chain_and_concurrency_guards()
     {
         StringAssert.Contains(Workflow, "permissions:");

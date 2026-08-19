@@ -9,6 +9,9 @@ TestResults/
 *.ncrunch*
 artifacts/
 .worktrees/
+node_modules/
+web/Balls.Web/dist/
+web/Balls.Web/coverage/
 
 # Local Balls state
 .balls-state

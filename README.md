@@ -45,9 +45,10 @@ then a cross-platform daemon/CLI/browser foundation, trusted join, LAN Circle Fi
 remote Files, a company Beta, and a focused v1.0. See the compact [`roadmap`](ROADMAP.md), detailed
 [`files-first program`](docs/roadmap/files-first-v1.md), and [`current state`](docs/STATE.md).
 
-The active milestone has platform-neutral host composition, protected native Linux state/IPC, and
-stable machine-readable CLI output. It next adds one hardened local TypeScript browser UI. Issue
-[#20](https://github.com/scwlkr/balls/issues/20) is the ready frontier.
+The active milestone has platform-neutral host composition, protected native Linux state/IPC,
+stable machine-readable CLI output, and one typed React workspace generated from local-control v1.
+It next serves that UI through a hardened loopback boundary. Issue
+[#21](https://github.com/scwlkr/balls/issues/21) is the ready frontier.
 
 ## Quick start
 

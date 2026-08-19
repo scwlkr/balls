@@ -21,7 +21,8 @@ internal enum TestCountRule
 internal sealed record VerificationRequest(
     VerificationMode Mode,
     string? Project = null,
-    string? Filter = null);
+    string? Filter = null,
+    string? WebScript = null);
 
 internal sealed record VerificationCommand(
     string FileName,
@@ -52,6 +53,16 @@ internal static class VerificationExitCodes
 
 internal static class VerificationRequestParser
 {
+    private static readonly HashSet<string> WebScripts =
+    [
+        "build",
+        "format:check",
+        "generate:check",
+        "lint",
+        "test",
+        "typecheck",
+    ];
+
     public static VerificationRequest Parse(IReadOnlyList<string> arguments)
     {
         if (arguments.Count == 1 && arguments[0] is "fast" or "full")
@@ -85,11 +96,22 @@ internal static class VerificationRequestParser
             }
         }
 
+        if (arguments.Count == 3
+            && arguments[0] == "focused"
+            && arguments[1] == "--web"
+            && WebScripts.Contains(arguments[2]))
+        {
+            return new VerificationRequest(
+                VerificationMode.Focused,
+                WebScript: arguments[2]);
+        }
+
         throw Usage();
     }
 
     private static UsageException Usage() => new(
-        "Usage: Balls.Verify focused --project <path> --filter <expression> | fast | full");
+        "Usage: Balls.Verify focused --project <path> --filter <expression> | " +
+        "focused --web <build|format:check|generate:check|lint|test|typecheck> | fast | full");
 }
 
 internal static class VerificationPlanner
@@ -108,6 +130,15 @@ internal static class VerificationPlanner
     {
         if (request.Mode == VerificationMode.Focused)
         {
+            if (request.WebScript is not null)
+            {
+                return new VerificationPlan(
+                    [
+                        new VerificationStep(Pnpm(repositoryRoot, "install", "--frozen-lockfile")),
+                        new VerificationStep(Pnpm(repositoryRoot, $"web:{request.WebScript}")),
+                    ]);
+            }
+
             return new VerificationPlan(
                 [new VerificationStep(
                     Dotnet(
@@ -145,12 +176,15 @@ internal static class VerificationPlanner
         return new VerificationPlan(
             [
                 new VerificationStep(Dotnet(repositoryRoot, "restore", solution, "--locked-mode")),
+                new VerificationStep(Pnpm(repositoryRoot, "install", "--frozen-lockfile")),
                 new VerificationStep(Dotnet(
                     repositoryRoot,
                     "format",
                     solution,
                     "--verify-no-changes",
                     "--no-restore")),
+                new VerificationStep(Pnpm(repositoryRoot, "web:generate:check")),
+                new VerificationStep(Pnpm(repositoryRoot, "web:format:check")),
                 new VerificationStep(Dotnet(
                     repositoryRoot,
                     "build",
@@ -158,6 +192,8 @@ internal static class VerificationPlanner
                     "--configuration",
                     "Release",
                     "--no-restore")),
+                new VerificationStep(Pnpm(repositoryRoot, "web:lint")),
+                new VerificationStep(Pnpm(repositoryRoot, "web:typecheck")),
                 new VerificationStep(
                     Dotnet(
                         repositoryRoot,
@@ -176,6 +212,8 @@ internal static class VerificationPlanner
                     TestCountRule.RequireZero,
                     resultsDirectory),
                 new VerificationStep(new VerificationCommand("dotnet", finalArguments, repositoryRoot)),
+                new VerificationStep(Pnpm(repositoryRoot, "web:test")),
+                new VerificationStep(Pnpm(repositoryRoot, "web:build")),
             ]);
     }
 
@@ -183,6 +221,18 @@ internal static class VerificationPlanner
         string workingDirectory,
         params string[] arguments) =>
         new("dotnet", arguments, workingDirectory);
+
+    private static VerificationCommand Pnpm(
+        string workingDirectory,
+        params string[] arguments)
+    {
+        return OperatingSystem.IsWindows()
+            ? new VerificationCommand(
+                "cmd.exe",
+                new[] { "/d", "/c", "pnpm" }.Concat(arguments).ToArray(),
+                workingDirectory)
+            : new VerificationCommand("pnpm", arguments, workingDirectory);
+    }
 }
 
 internal static class TrxSummary

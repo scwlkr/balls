@@ -21,6 +21,10 @@ running it and returns the failing command's exit code.
 # Direct feedback for one affected project and a filter that must select at least one test
 dotnet run --project eng/Balls.Verify --configuration Release -- focused --project tests/Balls.Core.Tests/Balls.Core.Tests.csproj --filter TestCategory=Unit
 
+# Focus a browser component or generated-client contract
+dotnet run --project eng/Balls.Verify --configuration Release -- focused --web test
+dotnet run --project eng/Balls.Verify --configuration Release -- focused --web generate:check
+
 # Safe pre-push gate: portable unit, contract, and process-integration tests
 dotnet run --project eng/Balls.Verify --configuration Release -- fast
 
@@ -33,24 +37,49 @@ The required Ubuntu and Windows pull-request lanes both run `fast`; use `full` l
 release/risk gates that require every OS-integration test. WSL may be used as a Linux development
 executor, but it is not the Balls product runtime.
 
-`fast` and `full` each run locked restore, format verification, and exactly one Release build.
-They then reject uncategorized tests. `fast` runs the portable-safe categories; `full` runs every
-test. Expanded, those standard commands are:
+`fast` and `full` each run locked .NET and pnpm restore, format verification, and exactly one .NET
+Release build. They reject uncategorized tests, check generated browser-client drift, and run web
+lint, typecheck, component tests, and a production build. `fast` runs the portable-safe .NET
+categories; `full` runs every .NET test. Expanded, those standard commands include:
 
 ```powershell
 dotnet restore Balls.slnx --locked-mode
+pnpm install --frozen-lockfile
 dotnet format Balls.slnx --verify-no-changes --no-restore
+pnpm web:generate:check
+pnpm web:format:check
 dotnet build Balls.slnx --configuration Release --no-restore
+pnpm web:lint
+pnpm web:typecheck
 dotnet test Balls.slnx --configuration Release --no-build --no-restore --filter "(TestCategory=Unit|TestCategory=Contract|TestCategory=ProcessIntegration)"
+pnpm web:test
+pnpm web:build
 dotnet test Balls.slnx --configuration Release --no-build --no-restore
 ```
 
-The verifier currently has no `pnpm` step because this checkpoint has no JavaScript workspace.
-When the browser workspace lands, its standard `pnpm install --frozen-lockfile`, lint, typecheck,
-test, and browser commands must remain explicit in the verifier output.
+The repository pins Node through [`.node-version`](../.node-version), pnpm through the root
+`packageManager`, and dependency resolution in `pnpm-lock.yaml`. CI enables Corepack and caches the
+pnpm store independently on both fixed platform lanes. Run commands from the repository root so
+the workspace and lockfile remain authoritative.
 
 Package lock files are committed per project. Change dependencies deliberately, regenerate the
 affected lock files, and then rerun the full sequence.
+
+## Run the browser workspace
+
+The current React shell uses typed synthetic status, Circle, Member, and Node states. It is not yet
+served by `ballsd` and does not establish the future loopback security boundary. To work on it:
+
+```powershell
+corepack enable
+pnpm install --frozen-lockfile
+pnpm web:generate:check
+pnpm --dir web/Balls.Web dev
+```
+
+The generated client is committed at `web/Balls.Web/src/api/generated`. Update it only with
+`pnpm web:generate`; `pnpm web:generate:check` compares the committed file with fresh output from
+`docs/protocol/local-control-v1.openapi.json` without rewriting it.
 
 ## Download and run a Windows Canary
 
@@ -180,14 +209,14 @@ Every current test class declares one of these `TestCategory` values:
 | `Contract` | architecture, protocol, storage, daemon, and CLI contracts | Yes |
 | `ProcessIntegration` | real `ballsd`/`balls` process acceptance | Yes |
 | `OSIntegration` | Windows ACL and named-pipe defaults | Full only |
-| `Browser` | reserved; no browser workspace yet | No |
+| `Browser` | React component tests through the repository pnpm workspace | Yes |
 | `Lab` | reserved for explicit VM/multi-node evidence | No |
 
 The category audit fails if a test is added without a recognized category. `focused` also fails
 with exit code 3 when its filter selects zero tests.
 
-On the 2026-08-19 Windows development host, a warm focused Core run took 2.92 seconds and a warm
-fast gate took 29.49 seconds, passing the 15-second and 60-second budgets. See the
+On the 2026-08-19 Windows development host, the browser-enabled warm fast gate took 37.90 seconds,
+passing the 60-second budget. Focused generated-client and component commands also passed. See the
 [dated verification record](verification/2026-08-19-developer-verification.md).
 
 Keep Windows-specific APIs in `Balls.Platform.Windows`. A change to behavior, wire contracts,
