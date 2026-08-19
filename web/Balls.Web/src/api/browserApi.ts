@@ -2,13 +2,9 @@ import type {
   CircleDetailsDto,
   CircleListDto,
   CreateCircleDto,
+  BrowserSessionDto,
   StatusDto,
 } from "./localControl";
-
-interface BrowserSessionDto {
-  antiforgeryToken: string;
-  expiresAtUtc: string;
-}
 
 interface ErrorDto {
   code: string;

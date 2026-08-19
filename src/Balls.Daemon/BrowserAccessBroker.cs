@@ -61,7 +61,7 @@ internal sealed class BrowserAccessBroker
         }
 
         var now = timeProvider.GetUtcNow();
-        if (expiresAtUtc < now)
+        if (expiresAtUtc <= now)
         {
             return null;
         }
@@ -83,7 +83,7 @@ internal sealed class BrowserAccessBroker
             return false;
         }
 
-        if (session.ExpiresAtUtc < timeProvider.GetUtcNow())
+        if (session.ExpiresAtUtc <= timeProvider.GetUtcNow())
         {
             sessions.TryRemove(sessionToken, out _);
             return false;
@@ -122,12 +122,12 @@ internal sealed class BrowserAccessBroker
 
     private void Prune(DateTimeOffset now)
     {
-        foreach (var launch in launches.Where(pair => pair.Value < now))
+        foreach (var launch in launches.Where(pair => pair.Value <= now))
         {
             launches.TryRemove(launch.Key, out _);
         }
 
-        foreach (var session in sessions.Where(pair => pair.Value.ExpiresAtUtc < now))
+        foreach (var session in sessions.Where(pair => pair.Value.ExpiresAtUtc <= now))
         {
             sessions.TryRemove(session.Key, out _);
         }

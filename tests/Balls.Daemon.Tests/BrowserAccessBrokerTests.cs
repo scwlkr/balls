@@ -36,7 +36,7 @@ public sealed class BrowserAccessBrokerTests
             sessionLifetime: TimeSpan.FromMinutes(15));
         var launch = broker.IssueLaunch(BrowserBaseUri);
 
-        time.Advance(TimeSpan.FromSeconds(31));
+        time.Advance(TimeSpan.FromSeconds(30));
 
         Assert.IsNull(broker.ExchangeLaunchCapability(launch.Capability));
     }
@@ -72,7 +72,7 @@ public sealed class BrowserAccessBrokerTests
         var session = broker.ExchangeLaunchCapability(launch.Capability);
         Assert.IsNotNull(session);
 
-        time.Advance(TimeSpan.FromMinutes(16));
+        time.Advance(TimeSpan.FromMinutes(15));
 
         Assert.IsFalse(broker.IsSessionAuthorized(session.SessionToken));
         Assert.IsFalse(

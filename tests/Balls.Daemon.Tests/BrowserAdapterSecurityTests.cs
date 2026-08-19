@@ -61,6 +61,14 @@ public sealed partial class BrowserAdapterSecurityTests
         using var browserClient = CreateBrowserClient(browserBaseUri);
         var capability = ReadCapability(launch.Url);
 
+        using var ambiguousOrigin = CreateJsonRequest(
+            HttpMethod.Post,
+            BrowserRoutes.Session,
+            new ExchangeBrowserSessionRequest(capability),
+            GetOrigin(browserBaseUri));
+        ambiguousOrigin.Headers.TryAddWithoutValidation("Origin", "http://hostile.example");
+        using var ambiguousOriginResponse = await browserClient.SendAsync(ambiguousOrigin);
+
         using var hostileExchange = CreateJsonRequest(
             HttpMethod.Post,
             BrowserRoutes.Session,
@@ -84,7 +92,9 @@ public sealed partial class BrowserAdapterSecurityTests
             new ExchangeBrowserSessionRequest(capability),
             GetOrigin(browserBaseUri));
         using var replayResponse = await browserClient.SendAsync(replay);
+        var replayBody = await replayResponse.Content.ReadAsStringAsync();
 
+        Assert.AreEqual(HttpStatusCode.Forbidden, ambiguousOriginResponse.StatusCode);
         Assert.AreEqual(HttpStatusCode.Forbidden, hostileResponse.StatusCode);
         Assert.AreEqual(HttpStatusCode.OK, response.StatusCode);
         Assert.IsNotNull(session);
@@ -95,6 +105,7 @@ public sealed partial class BrowserAdapterSecurityTests
         StringAssert.Contains(setCookie, "samesite=strict", StringComparison.OrdinalIgnoreCase);
         Assert.IsFalse(setCookie.Contains(capability, StringComparison.Ordinal));
         Assert.AreEqual(HttpStatusCode.Unauthorized, replayResponse.StatusCode);
+        Assert.IsFalse(replayBody.Contains(capability, StringComparison.Ordinal));
     }
 
     [TestMethod]
@@ -111,6 +122,12 @@ public sealed partial class BrowserAdapterSecurityTests
         using var hostileHost = new HttpRequestMessage(HttpMethod.Get, "/");
         hostileHost.Headers.Host = "hostile.example";
         using var hostileHostResponse = await browserClient.SendAsync(hostileHost);
+
+        using var ambiguousHost = new HttpRequestMessage(HttpMethod.Get, "/");
+        ambiguousHost.Headers.TryAddWithoutValidation(
+            "Host",
+            [browserBaseUri.Authority, "hostile.example"]);
+        using var ambiguousHostResponse = await browserClient.SendAsync(ambiguousHost);
 
         var createRequest = new CreateCircleRequest(
             "0198c2d8-b000-7000-8000-000000000501",
@@ -140,11 +157,35 @@ public sealed partial class BrowserAdapterSecurityTests
         using var statusResponse = await browserClient.SendAsync(statusRequest);
 
         Assert.AreEqual(HttpStatusCode.BadRequest, hostileHostResponse.StatusCode);
+        Assert.AreEqual(HttpStatusCode.BadRequest, ambiguousHostResponse.StatusCode);
         Assert.AreEqual(HttpStatusCode.Forbidden, missingAntiforgeryResponse.StatusCode);
         Assert.AreEqual(HttpStatusCode.Created, createResponse.StatusCode);
         Assert.IsNotNull(created);
         Assert.AreEqual("Secure Circle", created.Circle.Name);
         Assert.AreEqual(HttpStatusCode.OK, statusResponse.StatusCode);
+    }
+
+    [TestMethod]
+    public async Task Browser_request_body_is_bounded_before_capability_processing()
+    {
+        using var directory = new TemporaryDirectory();
+        await using var daemon = await StartDaemonAsync(directory.Path);
+        using var ipcClient = CreateIpcClient(GetEndpoint(directory.Path));
+        var launch = await IssueLaunchAsync(ipcClient);
+        var browserBaseUri = GetBrowserBaseUri(launch);
+        using var browserClient = CreateBrowserClient(browserBaseUri);
+        using var request = new HttpRequestMessage(HttpMethod.Post, BrowserRoutes.Session)
+        {
+            Content = new StringContent(
+                $"{{\"capability\":\"{new string('a', 33 * 1024)}\"}}",
+                Encoding.UTF8,
+                "application/json"),
+        };
+        request.Headers.TryAddWithoutValidation("Origin", GetOrigin(browserBaseUri));
+
+        using var response = await browserClient.SendAsync(request);
+
+        Assert.AreEqual(HttpStatusCode.RequestEntityTooLarge, response.StatusCode);
     }
 
     [TestMethod]

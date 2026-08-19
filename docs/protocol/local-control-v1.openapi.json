@@ -4,17 +4,25 @@
     "title": "ballsd | v1",
     "version": "1.0.0"
   },
-  "servers": [{ "url": "http://localhost/" }],
+  "servers": [
+    {
+      "url": "http://localhost/"
+    }
+  ],
   "paths": {
     "/control/v1/status": {
       "get": {
-        "tags": ["ballsd"],
+        "tags": [
+          "ballsd"
+        ],
         "responses": {
           "200": {
             "description": "OK",
             "content": {
               "application/json": {
-                "schema": { "$ref": "#/components/schemas/StatusResponse" }
+                "schema": {
+                  "$ref": "#/components/schemas/StatusResponse"
+                }
               }
             }
           }
@@ -23,13 +31,17 @@
     },
     "/control/v1/ui/launch": {
       "post": {
-        "tags": ["ballsd"],
+        "tags": [
+          "ballsd"
+        ],
         "responses": {
           "200": {
             "description": "OK",
             "content": {
               "application/json": {
-                "schema": { "$ref": "#/components/schemas/LaunchBrowserResponse" }
+                "schema": {
+                  "$ref": "#/components/schemas/LaunchBrowserResponse"
+                }
               }
             }
           }
@@ -38,11 +50,15 @@
     },
     "/control/v1/circles": {
       "post": {
-        "tags": ["ballsd"],
+        "tags": [
+          "ballsd"
+        ],
         "requestBody": {
           "content": {
             "application/json": {
-              "schema": { "$ref": "#/components/schemas/CreateCircleRequest" }
+              "schema": {
+                "$ref": "#/components/schemas/CreateCircleRequest"
+              }
             }
           },
           "required": true
@@ -52,7 +68,9 @@
             "description": "Created",
             "content": {
               "application/json": {
-                "schema": { "$ref": "#/components/schemas/CircleDetailsResponse" }
+                "schema": {
+                  "$ref": "#/components/schemas/CircleDetailsResponse"
+                }
               }
             }
           },
@@ -60,7 +78,9 @@
             "description": "Bad Request",
             "content": {
               "application/json": {
-                "schema": { "$ref": "#/components/schemas/ErrorResponse" }
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
               }
             }
           },
@@ -68,20 +88,26 @@
             "description": "Conflict",
             "content": {
               "application/json": {
-                "schema": { "$ref": "#/components/schemas/ErrorResponse" }
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
               }
             }
           }
         }
       },
       "get": {
-        "tags": ["ballsd"],
+        "tags": [
+          "ballsd"
+        ],
         "responses": {
           "200": {
             "description": "OK",
             "content": {
               "application/json": {
-                "schema": { "$ref": "#/components/schemas/CircleListResponse" }
+                "schema": {
+                  "$ref": "#/components/schemas/CircleListResponse"
+                }
               }
             }
           }
@@ -90,13 +116,17 @@
     },
     "/control/v1/circles/{circleId}": {
       "get": {
-        "tags": ["ballsd"],
+        "tags": [
+          "ballsd"
+        ],
         "parameters": [
           {
             "name": "circleId",
             "in": "path",
             "required": true,
-            "schema": { "type": "string" }
+            "schema": {
+              "type": "string"
+            }
           }
         ],
         "responses": {
@@ -104,7 +134,9 @@
             "description": "OK",
             "content": {
               "application/json": {
-                "schema": { "$ref": "#/components/schemas/CircleDetailsResponse" }
+                "schema": {
+                  "$ref": "#/components/schemas/CircleDetailsResponse"
+                }
               }
             }
           },
@@ -112,7 +144,9 @@
             "description": "Bad Request",
             "content": {
               "application/json": {
-                "schema": { "$ref": "#/components/schemas/ErrorResponse" }
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
               }
             }
           },
@@ -120,7 +154,9 @@
             "description": "Not Found",
             "content": {
               "application/json": {
-                "schema": { "$ref": "#/components/schemas/ErrorResponse" }
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
               }
             }
           }
@@ -129,13 +165,17 @@
     },
     "/control/v1/circles/{circleId}/members": {
       "get": {
-        "tags": ["ballsd"],
+        "tags": [
+          "ballsd"
+        ],
         "parameters": [
           {
             "name": "circleId",
             "in": "path",
             "required": true,
-            "schema": { "type": "string" }
+            "schema": {
+              "type": "string"
+            }
           }
         ],
         "responses": {
@@ -143,7 +183,9 @@
             "description": "OK",
             "content": {
               "application/json": {
-                "schema": { "$ref": "#/components/schemas/MemberListResponse" }
+                "schema": {
+                  "$ref": "#/components/schemas/MemberListResponse"
+                }
               }
             }
           },
@@ -151,7 +193,9 @@
             "description": "Bad Request",
             "content": {
               "application/json": {
-                "schema": { "$ref": "#/components/schemas/ErrorResponse" }
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
               }
             }
           },
@@ -159,7 +203,9 @@
             "description": "Not Found",
             "content": {
               "application/json": {
-                "schema": { "$ref": "#/components/schemas/ErrorResponse" }
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
               }
             }
           }
@@ -168,13 +214,17 @@
     },
     "/control/v1/circles/{circleId}/nodes": {
       "get": {
-        "tags": ["ballsd"],
+        "tags": [
+          "ballsd"
+        ],
         "parameters": [
           {
             "name": "circleId",
             "in": "path",
             "required": true,
-            "schema": { "type": "string" }
+            "schema": {
+              "type": "string"
+            }
           }
         ],
         "responses": {
@@ -182,7 +232,9 @@
             "description": "OK",
             "content": {
               "application/json": {
-                "schema": { "$ref": "#/components/schemas/NodeListResponse" }
+                "schema": {
+                  "$ref": "#/components/schemas/NodeListResponse"
+                }
               }
             }
           },
@@ -190,7 +242,9 @@
             "description": "Bad Request",
             "content": {
               "application/json": {
-                "schema": { "$ref": "#/components/schemas/ErrorResponse" }
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
               }
             }
           },
@@ -198,7 +252,182 @@
             "description": "Not Found",
             "content": {
               "application/json": {
-                "schema": { "$ref": "#/components/schemas/ErrorResponse" }
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/browser/v1/session": {
+      "post": {
+        "tags": [
+          "ballsd"
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ExchangeBrowserSessionRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BrowserSessionResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/browser/v1/status": {
+      "get": {
+        "tags": [
+          "ballsd"
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StatusResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/browser/v1/circles": {
+      "get": {
+        "tags": [
+          "ballsd"
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CircleListResponse"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "ballsd"
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateCircleRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "Created",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CircleDetailsResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/browser/v1/circles/{circleId}": {
+      "get": {
+        "tags": [
+          "ballsd"
+        ],
+        "parameters": [
+          {
+            "name": "circleId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CircleDetailsResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
               }
             }
           }
@@ -208,139 +437,289 @@
   },
   "components": {
     "schemas": {
-      "CircleDetailsResponse": {
-        "required": ["circle", "members", "nodes"],
+      "BrowserSessionResponse": {
+        "required": [
+          "antiforgeryToken",
+          "expiresAtUtc"
+        ],
         "type": "object",
         "properties": {
-          "circle": { "$ref": "#/components/schemas/CircleResponse" },
+          "antiforgeryToken": {
+            "type": "string"
+          },
+          "expiresAtUtc": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "CircleDetailsResponse": {
+        "required": [
+          "circle",
+          "members",
+          "nodes"
+        ],
+        "type": "object",
+        "properties": {
+          "circle": {
+            "$ref": "#/components/schemas/CircleResponse"
+          },
           "members": {
             "type": "array",
-            "items": { "$ref": "#/components/schemas/MemberResponse" }
+            "items": {
+              "$ref": "#/components/schemas/MemberResponse"
+            }
           },
           "nodes": {
             "type": "array",
-            "items": { "$ref": "#/components/schemas/CircleNodeResponse" }
+            "items": {
+              "$ref": "#/components/schemas/CircleNodeResponse"
+            }
           }
         }
       },
       "CircleListResponse": {
-        "required": ["circles"],
+        "required": [
+          "circles"
+        ],
         "type": "object",
         "properties": {
           "circles": {
             "type": "array",
-            "items": { "$ref": "#/components/schemas/CircleResponse" }
+            "items": {
+              "$ref": "#/components/schemas/CircleResponse"
+            }
           }
         }
       },
       "CircleNodeResponse": {
-        "required": ["id", "displayName", "joinedAtUtc"],
+        "required": [
+          "id",
+          "displayName",
+          "joinedAtUtc"
+        ],
         "type": "object",
         "properties": {
-          "id": { "type": "string" },
-          "displayName": { "type": "string" },
-          "joinedAtUtc": { "type": "string", "format": "date-time" }
+          "id": {
+            "type": "string"
+          },
+          "displayName": {
+            "type": "string"
+          },
+          "joinedAtUtc": {
+            "type": "string",
+            "format": "date-time"
+          }
         }
       },
       "CircleResponse": {
-        "required": ["id", "name", "createdAtUtc", "memberCount", "nodeCount"],
+        "required": [
+          "id",
+          "name",
+          "createdAtUtc",
+          "memberCount",
+          "nodeCount"
+        ],
         "type": "object",
         "properties": {
-          "id": { "type": "string" },
-          "name": { "type": "string" },
-          "createdAtUtc": { "type": "string", "format": "date-time" },
+          "id": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "createdAtUtc": {
+            "type": "string",
+            "format": "date-time"
+          },
           "memberCount": {
             "pattern": "^-?(?:0|[1-9]\\d*)$",
-            "type": ["integer", "string"],
+            "type": [
+              "integer",
+              "string"
+            ],
             "format": "int32"
           },
           "nodeCount": {
             "pattern": "^-?(?:0|[1-9]\\d*)$",
-            "type": ["integer", "string"],
+            "type": [
+              "integer",
+              "string"
+            ],
             "format": "int32"
           }
         }
       },
       "CreateCircleRequest": {
-        "required": ["requestId", "name", "ownerDisplayName"],
+        "required": [
+          "requestId",
+          "name",
+          "ownerDisplayName"
+        ],
         "type": "object",
         "properties": {
-          "requestId": { "type": "string" },
-          "name": { "type": "string" },
-          "ownerDisplayName": { "type": "string" }
+          "requestId": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "ownerDisplayName": {
+            "type": "string"
+          }
         }
       },
       "ErrorResponse": {
-        "required": ["code", "message"],
+        "required": [
+          "code",
+          "message"
+        ],
         "type": "object",
         "properties": {
-          "code": { "type": "string" },
-          "message": { "type": "string" }
+          "code": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          }
+        }
+      },
+      "ExchangeBrowserSessionRequest": {
+        "required": [
+          "capability"
+        ],
+        "type": "object",
+        "properties": {
+          "capability": {
+            "type": "string"
+          }
         }
       },
       "LaunchBrowserResponse": {
-        "required": ["url", "expiresAtUtc"],
+        "required": [
+          "url",
+          "expiresAtUtc"
+        ],
         "type": "object",
         "properties": {
-          "url": { "type": "string" },
-          "expiresAtUtc": { "type": "string", "format": "date-time" }
+          "url": {
+            "type": "string"
+          },
+          "expiresAtUtc": {
+            "type": "string",
+            "format": "date-time"
+          }
         }
       },
       "MemberListResponse": {
-        "required": ["circleId", "members"],
+        "required": [
+          "circleId",
+          "members"
+        ],
         "type": "object",
         "properties": {
-          "circleId": { "type": "string" },
+          "circleId": {
+            "type": "string"
+          },
           "members": {
             "type": "array",
-            "items": { "$ref": "#/components/schemas/MemberResponse" }
+            "items": {
+              "$ref": "#/components/schemas/MemberResponse"
+            }
           }
         }
       },
       "MemberResponse": {
-        "required": ["id", "displayName", "role", "joinedAtUtc"],
+        "required": [
+          "id",
+          "displayName",
+          "role",
+          "joinedAtUtc"
+        ],
         "type": "object",
         "properties": {
-          "id": { "type": "string" },
-          "displayName": { "type": "string" },
-          "role": { "type": "string" },
-          "joinedAtUtc": { "type": "string", "format": "date-time" }
+          "id": {
+            "type": "string"
+          },
+          "displayName": {
+            "type": "string"
+          },
+          "role": {
+            "type": "string"
+          },
+          "joinedAtUtc": {
+            "type": "string",
+            "format": "date-time"
+          }
         }
       },
       "NodeListResponse": {
-        "required": ["circleId", "nodes"],
+        "required": [
+          "circleId",
+          "nodes"
+        ],
         "type": "object",
         "properties": {
-          "circleId": { "type": "string" },
+          "circleId": {
+            "type": "string"
+          },
           "nodes": {
             "type": "array",
-            "items": { "$ref": "#/components/schemas/CircleNodeResponse" }
+            "items": {
+              "$ref": "#/components/schemas/CircleNodeResponse"
+            }
           }
         }
       },
       "NodeResponse": {
-        "required": ["id", "displayName", "createdAtUtc"],
+        "required": [
+          "id",
+          "displayName",
+          "createdAtUtc"
+        ],
         "type": "object",
         "properties": {
-          "id": { "type": "string" },
-          "displayName": { "type": "string" },
-          "createdAtUtc": { "type": "string", "format": "date-time" }
+          "id": {
+            "type": "string"
+          },
+          "displayName": {
+            "type": "string"
+          },
+          "createdAtUtc": {
+            "type": "string",
+            "format": "date-time"
+          }
         }
       },
       "StatusResponse": {
-        "required": ["productVersion", "protocolVersion", "node"],
+        "required": [
+          "productVersion",
+          "protocolVersion",
+          "node"
+        ],
         "type": "object",
         "properties": {
-          "productVersion": { "type": "string" },
+          "productVersion": {
+            "type": "string"
+          },
           "protocolVersion": {
             "pattern": "^-?(?:0|[1-9]\\d*)$",
-            "type": ["integer", "string"],
+            "type": [
+              "integer",
+              "string"
+            ],
             "format": "int32"
           },
-          "node": { "$ref": "#/components/schemas/NodeResponse" }
+          "node": {
+            "$ref": "#/components/schemas/NodeResponse"
+          }
         }
       }
     }
   },
-  "tags": [{ "name": "ballsd" }]
+  "tags": [
+    {
+      "name": "ballsd"
+    }
+  ]
 }

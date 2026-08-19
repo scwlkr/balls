@@ -11,5 +11,6 @@ export type CircleDetailsDto = components["schemas"]["CircleDetailsResponse"];
 export type CircleListDto = components["schemas"]["CircleListResponse"];
 export type CircleSummaryDto = components["schemas"]["CircleResponse"];
 export type CreateCircleDto = components["schemas"]["CreateCircleRequest"];
+export type BrowserSessionDto = components["schemas"]["BrowserSessionResponse"];
 export type MemberDto = components["schemas"]["MemberResponse"];
 export type CircleNodeDto = components["schemas"]["CircleNodeResponse"];
