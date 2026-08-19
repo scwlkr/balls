@@ -25,7 +25,7 @@ replicated storage, richer messaging, macOS polish, and compute remain later pro
 - Circle, Member, and Node listing;
 - versioned HTTP/JSON over a same-user named pipe;
 - protected, marked, fail-closed SQLite state;
-- 62 automated tests and Windows process-boundary evidence.
+- 65 automated tests and Windows process-boundary evidence.
 
 Linux currently builds and runs portable tests, but `ballsd` and `balls` reject non-Windows hosts.
 
@@ -47,6 +47,7 @@ Completed transition:
 
 - [#3 — Prepare and approve the public repository transition](https://github.com/scwlkr/balls/issues/3)
 - [#4 — Create the sub-minute developer verification command](https://github.com/scwlkr/balls/issues/4)
+- [#5 — Establish the protected pull-request workflow](https://github.com/scwlkr/balls/issues/5)
 
 The owner-approved clean lineage is public at `scwlkr/balls`. Private vulnerability reporting and
 the active `main` rules are verified, anonymous web/API/Git reads pass, and both the original
@@ -60,11 +61,17 @@ is 2.92 seconds focused and 29.49 seconds fast; Ubuntu runs the same portable fa
 Details are in the
 [developer verification record](verification/2026-08-19-developer-verification.md).
 
+Pull requests use fixed Windows 2025 and Ubuntu 24.04 fast lanes plus one fail-closed `Required`
+decision. Squash-only auto-merge, automatic branch deletion, and the active `main` ruleset are
+verified in the
+[protected-workflow record](verification/2026-08-19-protected-pr-workflow.md).
+
 Ready frontier:
 
-- [#5 — Establish the protected pull-request workflow](https://github.com/scwlkr/balls/issues/5)
+- [#6 — Publish green-main Canary artifacts](https://github.com/scwlkr/balls/issues/6)
 
-Issues #6–#8 remain blocked by recorded dependencies in GitHub.
+Issues #7–#8 remain blocked by recorded dependencies in GitHub. Issue #6 reaches a publication
+boundary and requires the documented owner gate before Canary artifacts are enabled.
 
 ## Working rules
 
