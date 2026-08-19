@@ -85,7 +85,7 @@ readback, and next executable milestone are reconciled in the
 
 Ready frontier:
 
-- [#21 — Serve a hardened local browser UI from ballsd](https://github.com/scwlkr/balls/issues/21)
+- [#22 — Prove the Windows and Ubuntu Node/UI outcome and publish runnable Canaries](https://github.com/scwlkr/balls/issues/22)
 
 Completed in the active milestone:
 
@@ -93,6 +93,7 @@ Completed in the active milestone:
 - [#18 — Run protected local state and control IPC natively on Linux](https://github.com/scwlkr/balls/issues/18)
 - [#19 — Add stable structured CLI output and dual-platform process acceptance](https://github.com/scwlkr/balls/issues/19)
 - [#20 — Create the typed React workspace and generated local API client](https://github.com/scwlkr/balls/issues/20)
+- [#21 — Serve a hardened local browser UI from ballsd](https://github.com/scwlkr/balls/issues/21)
 
 The executable layers consume neutral host contracts and one centralized selector. Windows keeps
 its protected state and same-user named pipe; Linux adds owned `0700` state, `0600` known files,
@@ -104,12 +105,17 @@ error envelope for every current command. Global option placement, exit codes, i
 timestamps, roles, and list ordering have contract coverage, and the same separate-process
 create/list/restart acceptance runs on Windows and Ubuntu.
 
-The repository now has one pinned React/TypeScript/Vite workspace. Its local-control client is
-reproducibly generated from the committed OpenAPI contract, protocol DTOs stay at the API edge,
-and an accessible synthetic Circle shell makes Node, Circle, Member, and Node states concrete.
-Focused/fast/full verification and both fixed CI lanes execute the visible locked pnpm workflow.
+The repository now has one pinned React/TypeScript/Vite workspace served offline by `ballsd`.
+Protected IPC issues a short-lived one-time launch capability; the separate loopback adapter uses
+an HttpOnly session, antiforgery, exact Host/Origin validation, CSP, bounded requests, and no
+permissive CORS. The accessible Node, Circle list/create, Member, and Node views use the same
+application behavior as the CLI. Component tests and a real Playwright Chromium
+launch/create/list/restart journey run in focused/fast/full verification and both fixed CI lanes.
+The implementation and observed security evidence are recorded in the
+[browser UI record](verification/2026-08-19-browser-ui.md).
 
-#22–#23 remain dependency-blocked behind the issue chain recorded in their acceptance contracts.
+#22 becomes ready when #21 lands; #23 remains dependency-blocked behind the issue chain recorded
+in its acceptance contract.
 
 ## Working rules
 

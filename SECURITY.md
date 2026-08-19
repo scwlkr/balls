@@ -19,6 +19,11 @@ The local control interface is not the future remote Node-to-Node security model
 threat-model review is required before remote admission or transport ships; see
 [`docs/security/threat-model.md`](docs/security/threat-model.md).
 
+The local browser UI is served by `ballsd` on an authenticated loopback-only boundary. It must not
+be proxied or rebound for LAN access. Launch capabilities and session material are credentials:
+do not paste them into reports, logs, screenshots, or issue comments. Run `balls ui` again instead
+of retaining a launch URL.
+
 ## Public repository automation
 
 The public repository applies these automated checks:

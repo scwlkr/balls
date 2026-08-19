@@ -106,12 +106,12 @@ remote browser experience uses a separate authenticated Circle endpoint; the loo
 must never be exposed remotely. Native shells may wrap the same UI only when a proven OS-specific
 UX need justifies them.
 
-The implemented browser-workspace checkpoint lives in `web/Balls.Web`. It pins Node and pnpm,
-generates its typed API edge from the committed local-control OpenAPI document, and keeps generated
-DTOs and `openapi-fetch` at `src/api`. React components receive presentation snapshots rather than
-owning Circle behavior or persistence. The current accessible status/Circle/Member/Node shell uses
-synthetic data; serving it from `ballsd` and establishing the authenticated loopback boundary are
-the next security-scoped slice.
+The implemented browser workspace lives in `web/Balls.Web`. It pins Node and pnpm, generates its
+typed API edge from the committed OpenAPI document, and keeps generated DTOs and fetch behavior at
+`src/api`. React components receive presentation snapshots rather than owning Circle behavior or
+persistence. The accessible status, Circle list/create, Member, and Node views now consume the
+same `CircleApplication` behavior as the CLI through the narrow browser adapter. A real Chromium
+journey covers launch, creation, listing, and daemon restart on both required CI platforms.
 
 ## Local API
 
