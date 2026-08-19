@@ -1,6 +1,7 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <ItemGroup>
     <ProjectReference Include="..\Balls.Platform\Balls.Platform.csproj" />
+    <ProjectReference Include="..\Balls.Platform.Linux\Balls.Platform.Linux.csproj" />
     <ProjectReference Include="..\Balls.Platform.Windows\Balls.Platform.Windows.csproj" />
   </ItemGroup>
 </Project>

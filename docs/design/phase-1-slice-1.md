@@ -64,6 +64,7 @@ src/
   Balls.Protocol/           versioned local-control DTOs and routes
   Balls.Storage.Sqlite/     transactional local-state adapter
   Balls.Platform/           neutral host-edge contracts
+  Balls.Platform.Linux/     Linux state and Unix-socket policy
   Balls.Platform.Windows/   Windows host IPC and state-directory policy
   Balls.Host/               centralized runtime OS-adapter selection
   Balls.Daemon/             ballsd application host
@@ -75,8 +76,9 @@ tests/
   Balls.Cli.Tests/
 ```
 
-Linux, macOS, desktop UI, peer transport, and Anchor projects are not created until they contain
-real behavior. The current selector returns a typed unsupported-host result for non-Windows hosts.
+Linux now contains real native host behavior. macOS, desktop UI, peer transport, and Anchor
+projects are not created until they contain real behavior. The selector returns a typed
+unsupported-host result for unregistered hosts.
 
 ## Host-composition contract
 
@@ -93,9 +95,10 @@ The Windows aggregate preserves `%LOCALAPPDATA%\Balls`, the deterministic curren
 the machine-name Node label, protected state ACLs, `CurrentUserOnly` server and client pipes,
 HTTP/1.1, and no TCP control listener. Normal execution remains unelevated.
 
-The Linux handoff is deliberately narrow: add `Balls.Platform.Linux`, implement the same four
-seams with recorded state-directory and Unix-domain-socket safety semantics, and register it in
-`Balls.Host`. Do not fork local-control v1, SQLite v1, daemon routes, or CLI application behavior.
+The Linux handoff followed that narrow contract: `Balls.Platform.Linux` implements the same four
+seams with recorded state-directory and Unix-domain-socket safety semantics and is registered in
+`Balls.Host`. It does not fork local-control v1, SQLite v1, daemon routes, or CLI application
+behavior.
 
 ## Local control contract
 

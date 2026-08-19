@@ -344,14 +344,16 @@ Balls.Host selector
 HostPlatform aggregate
       │
 Balls.Platform contracts
-      │
-Balls.Platform.Windows adapter
+      ├──────────────┐
+      │              │
+Windows adapter   Linux adapter
 ```
 
 `HostPlatform` supplies platform defaults plus independent seams for local-state preparation,
 local-control server transport, and local-control client transport. `Balls.Host` is the only
-project that selects an OS adapter. Unsupported hosts return one typed, fail-closed selection
-result; executable entry points do not perform their own OS checks or construct adapter types.
+project that selects an OS adapter. Windows and Linux are registered; other hosts return one typed,
+fail-closed selection result. Executable entry points do not perform their own OS checks or
+construct adapter types.
 
 ## Privilege model
 
@@ -519,6 +521,7 @@ src/
   Balls.Cli/
   Balls.Host/
   Balls.Platform/
+  Balls.Platform.Linux/
   Balls.Platform.Windows/
   Balls.Platform.Linux/
   Balls.Platform.MacOS/
@@ -562,8 +565,9 @@ those contracts and depend on Core. Core never references an adapter.
 Host-edge adapters are a separate category. Local IPC clients/servers and
 state-directory OS policy support the CLI or daemon composition boundary and
 need not implement or reference a Core port. Their neutral contracts live in `Balls.Platform`,
-the Windows implementations live in `Balls.Platform.Windows`, and `Balls.Host` centralizes the
-selection. The executable projects reference the selector and contracts, not the Windows adapter.
+the OS implementations live in `Balls.Platform.Windows` and `Balls.Platform.Linux`, and
+`Balls.Host` centralizes selection. The executable projects reference the selector and contracts,
+not either OS adapter.
 Future Windows capability adapters that implement Core-owned ports should be split by capability
 when they become real.
 

@@ -3,6 +3,7 @@ using Balls.Core;
 using Balls.Daemon;
 using Balls.Host;
 using Balls.Platform;
+using Balls.Platform.Linux;
 using Balls.Platform.Windows;
 using Balls.Protocol.Control.V1;
 using Balls.Storage.Sqlite;
@@ -65,7 +66,14 @@ public sealed class DependencyDirectionTests
         AssertBallsReferences(
             typeof(HostPlatformSelector).Assembly,
             "Balls.Platform",
+            "Balls.Platform.Linux",
             "Balls.Platform.Windows");
+    }
+
+    [TestMethod]
+    public void Linux_adapter_depends_only_on_platform_contracts()
+    {
+        AssertBallsReferences(typeof(LinuxHostPlatform).Assembly, "Balls.Platform");
     }
 
     [TestMethod]

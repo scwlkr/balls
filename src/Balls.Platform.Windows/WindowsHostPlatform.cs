@@ -42,6 +42,11 @@ public static class WindowsHostPlatform
             WindowsNamedPipeControl.ValidatePipeName(endpoint);
         }
 
+        public void PrepareEndpoint(string endpoint)
+        {
+            ValidateEndpoint(endpoint);
+        }
+
         public void ConfigureServices(IServiceCollection services)
         {
             WindowsNamedPipeControl.ConfigureServices(services);
@@ -50,6 +55,16 @@ public static class WindowsHostPlatform
         public void ConfigureServer(KestrelServerOptions serverOptions, string endpoint)
         {
             WindowsNamedPipeControl.ConfigureServer(serverOptions, endpoint);
+        }
+
+        public void SecureEndpoint(string endpoint)
+        {
+            ValidateEndpoint(endpoint);
+        }
+
+        public void CleanupEndpoint(string endpoint)
+        {
+            ValidateEndpoint(endpoint);
         }
 
         public HttpClient CreateClient(string endpoint, TimeSpan? timeout = null)

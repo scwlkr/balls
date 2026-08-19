@@ -80,8 +80,8 @@ that passed CI:
 
 - a runnable `windows-x64` development Canary containing `balls`, `ballsd`, identity metadata,
   and SHA-256 checksums;
-- a `linux-x64` build/test artifact whose manifest and README explicitly say that the runtime is
-  unsupported until `0.2.0-alpha.1`.
+- a runnable `linux-x64` development Canary using protected XDG state and a same-user Unix-domain
+  socket.
 
 Download the artifacts from the latest successful
 [`CI` workflow](https://github.com/scwlkr/balls/actions/workflows/ci.yml). After extracting

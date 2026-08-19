@@ -98,7 +98,7 @@ public sealed class CanaryPackageTests
     }
 
     [TestMethod]
-    public void Linux_package_is_explicitly_runtime_unsupported()
+    public void Linux_package_is_a_runnable_development_Canary()
     {
         using var fixture = new PackageFixture("balls", "ballsd");
 
@@ -110,9 +110,10 @@ public sealed class CanaryPackageTests
         Assert.IsNull(result.InstallerPath);
         using var archive = ZipFile.OpenRead(result.ArchivePath);
         using var manifest = ReadJson(archive, "canary.json");
-        Assert.IsFalse(manifest.RootElement.GetProperty("runtimeSupported").GetBoolean());
+        Assert.IsTrue(manifest.RootElement.GetProperty("runtimeSupported").GetBoolean());
         var readme = ReadText(archive, "README.md");
-        StringAssert.Contains(readme, "Runtime unsupported until 0.2.0-alpha.1");
+        StringAssert.Contains(readme, "Balls Linux Canary");
+        StringAssert.Contains(readme, "Unix-domain socket");
         AssertInternalChecksums(archive);
     }
 

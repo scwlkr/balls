@@ -2,7 +2,7 @@ using System.Diagnostics;
 using System.Net.Http.Json;
 using System.Text.Json;
 using Balls.Cli;
-using Balls.Platform.Windows;
+using Balls.Host;
 using Balls.Protocol.Control.V1;
 
 namespace Balls.Cli.Tests;
@@ -14,27 +14,20 @@ public sealed class ProcessAcceptanceTests
     [TestMethod]
     public async Task Cli_process_uses_stable_usage_unavailable_and_rejected_exit_codes()
     {
-        if (!OperatingSystem.IsWindows())
-        {
-            Assert.Inconclusive("The Phase 1 local control transport is currently Windows-only.");
-            return;
-        }
-
-        var usage = await RunCliAsync("--pipe-name", "bad/name", "status");
-        var unavailable = await RunCliAsync(
-            "--pipe-name",
-            $"balls-tests-{Guid.NewGuid():N}",
-            "status");
-
         using var directory = new TemporaryDirectory();
-        var pipeName = $"balls-acceptance-{Guid.NewGuid():N}";
-        using var daemon = StartDaemon(directory.Path, pipeName, "Process-PC");
+        var endpoint = GetEndpoint(directory.Path);
+        var usage = await RunCliAsync("--pipe-name", "bad/name", "status");
+        var unavailable = await RunCliAsync("--pipe-name", GetUnavailableEndpoint(directory.Path), "status");
+        using var daemon = StartDaemon(
+            Path.Combine(directory.Path, "state"),
+            endpoint,
+            "Process-PC");
         try
         {
-            await WaitUntilReadyAsync(daemon, pipeName);
+            await WaitUntilReadyAsync(daemon, endpoint);
             var rejected = await RunCliAsync(
                 "--pipe-name",
-                pipeName,
+                endpoint,
                 "circle",
                 "create",
                 "   ",
@@ -59,29 +52,24 @@ public sealed class ProcessAcceptanceTests
     [TestMethod]
     public async Task Separate_daemon_and_cli_processes_preserve_the_first_circle_across_restart()
     {
-        if (!OperatingSystem.IsWindows())
-        {
-            Assert.Inconclusive("The Phase 1 local control transport is currently Windows-only.");
-            return;
-        }
-
         using var directory = new TemporaryDirectory();
-        var pipeName = $"balls-acceptance-{Guid.NewGuid():N}";
-        var firstDaemon = StartDaemon(directory.Path, pipeName, "Process-PC");
+        var stateDirectory = Path.Combine(directory.Path, "state");
+        var endpoint = GetEndpoint(directory.Path);
+        var firstDaemon = StartDaemon(stateDirectory, endpoint, "Process-PC");
         Process? restartedDaemon = null;
 
         try
         {
-            await WaitUntilReadyAsync(firstDaemon, pipeName);
+            await WaitUntilReadyAsync(firstDaemon, endpoint);
             var firstStatus = await RunCliAsync(
                 "--pipe-name",
-                pipeName,
+                endpoint,
                 "status",
                 "--output",
                 "json");
             var create = await RunCliAsync(
                 "--pipe-name",
-                pipeName,
+                endpoint,
                 "circle",
                 "create",
                 "Process Circle",
@@ -105,24 +93,24 @@ public sealed class ProcessAcceptanceTests
 
             await StopProcessAsync(firstDaemon);
 
-            restartedDaemon = StartDaemon(directory.Path, pipeName, "Changed-PC");
-            await WaitUntilReadyAsync(restartedDaemon, pipeName);
+            restartedDaemon = StartDaemon(stateDirectory, endpoint, "Changed-PC");
+            await WaitUntilReadyAsync(restartedDaemon, endpoint);
             var statusAfterRestart = await RunCliAsync(
                 "--pipe-name",
-                pipeName,
+                endpoint,
                 "status",
                 "--output",
                 "json");
             var circles = await RunCliAsync(
                 "--pipe-name",
-                pipeName,
+                endpoint,
                 "circle",
                 "list",
                 "--output",
                 "json");
             var members = await RunCliAsync(
                 "--pipe-name",
-                pipeName,
+                endpoint,
                 "member",
                 "list",
                 "--circle",
@@ -131,7 +119,7 @@ public sealed class ProcessAcceptanceTests
                 "json");
             var nodes = await RunCliAsync(
                 "--pipe-name",
-                pipeName,
+                endpoint,
                 "node",
                 "list",
                 "--circle",
@@ -165,11 +153,11 @@ public sealed class ProcessAcceptanceTests
         }
     }
 
-    private static Process StartDaemon(string dataDirectory, string pipeName, string nodeName)
+    private static Process StartDaemon(string dataDirectory, string endpoint, string nodeName)
     {
         var executable = Path.Combine(
             Path.GetDirectoryName(typeof(CliApplication).Assembly.Location)!,
-            "ballsd.exe");
+            OperatingSystem.IsWindows() ? "ballsd.exe" : "ballsd");
         var startInfo = new ProcessStartInfo(executable)
         {
             UseShellExecute = false,
@@ -180,7 +168,7 @@ public sealed class ProcessAcceptanceTests
         startInfo.ArgumentList.Add("--data-directory");
         startInfo.ArgumentList.Add(dataDirectory);
         startInfo.ArgumentList.Add("--pipe-name");
-        startInfo.ArgumentList.Add(pipeName);
+        startInfo.ArgumentList.Add(endpoint);
         startInfo.ArgumentList.Add("--node-name");
         startInfo.ArgumentList.Add(nodeName);
         return Process.Start(startInfo)
@@ -191,7 +179,7 @@ public sealed class ProcessAcceptanceTests
     {
         var executable = Path.Combine(
             Path.GetDirectoryName(typeof(CliApplication).Assembly.Location)!,
-            "balls.exe");
+            OperatingSystem.IsWindows() ? "balls.exe" : "balls");
         var startInfo = new ProcessStartInfo(executable)
         {
             UseShellExecute = false,
@@ -215,13 +203,8 @@ public sealed class ProcessAcceptanceTests
             (await standardError).Trim());
     }
 
-    private static async Task WaitUntilReadyAsync(Process process, string pipeName)
+    private static async Task WaitUntilReadyAsync(Process process, string endpoint)
     {
-        if (!OperatingSystem.IsWindows())
-        {
-            throw new PlatformNotSupportedException();
-        }
-
         using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(5));
         while (!timeout.IsCancellationRequested)
         {
@@ -233,8 +216,10 @@ public sealed class ProcessAcceptanceTests
 
             try
             {
-                using var client = WindowsNamedPipeHttpClient.Create(
-                    pipeName,
+                var selection = HostPlatformSelector.SelectCurrent();
+                var host = ((SupportedHostPlatform)selection).Platform;
+                using var client = host.LocalControlClient.CreateClient(
+                    endpoint,
                     TimeSpan.FromMilliseconds(200));
                 var status = await client.GetFromJsonAsync<StatusResponse>(
                     ControlRoutes.Status,
@@ -260,6 +245,20 @@ public sealed class ProcessAcceptanceTests
         Assert.Fail("ballsd did not become ready within five seconds.");
     }
 
+    private static string GetEndpoint(string root)
+    {
+        return OperatingSystem.IsWindows()
+            ? $"balls-acceptance-{Guid.NewGuid():N}"
+            : Path.Combine(root, "runtime", "control.sock");
+    }
+
+    private static string GetUnavailableEndpoint(string root)
+    {
+        return OperatingSystem.IsWindows()
+            ? $"balls-tests-{Guid.NewGuid():N}"
+            : Path.Combine(root, "unavailable", "control.sock");
+    }
+
     private static async Task StopProcessAsync(Process process)
     {
         if (!process.HasExited)
@@ -276,7 +275,12 @@ public sealed class ProcessAcceptanceTests
         public TemporaryDirectory()
         {
             Path = System.IO.Path.Combine(
-                System.IO.Path.GetTempPath(),
+                OperatingSystem.IsLinux()
+                    ? System.IO.Path.Combine(
+                        Environment.GetFolderPath(Environment.SpecialFolder.UserProfile),
+                        ".local",
+                        "state")
+                    : System.IO.Path.GetTempPath(),
                 "balls-tests",
                 Guid.NewGuid().ToString("N"));
             Directory.CreateDirectory(Path);

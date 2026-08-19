@@ -9,6 +9,7 @@
     <Project Path="src/Balls.Daemon/Balls.Daemon.csproj" />
     <Project Path="src/Balls.Host/Balls.Host.csproj" />
     <Project Path="src/Balls.Platform/Balls.Platform.csproj" />
+    <Project Path="src/Balls.Platform.Linux/Balls.Platform.Linux.csproj" />
     <Project Path="src/Balls.Platform.Windows/Balls.Platform.Windows.csproj" />
     <Project Path="src/Balls.Protocol/Balls.Protocol.csproj" />
     <Project Path="src/Balls.Storage.Sqlite/Balls.Storage.Sqlite.csproj" />
@@ -18,6 +19,7 @@
     <Project Path="tests/Balls.Cli.Tests/Balls.Cli.Tests.csproj" />
     <Project Path="tests/Balls.Core.Tests/Balls.Core.Tests.csproj" />
     <Project Path="tests/Balls.Daemon.Tests/Balls.Daemon.Tests.csproj" />
+    <Project Path="tests/Balls.Platform.Linux.Tests/Balls.Platform.Linux.Tests.csproj" />
     <Project Path="tests/Balls.Protocol.Tests/Balls.Protocol.Tests.csproj" />
     <Project Path="tests/Balls.Storage.Sqlite.Tests/Balls.Storage.Sqlite.Tests.csproj" />
     <Project Path="tests/Balls.Canary.Tests/Balls.Canary.Tests.csproj" />

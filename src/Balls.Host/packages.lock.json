@@ -5,6 +5,12 @@
       "balls.platform": {
         "type": "Project"
       },
+      "balls.platform.linux": {
+        "type": "Project",
+        "dependencies": {
+          "Balls.Platform": "[0.1.0-alpha.2, )"
+        }
+      },
       "balls.platform.windows": {
         "type": "Project",
         "dependencies": {

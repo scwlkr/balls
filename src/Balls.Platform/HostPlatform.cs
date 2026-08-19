@@ -19,9 +19,15 @@ public interface ILocalControlServerTransport
 {
     void ValidateEndpoint(string endpoint);
 
+    void PrepareEndpoint(string endpoint);
+
     void ConfigureServices(IServiceCollection services);
 
     void ConfigureServer(KestrelServerOptions serverOptions, string endpoint);
+
+    void SecureEndpoint(string endpoint);
+
+    void CleanupEndpoint(string endpoint);
 }
 
 public interface ILocalControlClientTransport

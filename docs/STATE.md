@@ -27,7 +27,8 @@ Published [`0.1.0-alpha.2`](https://github.com/scwlkr/balls/releases/tag/0.1.0-a
 - protected, marked, fail-closed SQLite state;
 - 72 automated tests and Windows process-boundary evidence.
 
-Linux currently builds and runs portable tests, but `ballsd` and `balls` reject non-Windows hosts.
+Linux now composes protected XDG state and a same-user Unix-domain socket through the same daemon,
+CLI, local-control v1, and SQLite v1 behavior as Windows.
 
 ## Active milestone
 
@@ -69,9 +70,9 @@ decision. Squash-only auto-merge, automatic branch deletion, and the active `mai
 verified in the
 [protected-workflow record](verification/2026-08-19-protected-pr-workflow.md).
 
-Every green `main` now publishes deterministic, checksummed, 14-day Windows and Linux workflow
-artifacts from the accepted commit. Windows is smoked from fresh state; Linux is explicitly
-runtime-unsupported. Evidence is in the
+Every green `main` publishes deterministic, checksummed, 14-day Windows and Linux workflow
+artifacts from the accepted commit. Both platforms are smoked from fresh protected state. The
+original build/test-only baseline is recorded in the
 [Canary artifact record](verification/2026-08-19-canary-artifacts.md).
 
 Dependency review, C# CodeQL, scheduled OpenSSF Scorecard, Dependabot security updates, action
@@ -84,18 +85,19 @@ readback, and next executable milestone are reconciled in the
 
 Ready frontier:
 
-- [#18 — Run protected local state and control IPC natively on Linux](https://github.com/scwlkr/balls/issues/18)
+- [#19 — Add stable structured CLI output and dual-platform process acceptance](https://github.com/scwlkr/balls/issues/19)
 
 Completed in the active milestone:
 
 - [#17 — Compose daemon and CLI through cross-platform host seams](https://github.com/scwlkr/balls/issues/17)
+- [#18 — Run protected local state and control IPC natively on Linux](https://github.com/scwlkr/balls/issues/18)
 
-The executable layers now consume neutral host contracts and one centralized selector; the
-existing Windows state and same-user named-pipe behavior is composed without direct Windows
-dependencies in `ballsd` or `balls`. Non-Windows hosts fail closed through one typed result until
-their real adapter is registered.
+The executable layers consume neutral host contracts and one centralized selector. Windows keeps
+its protected state and same-user named pipe; Linux adds owned `0700` state, `0600` known files,
+and a `0600` Unix-domain socket without forking product, protocol, or storage behavior. Unregistered
+hosts fail closed through one typed result.
 
-#19–#23 remain dependency-blocked behind the issue chain recorded in their acceptance contracts.
+#20–#23 remain dependency-blocked behind the issue chain recorded in their acceptance contracts.
 
 ## Working rules
 
