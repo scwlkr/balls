@@ -35,19 +35,19 @@ Balls should first feel exceptional for **2–10 trusted, somewhat technical peo
 **[`0.1.0-alpha.2`](https://github.com/scwlkr/balls/releases/tag/0.1.0-alpha.2) Open and Fast
 Foundation is published; `0.2.0-alpha.1` Cross-platform Node and Web UI is active.**
 
-On Windows, `ballsd` now owns persistent local Node and Circle state, and `balls` can create a
-Circle and list its Circles, Members, and Nodes through a versioned HTTP/JSON API over a same-user
-named pipe. SQLite state is held in a dedicated marked directory with protected Windows ACLs and
-fail-closed application-ID and schema validation.
+On Windows and Linux, `ballsd` now owns persistent local Node and Circle state, and `balls` can
+create a Circle and list its Circles, Members, and Nodes through a versioned HTTP/JSON API over
+same-user local IPC. SQLite state is held in a dedicated marked directory with protected platform
+permissions and fail-closed application-ID and schema validation.
 
 The files-first path now establishes public-ready delivery and fast Windows/Linux development,
 then a cross-platform daemon/CLI/browser foundation, trusted join, LAN Circle Files, operable
 remote Files, a company Beta, and a focused v1.0. See the compact [`roadmap`](ROADMAP.md), detailed
 [`files-first program`](docs/roadmap/files-first-v1.md), and [`current state`](docs/STATE.md).
 
-The next milestone starts with platform-neutral host composition, then adds protected native Linux
-state/IPC and one hardened local TypeScript browser UI. Issue
-[#17](https://github.com/scwlkr/balls/issues/17) is the ready frontier.
+The active milestone has platform-neutral host composition, protected native Linux state/IPC, and
+stable machine-readable CLI output. It next adds one hardened local TypeScript browser UI. Issue
+[#20](https://github.com/scwlkr/balls/issues/20) is the ready frontier.
 
 ## Quick start
 
@@ -66,12 +66,14 @@ Leave the daemon running. In a second PowerShell window:
 dotnet run --project src/Balls.Cli --configuration Release --no-build -- --pipe-name balls-dev status
 dotnet run --project src/Balls.Cli --configuration Release --no-build -- --pipe-name balls-dev circle create "My Circle" --owner $env:USERNAME
 dotnet run --project src/Balls.Cli --configuration Release --no-build -- --pipe-name balls-dev circle list
+dotnet run --project src/Balls.Cli --configuration Release --no-build -- --output json --pipe-name balls-dev status
 ```
 
 Use a new dedicated state directory, not a general-purpose folder. See the
 [`developer workflow`](docs/development.md) for the full verification sequence and participant
 listing commands. The [`docs index`](docs/README.md) links the local-control, storage, security,
-and decision records.
+and decision records. Native Linux uses the same daemon and CLI behavior over a protected
+Unix-domain socket; see the developer workflow for its XDG defaults.
 
 ## Canary artifacts
 

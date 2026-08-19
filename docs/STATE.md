@@ -85,19 +85,25 @@ readback, and next executable milestone are reconciled in the
 
 Ready frontier:
 
-- [#19 — Add stable structured CLI output and dual-platform process acceptance](https://github.com/scwlkr/balls/issues/19)
+- [#20 — Create the typed React workspace and generated local API client](https://github.com/scwlkr/balls/issues/20)
 
 Completed in the active milestone:
 
 - [#17 — Compose daemon and CLI through cross-platform host seams](https://github.com/scwlkr/balls/issues/17)
 - [#18 — Run protected local state and control IPC natively on Linux](https://github.com/scwlkr/balls/issues/18)
+- [#19 — Add stable structured CLI output and dual-platform process acceptance](https://github.com/scwlkr/balls/issues/19)
 
 The executable layers consume neutral host contracts and one centralized selector. Windows keeps
 its protected state and same-user named pipe; Linux adds owned `0700` state, `0600` known files,
 and a `0600` Unix-domain socket without forking product, protocol, or storage behavior. Unregistered
 hosts fail closed through one typed result.
 
-#20–#23 remain dependency-blocked behind the issue chain recorded in their acceptance contracts.
+The CLI now keeps human-readable text as its default and exposes a versioned typed JSON result or
+error envelope for every current command. Global option placement, exit codes, identifiers,
+timestamps, roles, and list ordering have contract coverage, and the same separate-process
+create/list/restart acceptance runs on Windows and Ubuntu.
+
+#21–#23 remain dependency-blocked behind the issue chain recorded in their acceptance contracts.
 
 ## Working rules
 

@@ -7,17 +7,19 @@ This is the versioned, machine-local contract between `balls` or another local i
 
 ## Transport and access
 
-- HTTP/1.1 with JSON over a Windows named pipe.
+- HTTP/1.1 with JSON over a Windows named pipe or Linux Unix-domain socket.
 - No TCP listener is configured. The client's `http://localhost` base address is only the logical
-  HTTP authority used over the pipe connection.
-- Server and client use `CurrentUserOnly`; the Windows account is the v1 local principal.
-- The default pipe is `balls-control-<hash>`, where `<hash>` is the lowercase hexadecimal encoding
-  of the first eight bytes of SHA-256 over the current Windows SID.
+  HTTP authority used over the local IPC connection.
+- Windows server and client use `CurrentUserOnly`; Linux requires an owned `0600` socket in an
+  owned `0700` runtime directory. The operating-system user is the v1 local principal.
+- The Windows default pipe is `balls-control-<hash>`, where `<hash>` is the lowercase hexadecimal
+  encoding of the first eight bytes of SHA-256 over the current Windows SID. Linux uses the
+  protected XDG runtime location or an effective-user fallback.
 - `--pipe-name` selects an explicit pipe for development and testing.
 - Maximum request body: 32 KiB. Default client timeout: 10 seconds.
 
-The transport lives in an outer Windows host adapter and never becomes a Core dependency. Future
-platforms can supply equivalent local IPC without changing the HTTP/JSON product contract.
+The transports live in outer host adapters and never become Core dependencies. Future platforms
+can supply equivalent local IPC without changing the HTTP/JSON product contract.
 
 ## Encoding and compatibility
 
@@ -31,6 +33,64 @@ platforms can supply equivalent local IPC without changing the HTTP/JSON product
   requires a new versioned path.
 
 An inspectable OpenAPI document is available at `GET /control/v1/openapi.json`.
+
+## CLI output compatibility
+
+`balls` is a client of this API. It does not read the database or recreate Circle behavior. Its
+global syntax is:
+
+```text
+balls [--pipe-name <endpoint>] [--output text|json] <command>
+```
+
+Global options may appear in either order, exactly once, and only before the command. Command
+options remain after their command operands. Unsupported output modes, duplicate options, missing
+values, and misplaced options return usage exit code `2` without contacting `ballsd`.
+
+Text is the default and is intended for people. `--output json` is supported for `status`,
+`circle create`, `circle list`, `member list`, and `node list`. A successful JSON document is one
+line on standard output:
+
+```json
+{
+  "outputVersion": 1,
+  "result": {
+    "productVersion": "0.1.0-alpha.2",
+    "protocolVersion": 1,
+    "node": {
+      "id": "0198f2cc-6a50-7a08-aacb-298f4ebdf616",
+      "displayName": "WORKSTATION",
+      "createdAtUtc": "2026-08-19T12:00:00.0000000+00:00"
+    }
+  }
+}
+```
+
+Failures selected with a valid `--output json` produce one line on standard error:
+
+```json
+{
+  "outputVersion": 1,
+  "error": {
+    "code": "circle_not_found",
+    "message": "The requested Circle is not known to this Node."
+  }
+}
+```
+
+`outputVersion` is the CLI envelope version. Version 1 may gain additive fields; consumers must
+ignore unknown fields. `result` is the typed local-control response for that command, not parsed
+presentation text. Identifiers remain lowercase UUID strings, timestamps retain the protocol's
+round-trip ISO 8601 representation, roles remain protocol strings, and arrays preserve the
+daemon's stable creation/identifier order. Envelope and typed-result property order is stable and
+covered by golden tests.
+
+Success writes only standard output. Usage, unavailable-daemon, rejected-request, and unsupported-
+platform failures write only standard error and retain exit codes `2`, `3`, `4`, and `5`. A valid
+JSON mode carries stable CLI codes such as `usage_error`, `daemon_unavailable`,
+`invalid_daemon_response`, and `request_rejected`; application rejection preserves the daemon's
+local-control error code. An invalid `--output` value cannot select a format, so that usage error
+uses the default text form.
 
 ## Shared representations
 

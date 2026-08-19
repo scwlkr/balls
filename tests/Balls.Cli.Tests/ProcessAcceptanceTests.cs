@@ -16,8 +16,19 @@ public sealed class ProcessAcceptanceTests
     {
         using var directory = new TemporaryDirectory();
         var endpoint = GetEndpoint(directory.Path);
-        var usage = await RunCliAsync("--pipe-name", "bad/name", "status");
-        var unavailable = await RunCliAsync("--pipe-name", GetUnavailableEndpoint(directory.Path), "status");
+        var invalidEndpoint = OperatingSystem.IsWindows() ? "bad/name" : "relative.sock";
+        var usage = await RunCliAsync(
+            "--output",
+            "json",
+            "--pipe-name",
+            invalidEndpoint,
+            "status");
+        var unavailable = await RunCliAsync(
+            "--output",
+            "json",
+            "--pipe-name",
+            GetUnavailableEndpoint(directory.Path),
+            "status");
         using var daemon = StartDaemon(
             Path.Combine(directory.Path, "state"),
             endpoint,
@@ -26,6 +37,8 @@ public sealed class ProcessAcceptanceTests
         {
             await WaitUntilReadyAsync(daemon, endpoint);
             var rejected = await RunCliAsync(
+                "--output",
+                "json",
                 "--pipe-name",
                 endpoint,
                 "circle",
@@ -37,9 +50,15 @@ public sealed class ProcessAcceptanceTests
             Assert.AreEqual(CliExitCodes.UsageError, usage.ExitCode);
             Assert.AreEqual(CliExitCodes.DaemonUnavailable, unavailable.ExitCode);
             Assert.AreEqual(CliExitCodes.RequestRejected, rejected.ExitCode);
-            StringAssert.Contains(usage.StandardError, "invalid --pipe-name");
-            StringAssert.Contains(unavailable.StandardError, "ballsd is unavailable");
-            StringAssert.Contains(rejected.StandardError, "Circle name is required");
+            AssertJsonError(usage.StandardError, "usage_error", "invalid --pipe-name value.");
+            AssertJsonError(
+                unavailable.StandardError,
+                "daemon_unavailable",
+                "ballsd is unavailable");
+            AssertJsonError(
+                rejected.StandardError,
+                "circle_name_required",
+                "Circle name is required");
             Assert.IsFalse(usage.StandardError.Contains("Exception", StringComparison.Ordinal));
             Assert.IsFalse(rejected.StandardError.Contains("Exception", StringComparison.Ordinal));
         }
@@ -62,12 +81,14 @@ public sealed class ProcessAcceptanceTests
         {
             await WaitUntilReadyAsync(firstDaemon, endpoint);
             var firstStatus = await RunCliAsync(
+                "--output",
+                "json",
                 "--pipe-name",
                 endpoint,
-                "status",
-                "--output",
-                "json");
+                "status");
             var create = await RunCliAsync(
+                "--output",
+                "json",
                 "--pipe-name",
                 endpoint,
                 "circle",
@@ -76,70 +97,65 @@ public sealed class ProcessAcceptanceTests
                 "--owner",
                 "Alice",
                 "--request-id",
-                "0198c2d8-b000-7000-8000-000000000301",
-                "--output",
-                "json");
+                "0198c2d8-b000-7000-8000-000000000301");
 
             Assert.AreEqual(CliExitCodes.Success, firstStatus.ExitCode, firstStatus.StandardError);
             Assert.AreEqual(CliExitCodes.Success, create.ExitCode, create.StandardError);
-            var statusBeforeRestart = JsonSerializer.Deserialize<StatusResponse>(
-                firstStatus.StandardOutput,
-                ControlJson.Options);
-            var created = JsonSerializer.Deserialize<CircleDetailsResponse>(
-                create.StandardOutput,
-                ControlJson.Options);
-            Assert.IsNotNull(statusBeforeRestart);
-            Assert.IsNotNull(created);
+            var statusBeforeRestart = DeserializeResult<StatusResponse>(firstStatus.StandardOutput);
+            var created = DeserializeResult<CircleDetailsResponse>(create.StandardOutput);
 
             await StopProcessAsync(firstDaemon);
 
             restartedDaemon = StartDaemon(stateDirectory, endpoint, "Changed-PC");
             await WaitUntilReadyAsync(restartedDaemon, endpoint);
             var statusAfterRestart = await RunCliAsync(
+                "--output",
+                "json",
                 "--pipe-name",
                 endpoint,
-                "status",
-                "--output",
-                "json");
+                "status");
             var circles = await RunCliAsync(
+                "--output",
+                "json",
                 "--pipe-name",
                 endpoint,
                 "circle",
-                "list",
-                "--output",
-                "json");
+                "list");
             var members = await RunCliAsync(
+                "--output",
+                "json",
                 "--pipe-name",
                 endpoint,
                 "member",
                 "list",
                 "--circle",
-                created.Circle.Id,
-                "--output",
-                "json");
+                created.Circle.Id);
             var nodes = await RunCliAsync(
+                "--output",
+                "json",
                 "--pipe-name",
                 endpoint,
                 "node",
                 "list",
                 "--circle",
-                created.Circle.Id,
-                "--output",
-                "json");
+                created.Circle.Id);
 
             Assert.AreEqual(CliExitCodes.Success, statusAfterRestart.ExitCode, statusAfterRestart.StandardError);
             Assert.AreEqual(CliExitCodes.Success, circles.ExitCode, circles.StandardError);
             Assert.AreEqual(CliExitCodes.Success, members.ExitCode, members.StandardError);
             Assert.AreEqual(CliExitCodes.Success, nodes.ExitCode, nodes.StandardError);
-            var restartedStatus = JsonSerializer.Deserialize<StatusResponse>(
-                statusAfterRestart.StandardOutput,
-                ControlJson.Options);
-            Assert.IsNotNull(restartedStatus);
+            var restartedStatus = DeserializeResult<StatusResponse>(statusAfterRestart.StandardOutput);
             Assert.AreEqual(statusBeforeRestart.Node.Id, restartedStatus.Node.Id);
             Assert.AreEqual("Process-PC", restartedStatus.Node.DisplayName);
-            StringAssert.Contains(circles.StandardOutput, created.Circle.Id);
-            StringAssert.Contains(members.StandardOutput, "Alice");
-            StringAssert.Contains(nodes.StandardOutput, "Process-PC");
+            var circleList = DeserializeResult<CircleListResponse>(circles.StandardOutput);
+            var memberList = DeserializeResult<MemberListResponse>(members.StandardOutput);
+            var nodeList = DeserializeResult<NodeListResponse>(nodes.StandardOutput);
+            Assert.AreEqual(created.Circle.Id, circleList.Circles.Single().Id);
+            Assert.AreEqual(created.Circle.Id, memberList.CircleId);
+            Assert.AreEqual("Alice", memberList.Members.Single().DisplayName);
+            Assert.AreEqual(created.Circle.Id, nodeList.CircleId);
+            Assert.AreEqual(statusBeforeRestart.Node.Id, nodeList.Nodes.Single().Id);
+            Assert.AreEqual("Process-PC", nodeList.Nodes.Single().DisplayName);
         }
         finally
         {
@@ -243,6 +259,26 @@ public sealed class ProcessAcceptanceTests
         }
 
         Assert.Fail("ballsd did not become ready within five seconds.");
+    }
+
+    private static T DeserializeResult<T>(string json)
+    {
+        using var document = JsonDocument.Parse(json);
+        Assert.AreEqual(1, document.RootElement.GetProperty("outputVersion").GetInt32());
+        return document.RootElement.GetProperty("result").Deserialize<T>(ControlJson.Options)
+            ?? throw new AssertFailedException("CLI result was null.");
+    }
+
+    private static void AssertJsonError(
+        string json,
+        string expectedCode,
+        string expectedMessageFragment)
+    {
+        using var document = JsonDocument.Parse(json);
+        Assert.AreEqual(1, document.RootElement.GetProperty("outputVersion").GetInt32());
+        var error = document.RootElement.GetProperty("error");
+        Assert.AreEqual(expectedCode, error.GetProperty("code").GetString());
+        StringAssert.Contains(error.GetProperty("message").GetString(), expectedMessageFragment);
     }
 
     private static string GetEndpoint(string root)
