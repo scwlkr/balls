@@ -8,6 +8,7 @@ using Balls.Storage.Sqlite;
 namespace Balls.Architecture.Tests;
 
 [TestClass]
+[TestCategory("Contract")]
 public sealed class DependencyDirectionTests
 {
     [TestMethod]

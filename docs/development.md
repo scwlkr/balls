@@ -13,17 +13,39 @@ pipes and Windows ACLs.
 
 ## Build and verify
 
-Run the same sequence used by CI from the repository root:
+Use the repository-owned verifier from the repository root. It prints each standard command before
+running it and returns the failing command's exit code.
+
+```powershell
+# Direct feedback for one affected project and a filter that must select at least one test
+dotnet run --project eng/Balls.Verify --configuration Release -- focused --project tests/Balls.Core.Tests/Balls.Core.Tests.csproj --filter TestCategory=Unit
+
+# Safe pre-push gate: portable unit, contract, and process-integration tests
+dotnet run --project eng/Balls.Verify --configuration Release -- fast
+
+# Release-grade gate: every test, including OS integration
+dotnet run --project eng/Balls.Verify --configuration Release -- full
+```
+
+These commands are shell-neutral .NET CLI invocations; use them unchanged in PowerShell or Bash.
+Ubuntu CI runs `fast`. Windows CI runs `full`. WSL may be used as a Linux development executor,
+but it is not the Balls product runtime.
+
+`fast` and `full` each run locked restore, format verification, and exactly one Release build.
+They then reject uncategorized tests. `fast` runs the portable-safe categories; `full` runs every
+test. Expanded, those standard commands are:
 
 ```powershell
 dotnet restore Balls.slnx --locked-mode
 dotnet format Balls.slnx --verify-no-changes --no-restore
 dotnet build Balls.slnx --configuration Release --no-restore
+dotnet test Balls.slnx --configuration Release --no-build --no-restore --filter "(TestCategory=Unit|TestCategory=Contract|TestCategory=ProcessIntegration)"
 dotnet test Balls.slnx --configuration Release --no-build --no-restore
 ```
 
-This is the current full gate. The active `0.1.0-alpha.2` milestone will add a measured sub-minute
-fast gate without weakening this release-grade sequence.
+The verifier currently has no `pnpm` step because this checkpoint has no JavaScript workspace.
+When the browser workspace lands, its standard `pnpm install --frozen-lockfile`, lint, typecheck,
+test, and browser commands must remain explicit in the verifier output.
 
 Package lock files are committed per project. Change dependencies deliberately, regenerate the
 affected lock files, and then rerun the full sequence.
@@ -80,13 +102,23 @@ parallel manual runs.
 
 ## Tests and boundaries
 
-- Core tests cover Circle behavior without platform dependencies.
-- Protocol tests cover wire serialization.
-- SQLite tests cover persistence, transactions, idempotency, and fail-closed schema validation.
-- Daemon and CLI tests cover the local API and process boundary.
-- Windows-only ACL and named-pipe tests are skipped or inconclusive on non-Windows hosts.
-- Architecture tests protect the dependency direction documented in
-  [`ARCHITECTURE.md`](../ARCHITECTURE.md).
+Every current test class declares one of these `TestCategory` values:
+
+| Category | Current coverage | Fast |
+| --- | --- | --- |
+| `Unit` | isolated domain and verifier behavior | Yes |
+| `Contract` | architecture, protocol, storage, daemon, and CLI contracts | Yes |
+| `ProcessIntegration` | real `ballsd`/`balls` process acceptance | Yes |
+| `OSIntegration` | Windows ACL and named-pipe defaults | Full only |
+| `Browser` | reserved; no browser workspace yet | No |
+| `Lab` | reserved for explicit VM/multi-node evidence | No |
+
+The category audit fails if a test is added without a recognized category. `focused` also fails
+with exit code 3 when its filter selects zero tests.
+
+On the 2026-08-19 Windows development host, a warm focused Core run took 2.92 seconds and a warm
+fast gate took 29.49 seconds, passing the 15-second and 60-second budgets. See the
+[dated verification record](verification/2026-08-19-developer-verification.md).
 
 Keep Windows-specific APIs in `Balls.Platform.Windows`. A change to behavior, wire contracts,
 storage, or trust boundaries should update the relevant document in [`docs/`](README.md) in the

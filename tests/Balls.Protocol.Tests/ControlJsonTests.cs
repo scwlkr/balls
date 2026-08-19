@@ -4,6 +4,7 @@ using Balls.Protocol.Control.V1;
 namespace Balls.Protocol.Tests;
 
 [TestClass]
+[TestCategory("Contract")]
 public sealed class ControlJsonTests
 {
     [TestMethod]

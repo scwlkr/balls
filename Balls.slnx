@@ -1,4 +1,7 @@
 <Solution>
+  <Folder Name="/eng/">
+    <Project Path="eng/Balls.Verify/Balls.Verify.csproj" />
+  </Folder>
   <Folder Name="/src/">
     <Project Path="src/Balls.Cli/Balls.Cli.csproj" />
     <Project Path="src/Balls.Core/Balls.Core.csproj" />
@@ -14,5 +17,6 @@
     <Project Path="tests/Balls.Daemon.Tests/Balls.Daemon.Tests.csproj" />
     <Project Path="tests/Balls.Protocol.Tests/Balls.Protocol.Tests.csproj" />
     <Project Path="tests/Balls.Storage.Sqlite.Tests/Balls.Storage.Sqlite.Tests.csproj" />
+    <Project Path="tests/Balls.Verify.Tests/Balls.Verify.Tests.csproj" />
   </Folder>
 </Solution>

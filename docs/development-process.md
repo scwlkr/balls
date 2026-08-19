@@ -85,6 +85,18 @@ Do not schedule a nightly or weekly heavyweight suite until actual failures demo
 signal is worth its cost. A risky change cannot avoid its specific risk gate merely because the
 suite is normally rare.
 
+The implemented repository entry point is:
+
+```text
+dotnet run --project eng/Balls.Verify --configuration Release -- focused --project <test-project> --filter <expression>
+dotnet run --project eng/Balls.Verify --configuration Release -- fast
+dotnet run --project eng/Balls.Verify --configuration Release -- full
+```
+
+It prints its underlying `dotnet` commands, builds only once in `fast` and `full`, rejects unknown
+categories, and makes an empty focused selection fail. The browser workspace will extend the same
+visible orchestration with standard `pnpm` commands when that workspace exists.
+
 ## Test taxonomy
 
 - **Unit:** millisecond-fast isolated domain/application behavior.
@@ -96,8 +108,9 @@ suite is normally rare.
 - **Pilot:** observed use of an accepted candidate; never a substitute for deterministic tests.
 
 New tests should use Microsoft.Testing.Platform when the selected framework/extensions fully
-support it. Build once and avoid redundant restore/build work. A filter must fail rather than
-silently run zero expected tests.
+support it. Every test class must declare one of the six category names above; the repository
+verifier rejects tests without a recognized category. Build once and avoid redundant restore/build work.
+A focused filter must fail rather than silently run zero expected tests.
 
 ## Development lab
 
