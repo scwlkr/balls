@@ -142,7 +142,7 @@
       "balls.storage.sqlite": {
         "type": "Project",
         "dependencies": {
-          "Balls.Core": "[0.1.0-alpha.1, )",
+          "Balls.Core": "[0.1.0-alpha.2, )",
           "Microsoft.Data.Sqlite": "[10.0.11, )"
         }
       },

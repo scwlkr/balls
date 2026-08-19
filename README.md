@@ -32,7 +32,8 @@ Balls should first feel exceptional for **2–10 trusted, somewhat technical peo
 
 ## Current status
 
-**`0.1.0-alpha.1` is implemented; `0.1.0-alpha.2` Open and Fast Foundation is the active milestone.**
+**`0.1.0-alpha.2` Open and Fast Foundation is a verified release candidate awaiting explicit
+owner acceptance.**
 
 On Windows, `ballsd` now owns persistent local Node and Circle state, and `balls` can create a
 Circle and list its Circles, Members, and Nodes through a versioned HTTP/JSON API over a same-user
@@ -43,6 +44,9 @@ The files-first path now establishes public-ready delivery and fast Windows/Linu
 then a cross-platform daemon/CLI/browser foundation, trusted join, LAN Circle Files, operable
 remote Files, a company Beta, and a focused v1.0. See the compact [`roadmap`](ROADMAP.md), detailed
 [`files-first program`](docs/roadmap/files-first-v1.md), and [`current state`](docs/STATE.md).
+
+No `0.1.0-alpha.2` tag or GitHub Release exists before that acceptance. The next milestone's
+executable issues are prepared but remain blocked behind the current owner gate.
 
 ## Quick start
 

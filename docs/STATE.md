@@ -17,7 +17,7 @@ replicated storage, richer messaging, macOS polish, and compute remain later pro
 
 ## Proven checkpoint
 
-`0.1.0-alpha.1` currently proves on Windows:
+The `0.1.0-alpha.2` release candidate currently proves on Windows:
 
 - Core, Protocol, SQLite, Windows adapter, daemon, and CLI boundaries;
 - persistent local Node identity;
@@ -25,7 +25,7 @@ replicated storage, richer messaging, macOS polish, and compute remain later pro
 - Circle, Member, and Node listing;
 - versioned HTTP/JSON over a same-user named pipe;
 - protected, marked, fail-closed SQLite state;
-- 71 automated tests and Windows process-boundary evidence.
+- 72 automated tests and Windows process-boundary evidence.
 
 Linux currently builds and runs portable tests, but `ballsd` and `balls` reject non-Windows hosts.
 
@@ -39,6 +39,9 @@ Exit outcome: the repository passes an early owner-approved public transition, e
 produces a runnable Windows Canary plus an explicitly unsupported Linux build/test artifact, and
 an agent has a sub-minute local workflow plus a sub-five-minute Windows/Linux pull-request gate.
 Linux becomes a runnable Canary in `0.2.0-alpha.1` when its native runtime lands.
+
+The exit outcome is implemented and verified. No `0.1.0-alpha.2` tag or GitHub Release exists;
+issue #8 and the milestone remain open until the owner explicitly accepts publication.
 
 The active GitHub milestone owns executable tickets. Do not start product features from a future
 milestone while a ready active-milestone ticket exists.
@@ -58,8 +61,9 @@ migration is recorded in the
 [dated readiness evidence](verification/2026-08-19-public-readiness.md).
 
 The repository-owned focused, fast, and full verifier enforces the six-category test taxonomy,
-prevents empty focused selections, and exposes its standard tool commands. Warm Windows evidence
-is 2.92 seconds focused and 29.49 seconds fast; Ubuntu runs the same portable fast path in CI.
+prevents empty focused selections, and exposes its standard tool commands. Final warm Windows
+measurements are 6.03 seconds focused and 33.69 seconds fast; Ubuntu runs the same portable fast
+path in CI.
 Details are in the
 [developer verification record](verification/2026-08-19-developer-verification.md).
 
@@ -77,11 +81,21 @@ Dependency review, C# CodeQL, scheduled OpenSSF Scorecard, Dependabot security u
 SHA enforcement, and the structurally separate fork trust boundary are verified in the
 [security automation record](verification/2026-08-19-security-automation.md).
 
+The complete release-candidate matrix, exact downloaded-artifact observation, public-state
+readback, and next executable milestone are reconciled in the
+[Open and Fast Foundation record](verification/2026-08-19-open-fast-foundation.md).
+
 Ready frontier:
 
 - [#8 — Verify and accept the Open and Fast Foundation milestone](https://github.com/scwlkr/balls/issues/8)
 
 Issue #8 is the final milestone verification and explicit owner-acceptance gate.
+
+Prepared next frontier after acceptance:
+
+- [#17 — Compose daemon and CLI through cross-platform host seams](https://github.com/scwlkr/balls/issues/17)
+
+#17–#23 are executable under milestone `0.2.0-alpha.1` but remain labeled `blocked` until #8 closes.
 
 ## Working rules
 
@@ -92,7 +106,7 @@ Issue #8 is the final milestone verification and explicit owner-acceptance gate.
 - Windows/Linux pull-request target: under five minutes.
 - Heavy VM, installer, recovery, upgrade, or full UI checks are release- or risk-triggered.
 - Every green `main` produces a Canary; coherent outcomes may become Alphas.
-- Repository publication requires a separate final owner confirmation after readiness evidence.
+- Alpha/tag publication requires a separate final owner confirmation after readiness evidence.
 
 ## Continue
 

@@ -87,7 +87,7 @@ a supported Linux runtime.
 ## Versioning
 
 Balls uses Semantic Versioning for product binaries. The shared version lives in
-[`Directory.Build.props`](../Directory.Build.props); this checkpoint is `0.1.0-alpha.1`. Keep
+[`Directory.Build.props`](../Directory.Build.props); this release candidate is `0.1.0-alpha.2`. Keep
 `balls` and `ballsd` on the same product version. Local-control path versions, protocol versions,
 and SQLite `user_version` are separate compatibility axes and change only when their own contract
 requires it. Do not tag a release until its milestone evidence is accepted.

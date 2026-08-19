@@ -6,8 +6,9 @@ Reach a public, supported Circle Files product quickly while preserving the larg
 The first serious proving ground is the owner and one coworker editing the same contributed folder
 through Windows File Explorer.
 
-The milestone names below describe user outcomes. Only the active milestone is fully committed in
-GitHub Issues; later ticket maps are planning hypotheses and are refined immediately before work.
+The milestone names below describe user outcomes. The active milestone and its immediate successor
+are committed in GitHub Issues; later ticket maps remain planning hypotheses until they are refined
+immediately before work.
 
 ## `0.1.0-alpha.2` — Open and Fast Foundation
 
@@ -17,20 +18,15 @@ of Balls with minimal delay.
 **Architectural proof:** delivery and release mechanics are deterministic before the distributed
 system grows.
 
-**Candidate tickets:**
+**Executed issues:** [#3 public transition](https://github.com/scwlkr/balls/issues/3),
+[#4 developer verifier](https://github.com/scwlkr/balls/issues/4),
+[#5 protected pull requests](https://github.com/scwlkr/balls/issues/5),
+[#6 Canary artifacts](https://github.com/scwlkr/balls/issues/6),
+[#7 security automation](https://github.com/scwlkr/balls/issues/7), and
+[#8 milestone verification/acceptance](https://github.com/scwlkr/balls/issues/8).
 
-1. adopt Apache 2.0, sanitize/audit the public surface and history, present readiness evidence,
-   and obtain the owner decision to change visibility;
-2. create one fast cross-platform developer command and test taxonomy;
-3. establish GitHub issue, pull-request, and required-check workflow;
-4. publish a runnable Windows Canary and explicit Linux build/test artifact from green `main`, plus
-   a one-command development install;
-5. add the post-public security and supply-chain automation baseline;
-6. measure the feedback budgets and reconcile the milestone evidence.
-
-Ticket 1 is the first ready ticket. Public visibility depends only on the license/notices,
-privacy/history audit, the current full gate, readiness evidence, and a final explicit owner
-confirmation; it does not wait for unrelated Canary or supply-chain automation.
+#3–#7 are closed with hosted evidence. #8 is the final explicit owner gate; no Alpha tag or GitHub
+Release is created before acceptance.
 
 **Exit evidence:** fast-loop budgets measured; fixed Windows/Linux checks green; the Windows
 Canary starts; the Linux artifact builds/tests and is labeled runtime-unsupported until
@@ -44,14 +40,18 @@ Linux.
 **Architectural proof:** platform composition, state protection, and local IPC are genuinely
 cross-platform; the UI does not create a second product implementation.
 
-**Candidate tickets:**
+**Executable issues:**
 
-1. refactor Windows-only daemon/CLI composition behind host adapters;
-2. add protected Unix state and HTTP/JSON over a Unix-domain socket;
-3. add structured CLI output and Windows/Linux process acceptance;
-4. create the React/TypeScript/Vite workspace and generated OpenAPI client;
-5. serve an authenticated, antiforgery-protected loopback UI from `ballsd`;
-6. automate the WSL/Hyper-V lab and Playwright Chromium smoke.
+1. [#17 compose daemon/CLI through cross-platform host seams](https://github.com/scwlkr/balls/issues/17);
+2. [#18 add protected Linux state and Unix-domain-socket control](https://github.com/scwlkr/balls/issues/18);
+3. [#19 add structured CLI output and dual-platform process acceptance](https://github.com/scwlkr/balls/issues/19);
+4. [#20 create the typed React workspace and generated OpenAPI client](https://github.com/scwlkr/balls/issues/20);
+5. [#21 serve the hardened loopback browser UI from `ballsd`](https://github.com/scwlkr/balls/issues/21);
+6. [#22 prove the Windows/Ubuntu outcome and runnable Canaries](https://github.com/scwlkr/balls/issues/22);
+7. [#23 verify and accept the milestone](https://github.com/scwlkr/balls/issues/23).
+
+All seven are blocked until #8 closes. #17 is the first ready frontier after owner acceptance;
+later issues form the dependency chain recorded in their acceptance contracts.
 
 **Exit evidence:** Windows host and Ubuntu VM independently persist Node identity and pass the same
 CLI/API acceptance flow; the browser opens through `balls ui`; no non-loopback browser listener;

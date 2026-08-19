@@ -12,7 +12,8 @@ fail-closed Windows/Linux merge decision without adding a paid control or heavyw
 - Both lanes run the repository-owned `fast` verifier in parallel.
 - `Required` uses `always()` and succeeds only when both dependency results equal `success`.
 - Workflow permissions remain `contents: read`; checkout credentials are not persisted.
-- Third-party actions are full-SHA pinned, dependency caching remains enabled, and stale runs cancel.
+- Third-party actions are full-SHA pinned, dependency caching remains enabled, and stale pull-request
+  runs cancel; accepted `main` runs finish their bounded Canary publication.
 - Three verifier self-tests enforce these properties from the checked-in workflow text.
 
 ## Repository settings
