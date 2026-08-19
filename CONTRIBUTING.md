@@ -28,6 +28,10 @@ Use `focused` while editing and `full` for the complete Windows gate. The same c
 PowerShell, Bash, and other shells supported by the .NET CLI. See
 [`docs/development.md`](docs/development.md) for examples and the commands each mode runs.
 
+Pull requests also receive dependency review, C# CodeQL, and repository workflow-policy checks.
+GitHub may require approval before a first-time fork contributor's workflows run. Fork workflows
+receive no Balls secrets and never run on a persistent self-hosted machine.
+
 Update the relevant design, decision, protocol, security, or verification document when behavior
 or a trust boundary changes. See [`docs/development-process.md`](docs/development-process.md) for
 the delivery process.

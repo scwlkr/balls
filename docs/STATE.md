@@ -25,7 +25,7 @@ replicated storage, richer messaging, macOS polish, and compute remain later pro
 - Circle, Member, and Node listing;
 - versioned HTTP/JSON over a same-user named pipe;
 - protected, marked, fail-closed SQLite state;
-- 70 automated tests and Windows process-boundary evidence.
+- 71 automated tests and Windows process-boundary evidence.
 
 Linux currently builds and runs portable tests, but `ballsd` and `balls` reject non-Windows hosts.
 
@@ -49,6 +49,7 @@ Completed transition:
 - [#4 — Create the sub-minute developer verification command](https://github.com/scwlkr/balls/issues/4)
 - [#5 — Establish the protected pull-request workflow](https://github.com/scwlkr/balls/issues/5)
 - [#6 — Publish green-main Canary artifacts](https://github.com/scwlkr/balls/issues/6)
+- [#7 — Add the post-public security automation baseline](https://github.com/scwlkr/balls/issues/7)
 
 The owner-approved clean lineage is public at `scwlkr/balls`. Private vulnerability reporting and
 the active `main` rules are verified, anonymous web/API/Git reads pass, and both the original
@@ -72,11 +73,15 @@ artifacts from the accepted commit. Windows is smoked from fresh state; Linux is
 runtime-unsupported. Evidence is in the
 [Canary artifact record](verification/2026-08-19-canary-artifacts.md).
 
+Dependency review, C# CodeQL, scheduled OpenSSF Scorecard, Dependabot security updates, action
+SHA enforcement, and the fork trust boundary are verified in the
+[security automation record](verification/2026-08-19-security-automation.md).
+
 Ready frontier:
 
-- [#7 — Add the post-public security automation baseline](https://github.com/scwlkr/balls/issues/7)
+- [#8 — Verify and accept the Open and Fast Foundation milestone](https://github.com/scwlkr/balls/issues/8)
 
-Issue #8 remains blocked by recorded dependencies in GitHub.
+Issue #8 is the final milestone verification and explicit owner-acceptance gate.
 
 ## Working rules
 

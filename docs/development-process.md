@@ -171,6 +171,19 @@ push. It checks out the accepted SHA with read-only permissions, packages versio
 commit identity and checksums, smokes the Windows archive from fresh state, and uploads with a
 bounded retention period. It does not create a product tag or GitHub Release.
 
+## Public security automation
+
+Dependency review and C# CodeQL provide pull-request feedback but are not hidden inside the
+platform aggregate. CodeQL also runs weekly and on `main`. OpenSSF Scorecard runs after `main`, on
+branch-protection changes, and weekly; its first result is evidence, not a release blocker.
+Dependabot tracks NuGet and GitHub Actions weekly and security updates are enabled.
+
+Repository workflow tokens default to read-only and cannot approve pull requests. Only the CodeQL
+and Scorecard analysis jobs receive narrowly scoped security-result writes; only Scorecard receives
+OIDC. All third-party actions require full commit SHAs, and the sole non-GitHub action allowlist
+entry is the exact pinned OpenSSF Scorecard commit. Fork-triggered workflows contain no secrets,
+`pull_request_target`, or self-hosted runner path.
+
 ## Public-source boundary
 
 Apache 2.0 is the accepted source-license choice. Before changing repository visibility:

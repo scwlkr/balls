@@ -18,3 +18,23 @@ be expanded when the first supported Stable release exists.
 The local control interface is not the future remote Node-to-Node security model. A separate
 threat-model review is required before remote admission or transport ships; see
 [`docs/security/threat-model.md`](docs/security/threat-model.md).
+
+## Public repository automation
+
+The public repository applies these automated checks:
+
+- dependency review on pull requests, failing for newly introduced moderate-or-higher known
+  vulnerabilities;
+- C# CodeQL on pull requests, `main` pushes, and a weekly schedule;
+- OpenSSF Scorecard on `main` pushes, branch-protection changes, and a weekly schedule;
+- weekly Dependabot updates for NuGet and GitHub Actions plus enabled security updates;
+- repository-level full-SHA enforcement for actions, backed by a pull-request policy test.
+
+Security workflows use fixed GitHub-hosted runners and reference no secrets or persistent
+self-hosted infrastructure. Fork contributions use `pull_request`, never `pull_request_target`;
+the repository default token permission is read-only, cannot approve pull requests, and requires
+approval for first-time fork contributors. Write scopes exist only on the CodeQL and Scorecard jobs
+that upload security results. Scorecard is advisory and is not a required release or merge check.
+
+All controls required by issue #7 are available on the current public-repository plan. This
+baseline does not claim binary signing, artifact attestation, or private self-hosted analysis.
