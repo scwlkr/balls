@@ -51,6 +51,38 @@ test, and browser commands must remain explicit in the verifier output.
 Package lock files are committed per project. Change dependencies deliberately, regenerate the
 affected lock files, and then rerun the full sequence.
 
+## Download and run a Windows Canary
+
+The `Canary` workflow starts only after the required CI workflow succeeds for a `main` push. It
+checks out that exact accepted commit, builds each platform package once, and retains the results
+for 14 days. Artifact names have this deterministic shape:
+
+```text
+balls-<version>-canary-<windows|linux>-x64-<12-character-commit>
+```
+
+Download and extract the Windows workflow artifact. From that directory, this one command verifies
+the archive checksum and every packaged file, installs the version, starts `ballsd`, and confirms
+readiness through `balls status`:
+
+```powershell
+pwsh -File .\Install-BallsCanary.ps1 -PackagePath .\balls-*-canary-windows-x64-*.zip
+```
+
+The default install root is `%LOCALAPPDATA%\Balls-Canary`; persistent development state is isolated
+under its `state` directory. The installer records the background daemon PID in `ballsd.pid`.
+Stop that process before installing another Canary:
+
+```powershell
+$canaryRoot = Join-Path $env:LOCALAPPDATA 'Balls-Canary'
+Stop-Process -Id ([int](Get-Content (Join-Path $canaryRoot 'ballsd.pid') -Raw))
+Remove-Item -LiteralPath (Join-Path $canaryRoot 'ballsd.pid')
+```
+
+The Linux artifact is build/test evidence only. Its manifest sets `runtimeSupported` to `false`,
+and its README states **Runtime unsupported until 0.2.0-alpha.1**. Do not install or describe it as
+a supported Linux runtime.
+
 ## Versioning
 
 Balls uses Semantic Versioning for product binaries. The shared version lives in

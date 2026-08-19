@@ -25,7 +25,7 @@ replicated storage, richer messaging, macOS polish, and compute remain later pro
 - Circle, Member, and Node listing;
 - versioned HTTP/JSON over a same-user named pipe;
 - protected, marked, fail-closed SQLite state;
-- 65 automated tests and Windows process-boundary evidence.
+- 70 automated tests and Windows process-boundary evidence.
 
 Linux currently builds and runs portable tests, but `ballsd` and `balls` reject non-Windows hosts.
 
@@ -48,6 +48,7 @@ Completed transition:
 - [#3 — Prepare and approve the public repository transition](https://github.com/scwlkr/balls/issues/3)
 - [#4 — Create the sub-minute developer verification command](https://github.com/scwlkr/balls/issues/4)
 - [#5 — Establish the protected pull-request workflow](https://github.com/scwlkr/balls/issues/5)
+- [#6 — Publish green-main Canary artifacts](https://github.com/scwlkr/balls/issues/6)
 
 The owner-approved clean lineage is public at `scwlkr/balls`. Private vulnerability reporting and
 the active `main` rules are verified, anonymous web/API/Git reads pass, and both the original
@@ -66,12 +67,16 @@ decision. Squash-only auto-merge, automatic branch deletion, and the active `mai
 verified in the
 [protected-workflow record](verification/2026-08-19-protected-pr-workflow.md).
 
+Every green `main` now publishes deterministic, checksummed, 14-day Windows and Linux workflow
+artifacts from the accepted commit. Windows is smoked from fresh state; Linux is explicitly
+runtime-unsupported. Evidence is in the
+[Canary artifact record](verification/2026-08-19-canary-artifacts.md).
+
 Ready frontier:
 
-- [#6 — Publish green-main Canary artifacts](https://github.com/scwlkr/balls/issues/6)
+- [#7 — Add the post-public security automation baseline](https://github.com/scwlkr/balls/issues/7)
 
-Issues #7–#8 remain blocked by recorded dependencies in GitHub. Issue #6 reaches a publication
-boundary and requires the documented owner gate before Canary artifacts are enabled.
+Issue #8 remains blocked by recorded dependencies in GitHub.
 
 ## Working rules
 

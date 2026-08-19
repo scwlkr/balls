@@ -1,5 +1,6 @@
 <Solution>
   <Folder Name="/eng/">
+    <Project Path="eng/Balls.Canary/Balls.Canary.csproj" />
     <Project Path="eng/Balls.Verify/Balls.Verify.csproj" />
   </Folder>
   <Folder Name="/src/">
@@ -17,6 +18,7 @@
     <Project Path="tests/Balls.Daemon.Tests/Balls.Daemon.Tests.csproj" />
     <Project Path="tests/Balls.Protocol.Tests/Balls.Protocol.Tests.csproj" />
     <Project Path="tests/Balls.Storage.Sqlite.Tests/Balls.Storage.Sqlite.Tests.csproj" />
+    <Project Path="tests/Balls.Canary.Tests/Balls.Canary.Tests.csproj" />
     <Project Path="tests/Balls.Verify.Tests/Balls.Verify.Tests.csproj" />
   </Folder>
 </Solution>

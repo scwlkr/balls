@@ -155,7 +155,9 @@ unverified; never convert them into implied support.
 
 ## Release channels
 
-- **Canary:** automatically built from every green `main`; internal and short-lived.
+- **Canary:** automatically built once from the exact green `main` commit; public workflow
+  artifacts retained for 14 days. Windows is runnable development evidence; Linux is explicitly
+  build/test-only and runtime-unsupported until `0.2.0-alpha.1`.
 - **Alpha:** public immutable prerelease for one coherent product outcome.
 - **Beta:** accepted for the initial company pilot and broader real use.
 - **Stable:** explicitly owner-accepted and supported, with no known critical security or data-loss defect.
@@ -163,6 +165,11 @@ unverified; never convert them into implied support.
 Public publication uses an owner-gated GitHub environment. The release pipeline builds once,
 generates checksums and an SBOM, records provenance/attestation where available, and promotes the
 same artifacts. Windows public binaries must be signed before Stable.
+
+Canary publication is a separate `workflow_run` boundary after required CI succeeds for a `main`
+push. It checks out the accepted SHA with read-only permissions, packages version/OS/architecture/
+commit identity and checksums, smokes the Windows archive from fresh state, and uploads with a
+bounded retention period. It does not create a product tag or GitHub Release.
 
 ## Public-source boundary
 
