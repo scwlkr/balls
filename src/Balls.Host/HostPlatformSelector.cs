@@ -1,4 +1,5 @@
 using Balls.Platform;
+using Balls.Platform.Linux;
 using Balls.Platform.Windows;
 
 namespace Balls.Host;
@@ -34,6 +35,11 @@ public static class HostPlatformSelector
         if (operatingSystem == HostOperatingSystem.Windows && OperatingSystem.IsWindows())
         {
             return new SupportedHostPlatform(WindowsHostPlatform.Create());
+        }
+
+        if (operatingSystem == HostOperatingSystem.Linux && OperatingSystem.IsLinux())
+        {
+            return new SupportedHostPlatform(LinuxHostPlatform.Create());
         }
 
         return new UnsupportedHostPlatform(operatingSystem);

@@ -12,7 +12,10 @@ known to that daemon. It is a storage adapter, not the eventual replicated Circl
 - Daemon lease: `ballsd.lock`, opened exclusively so only one daemon writes the directory.
 - Directory marker: `.balls-state` with the exact v1 marker content.
 
-On Windows, the platform adapter prepares the directory before SQLite opens it. See
+On Windows and Linux, the selected platform adapter prepares the directory before SQLite opens it
+and reapplies protection to known files after the store creates its database/sidecars. Windows uses
+protected ACLs; Linux requires effective-user ownership with a `0700` directory and `0600` regular
+files on a verified local persistent filesystem. See
 [`ADR 0002`](../decisions/0002-protected-local-state.md) and the
 [`threat model`](../security/threat-model.md).
 

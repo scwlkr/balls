@@ -156,8 +156,8 @@ unverified; never convert them into implied support.
 ## Release channels
 
 - **Canary:** automatically built once from the exact green `main` commit; public workflow
-  artifacts retained for 14 days. Windows is runnable development evidence; Linux is explicitly
-  build/test-only and runtime-unsupported until `0.2.0-alpha.1`.
+  artifacts retained for 14 days. Windows and Linux are runnable development evidence smoked from
+  fresh protected local state on their native hosted runners.
 - **Alpha:** public immutable prerelease for one coherent product outcome.
 - **Beta:** accepted for the initial company pilot and broader real use.
 - **Stable:** explicitly owner-accepted and supported, with no known critical security or data-loss defect.

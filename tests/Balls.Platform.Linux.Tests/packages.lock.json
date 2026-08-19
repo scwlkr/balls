@@ -42,19 +42,6 @@
         "resolved": "18.9.0",
         "contentHash": "MtegCIKGuG0r/LCdIjoR1HgzCGIUBhR3aNdbtQpts5vMXQuqBDZ2Jsd2uFKoHFM2XrQV6ZrDf3F5oLi3SLTp8w=="
       },
-      "Microsoft.Data.Sqlite.Core": {
-        "type": "Transitive",
-        "resolved": "10.0.11",
-        "contentHash": "hubA20AGenQ4Sx0ElWaPpB8DISjXpdx463+1zOGRslsT0e/t/06ITv+pHsop8CcJ0d8PZLfgnT7juCDVD79Dkw==",
-        "dependencies": {
-          "SQLitePCLRaw.core": "2.1.12"
-        }
-      },
-      "Microsoft.OpenApi": {
-        "type": "Transitive",
-        "resolved": "2.7.5",
-        "contentHash": "0FA67RSnRM4tcBKqiqVu/HPdZ9+QOKbmeRjxRUGTCjPU4C0bmUhd97Dso7Yild5P7nOV6GxJ2xrK0Kv/O9xp0w=="
-      },
       "Microsoft.Testing.Extensions.Telemetry": {
         "type": "Transitive",
         "resolved": "2.3.3",
@@ -114,44 +101,6 @@
         "resolved": "4.3.3",
         "contentHash": "cTcdSPIZ8WvchbC5DFmfHxrvVNZCtops+2W94le+Q+mx110Y9L9mqNVVc9flF35lFeL5GsY+rxGBylsjDk4+zg=="
       },
-      "SQLitePCLRaw.bundle_e_sqlite3": {
-        "type": "Transitive",
-        "resolved": "2.1.12",
-        "contentHash": "mAgscpQMLw5/nfA1Q5oJVAT29yROUo1ifZGbbTpx/lwZpSxMUGoYbKfmvdm8oXER+RzxqBmmQzeBEVKfeHv2nw==",
-        "dependencies": {
-          "SQLitePCLRaw.lib.e_sqlite3": "2.1.12",
-          "SQLitePCLRaw.provider.e_sqlite3": "2.1.12"
-        }
-      },
-      "SQLitePCLRaw.core": {
-        "type": "Transitive",
-        "resolved": "2.1.12",
-        "contentHash": "ETpNw9DY3ckWLgRRAeCHj+GKOuPi61aeczkXhgHexUvqoZBAYg8RYESE2J7O1M7+o6QbdSEZwrw9bfqztUVWXg=="
-      },
-      "SQLitePCLRaw.lib.e_sqlite3": {
-        "type": "Transitive",
-        "resolved": "2.1.12",
-        "contentHash": "fWi8Dbknuhgg72fWinIdjXVaqO1hHL4YBBwVLnr7e1c9TAZwJ0QE38j9syW1hwx6HaqEVTwI+O07WPdZn8Rp0w=="
-      },
-      "SQLitePCLRaw.provider.e_sqlite3": {
-        "type": "Transitive",
-        "resolved": "2.1.12",
-        "contentHash": "W3oH4XIfCzFrgUSDKHhN6N+dgzA5YHOR2VxX8GB6Qy7CyrJJgxPEG8NirgYWlPQC5P2jz2knSsexWu4tDUL33g==",
-        "dependencies": {
-          "SQLitePCLRaw.core": "2.1.12"
-        }
-      },
-      "balls.core": {
-        "type": "Project"
-      },
-      "balls.host": {
-        "type": "Project",
-        "dependencies": {
-          "Balls.Platform": "[0.1.0-alpha.2, )",
-          "Balls.Platform.Linux": "[0.1.0-alpha.2, )",
-          "Balls.Platform.Windows": "[0.1.0-alpha.2, )"
-        }
-      },
       "balls.platform": {
         "type": "Project"
       },
@@ -159,53 +108,6 @@
         "type": "Project",
         "dependencies": {
           "Balls.Platform": "[0.1.0-alpha.2, )"
-        }
-      },
-      "balls.platform.windows": {
-        "type": "Project",
-        "dependencies": {
-          "Balls.Platform": "[0.1.0-alpha.2, )"
-        }
-      },
-      "balls.protocol": {
-        "type": "Project"
-      },
-      "balls.storage.sqlite": {
-        "type": "Project",
-        "dependencies": {
-          "Balls.Core": "[0.1.0-alpha.2, )",
-          "Microsoft.Data.Sqlite": "[10.0.11, )"
-        }
-      },
-      "ballsd": {
-        "type": "Project",
-        "dependencies": {
-          "Balls.Core": "[0.1.0-alpha.2, )",
-          "Balls.Host": "[0.1.0-alpha.2, )",
-          "Balls.Platform": "[0.1.0-alpha.2, )",
-          "Balls.Protocol": "[0.1.0-alpha.2, )",
-          "Balls.Storage.Sqlite": "[0.1.0-alpha.2, )",
-          "Microsoft.AspNetCore.OpenApi": "[10.0.11, )"
-        }
-      },
-      "Microsoft.AspNetCore.OpenApi": {
-        "type": "CentralTransitive",
-        "requested": "[10.0.11, )",
-        "resolved": "10.0.11",
-        "contentHash": "R/1EATnPLU+gRfB6lwVkMcymmyAY5ppBBdRN/5lhNEiT3xP1sWccuSFkU/f1lQvN/WgRq5Vn8AhCdE3fqgsL/w==",
-        "dependencies": {
-          "Microsoft.OpenApi": "[2.7.5, 3.0.0)"
-        }
-      },
-      "Microsoft.Data.Sqlite": {
-        "type": "CentralTransitive",
-        "requested": "[10.0.11, )",
-        "resolved": "10.0.11",
-        "contentHash": "7je7UELzm131GiLYc4PpZvfKXIgIyzPM+v+tjcd/nbnuWRfgcONYKzDTqJlURxwVCFsVnlpmq6y6yn4qvR8QXQ==",
-        "dependencies": {
-          "Microsoft.Data.Sqlite.Core": "10.0.11",
-          "SQLitePCLRaw.bundle_e_sqlite3": "2.1.12",
-          "SQLitePCLRaw.core": "2.1.12"
         }
       }
     }

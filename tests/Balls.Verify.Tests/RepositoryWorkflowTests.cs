@@ -51,7 +51,9 @@ public sealed partial class RepositoryWorkflowTests
     public void Canary_publication_follows_successful_required_main_push()
     {
         StringAssert.Contains(Workflow, "windows-canary:");
-        StringAssert.Contains(Workflow, "linux-build-test-canary:");
+        StringAssert.Contains(Workflow, "linux-canary:");
+        StringAssert.Contains(Workflow, "Smoke packaged Linux Canary");
+        StringAssert.Contains(Workflow, "Test-LinuxCanary.sh");
         Assert.AreEqual(2, Regex.Matches(Workflow, @"(?m)^    needs: required$").Count);
         Assert.AreEqual(2, Regex.Matches(Workflow, @"github.event_name == 'push'").Count);
         Assert.AreEqual(2, Regex.Matches(Workflow, @"github.ref == 'refs/heads/main'").Count);

@@ -7,9 +7,10 @@ commands and safety rules implemented by the current checkpoint.
 ## Current platform boundary
 
 The projects target .NET 10. The repository pins SDK `10.0.400` in
-[`global.json`](../global.json). Restore, build, and portable tests run on Windows and Linux, but
-the current `ballsd` runtime and `balls` CLI require Windows because Slice 1 uses same-user named
-pipes and Windows ACLs.
+[`global.json`](../global.json). `ballsd` and `balls` run natively and unelevated on Windows and
+Linux through the same application, local-control v1, and SQLite v1 behavior. Windows composes
+protected ACLs and same-user named pipes; Linux composes effective-user Unix modes and a protected
+Unix-domain socket.
 
 ## Build and verify
 
@@ -80,9 +81,9 @@ Stop-Process -Id ([int](Get-Content (Join-Path $canaryRoot 'ballsd.pid') -Raw))
 Remove-Item -LiteralPath (Join-Path $canaryRoot 'ballsd.pid')
 ```
 
-The Linux artifact is build/test evidence only. Its manifest sets `runtimeSupported` to `false`,
-and its README states **Runtime unsupported until 0.2.0-alpha.1**. Do not install or describe it as
-a supported Linux runtime.
+The Linux Canary is a runnable development artifact. Its manifest records runtime support, and CI
+smokes the packaged daemon and CLI over a fresh Unix-domain socket before upload. It is not a
+stable installer or release.
 
 ## Versioning
 
@@ -123,13 +124,32 @@ dotnet run --project src/Balls.Cli --configuration Release --no-build -- --pipe-
 Stop the daemon with Ctrl+C. Restart it with the same data directory to verify that Node and Circle
 identities persist.
 
+## Run the local slice on Linux
+
+The default state directory is `$XDG_STATE_HOME/balls` or `$HOME/.local/state/balls`. The default
+socket is `$XDG_RUNTIME_DIR/balls/control.sock`, `/run/user/<uid>/balls/control.sock`, or a private
+effective-user fallback below the system temporary directory. Start the daemon and use the CLI in
+separate shells:
+
+```bash
+dotnet run --project src/Balls.Daemon --configuration Release --no-build
+dotnet run --project src/Balls.Cli --configuration Release --no-build -- status
+dotnet run --project src/Balls.Cli --configuration Release --no-build -- circle create "My Circle" --owner "$USER"
+dotnet run --project src/Balls.Cli --configuration Release --no-build -- circle list
+```
+
+Stop with Ctrl+C and restart with the same environment to verify that Node and Circle identifiers
+persist. A custom `--data-directory` must be a normalized absolute path beneath an owned safe
+parent. The existing `--pipe-name` compatibility option accepts the normalized absolute Unix-socket
+path on Linux.
+
 ## State-directory safety
 
-The default directory is `%LOCALAPPDATA%\Balls`. For development, use a new dedicated directory or
-one already marked by Balls. Do not point `--data-directory` at a general-purpose folder. The
-Windows adapter rejects network paths, reparse-point paths, unmarked nonempty directories, and
-unexpected entries before opening the database. The parent of a custom directory must already be
-controlled by the current user; prefer LocalAppData.
+The defaults are `%LOCALAPPDATA%\Balls` on Windows and the XDG state location above on Linux. For
+development, use a new dedicated directory or one already marked by Balls. Do not point
+`--data-directory` at a general-purpose folder. Windows rejects network/reparse paths; Linux rejects
+relative, symlinked, cross-user-writable, foreign-owned, and unverified filesystem paths. Both
+reject unmarked nonempty directories and unexpected entries before opening the database.
 
 Only one daemon may own a data directory at a time. Use a different directory and pipe name for
 parallel manual runs.

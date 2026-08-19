@@ -156,8 +156,8 @@ jobs:
           retention-days: 14
           compression-level: 0
 
-  linux-build-test-canary:
-    name: Linux build/test Canary (runtime unsupported)
+  linux-canary:
+    name: Linux Canary
     needs: required
     if: >-
       github.event_name == 'push' &&
@@ -179,7 +179,7 @@ jobs:
           cache: true
           cache-dependency-path: '**/packages.lock.json'
 
-      - name: Build and package Linux build/test Canary once
+      - name: Build and package Linux Canary once
         id: package
         shell: bash
         run: |
@@ -202,10 +202,18 @@ jobs:
             --commit '${{ github.sha }}'
 
           archive="$(find "$output_directory" -maxdepth 1 -name '*.zip' -type f -print -quit)"
-          unzip -p "$archive" canary.json | grep -F '"runtimeSupported": false'
+          unzip -p "$archive" canary.json | grep -F '"runtimeSupported": true'
           echo "artifact_name=$(basename "$archive" .zip)" >> "$GITHUB_OUTPUT"
 
-      - name: Upload Linux build/test Canary
+      - name: Smoke packaged Linux Canary
+        shell: bash
+        run: |
+          set -euo pipefail
+          output_directory="$RUNNER_TEMP/balls-canary/output"
+          archive="$(find "$output_directory" -maxdepth 1 -name '*.zip' -type f -print -quit)"
+          bash ./eng/canary/Test-LinuxCanary.sh "$archive" "$archive.sha256"
+
+      - name: Upload Linux Canary
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: ${{ steps.package.outputs.artifact_name }}

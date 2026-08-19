@@ -30,8 +30,8 @@ system grows.
 through unauthenticated downloads.
 
 **Exit evidence:** fast-loop budgets measured; fixed Windows/Linux checks green; the Windows
-Canary starts; the Linux artifact builds/tests and is labeled runtime-unsupported until
-`0.2.0-alpha.1`; the public transition decision and resulting state are recorded.
+Canary starts; the initial Linux artifact is honestly build/test-only until native runtime support
+lands in `0.2.0-alpha.1`; the public transition decision and resulting state are recorded.
 
 ## `0.2.0-alpha.1` — Cross-platform Node and Web UI
 

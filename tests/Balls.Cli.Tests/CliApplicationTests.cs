@@ -13,9 +13,9 @@ public sealed class CliApplicationTests
     [TestMethod]
     public async Task Unsupported_host_fails_closed_through_the_typed_platform_result()
     {
-        if (OperatingSystem.IsWindows())
+        if (OperatingSystem.IsWindows() || OperatingSystem.IsLinux())
         {
-            Assert.Inconclusive("The supported Windows host does not exercise this path.");
+            Assert.Inconclusive("Supported hosts do not exercise this path.");
             return;
         }
 

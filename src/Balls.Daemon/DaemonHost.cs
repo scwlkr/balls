@@ -56,6 +56,7 @@ public static class DaemonHost
         var dataDirectoryLease = DataDirectoryLease.Acquire(securedDataDirectory);
         SqliteLocalStateStore? store = null;
         WebApplication? application = null;
+        var endpointPrepared = false;
 
         try
         {
@@ -67,6 +68,9 @@ public static class DaemonHost
                 TimeProvider.System,
                 options.NodeDisplayName);
             await circleApplication.GetLocalNodeAsync(cancellationToken).ConfigureAwait(false);
+            host.LocalState.Prepare(securedDataDirectory);
+            host.LocalControlServer.PrepareEndpoint(options.LocalControlEndpoint);
+            endpointPrepared = true;
             var builder = WebApplication.CreateSlimBuilder(new WebApplicationOptions
             {
                 Args = [],
@@ -186,7 +190,13 @@ public static class DaemonHost
             application.MapOpenApi(ControlRoutes.OpenApi);
 
             await application.StartAsync(cancellationToken).ConfigureAwait(false);
-            return new DaemonInstance(application, store, dataDirectoryLease);
+            host.LocalControlServer.SecureEndpoint(options.LocalControlEndpoint);
+            return new DaemonInstance(
+                application,
+                store,
+                dataDirectoryLease,
+                host.LocalControlServer,
+                options.LocalControlEndpoint);
         }
         catch
         {
@@ -208,7 +218,17 @@ public static class DaemonHost
                 }
                 finally
                 {
-                    dataDirectoryLease.Dispose();
+                    try
+                    {
+                        if (endpointPrepared)
+                        {
+                            host.LocalControlServer.CleanupEndpoint(options.LocalControlEndpoint);
+                        }
+                    }
+                    finally
+                    {
+                        dataDirectoryLease.Dispose();
+                    }
                 }
             }
 
@@ -310,16 +330,22 @@ public sealed class DaemonInstance : IAsyncDisposable
     private readonly WebApplication application;
     private readonly SqliteLocalStateStore store;
     private readonly DataDirectoryLease dataDirectoryLease;
+    private readonly ILocalControlServerTransport localControlServer;
+    private readonly string localControlEndpoint;
     private int disposed;
 
     internal DaemonInstance(
         WebApplication application,
         SqliteLocalStateStore store,
-        DataDirectoryLease dataDirectoryLease)
+        DataDirectoryLease dataDirectoryLease,
+        ILocalControlServerTransport localControlServer,
+        string localControlEndpoint)
     {
         this.application = application;
         this.store = store;
         this.dataDirectoryLease = dataDirectoryLease;
+        this.localControlServer = localControlServer;
+        this.localControlEndpoint = localControlEndpoint;
     }
 
     public async ValueTask DisposeAsync()
@@ -342,7 +368,14 @@ public sealed class DaemonInstance : IAsyncDisposable
             }
             finally
             {
-                dataDirectoryLease.Dispose();
+                try
+                {
+                    localControlServer.CleanupEndpoint(localControlEndpoint);
+                }
+                finally
+                {
+                    dataDirectoryLease.Dispose();
+                }
             }
         }
     }

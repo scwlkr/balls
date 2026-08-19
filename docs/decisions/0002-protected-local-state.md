@@ -26,6 +26,24 @@ The Windows platform adapter:
 - replaces inherited access rules with protected ACLs granting full control only to the current
   Windows user and LocalSystem, and reapplies them to known existing files.
 
+The Linux platform adapter provides the equivalent native boundary:
+
+- the default is `$XDG_STATE_HOME/balls`, or `$HOME/.local/state/balls` when the XDG variable is
+  absent or relative;
+- custom paths must be normalized absolute paths on a recognized local persistent filesystem;
+- every existing path component is inspected without following its final link, symbolic links and
+  group/other-writable ancestry are rejected, and the nearest parent used for creation must belong
+  to the effective user (a root-owned sticky parent is accepted only when creating a private
+  runtime directory, not state directly);
+- the state directory must belong to the effective user and is set to `0700`; the marker, database,
+  sidecars, and lease must be regular user-owned files and are set to `0600`;
+- the same exact marker and allowlist used on Windows distinguish dedicated Balls state from an
+  arbitrary directory. Unknown entries and ownership/type mismatches fail before modification.
+
+Linux local-filesystem verification uses `/proc/self/mountinfo` and an explicit allowlist of local,
+persistent filesystem types. Unknown, network, pseudo, removable compatibility, and memory-only
+types fail closed rather than inheriting SQLite durability or permission assumptions.
+
 The daemon takes an exclusive `ballsd.lock` lease before opening state.
 
 The SQLite adapter identifies its file with application ID `0x42414C53` and schema version `1`. It
@@ -41,8 +59,9 @@ Circle state model.
 - Startup stops with an actionable error instead of resetting unknown or incompatible state.
 - One daemon process owns a state directory at a time.
 - Windows ACL details remain isolated from core, protocol, and SQLite projects.
-- Future Linux and macOS adapters should provide equivalent ownership and path-safety semantics
-  using their native mechanisms, not copy Windows ACL implementation details.
+- Linux ownership and Unix-mode details remain isolated from core, protocol, and SQLite projects.
+- A future macOS adapter should provide equivalent ownership and path-safety semantics using native
+  mechanisms, not copy Windows ACL or Linux `/proc` implementation details.
 - The marker and ACL do not defend against LocalSystem, an administrator, offline disk access, or a
   process already running as the same user. Encryption at rest and backup/recovery remain separate
   decisions.

@@ -16,12 +16,6 @@ public sealed class DaemonStatusTests
     [DoNotParallelize]
     public async Task Ambient_kestrel_configuration_cannot_add_a_tcp_control_endpoint()
     {
-        if (!OperatingSystem.IsWindows())
-        {
-            Assert.Inconclusive("The Phase 1 local control transport is currently Windows-only.");
-            return;
-        }
-
         using var portProbe = new TcpListener(IPAddress.Loopback, 0);
         portProbe.Start();
         var port = ((IPEndPoint)portProbe.LocalEndpoint).Port;
@@ -35,10 +29,13 @@ public sealed class DaemonStatusTests
         try
         {
             using var directory = new TemporaryDirectory();
+            var endpoint = OperatingSystem.IsWindows()
+                ? $"balls-tests-{Guid.NewGuid():N}"
+                : Path.Combine(directory.Path, "runtime", "control.sock");
             await using var daemon = await DaemonHost.StartAsync(
                 new DaemonOptions(
-                    directory.Path,
-                    $"balls-tests-{Guid.NewGuid():N}",
+                    Path.Combine(directory.Path, "state"),
+                    endpoint,
                     "Alice-PC"));
             using var client = new TcpClient();
             using var timeout = new CancellationTokenSource(TimeSpan.FromMilliseconds(500));

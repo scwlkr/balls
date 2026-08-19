@@ -6,11 +6,18 @@
         "type": "Project",
         "dependencies": {
           "Balls.Platform": "[0.1.0-alpha.2, )",
+          "Balls.Platform.Linux": "[0.1.0-alpha.2, )",
           "Balls.Platform.Windows": "[0.1.0-alpha.2, )"
         }
       },
       "balls.platform": {
         "type": "Project"
+      },
+      "balls.platform.linux": {
+        "type": "Project",
+        "dependencies": {
+          "Balls.Platform": "[0.1.0-alpha.2, )"
+        }
       },
       "balls.platform.windows": {
         "type": "Project",

@@ -4,9 +4,7 @@
     <IsTestProject>true</IsTestProject>
   </PropertyGroup>
   <ItemGroup>
-    <ProjectReference Include="..\..\src\Balls.Cli\Balls.Cli.csproj" />
-    <ProjectReference Include="..\..\src\Balls.Daemon\Balls.Daemon.csproj" />
-    <ProjectReference Include="..\..\src\Balls.Host\Balls.Host.csproj" />
+    <ProjectReference Include="..\..\src\Balls.Platform.Linux\Balls.Platform.Linux.csproj" />
   </ItemGroup>
   <ItemGroup>
     <PackageReference Include="Microsoft.NET.Test.Sdk" />

@@ -80,7 +80,7 @@ internal static partial class CanaryPackageBuilder
                 commit,
                 platform,
                 request.Architecture,
-                request.Platform == CanaryPlatform.Windows);
+                request.Platform);
             WriteInternalChecksums(stagingDirectory);
 
             File.Delete(archivePath);
@@ -158,7 +158,7 @@ internal static partial class CanaryPackageBuilder
         string commit,
         string platform,
         string architecture,
-        bool runtimeSupported)
+        CanaryPlatform canaryPlatform)
     {
         var manifest = new
         {
@@ -167,10 +167,10 @@ internal static partial class CanaryPackageBuilder
             commit,
             platform,
             architecture,
-            runtimeSupported,
-            support = runtimeSupported
+            runtimeSupported = true,
+            support = canaryPlatform == CanaryPlatform.Windows
                 ? "Windows Canary for development use."
-                : "Linux build/test artifact. Runtime unsupported until 0.2.0-alpha.1.",
+                : "Linux Canary for development use.",
         };
         File.WriteAllText(
             path,
@@ -193,12 +193,13 @@ internal static partial class CanaryPackageBuilder
               ```
               """" + Environment.NewLine
             : $""""
-              # Balls Linux Build/Test Canary
+              # Balls Linux Canary
 
-              **Runtime unsupported until 0.2.0-alpha.1.**
+              Development artifact `{artifactName}`. This is not a stable installer or release.
 
-              Artifact `{artifactName}` proves that the accepted commit builds and passes portable tests on
-              Linux. It does not claim a supported Linux `ballsd` or `balls` runtime.
+              Extract the archive, preserve executable bits, start `ballsd/ballsd`, and use
+              `balls/balls status`. The daemon defaults to protected XDG state and a same-user
+              Unix-domain socket.
               """" + Environment.NewLine;
 
     private static void WriteInternalChecksums(string stagingDirectory)
