@@ -1,0 +1,60 @@
+using System.Runtime.Versioning;
+using Balls.Platform;
+using Microsoft.AspNetCore.Server.Kestrel.Core;
+using Microsoft.Extensions.DependencyInjection;
+
+namespace Balls.Platform.Windows;
+
+[SupportedOSPlatform("windows")]
+public static class WindowsHostPlatform
+{
+    public static HostPlatform Create()
+    {
+        var transport = new WindowsLocalControlTransport();
+        return new HostPlatform(
+            new HostDefaults(
+                Path.Combine(
+                    Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+                    "Balls"),
+                WindowsNamedPipeDefaults.GetCurrentUserPipeName(),
+                Environment.MachineName,
+                "named pipe",
+                "pipe"),
+            new WindowsLocalStatePreparer(),
+            transport,
+            transport);
+    }
+
+    private sealed class WindowsLocalStatePreparer : ILocalStatePreparer
+    {
+        public string Prepare(string dataDirectory)
+        {
+            return WindowsDataDirectorySecurity.Prepare(dataDirectory);
+        }
+    }
+
+    private sealed class WindowsLocalControlTransport :
+        ILocalControlServerTransport,
+        ILocalControlClientTransport
+    {
+        public void ValidateEndpoint(string endpoint)
+        {
+            WindowsNamedPipeControl.ValidatePipeName(endpoint);
+        }
+
+        public void ConfigureServices(IServiceCollection services)
+        {
+            WindowsNamedPipeControl.ConfigureServices(services);
+        }
+
+        public void ConfigureServer(KestrelServerOptions serverOptions, string endpoint)
+        {
+            WindowsNamedPipeControl.ConfigureServer(serverOptions, endpoint);
+        }
+
+        public HttpClient CreateClient(string endpoint, TimeSpan? timeout = null)
+        {
+            return WindowsNamedPipeHttpClient.Create(endpoint, timeout);
+        }
+    }
+}

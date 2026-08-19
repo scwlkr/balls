@@ -54,8 +54,21 @@
       "balls.core": {
         "type": "Project"
       },
-      "balls.platform.windows": {
+      "balls.host": {
+        "type": "Project",
+        "dependencies": {
+          "Balls.Platform": "[0.1.0-alpha.2, )",
+          "Balls.Platform.Windows": "[0.1.0-alpha.2, )"
+        }
+      },
+      "balls.platform": {
         "type": "Project"
+      },
+      "balls.platform.windows": {
+        "type": "Project",
+        "dependencies": {
+          "Balls.Platform": "[0.1.0-alpha.2, )"
+        }
       },
       "balls.protocol": {
         "type": "Project"

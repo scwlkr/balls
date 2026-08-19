@@ -1,6 +1,6 @@
 using System.Reflection;
 using Balls.Core;
-using Balls.Platform.Windows;
+using Balls.Host;
 
 namespace Balls.Daemon;
 
@@ -36,22 +36,21 @@ public static class DaemonCommand
             return DaemonExitCodes.Success;
         }
 
-        if (!OperatingSystem.IsWindows())
+        var selection = HostPlatformSelector.SelectCurrent();
+        if (selection is UnsupportedHostPlatform unsupported)
         {
-            await standardError.WriteLineAsync(
-                "ballsd: the Phase 1 local control transport currently requires Windows.");
+            await standardError.WriteLineAsync($"ballsd: {unsupported.Message}");
             return DaemonExitCodes.PlatformUnsupported;
         }
 
+        var host = ((SupportedHostPlatform)selection).Platform;
         var tokens = arguments.ToList();
-        var dataDirectory = Path.Combine(
-            Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
-            "Balls");
-        var pipeName = WindowsNamedPipeDefaults.GetCurrentUserPipeName();
-        var nodeName = Environment.MachineName;
+        var dataDirectory = host.Defaults.DataDirectory;
+        var localControlEndpoint = host.Defaults.LocalControlEndpoint;
+        var nodeName = host.Defaults.NodeDisplayName;
 
         if (!TryApplyOption(tokens, "--data-directory", ref dataDirectory, out var error)
-            || !TryApplyOption(tokens, "--pipe-name", ref pipeName, out error)
+            || !TryApplyOption(tokens, "--pipe-name", ref localControlEndpoint, out error)
             || !TryApplyOption(tokens, "--node-name", ref nodeName, out error))
         {
             await standardError.WriteLineAsync($"ballsd: {error}");
@@ -88,7 +87,7 @@ public static class DaemonCommand
 
         try
         {
-            WindowsNamedPipeControl.ValidatePipeName(pipeName);
+            host.LocalControlServer.ValidateEndpoint(localControlEndpoint);
         }
         catch (ArgumentException)
         {
@@ -100,9 +99,11 @@ public static class DaemonCommand
         try
         {
             await using var daemon = await DaemonHost.StartAsync(
-                new DaemonOptions(dataDirectory, pipeName, nodeName),
+                new DaemonOptions(dataDirectory, localControlEndpoint, nodeName),
+                host,
                 cancellationToken).ConfigureAwait(false);
-            await standardOutput.WriteLineAsync($"ballsd ready on named pipe {pipeName}.");
+            await standardOutput.WriteLineAsync(
+                $"ballsd ready on {host.Defaults.LocalControlListenerDescription} {localControlEndpoint}.");
             try
             {
                 await Task.Delay(Timeout.InfiniteTimeSpan, cancellationToken).ConfigureAwait(false);

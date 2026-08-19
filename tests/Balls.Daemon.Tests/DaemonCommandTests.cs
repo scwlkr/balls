@@ -7,6 +7,26 @@ namespace Balls.Daemon.Tests;
 public sealed class DaemonCommandTests
 {
     [TestMethod]
+    public async Task Unsupported_host_fails_closed_through_the_typed_platform_result()
+    {
+        if (OperatingSystem.IsWindows())
+        {
+            Assert.Inconclusive("The supported Windows host does not exercise this path.");
+            return;
+        }
+
+        var output = new StringWriter();
+        var error = new StringWriter();
+
+        var exitCode = await DaemonCommand.RunAsync([], output, error);
+
+        Assert.AreEqual(DaemonExitCodes.PlatformUnsupported, exitCode);
+        Assert.AreEqual(string.Empty, output.ToString());
+        StringAssert.Contains(error.ToString(), "local host platform");
+        StringAssert.Contains(error.ToString(), "is not supported yet");
+    }
+
+    [TestMethod]
     public async Task Invalid_startup_options_are_usage_errors_and_do_not_create_state()
     {
         if (!OperatingSystem.IsWindows())

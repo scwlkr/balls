@@ -11,6 +11,26 @@ namespace Balls.Cli.Tests;
 public sealed class CliApplicationTests
 {
     [TestMethod]
+    public async Task Unsupported_host_fails_closed_through_the_typed_platform_result()
+    {
+        if (OperatingSystem.IsWindows())
+        {
+            Assert.Inconclusive("The supported Windows host does not exercise this path.");
+            return;
+        }
+
+        var output = new StringWriter();
+        var error = new StringWriter();
+
+        var exitCode = await CliApplication.RunAsync(["status"], output, error);
+
+        Assert.AreEqual(CliExitCodes.PlatformUnsupported, exitCode);
+        Assert.AreEqual(string.Empty, output.ToString());
+        StringAssert.Contains(error.ToString(), "local host platform");
+        StringAssert.Contains(error.ToString(), "is not supported yet");
+    }
+
+    [TestMethod]
     public async Task Cli_rejects_an_invalid_pipe_name_as_usage_without_a_stack_trace()
     {
         if (!OperatingSystem.IsWindows())

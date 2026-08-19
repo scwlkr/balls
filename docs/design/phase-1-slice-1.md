@@ -63,8 +63,10 @@ src/
   Balls.Core/               domain, use cases, and inward-facing ports
   Balls.Protocol/           versioned local-control DTOs and routes
   Balls.Storage.Sqlite/     transactional local-state adapter
+  Balls.Platform/           neutral host-edge contracts
   Balls.Platform.Windows/   Windows host IPC and state-directory policy
-  Balls.Daemon/             ballsd host and composition root
+  Balls.Host/               centralized runtime OS-adapter selection
+  Balls.Daemon/             ballsd application host
   Balls.Cli/                balls command-line client
 tests/
   Balls.Core.Tests/
@@ -73,8 +75,27 @@ tests/
   Balls.Cli.Tests/
 ```
 
-Linux, macOS, desktop UI, peer transport, and Anchor projects are not created
-until they contain real behavior.
+Linux, macOS, desktop UI, peer transport, and Anchor projects are not created until they contain
+real behavior. The current selector returns a typed unsupported-host result for non-Windows hosts.
+
+## Host-composition contract
+
+Both executables receive one `HostPlatform` aggregate selected by `Balls.Host`. It contains typed,
+independent seams for:
+
+- platform defaults: protected state location, local-control endpoint, Node display name, and safe
+  endpoint descriptions;
+- local-state preparation before the daemon lease or SQLite store is opened;
+- local-control server validation and Kestrel transport composition;
+- local-control `HttpClient` creation.
+
+The Windows aggregate preserves `%LOCALAPPDATA%\Balls`, the deterministic current-user pipe name,
+the machine-name Node label, protected state ACLs, `CurrentUserOnly` server and client pipes,
+HTTP/1.1, and no TCP control listener. Normal execution remains unelevated.
+
+The Linux handoff is deliberately narrow: add `Balls.Platform.Linux`, implement the same four
+seams with recorded state-directory and Unix-domain-socket safety semantics, and register it in
+`Balls.Host`. Do not fork local-control v1, SQLite v1, daemon routes, or CLI application behavior.
 
 ## Local control contract
 
