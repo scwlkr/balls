@@ -5,8 +5,18 @@ namespace Balls.Protocol.Control.V1;
 
 public static class ControlJson
 {
-    public static JsonSerializerOptions Options { get; } = new(JsonSerializerDefaults.Web)
+    public static JsonSerializerOptions Options { get; } = CreateOptions();
+
+    public static void Configure(JsonSerializerOptions options)
     {
-        UnmappedMemberHandling = JsonUnmappedMemberHandling.Skip,
-    };
+        ArgumentNullException.ThrowIfNull(options);
+        options.UnmappedMemberHandling = JsonUnmappedMemberHandling.Skip;
+    }
+
+    private static JsonSerializerOptions CreateOptions()
+    {
+        var options = new JsonSerializerOptions(JsonSerializerDefaults.Web);
+        Configure(options);
+        return options;
+    }
 }

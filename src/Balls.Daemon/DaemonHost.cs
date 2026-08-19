@@ -63,14 +63,8 @@ public static class DaemonHost
             builder.WebHost.ConfigureKestrel(
                 server => ConfigureWindowsServer(server, options.PipeName));
             builder.Services.AddOpenApi();
-            builder.Services.ConfigureHttpJsonOptions(json =>
-            {
-                json.SerializerOptions.PropertyNamingPolicy = ControlJson.Options.PropertyNamingPolicy;
-                json.SerializerOptions.PropertyNameCaseInsensitive =
-                    ControlJson.Options.PropertyNameCaseInsensitive;
-                json.SerializerOptions.UnmappedMemberHandling =
-                    ControlJson.Options.UnmappedMemberHandling;
-            });
+            builder.Services.ConfigureHttpJsonOptions(
+                json => ControlJson.Configure(json.SerializerOptions));
 
             application = builder.Build();
             application.MapGet(

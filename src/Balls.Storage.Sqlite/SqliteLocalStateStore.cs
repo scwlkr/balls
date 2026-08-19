@@ -382,6 +382,25 @@ public sealed class SqliteLocalStateStore : ILocalStateStore, IAsyncDisposable
                 ]),
         };
 
+        using (var unexpectedObjectCommand = connection.CreateCommand())
+        {
+            unexpectedObjectCommand.CommandText =
+                """
+                SELECT COUNT(*)
+                FROM sqlite_master
+                WHERE (type IN ('view', 'trigger') AND name NOT GLOB 'sqlite_*')
+                   OR (type = 'index' AND name NOT GLOB 'sqlite_autoindex_*');
+                """;
+            var unexpectedObjectCount = Convert.ToInt32(
+                await unexpectedObjectCommand.ExecuteScalarAsync(cancellationToken)
+                    .ConfigureAwait(false),
+                CultureInfo.InvariantCulture);
+            if (unexpectedObjectCount != 0)
+            {
+                ThrowInvalidSchema();
+            }
+        }
+
         var actualTableNames = new List<string>();
         using (var tableCommand = connection.CreateCommand())
         {

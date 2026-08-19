@@ -314,9 +314,26 @@ public sealed class SqliteLocalStateStoreTests
             await command.ExecuteNonQueryAsync();
         }
 
-        var error = await Assert.ThrowsExactlyAsync<LocalStateException>(
-            () => SqliteLocalStateStore.OpenAsync(directory.Path));
+        SqliteLocalStateStore? unexpectedStore = null;
+        LocalStateException? error = null;
+        try
+        {
+            unexpectedStore = await SqliteLocalStateStore.OpenAsync(directory.Path);
+            Assert.Fail("A schema without its required tables must not be accepted.");
+        }
+        catch (LocalStateException exception)
+        {
+            error = exception;
+        }
+        finally
+        {
+            if (unexpectedStore is not null)
+            {
+                await unexpectedStore.DisposeAsync();
+            }
+        }
 
+        Assert.IsNotNull(error);
         Assert.AreEqual("invalid_state_schema", error.Code);
         await using var verification = new SqliteConnection($"Data Source={databasePath};Pooling=False");
         await verification.OpenAsync();
@@ -406,6 +423,53 @@ public sealed class SqliteLocalStateStoreTests
         {
             unexpectedStore = await SqliteLocalStateStore.OpenAsync(directory.Path);
             Assert.Fail("A schema without its required constraints must not open.");
+        }
+        catch (LocalStateException exception)
+        {
+            error = exception;
+        }
+        finally
+        {
+            if (unexpectedStore is not null)
+            {
+                await unexpectedStore.DisposeAsync();
+            }
+        }
+
+        Assert.IsNotNull(error);
+        Assert.AreEqual("invalid_state_schema", error.Code);
+    }
+
+    [TestMethod]
+    public async Task Unexpected_active_schema_objects_are_rejected()
+    {
+        using var directory = new TemporaryDirectory();
+        await using (var store = await SqliteLocalStateStore.OpenAsync(directory.Path))
+        {
+        }
+
+        var databasePath = System.IO.Path.Combine(directory.Path, "balls.db");
+        await using (var connection = new SqliteConnection($"Data Source={databasePath};Pooling=False"))
+        {
+            await connection.OpenAsync();
+            using var command = connection.CreateCommand();
+            command.CommandText =
+                """
+                CREATE TRIGGER unexpected_trigger
+                AFTER INSERT ON circles
+                BEGIN
+                    SELECT 1;
+                END;
+                """;
+            await command.ExecuteNonQueryAsync();
+        }
+
+        SqliteLocalStateStore? unexpectedStore = null;
+        LocalStateException? error = null;
+        try
+        {
+            unexpectedStore = await SqliteLocalStateStore.OpenAsync(directory.Path);
+            Assert.Fail("Unexpected active schema objects must not be accepted.");
         }
         catch (LocalStateException exception)
         {
