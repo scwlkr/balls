@@ -10,6 +10,12 @@ public sealed partial class RepositoryWorkflowTests
         Path.Combine(FindRepositoryRoot(), ".github", "workflows", "ci.yml"));
 
     [TestMethod]
+    public void Intentional_failure_proves_required_ci_is_fail_closed()
+    {
+        Assert.Fail("Intentional issue #5 CI failure proof; this branch must never merge.");
+    }
+
+    [TestMethod]
     public void Required_lanes_use_fixed_images_and_stable_names()
     {
         Assert.IsFalse(Workflow.Contains("-latest", StringComparison.Ordinal));
