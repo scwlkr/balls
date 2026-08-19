@@ -21,6 +21,21 @@
         }
       }
     },
+    "/control/v1/ui/launch": {
+      "post": {
+        "tags": ["ballsd"],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/LaunchBrowserResponse" }
+              }
+            }
+          }
+        }
+      }
+    },
     "/control/v1/circles": {
       "post": {
         "tags": ["ballsd"],
@@ -261,6 +276,14 @@
         "properties": {
           "code": { "type": "string" },
           "message": { "type": "string" }
+        }
+      },
+      "LaunchBrowserResponse": {
+        "required": ["url", "expiresAtUtc"],
+        "type": "object",
+        "properties": {
+          "url": { "type": "string" },
+          "expiresAtUtc": { "type": "string", "format": "date-time" }
         }
       },
       "MemberListResponse": {

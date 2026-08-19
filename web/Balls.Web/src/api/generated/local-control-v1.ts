@@ -34,6 +34,41 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  "/control/v1/ui/launch": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    post: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path?: never;
+        cookie?: never;
+      };
+      requestBody?: never;
+      responses: {
+        /** @description OK */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["LaunchBrowserResponse"];
+          };
+        };
+      };
+    };
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   "/control/v1/circles": {
     parameters: {
       query?: never;
@@ -311,6 +346,11 @@ export interface components {
     ErrorResponse: {
       code: string;
       message: string;
+    };
+    LaunchBrowserResponse: {
+      url: string;
+      /** Format: date-time */
+      expiresAtUtc: string;
     };
     MemberListResponse: {
       circleId: string;

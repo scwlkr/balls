@@ -95,8 +95,11 @@ internal static class BrowserAdapter
                 return;
             }
 
+            var isSessionBootstrap = context.GetEndpoint()?
+                .Metadata
+                .GetMetadata<BrowserSessionBootstrapMetadata>() is not null;
             if (context.Request.Path.StartsWithSegments(BrowserRoutes.BasePath)
-                && context.Request.Path != BrowserRoutes.Session)
+                && !isSessionBootstrap)
             {
                 var sessionToken = context.Request.Cookies[SessionCookieName];
                 if (!access.IsSessionAuthorized(sessionToken))
@@ -174,6 +177,7 @@ internal static class BrowserAdapter
                             session.AntiforgeryToken,
                             session.ExpiresAtUtc));
                 })
+            .WithMetadata(BrowserSessionBootstrapMetadata.Instance)
             .Produces<BrowserSessionResponse>(StatusCodes.Status200OK)
             .Produces<ErrorResponse>(StatusCodes.Status401Unauthorized);
         application.MapGet(
@@ -372,5 +376,14 @@ internal sealed class BrowserEndpointState
         {
             throw new InvalidOperationException("The browser listener was initialized twice.");
         }
+    }
+}
+
+internal sealed class BrowserSessionBootstrapMetadata
+{
+    public static BrowserSessionBootstrapMetadata Instance { get; } = new();
+
+    private BrowserSessionBootstrapMetadata()
+    {
     }
 }
