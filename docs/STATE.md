@@ -43,16 +43,15 @@ Linux becomes a runnable Canary in `0.2.0-alpha.1` when its native runtime lands
 The active GitHub milestone owns executable tickets. Do not start product features from a future
 milestone while a ready active-milestone ticket exists.
 
-Owner-gated transition:
+Completed transition:
 
 - [#3 — Prepare and approve the public repository transition](https://github.com/scwlkr/balls/issues/3)
 
-The owner selected a clean sanitized lineage. A private successor now contains only rewritten
-`main`, the six executable issues with their original #3–#8 numbering, and matching labels and
-milestones. The migration and remaining cutover are recorded in the
-[dated readiness evidence](verification/2026-08-19-public-readiness.md). Staging and the source
-archive remain private. Publication, repository renames, and archive deletion await the separate
-final visibility confirmation required after candidate PR and CI verification.
+The owner-approved clean lineage is public at `scwlkr/balls`. Private vulnerability reporting and
+the active `main` rules are verified, anonymous web/API/Git reads pass, and both the original
+private archive and rejected staging repository were deleted after verification. The complete
+migration is recorded in the
+[dated readiness evidence](verification/2026-08-19-public-readiness.md).
 
 Ready frontier:
 
