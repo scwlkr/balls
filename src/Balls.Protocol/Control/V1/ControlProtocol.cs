@@ -10,6 +10,7 @@ public static class ControlRoutes
     public const string BasePath = "/control/v1";
     public const string Status = BasePath + "/status";
     public const string Circles = BasePath + "/circles";
+    public const string BrowserLaunch = BasePath + "/ui/launch";
     public const string OpenApi = BasePath + "/openapi.json";
 
     public static string Circle(string circleId)
