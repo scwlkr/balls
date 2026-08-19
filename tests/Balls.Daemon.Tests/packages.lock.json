@@ -153,17 +153,17 @@
       "balls.storage.sqlite": {
         "type": "Project",
         "dependencies": {
-          "Balls.Core": "[0.1.0-alpha.1, )",
+          "Balls.Core": "[0.1.0-alpha.2, )",
           "Microsoft.Data.Sqlite": "[10.0.11, )"
         }
       },
       "ballsd": {
         "type": "Project",
         "dependencies": {
-          "Balls.Core": "[0.1.0-alpha.1, )",
-          "Balls.Platform.Windows": "[0.1.0-alpha.1, )",
-          "Balls.Protocol": "[0.1.0-alpha.1, )",
-          "Balls.Storage.Sqlite": "[0.1.0-alpha.1, )",
+          "Balls.Core": "[0.1.0-alpha.2, )",
+          "Balls.Platform.Windows": "[0.1.0-alpha.2, )",
+          "Balls.Protocol": "[0.1.0-alpha.2, )",
+          "Balls.Storage.Sqlite": "[0.1.0-alpha.2, )",
           "Microsoft.AspNetCore.OpenApi": "[10.0.11, )"
         }
       },

@@ -40,3 +40,10 @@ Pull request [#11](https://github.com/scwlkr/balls/pull/11) passed both clean ho
 
 The Ubuntu job executed the same portable fast path documented for Linux. The Windows job ran all
 62 tests. Both completed inside the pull-request wall-time budget.
+
+## Milestone exit remeasurement
+
+Issue [#8](https://github.com/scwlkr/balls/issues/8) repeated the warm Windows measurements after
+the complete Open and Fast Foundation change set. The same focused selection passed 8 tests in
+6.03s. The complete fast gate passed against the 72-test repository in 33.69s. Both retained their
+`<15s` and `<60s` budgets.

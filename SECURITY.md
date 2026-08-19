@@ -32,6 +32,7 @@ The public repository applies these automated checks:
 
 Security workflows use fixed GitHub-hosted runners and reference no secrets or persistent
 self-hosted infrastructure. Fork contributions use `pull_request`, never `pull_request_target`;
+no privileged `workflow_run` checkout follows untrusted code;
 the repository default token permission is read-only, cannot approve pull requests, and requires
 approval for first-time fork contributors. Write scopes exist only on the CodeQL and Scorecard jobs
 that upload security results. Scorecard is advisory and is not a required release or merge check.
