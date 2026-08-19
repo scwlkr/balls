@@ -47,6 +47,33 @@ public sealed partial class RepositoryWorkflowTests
         Assert.IsTrue(usesLines.All(line => ShaPinnedAction().IsMatch(line)));
     }
 
+    [TestMethod]
+    public void Security_workflows_exist_and_keep_untrusted_pull_requests_unprivileged()
+    {
+        var workflowDirectory = Path.Combine(FindRepositoryRoot(), ".github", "workflows");
+        var requiredFiles = new[] { "dependency-review.yml", "codeql.yml", "scorecard.yml" };
+        foreach (var file in requiredFiles)
+        {
+            Assert.IsTrue(File.Exists(Path.Combine(workflowDirectory, file)), file);
+        }
+
+        var workflows = Directory.GetFiles(workflowDirectory, "*.yml")
+            .Select(File.ReadAllText)
+            .ToArray();
+        var combined = string.Join(Environment.NewLine, workflows);
+        Assert.IsFalse(combined.Contains("pull_request_target", StringComparison.Ordinal));
+        Assert.IsFalse(combined.Contains("self-hosted", StringComparison.Ordinal));
+        Assert.IsFalse(combined.Contains("secrets.", StringComparison.Ordinal));
+        Assert.IsFalse(combined.Contains("-latest", StringComparison.Ordinal));
+
+        var usesLines = workflows
+            .SelectMany(workflow => workflow.Split('\n'))
+            .Where(line => line.TrimStart().StartsWith("uses:", StringComparison.Ordinal))
+            .ToArray();
+        Assert.IsNotEmpty(usesLines);
+        Assert.IsTrue(usesLines.All(line => ShaPinnedAction().IsMatch(line)));
+    }
+
     private static string FindRepositoryRoot()
     {
         var directory = new DirectoryInfo(AppContext.BaseDirectory);
