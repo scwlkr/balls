@@ -33,17 +33,13 @@ public sealed class CliApplicationTests
     [TestMethod]
     public async Task Cli_rejects_an_invalid_pipe_name_as_usage_without_a_stack_trace()
     {
-        if (!OperatingSystem.IsWindows())
-        {
-            Assert.Inconclusive("The Phase 1 local control transport is currently Windows-only.");
-            return;
-        }
-
         var output = new StringWriter();
         var error = new StringWriter();
 
+        var invalidEndpoint = OperatingSystem.IsWindows() ? "bad/name" : "relative.sock";
+
         var exitCode = await CliApplication.RunAsync(
-            ["--pipe-name", "bad/name", "status"],
+            ["--pipe-name", invalidEndpoint, "status"],
             output,
             error);
 
@@ -56,19 +52,17 @@ public sealed class CliApplicationTests
     [TestMethod]
     public async Task Cli_rejects_a_request_id_option_without_a_value_before_contacting_the_daemon()
     {
-        if (!OperatingSystem.IsWindows())
-        {
-            Assert.Inconclusive("The Phase 1 local control transport is currently Windows-only.");
-            return;
-        }
-
         var output = new StringWriter();
         var error = new StringWriter();
+
+        var endpoint = OperatingSystem.IsWindows()
+            ? $"balls-tests-{Guid.NewGuid():N}"
+            : Path.Combine(Path.GetTempPath(), $"balls-tests-{Guid.NewGuid():N}.sock");
 
         var exitCode = await CliApplication.RunAsync(
             [
                 "--pipe-name",
-                $"balls-tests-{Guid.NewGuid():N}",
+                endpoint,
                 "circle",
                 "create",
                 "Example Studio",
@@ -85,6 +79,92 @@ public sealed class CliApplicationTests
     }
 
     [TestMethod]
+    public async Task Cli_rejects_unsupported_output_and_misplaced_global_options_as_usage()
+    {
+        var unsupportedOutput = new StringWriter();
+        var unsupportedError = new StringWriter();
+        var misplacedOutput = new StringWriter();
+        var misplacedError = new StringWriter();
+
+        var unsupportedExit = await CliApplication.RunAsync(
+            ["--output", "yaml", "status"],
+            unsupportedOutput,
+            unsupportedError);
+        var misplacedExit = await CliApplication.RunAsync(
+            ["status", "--output", "json"],
+            misplacedOutput,
+            misplacedError);
+
+        Assert.AreEqual(CliExitCodes.UsageError, unsupportedExit);
+        Assert.AreEqual(CliExitCodes.UsageError, misplacedExit);
+        Assert.AreEqual(string.Empty, unsupportedOutput.ToString());
+        Assert.AreEqual(string.Empty, misplacedOutput.ToString());
+        Assert.AreEqual(
+            "balls: --output must be either 'text' or 'json'." + Environment.NewLine
+                + "commands: status | circle create | circle list | member list | node list"
+                + Environment.NewLine,
+            unsupportedError.ToString());
+        StringAssert.StartsWith(misplacedError.ToString(), "balls: unknown command.");
+    }
+
+    [TestMethod]
+    public void Cli_output_has_stable_golden_text_and_versioned_json()
+    {
+        var status = new StatusResponse(
+            "0.1.0-alpha.2",
+            1,
+            new NodeResponse(
+                "0198f2cc-6a50-7a08-aacb-298f4ebdf616",
+                "Alice-PC",
+                DateTimeOffset.Parse(
+                    "2026-08-19T12:34:56.1234567+00:00",
+                    System.Globalization.CultureInfo.InvariantCulture)));
+
+        Assert.AreEqual(
+            "Node: Alice-PC" + Environment.NewLine
+                + "Node ID: 0198f2cc-6a50-7a08-aacb-298f4ebdf616" + Environment.NewLine
+                + "Control protocol: v1",
+            CliOutput.RenderStatus(status));
+        Assert.AreEqual(
+            "{\"outputVersion\":1,\"result\":{\"productVersion\":\"0.1.0-alpha.2\",\"protocolVersion\":1,\"node\":{\"id\":\"0198f2cc-6a50-7a08-aacb-298f4ebdf616\",\"displayName\":\"Alice-PC\",\"createdAtUtc\":\"2026-08-19T12:34:56.1234567+00:00\"}}}",
+            CliOutput.SerializeResult(status));
+        Assert.AreEqual(
+            "{\"outputVersion\":1,\"error\":{\"code\":\"circle_not_found\",\"message\":\"The requested Circle is not known to this Node.\"}}",
+            CliOutput.SerializeError(
+                "circle_not_found",
+                "The requested Circle is not known to this Node."));
+    }
+
+    [TestMethod]
+    public void Cli_output_ignores_unknown_additive_protocol_response_fields()
+    {
+        const string responseJson =
+            """
+            {
+              "productVersion": "0.1.0-alpha.2",
+              "protocolVersion": 1,
+              "futureStatus": "ignored",
+              "node": {
+                "id": "0198f2cc-6a50-7a08-aacb-298f4ebdf616",
+                "displayName": "Alice-PC",
+                "createdAtUtc": "2026-08-19T12:34:56.1234567+00:00",
+                "futureNode": true
+              }
+            }
+            """;
+
+        var response = JsonSerializer.Deserialize<StatusResponse>(
+            responseJson,
+            ControlJson.Options);
+
+        Assert.IsNotNull(response);
+        var rendered = CliOutput.SerializeResult(response);
+        Assert.IsFalse(rendered.Contains("futureStatus", StringComparison.Ordinal));
+        Assert.IsFalse(rendered.Contains("futureNode", StringComparison.Ordinal));
+        StringAssert.Contains(rendered, "\"outputVersion\":1");
+    }
+
+    [TestMethod]
     public async Task Cli_creates_and_lists_a_circle_member_and_node_through_the_daemon_contract()
     {
         if (!OperatingSystem.IsWindows())
@@ -98,49 +178,45 @@ public sealed class CliApplicationTests
         await using var daemon = await DaemonHost.StartAsync(
             new DaemonOptions(directory.Path, pipeName, "Alice-PC"));
 
-        var status = await RunAsync(pipeName, "status", "--output", "json");
+        var status = await RunAsync(pipeName, "--output", "json", "status");
         Assert.AreEqual(CliExitCodes.Success, status.ExitCode);
-        var statusResponse = JsonSerializer.Deserialize<StatusResponse>(
-            status.StandardOutput,
-            ControlJson.Options);
+        var statusResponse = DeserializeResult<StatusResponse>(status.StandardOutput);
         Assert.IsNotNull(statusResponse);
         Assert.AreEqual("Alice-PC", statusResponse.Node.DisplayName);
 
         var create = await RunAsync(
             pipeName,
+            "--output",
+            "json",
             "circle",
             "create",
             "Example Studio",
             "--owner",
             "Alice",
             "--request-id",
-            "0198c2d8-b000-7000-8000-000000000201",
-            "--output",
-            "json");
+            "0198c2d8-b000-7000-8000-000000000201");
         Assert.AreEqual(CliExitCodes.Success, create.ExitCode);
-        var created = JsonSerializer.Deserialize<CircleDetailsResponse>(
-            create.StandardOutput,
-            ControlJson.Options);
+        var created = DeserializeResult<CircleDetailsResponse>(create.StandardOutput);
         Assert.IsNotNull(created);
         var circleId = created.Circle.Id;
 
-        var circles = await RunAsync(pipeName, "circle", "list", "--output", "json");
+        var circles = await RunAsync(pipeName, "--output", "json", "circle", "list");
         var members = await RunAsync(
             pipeName,
+            "--output",
+            "json",
             "member",
             "list",
             "--circle",
-            circleId,
-            "--output",
-            "json");
+            circleId);
         var nodes = await RunAsync(
             pipeName,
+            "--output",
+            "json",
             "node",
             "list",
             "--circle",
-            circleId,
-            "--output",
-            "json");
+            circleId);
 
         Assert.AreEqual(CliExitCodes.Success, circles.ExitCode);
         Assert.AreEqual(CliExitCodes.Success, members.ExitCode);
@@ -231,6 +307,14 @@ public sealed class CliApplicationTests
         var arguments = new[] { "--pipe-name", pipeName }.Concat(command).ToArray();
         var exitCode = await CliApplication.RunAsync(arguments, output, error);
         return new CliResult(exitCode, output.ToString().Trim(), error.ToString().Trim());
+    }
+
+    private static T DeserializeResult<T>(string json)
+    {
+        using var document = JsonDocument.Parse(json);
+        Assert.AreEqual(1, document.RootElement.GetProperty("outputVersion").GetInt32());
+        return document.RootElement.GetProperty("result").Deserialize<T>(ControlJson.Options)
+            ?? throw new AssertFailedException("CLI result was null.");
     }
 
     private sealed record CliResult(int ExitCode, string StandardOutput, string StandardError);

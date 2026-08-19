@@ -124,6 +124,22 @@ dotnet run --project src/Balls.Cli --configuration Release --no-build -- --pipe-
 Stop the daemon with Ctrl+C. Restart it with the same data directory to verify that Node and Circle
 identities persist.
 
+## Use stable CLI output
+
+Human-readable text is the default. Automation selects the versioned JSON envelope with the global
+option before the command:
+
+```powershell
+dotnet run --project src/Balls.Cli --configuration Release --no-build -- --output json --pipe-name balls-dev status
+dotnet run --project src/Balls.Cli --configuration Release --no-build -- --output json --pipe-name balls-dev circle list
+```
+
+The same order and envelope apply on Windows and Linux. Global `--output` and `--pipe-name` options
+must precede the command; command-specific `--owner`, `--request-id`, and `--circle` options follow
+their command operands. JSON success is written to standard output and JSON errors to standard
+error. See the [CLI compatibility contract](protocol/local-control-v1.md#cli-output-compatibility)
+for the exact envelope, error codes, ordering, and additive-field rules.
+
 ## Run the local slice on Linux
 
 The default state directory is `$XDG_STATE_HOME/balls` or `$HOME/.local/state/balls`. The default

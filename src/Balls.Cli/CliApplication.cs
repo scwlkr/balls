@@ -24,44 +24,30 @@ public static class CliApplication
             return CliExitCodes.Success;
         }
 
+        var parseResult = ParseGlobalOptions(arguments);
+        if (parseResult.Error is not null)
+        {
+            return await WriteUsageErrorAsync(
+                standardError,
+                parseResult.OutputFormat,
+                parseResult.Error);
+        }
+
         var selection = HostPlatformSelector.SelectCurrent();
         if (selection is UnsupportedHostPlatform unsupported)
         {
-            await standardError.WriteLineAsync($"balls: {unsupported.Message}");
+            await WriteErrorAsync(
+                standardError,
+                parseResult.OutputFormat,
+                "platform_unsupported",
+                unsupported.Message);
             return CliExitCodes.PlatformUnsupported;
         }
 
         var host = ((SupportedHostPlatform)selection).Platform;
-        var tokens = arguments.ToList();
-        string localControlEndpoint;
-        if (TryTakeOption(tokens, "--pipe-name", out var requestedPipeName))
-        {
-            if (requestedPipeName is null)
-            {
-                return await WriteUsageErrorAsync(
-                    standardError,
-                    "--pipe-name requires a value.");
-            }
-
-            localControlEndpoint = requestedPipeName;
-        }
-        else
-        {
-            localControlEndpoint = host.Defaults.LocalControlEndpoint;
-        }
-
-        var outputFormat = "text";
-        if (TryTakeOption(tokens, "--output", out var requestedOutput))
-        {
-            if (requestedOutput is not ("text" or "json"))
-            {
-                return await WriteUsageErrorAsync(
-                    standardError,
-                    "--output must be either 'text' or 'json'.");
-            }
-
-            outputFormat = requestedOutput;
-        }
+        var tokens = parseResult.CommandTokens;
+        var localControlEndpoint = parseResult.LocalControlEndpoint
+            ?? host.Defaults.LocalControlEndpoint;
 
         HttpClient client;
         try
@@ -70,7 +56,10 @@ public static class CliApplication
         }
         catch (ArgumentException)
         {
-            return await WriteUsageErrorAsync(standardError, "invalid --pipe-name value.");
+            return await WriteUsageErrorAsync(
+                standardError,
+                parseResult.OutputFormat,
+                "invalid --pipe-name value.");
         }
 
         using (client)
@@ -80,7 +69,7 @@ public static class CliApplication
                 {
                     return await GetStatusAsync(
                         client,
-                        outputFormat,
+                        parseResult.OutputFormat,
                         standardOutput,
                         standardError,
                         cancellationToken).ConfigureAwait(false);
@@ -93,7 +82,7 @@ public static class CliApplication
                     return await CreateCircleAsync(
                         client,
                         tokens,
-                        outputFormat,
+                        parseResult.OutputFormat,
                         standardOutput,
                         standardError,
                         cancellationToken).ConfigureAwait(false);
@@ -103,7 +92,7 @@ public static class CliApplication
                 {
                     return await ListCirclesAsync(
                         client,
-                        outputFormat,
+                        parseResult.OutputFormat,
                         standardOutput,
                         standardError,
                         cancellationToken).ConfigureAwait(false);
@@ -116,13 +105,16 @@ public static class CliApplication
                     return await ListCircleParticipantsAsync(
                         client,
                         tokens,
-                        outputFormat,
+                        parseResult.OutputFormat,
                         standardOutput,
                         standardError,
                         cancellationToken).ConfigureAwait(false);
                 }
 
-                return await WriteUsageErrorAsync(standardError, "unknown command.");
+                return await WriteUsageErrorAsync(
+                    standardError,
+                    parseResult.OutputFormat,
+                    "unknown command.");
             }
             catch (Exception exception) when (
                 exception is HttpRequestException
@@ -130,38 +122,40 @@ public static class CliApplication
                     or TaskCanceledException
                     or TimeoutException)
             {
-                await standardError.WriteLineAsync(
-                    $"balls: ballsd is unavailable on the selected local control {host.Defaults.LocalControlEndpointDescription}.");
+                await WriteErrorAsync(
+                    standardError,
+                    parseResult.OutputFormat,
+                    "daemon_unavailable",
+                    $"ballsd is unavailable on the selected local control {host.Defaults.LocalControlEndpointDescription}.");
                 return CliExitCodes.DaemonUnavailable;
             }
     }
 
     private static async Task<int> GetStatusAsync(
         HttpClient client,
-        string outputFormat,
+        CliOutputFormat outputFormat,
         TextWriter output,
         TextWriter error,
         CancellationToken cancellationToken)
     {
         using var response = await client.GetAsync(ControlRoutes.Status, cancellationToken)
             .ConfigureAwait(false);
-        var result = await ReadResponseAsync<StatusResponse>(response, error, cancellationToken)
+        var result = await ReadResponseAsync<StatusResponse>(
+            response,
+            outputFormat,
+            error,
+            cancellationToken)
             .ConfigureAwait(false);
         if (result.Value is null)
         {
             return result.ExitCode;
         }
 
-        if (outputFormat == "json")
-        {
-            await WriteJsonAsync(output, result.Value);
-        }
-        else
-        {
-            await output.WriteLineAsync($"Node: {result.Value.Node.DisplayName}");
-            await output.WriteLineAsync($"Node ID: {result.Value.Node.Id}");
-            await output.WriteLineAsync($"Control protocol: v{result.Value.ProtocolVersion}");
-        }
+        await WriteResultAsync(
+            output,
+            outputFormat,
+            result.Value,
+            CliOutput.RenderStatus);
 
         return CliExitCodes.Success;
     }
@@ -169,41 +163,27 @@ public static class CliApplication
     private static async Task<int> CreateCircleAsync(
         HttpClient client,
         List<string> tokens,
-        string outputFormat,
+        CliOutputFormat outputFormat,
         TextWriter output,
         TextWriter error,
         CancellationToken cancellationToken)
     {
-        if (!TryTakeOption(tokens, "--owner", out var owner) || owner is null)
-        {
-            return await WriteUsageErrorAsync(error, "circle create requires --owner <display-name>.");
-        }
-
-        var requestId = Guid.CreateVersion7().ToString("D");
-        if (TryTakeOption(tokens, "--request-id", out var requestedId))
-        {
-            if (requestedId is null)
-            {
-                return await WriteUsageErrorAsync(error, "--request-id requires a value.");
-            }
-
-            requestId = requestedId;
-        }
-
-        if (tokens.Count != 3 || tokens[0] != "circle" || tokens[1] != "create")
+        if (!TryParseCreateCircle(tokens, out var name, out var owner, out var requestId, out var parseError))
         {
             return await WriteUsageErrorAsync(
                 error,
-                "usage: balls circle create <name> --owner <display-name>.");
+                outputFormat,
+                parseError);
         }
 
         using var response = await client.PostAsJsonAsync(
             ControlRoutes.Circles,
-            new CreateCircleRequest(requestId, tokens[2], owner),
+            new CreateCircleRequest(requestId, name, owner),
             ControlJson.Options,
             cancellationToken).ConfigureAwait(false);
         var result = await ReadResponseAsync<CircleDetailsResponse>(
             response,
+            outputFormat,
             error,
             cancellationToken).ConfigureAwait(false);
         if (result.Value is null)
@@ -211,51 +191,40 @@ public static class CliApplication
             return result.ExitCode;
         }
 
-        if (outputFormat == "json")
-        {
-            await WriteJsonAsync(output, result.Value);
-        }
-        else
-        {
-            await output.WriteLineAsync($"Created Circle: {result.Value.Circle.Name}");
-            await output.WriteLineAsync($"Circle ID: {result.Value.Circle.Id}");
-        }
+        await WriteResultAsync(
+            output,
+            outputFormat,
+            result.Value,
+            CliOutput.RenderCreatedCircle);
 
         return CliExitCodes.Success;
     }
 
     private static async Task<int> ListCirclesAsync(
         HttpClient client,
-        string outputFormat,
+        CliOutputFormat outputFormat,
         TextWriter output,
         TextWriter error,
         CancellationToken cancellationToken)
     {
         using var response = await client.GetAsync(ControlRoutes.Circles, cancellationToken)
             .ConfigureAwait(false);
-        var result = await ReadResponseAsync<CircleListResponse>(response, error, cancellationToken)
+        var result = await ReadResponseAsync<CircleListResponse>(
+            response,
+            outputFormat,
+            error,
+            cancellationToken)
             .ConfigureAwait(false);
         if (result.Value is null)
         {
             return result.ExitCode;
         }
 
-        if (outputFormat == "json")
-        {
-            await WriteJsonAsync(output, result.Value);
-        }
-        else if (result.Value.Circles.Count == 0)
-        {
-            await output.WriteLineAsync("No Circles.");
-        }
-        else
-        {
-            foreach (var circle in result.Value.Circles)
-            {
-                await output.WriteLineAsync(
-                    $"{circle.Id}\t{circle.Name}\t{circle.MemberCount} member(s)\t{circle.NodeCount} node(s)");
-            }
-        }
+        await WriteResultAsync(
+            output,
+            outputFormat,
+            result.Value,
+            CliOutput.RenderCircles);
 
         return CliExitCodes.Success;
     }
@@ -263,69 +232,64 @@ public static class CliApplication
     private static async Task<int> ListCircleParticipantsAsync(
         HttpClient client,
         List<string> tokens,
-        string outputFormat,
+        CliOutputFormat outputFormat,
         TextWriter output,
         TextWriter error,
         CancellationToken cancellationToken)
     {
-        if (!TryTakeOption(tokens, "--circle", out var circleId) || circleId is null)
+        if (tokens.Count != 4 || tokens[2] != "--circle")
         {
-            return await WriteUsageErrorAsync(error, "list requires --circle <circle-id>.");
+            return await WriteUsageErrorAsync(
+                error,
+                outputFormat,
+                "usage: balls member|node list --circle <circle-id>.");
         }
 
-        if (tokens.Count != 2)
-        {
-            return await WriteUsageErrorAsync(error, "unknown list arguments.");
-        }
+        var circleId = tokens[3];
 
         if (tokens[0] == "member")
         {
             using var response = await client.GetAsync(
                 ControlRoutes.CircleMembers(circleId),
                 cancellationToken).ConfigureAwait(false);
-            var result = await ReadResponseAsync<MemberListResponse>(response, error, cancellationToken)
+            var result = await ReadResponseAsync<MemberListResponse>(
+                response,
+                outputFormat,
+                error,
+                cancellationToken)
                 .ConfigureAwait(false);
             if (result.Value is null)
             {
                 return result.ExitCode;
             }
 
-            if (outputFormat == "json")
-            {
-                await WriteJsonAsync(output, result.Value);
-            }
-            else
-            {
-                foreach (var member in result.Value.Members)
-                {
-                    await output.WriteLineAsync(
-                        $"{member.Id}\t{member.DisplayName}\t{member.Role}");
-                }
-            }
+            await WriteResultAsync(
+                output,
+                outputFormat,
+                result.Value,
+                CliOutput.RenderMembers);
         }
         else
         {
             using var response = await client.GetAsync(
                 ControlRoutes.CircleNodes(circleId),
                 cancellationToken).ConfigureAwait(false);
-            var result = await ReadResponseAsync<NodeListResponse>(response, error, cancellationToken)
+            var result = await ReadResponseAsync<NodeListResponse>(
+                response,
+                outputFormat,
+                error,
+                cancellationToken)
                 .ConfigureAwait(false);
             if (result.Value is null)
             {
                 return result.ExitCode;
             }
 
-            if (outputFormat == "json")
-            {
-                await WriteJsonAsync(output, result.Value);
-            }
-            else
-            {
-                foreach (var node in result.Value.Nodes)
-                {
-                    await output.WriteLineAsync($"{node.Id}\t{node.DisplayName}");
-                }
-            }
+            await WriteResultAsync(
+                output,
+                outputFormat,
+                result.Value,
+                CliOutput.RenderNodes);
         }
 
         return CliExitCodes.Success;
@@ -333,6 +297,7 @@ public static class CliApplication
 
     private static async Task<ResponseResult<T>> ReadResponseAsync<T>(
         HttpResponseMessage response,
+        CliOutputFormat outputFormat,
         TextWriter error,
         CancellationToken cancellationToken)
         where T : class
@@ -344,7 +309,11 @@ public static class CliApplication
                 cancellationToken).ConfigureAwait(false);
             if (value is null)
             {
-                await error.WriteLineAsync("balls: ballsd returned an empty response.");
+                await WriteErrorAsync(
+                    error,
+                    outputFormat,
+                    "invalid_daemon_response",
+                    "ballsd returned an empty response.");
                 return new ResponseResult<T>(null, CliExitCodes.RequestRejected);
             }
 
@@ -362,47 +331,186 @@ public static class CliApplication
         {
         }
 
-        await error.WriteLineAsync(
-            apiError is null
-                ? $"balls: ballsd rejected the request ({(int)response.StatusCode})."
-                : $"balls: {apiError.Message} ({apiError.Code})");
+        await WriteErrorAsync(
+            error,
+            outputFormat,
+            apiError?.Code ?? "request_rejected",
+            apiError?.Message ?? $"ballsd rejected the request ({(int)response.StatusCode}).",
+            includeCodeInText: apiError is not null);
         return new ResponseResult<T>(null, CliExitCodes.RequestRejected);
     }
 
-    private static bool TryTakeOption(
-        List<string> tokens,
-        string option,
-        out string? value)
+    private static GlobalOptionsParseResult ParseGlobalOptions(string[] arguments)
     {
-        var index = tokens.FindIndex(token => string.Equals(token, option, StringComparison.Ordinal));
-        if (index < 0)
+        var outputFormat = CliOutputFormat.Text;
+        string? localControlEndpoint = null;
+        var outputSeen = false;
+        var endpointSeen = false;
+        var index = 0;
+
+        while (index < arguments.Length && arguments[index].StartsWith("--", StringComparison.Ordinal))
         {
-            value = null;
+            var option = arguments[index];
+            if (option is not ("--pipe-name" or "--output"))
+            {
+                return GlobalOptionsParseResult.Failure(
+                    outputFormat,
+                    $"unknown global option '{option}'.");
+            }
+
+            if (index + 1 >= arguments.Length
+                || arguments[index + 1].StartsWith("--", StringComparison.Ordinal))
+            {
+                return GlobalOptionsParseResult.Failure(
+                    outputFormat,
+                    $"{option} requires a value.");
+            }
+
+            var value = arguments[index + 1];
+            if (option == "--pipe-name")
+            {
+                if (endpointSeen)
+                {
+                    return GlobalOptionsParseResult.Failure(
+                        outputFormat,
+                        "--pipe-name may be specified only once.");
+                }
+
+                endpointSeen = true;
+                localControlEndpoint = value;
+            }
+            else
+            {
+                if (outputSeen)
+                {
+                    return GlobalOptionsParseResult.Failure(
+                        outputFormat,
+                        "--output may be specified only once.");
+                }
+
+                outputSeen = true;
+                if (value is not ("text" or "json"))
+                {
+                    return GlobalOptionsParseResult.Failure(
+                        outputFormat,
+                        "--output must be either 'text' or 'json'.");
+                }
+
+                outputFormat = value == "json" ? CliOutputFormat.Json : CliOutputFormat.Text;
+            }
+
+            index += 2;
+        }
+
+        return GlobalOptionsParseResult.Success(
+            outputFormat,
+            localControlEndpoint,
+            arguments[index..].ToList());
+    }
+
+    private static bool TryParseCreateCircle(
+        IReadOnlyList<string> tokens,
+        out string name,
+        out string owner,
+        out string requestId,
+        out string error)
+    {
+        name = string.Empty;
+        owner = string.Empty;
+        requestId = Guid.CreateVersion7().ToString("D");
+        error = "usage: balls circle create <name> --owner <display-name> [--request-id <uuid>].";
+
+        if (tokens.Count < 5
+            || tokens[0] != "circle"
+            || tokens[1] != "create"
+            || tokens[2].StartsWith("--", StringComparison.Ordinal))
+        {
             return false;
         }
 
-        if (index == tokens.Count - 1)
+        name = tokens[2];
+        var ownerSeen = false;
+        var requestIdSeen = false;
+        for (var index = 3; index < tokens.Count; index += 2)
         {
-            value = null;
-            tokens.RemoveAt(index);
-            return true;
+            if (index + 1 >= tokens.Count
+                || tokens[index + 1].StartsWith("--", StringComparison.Ordinal))
+            {
+                error = $"{tokens[index]} requires a value.";
+                return false;
+            }
+
+            switch (tokens[index])
+            {
+                case "--owner" when !ownerSeen:
+                    ownerSeen = true;
+                    owner = tokens[index + 1];
+                    break;
+                case "--request-id" when !requestIdSeen:
+                    requestIdSeen = true;
+                    requestId = tokens[index + 1];
+                    break;
+                case "--owner":
+                    error = "--owner may be specified only once.";
+                    return false;
+                case "--request-id":
+                    error = "--request-id may be specified only once.";
+                    return false;
+                default:
+                    error = $"unknown circle create option '{tokens[index]}'.";
+                    return false;
+            }
         }
 
-        value = tokens[index + 1];
-        tokens.RemoveRange(index, 2);
+        if (!ownerSeen)
+        {
+            error = "circle create requires --owner <display-name>.";
+            return false;
+        }
+
         return true;
     }
 
-    private static async Task WriteJsonAsync<T>(TextWriter output, T value)
+    private static async Task WriteResultAsync<T>(
+        TextWriter output,
+        CliOutputFormat outputFormat,
+        T value,
+        Func<T, string> renderText)
     {
-        await output.WriteLineAsync(JsonSerializer.Serialize(value, ControlJson.Options));
+        var rendered = outputFormat == CliOutputFormat.Json
+            ? CliOutput.SerializeResult(value)
+            : renderText(value);
+        if (rendered.Length > 0)
+        {
+            await output.WriteLineAsync(rendered);
+        }
     }
 
-    private static async Task<int> WriteUsageErrorAsync(TextWriter error, string message)
+    private static async Task WriteErrorAsync(
+        TextWriter error,
+        CliOutputFormat outputFormat,
+        string code,
+        string message,
+        bool includeCodeInText = false)
     {
-        await error.WriteLineAsync($"balls: {message}");
         await error.WriteLineAsync(
-            "commands: status | circle create | circle list | member list | node list");
+            outputFormat == CliOutputFormat.Json
+                ? CliOutput.SerializeError(code, message)
+                : $"balls: {message}{(includeCodeInText ? $" ({code})" : string.Empty)}");
+    }
+
+    private static async Task<int> WriteUsageErrorAsync(
+        TextWriter error,
+        CliOutputFormat outputFormat,
+        string message)
+    {
+        await WriteErrorAsync(error, outputFormat, "usage_error", message);
+        if (outputFormat == CliOutputFormat.Text)
+        {
+            await error.WriteLineAsync(
+                "commands: status | circle create | circle list | member list | node list");
+        }
+
         return CliExitCodes.UsageError;
     }
 
@@ -416,4 +524,30 @@ public static class CliApplication
 
     private sealed record ResponseResult<T>(T? Value, int ExitCode)
         where T : class;
+
+    private sealed record GlobalOptionsParseResult(
+        CliOutputFormat OutputFormat,
+        string? LocalControlEndpoint,
+        List<string> CommandTokens,
+        string? Error)
+    {
+        internal static GlobalOptionsParseResult Success(
+            CliOutputFormat outputFormat,
+            string? localControlEndpoint,
+            List<string> commandTokens)
+        {
+            return new GlobalOptionsParseResult(
+                outputFormat,
+                localControlEndpoint,
+                commandTokens,
+                null);
+        }
+
+        internal static GlobalOptionsParseResult Failure(
+            CliOutputFormat outputFormat,
+            string error)
+        {
+            return new GlobalOptionsParseResult(outputFormat, null, [], error);
+        }
+    }
 }
