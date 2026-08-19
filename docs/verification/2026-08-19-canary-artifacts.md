@@ -31,5 +31,11 @@ An ad-hoc repository-local install root was separately rejected by `ballsd` with
 
 ## Hosted publication evidence
 
-The implementation pull request and the first downloaded green-`main` Windows/Linux artifacts are
-recorded here after the trusted `workflow_run` completes.
+Implementation pull request [#14](https://github.com/scwlkr/balls/pull/14) passed required
+[CI run 32298686664](https://github.com/scwlkr/balls/actions/runs/32298686664): Ubuntu fast in
+1m09s, Windows fast in 1m58s, and the aggregate `Required` decision in 3s.
+
+The first hosted Canary can only run after this document is accepted onto `main`. Its workflow and
+artifact URLs, downloaded Windows smoke observation, Linux unsupported-manifest readback, exact
+names, sizes, and expiry are recorded on issue #6 after publication. This avoids creating a second
+accepted commit solely to describe artifacts from the preceding accepted commit.
