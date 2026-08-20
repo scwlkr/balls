@@ -1,6 +1,7 @@
 using System.Net;
 using System.Net.Http.Json;
 using System.Reflection;
+using System.Text;
 using System.Text.Json;
 using Balls.Host;
 using Balls.Platform;
@@ -156,6 +157,32 @@ public static class CliApplication
                 {
                     return await ListCirclesAsync(
                         client,
+                        parseResult.OutputFormat,
+                        standardOutput,
+                        standardError,
+                        cancellationToken).ConfigureAwait(false);
+                }
+
+                if (tokens.Count >= 2
+                    && tokens[0] == "invitation"
+                    && tokens[1] == "create")
+                {
+                    return await CreateInvitationAsync(
+                        client,
+                        tokens,
+                        parseResult.OutputFormat,
+                        standardOutput,
+                        standardError,
+                        cancellationToken).ConfigureAwait(false);
+                }
+
+                if (tokens.Count >= 2
+                    && tokens[0] == "invitation"
+                    && tokens[1] == "redeem")
+                {
+                    return await RedeemInvitationAsync(
+                        client,
+                        tokens,
                         parseResult.OutputFormat,
                         standardOutput,
                         standardError,
@@ -358,6 +385,159 @@ public static class CliApplication
             result.Value,
             CliOutput.RenderCircles);
 
+        return CliExitCodes.Success;
+    }
+
+    private static async Task<int> CreateInvitationAsync(
+        HttpClient client,
+        IReadOnlyList<string> tokens,
+        CliOutputFormat outputFormat,
+        TextWriter output,
+        TextWriter error,
+        CancellationToken cancellationToken)
+    {
+        if (!TryParseCreateInvitation(
+                tokens,
+                out var circleId,
+                out var validForMinutes,
+                out var outputPath,
+                out var parseError))
+        {
+            return await WriteUsageErrorAsync(error, outputFormat, parseError);
+        }
+
+        using var response = await client.PostAsJsonAsync(
+            ControlRoutes.CircleInvitations(circleId),
+            new CreateInvitationRequest(validForMinutes),
+            ControlJson.Options,
+            cancellationToken).ConfigureAwait(false);
+        var result = await ReadResponseAsync<CreateInvitationResponse>(
+            response,
+            outputFormat,
+            error,
+            cancellationToken).ConfigureAwait(false);
+        if (result.Value is null)
+        {
+            return result.ExitCode;
+        }
+
+        if (outputPath is not null)
+        {
+            try
+            {
+                await using var destination = new FileStream(
+                    outputPath,
+                    FileMode.CreateNew,
+                    FileAccess.Write,
+                    FileShare.None,
+                    bufferSize: 4096,
+                    FileOptions.Asynchronous);
+                await using var writer = new StreamWriter(
+                    destination,
+                    new System.Text.UTF8Encoding(encoderShouldEmitUTF8Identifier: false),
+                    leaveOpen: false);
+                await writer.WriteAsync(result.Value.Package.AsMemory(), cancellationToken)
+                    .ConfigureAwait(false);
+            }
+            catch (Exception exception) when (exception is
+                ArgumentException or
+                IOException or
+                NotSupportedException or
+                UnauthorizedAccessException)
+            {
+                await WriteErrorAsync(
+                    error,
+                    outputFormat,
+                    "invitation_file_write_failed",
+                    "The invitation file could not be created; existing files are never overwritten.");
+                return CliExitCodes.RequestRejected;
+            }
+        }
+
+        await WriteResultAsync(
+            output,
+            outputFormat,
+            result.Value,
+            value => outputPath is null
+                ? value.Package
+                : CliOutput.RenderSavedInvitation(value, outputPath));
+        return CliExitCodes.Success;
+    }
+
+    private static async Task<int> RedeemInvitationAsync(
+        HttpClient client,
+        IReadOnlyList<string> tokens,
+        CliOutputFormat outputFormat,
+        TextWriter output,
+        TextWriter error,
+        CancellationToken cancellationToken)
+    {
+        if (tokens.Count != 4 || tokens[2] != "--file")
+        {
+            return await WriteUsageErrorAsync(
+                error,
+                outputFormat,
+                "usage: balls invitation redeem --file <path>.");
+        }
+
+        string package;
+        try
+        {
+            await using var source = new FileStream(
+                tokens[3],
+                FileMode.Open,
+                FileAccess.Read,
+                FileShare.Read,
+                bufferSize: 4096,
+                FileOptions.Asynchronous | FileOptions.SequentialScan);
+            if (source.Length is 0 or > Balls.Protocol.Remote.V1.InvitationPackageCodec.MaximumEncodedLength)
+            {
+                throw new InvalidDataException();
+            }
+
+            using var reader = new StreamReader(
+                source,
+                new System.Text.UTF8Encoding(false, true),
+                detectEncodingFromByteOrderMarks: false,
+                bufferSize: 4096,
+                leaveOpen: false);
+            package = await reader.ReadToEndAsync(cancellationToken).ConfigureAwait(false);
+        }
+        catch (Exception exception) when (exception is
+            ArgumentException or
+            DecoderFallbackException or
+            IOException or
+            NotSupportedException or
+            UnauthorizedAccessException)
+        {
+            await WriteErrorAsync(
+                error,
+                outputFormat,
+                "invitation_file_invalid",
+                "The invitation file is missing, unreadable, or exceeds the 16 KiB limit.");
+            return CliExitCodes.RequestRejected;
+        }
+
+        using var response = await client.PostAsJsonAsync(
+            ControlRoutes.Invitations + "/redeem",
+            new RedeemInvitationRequest(package),
+            ControlJson.Options,
+            cancellationToken).ConfigureAwait(false);
+        var result = await ReadResponseAsync<RedeemInvitationResponse>(
+            response,
+            outputFormat,
+            error,
+            cancellationToken).ConfigureAwait(false);
+        if (result.Value is null)
+        {
+            return result.ExitCode;
+        }
+
+        await WriteResultAsync(
+            output,
+            outputFormat,
+            result.Value,
+            CliOutput.RenderRedeemedInvitation);
         return CliExitCodes.Success;
     }
 
@@ -603,6 +783,71 @@ public static class CliApplication
         return true;
     }
 
+    private static bool TryParseCreateInvitation(
+        IReadOnlyList<string> tokens,
+        out string circleId,
+        out int validForMinutes,
+        out string? outputPath,
+        out string error)
+    {
+        circleId = string.Empty;
+        validForMinutes = InvitationApplicationDefaults.DefaultValidityMinutes;
+        outputPath = null;
+        error = "usage: balls invitation create --circle <circle-id> [--valid-for-minutes <minutes>] [--out <path>].";
+        if (tokens.Count < 4 || tokens.Count % 2 != 0)
+        {
+            return false;
+        }
+
+        var circleSeen = false;
+        var validitySeen = false;
+        var outputSeen = false;
+        for (var index = 2; index < tokens.Count; index += 2)
+        {
+            if (index + 1 >= tokens.Count || tokens[index + 1].StartsWith("--", StringComparison.Ordinal))
+            {
+                error = $"{tokens[index]} requires a value.";
+                return false;
+            }
+
+            switch (tokens[index])
+            {
+                case "--circle" when !circleSeen:
+                    circleSeen = true;
+                    circleId = tokens[index + 1];
+                    break;
+                case "--valid-for-minutes" when !validitySeen:
+                    validitySeen = true;
+                    if (!int.TryParse(
+                            tokens[index + 1],
+                            System.Globalization.NumberStyles.None,
+                            System.Globalization.CultureInfo.InvariantCulture,
+                            out validForMinutes))
+                    {
+                        error = "--valid-for-minutes requires a whole number.";
+                        return false;
+                    }
+
+                    break;
+                case "--out" when !outputSeen:
+                    outputSeen = true;
+                    outputPath = tokens[index + 1];
+                    break;
+                default:
+                    error = $"unknown or repeated invitation create option '{tokens[index]}'.";
+                    return false;
+            }
+        }
+
+        if (!circleSeen)
+        {
+            error = "invitation create requires --circle <circle-id>.";
+            return false;
+        }
+
+        return true;
+    }
+
     private static async Task WriteResultAsync<T>(
         TextWriter output,
         CliOutputFormat outputFormat,
@@ -640,7 +885,7 @@ public static class CliApplication
         if (outputFormat == CliOutputFormat.Text)
         {
             await error.WriteLineAsync(
-                "commands: ui | status | circle create | circle list | member list | node list");
+                "commands: ui | status | circle create | circle list | member list | node list | invitation create | invitation redeem");
         }
 
         return CliExitCodes.UsageError;
@@ -681,5 +926,10 @@ public static class CliApplication
         {
             return new GlobalOptionsParseResult(outputFormat, null, [], error);
         }
+    }
+
+    private static class InvitationApplicationDefaults
+    {
+        internal const int DefaultValidityMinutes = 60;
     }
 }

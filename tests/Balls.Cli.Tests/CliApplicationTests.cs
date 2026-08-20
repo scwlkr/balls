@@ -231,6 +231,73 @@ public sealed class CliApplicationTests
     }
 
     [TestMethod]
+    public async Task Cli_creates_a_canonical_invitation_file_and_redeems_it_once()
+    {
+        if (!OperatingSystem.IsWindows())
+        {
+            Assert.Inconclusive("This local-control transport test is Windows-only.");
+            return;
+        }
+
+        using var directory = new TemporaryDirectory();
+        var pipeName = $"balls-tests-{Guid.NewGuid():N}";
+        await using var daemon = await DaemonHost.StartAsync(
+            new DaemonOptions(directory.Path, pipeName, "Alice-PC"));
+        var createCircle = await RunAsync(
+            pipeName,
+            "--output",
+            "json",
+            "circle",
+            "create",
+            "Invitation Circle",
+            "--owner",
+            "Alice");
+        var circle = DeserializeResult<CircleDetailsResponse>(createCircle.StandardOutput);
+        var packagePath = Path.Combine(directory.Path, "invite.balls-invitation");
+
+        var issue = await RunAsync(
+            pipeName,
+            "--output",
+            "json",
+            "invitation",
+            "create",
+            "--circle",
+            circle.Circle.Id,
+            "--valid-for-minutes",
+            "30",
+            "--out",
+            packagePath);
+        Assert.AreEqual(CliExitCodes.Success, issue.ExitCode);
+        var issued = DeserializeResult<CreateInvitationResponse>(issue.StandardOutput);
+        CollectionAssert.AreEqual(
+            System.Text.Encoding.UTF8.GetBytes(issued.Package),
+            await File.ReadAllBytesAsync(packagePath));
+
+        var redeem = await RunAsync(
+            pipeName,
+            "--output",
+            "json",
+            "invitation",
+            "redeem",
+            "--file",
+            packagePath);
+        Assert.AreEqual(CliExitCodes.Success, redeem.ExitCode);
+        var redeemed = DeserializeResult<RedeemInvitationResponse>(redeem.StandardOutput);
+        Assert.AreEqual("accepted", redeemed.Status);
+        Assert.AreEqual(issued.InvitationId, redeemed.InvitationId);
+
+        var replay = await RunAsync(
+            pipeName,
+            "invitation",
+            "redeem",
+            "--file",
+            packagePath);
+        Assert.AreEqual(CliExitCodes.RequestRejected, replay.ExitCode);
+        StringAssert.Contains(replay.StandardError, "replayed");
+        Assert.IsFalse(replay.StandardError.Contains(issued.Package, StringComparison.Ordinal));
+    }
+
+    [TestMethod]
     public async Task Cli_returns_daemon_unavailable_when_the_selected_pipe_has_no_daemon()
     {
         if (!OperatingSystem.IsWindows())

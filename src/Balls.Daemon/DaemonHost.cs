@@ -76,6 +76,11 @@ public static class DaemonHost
                 store,
                 TimeProvider.System,
                 options.NodeDisplayName);
+            var invitationApplication = new InvitationApplication(
+                store,
+                store,
+                store,
+                TimeProvider.System);
             var browserAccess = new BrowserAccessBroker(
                 TimeProvider.System,
                 launchLifetime: TimeSpan.FromMinutes(1),
@@ -212,6 +217,79 @@ public static class DaemonHost
                 .Produces<NodeListResponse>(StatusCodes.Status200OK)
                 .Produces<ErrorResponse>(StatusCodes.Status400BadRequest)
                 .Produces<ErrorResponse>(StatusCodes.Status404NotFound);
+            application.MapPost(
+                ControlRoutes.Circles + "/{circleId}/invitations",
+                async (string circleId, CreateInvitationRequest request, CancellationToken token) =>
+                {
+                    if (!Guid.TryParseExact(circleId, "D", out var parsedCircleId))
+                    {
+                        return Results.BadRequest(
+                            new ErrorResponse(
+                                "invalid_circle_id",
+                                "Circle ID must be a canonical UUID."));
+                    }
+
+                    try
+                    {
+                        var issued = await invitationApplication.CreateAsync(
+                            new CircleId(parsedCircleId),
+                            request.ValidForMinutes,
+                            token).ConfigureAwait(false);
+                        var response = new CreateInvitationResponse(
+                            issued.CircleId.ToString(),
+                            issued.InvitationId.ToString(),
+                            issued.ExpiresAtUtc,
+                            issued.Package);
+                        return Results.Created(
+                            ControlRoutes.Invitations + "/" + issued.InvitationId,
+                            response);
+                    }
+                    catch (InputValidationException exception)
+                    {
+                        return Results.BadRequest(new ErrorResponse(exception.Code, exception.Message));
+                    }
+                    catch (LocalStateException exception) when (exception.Code == "circle_not_found")
+                    {
+                        return Results.NotFound(new ErrorResponse(exception.Code, exception.Message));
+                    }
+                })
+                .Produces<CreateInvitationResponse>(StatusCodes.Status201Created)
+                .Produces<ErrorResponse>(StatusCodes.Status400BadRequest)
+                .Produces<ErrorResponse>(StatusCodes.Status404NotFound);
+            application.MapPost(
+                ControlRoutes.Invitations + "/redeem",
+                async (RedeemInvitationRequest request, CancellationToken token) =>
+                {
+                    try
+                    {
+                        var redeemed = await invitationApplication.RedeemAsync(request.Package, token)
+                            .ConfigureAwait(false);
+                        return Results.Ok(
+                            new RedeemInvitationResponse(
+                                redeemed.CircleId.ToString(),
+                                redeemed.InvitationId.ToString(),
+                                redeemed.RedemptionId.ToString(),
+                                "accepted"));
+                    }
+                    catch (InvitationRejectedException exception)
+                    {
+                        var error = new ErrorResponse(
+                            exception.Code,
+                            "The Circle invitation was rejected.");
+                        return exception.RejectionCode ==
+                            Balls.Protocol.Remote.V1.InvitationRejectionCode.Replayed
+                            ? Results.Conflict(error)
+                            : Results.BadRequest(error);
+                    }
+                    catch (LocalStateException exception) when (exception.Code == "invitation_not_found")
+                    {
+                        return Results.NotFound(new ErrorResponse(exception.Code, exception.Message));
+                    }
+                })
+                .Produces<RedeemInvitationResponse>(StatusCodes.Status200OK)
+                .Produces<ErrorResponse>(StatusCodes.Status400BadRequest)
+                .Produces<ErrorResponse>(StatusCodes.Status404NotFound)
+                .Produces<ErrorResponse>(StatusCodes.Status409Conflict);
             application.MapOpenApi(ControlRoutes.OpenApi);
             BrowserAdapter.MapRoutes(application, circleApplication, browserAccess);
 

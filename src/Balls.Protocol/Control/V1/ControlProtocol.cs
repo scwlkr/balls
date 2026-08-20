@@ -11,6 +11,7 @@ public static class ControlRoutes
     public const string Status = BasePath + "/status";
     public const string Circles = BasePath + "/circles";
     public const string BrowserLaunch = BasePath + "/ui/launch";
+    public const string Invitations = BasePath + "/invitations";
     public const string OpenApi = BasePath + "/openapi.json";
 
     public static string Circle(string circleId)
@@ -26,5 +27,10 @@ public static class ControlRoutes
     public static string CircleNodes(string circleId)
     {
         return $"{Circle(circleId)}/nodes";
+    }
+
+    public static string CircleInvitations(string circleId)
+    {
+        return $"{Circle(circleId)}/invitations";
     }
 }
