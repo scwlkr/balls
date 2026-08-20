@@ -1,4 +1,5 @@
 using System.Security.Cryptography;
+using System.Security.Cryptography.X509Certificates;
 using System.Text.Json;
 using Balls.Core;
 using Microsoft.Data.Sqlite;
@@ -54,6 +55,63 @@ public sealed partial class SqliteLocalStateStore
         ExecuteLockedAsync(
             token => ReadLocalTransportIdentityAsync(transaction: null, token),
             cancellationToken);
+
+    public Task<X509Certificate2> CreateTransportCertificateAsync(
+        string dnsName,
+        DateTimeOffset nowUtc,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(dnsName);
+        if (dnsName.Length > 253
+            || nowUtc.Offset != TimeSpan.Zero
+            || dnsName.Any(character => !(char.IsAsciiLetterOrDigit(character)
+                || character is '-' or '.')))
+        {
+            throw new ArgumentException("The transport certificate request is invalid.");
+        }
+
+        return ExecuteLockedAsync(
+            async token =>
+            {
+                var stored = await ReadTransportPrivateIdentityAsync(transaction: null, token)
+                    .ConfigureAwait(false)
+                    ?? throw new LocalStateException(
+                        "transport_identity_missing",
+                        "The local transport cryptographic identity is missing.");
+                using var key = OpenPrivateKey(stored);
+                var request = new CertificateRequest(
+                    $"CN={dnsName}",
+                    key,
+                    HashAlgorithmName.SHA256);
+                var names = new SubjectAlternativeNameBuilder();
+                names.AddDnsName(dnsName);
+                request.CertificateExtensions.Add(names.Build());
+                request.CertificateExtensions.Add(
+                    new X509BasicConstraintsExtension(false, false, 0, critical: true));
+                request.CertificateExtensions.Add(
+                    new X509KeyUsageExtension(
+                        X509KeyUsageFlags.DigitalSignature,
+                        critical: true));
+                request.CertificateExtensions.Add(
+                    new X509EnhancedKeyUsageExtension(
+                        new OidCollection
+                        {
+                            new("1.3.6.1.5.5.7.3.1"),
+                            new("1.3.6.1.5.5.7.3.2"),
+                        },
+                        critical: true));
+                using var generated = request.CreateSelfSigned(
+                    nowUtc.AddMinutes(-5),
+                    nowUtc.AddHours(24));
+                return X509CertificateLoader.LoadPkcs12(
+                    generated.Export(X509ContentType.Pkcs12),
+                    password: null,
+                    OperatingSystem.IsWindows()
+                        ? X509KeyStorageFlags.UserKeySet | X509KeyStorageFlags.Exportable
+                        : X509KeyStorageFlags.EphemeralKeySet | X509KeyStorageFlags.Exportable);
+            },
+            cancellationToken);
+    }
 
     public Task<byte[]> SignWithNodeAsync(
         ReadOnlyMemory<byte> data,

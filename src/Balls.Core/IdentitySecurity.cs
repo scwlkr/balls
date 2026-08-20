@@ -1,4 +1,5 @@
 using System.Security.Cryptography;
+using System.Security.Cryptography.X509Certificates;
 using System.Text.Json.Serialization;
 
 namespace Balls.Core;
@@ -47,6 +48,11 @@ public interface IIdentityAuthorityStore
         CancellationToken cancellationToken = default);
 
     Task<LocalTransportIdentity?> GetLocalTransportIdentityAsync(
+        CancellationToken cancellationToken = default);
+
+    Task<X509Certificate2> CreateTransportCertificateAsync(
+        string dnsName,
+        DateTimeOffset nowUtc,
         CancellationToken cancellationToken = default);
 
     Task<byte[]> SignWithNodeAsync(

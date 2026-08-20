@@ -1,4 +1,5 @@
 using System.Security.Cryptography;
+using System.Security.Cryptography.X509Certificates;
 using Balls.Core;
 using Balls.Storage.Sqlite;
 
@@ -56,6 +57,24 @@ public sealed class AdmissionStateStoreTests
             "retry-proof"u8,
             signature,
             first.MemberCredential));
+    }
+
+    [TestMethod]
+    public async Task Transport_certificate_uses_the_protected_local_transport_identity()
+    {
+        using var directory = new TemporaryDirectory();
+        await using var store = await OpenAsync(directory.Path);
+        await new CircleApplication(store, TimeProvider.System, "Joiner-PC").GetLocalNodeAsync();
+        var expected = (await store.GetLocalTransportIdentityAsync())!.Credential;
+        using var certificate = await store.CreateTransportCertificateAsync("node.balls", Now);
+        using var publicKey = certificate.GetECDsaPublicKey();
+        var actual = IdentityCryptography.CreateCredential(
+            IdentityKeyRole.Transport,
+            publicKey!);
+
+        Assert.IsTrue(certificate.HasPrivateKey);
+        Assert.AreEqual(expected.KeyId, actual.KeyId);
+        CollectionAssert.AreEqual(expected.SubjectPublicKeyInfo, actual.SubjectPublicKeyInfo);
     }
 
     [TestMethod]
