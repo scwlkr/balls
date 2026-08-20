@@ -89,7 +89,22 @@ remains the authoritative complete Linux gate.
 
 ## Protected pull-request evidence
 
-Pending the protected Windows/Ubuntu pull-request runs.
+Pull request [#45](https://github.com/scwlkr/balls/pull/45) validated implementation head
+`3fb673676238bec1b4507ea8177f005f64bf8390`:
+
+- [Windows fast](https://github.com/scwlkr/balls/actions/runs/32413926013/job/96570581535)
+  passed in 3 minutes 1 second;
+- [Ubuntu fast](https://github.com/scwlkr/balls/actions/runs/32413926013/job/96570581247)
+  passed in 2 minutes 6 seconds;
+- [Required](https://github.com/scwlkr/balls/actions/runs/32413926013/job/96571475512)
+  passed in 3 seconds after both platform lanes;
+- [CodeQL C#](https://github.com/scwlkr/balls/actions/runs/32413926014/job/96570580692)
+  passed in 2 minutes 10 seconds;
+- [dependency review](https://github.com/scwlkr/balls/actions/runs/32413926040/job/96570580729)
+  passed in 7 seconds.
+
+There were no review comments, change requests, merge conflicts, dependency findings, or CodeQL
+findings. The evidence-only final head receives the same protected checks before squash merge.
 
 ## Boundaries
 
