@@ -300,6 +300,20 @@ The typed remote provider seam returns only an untrusted duplex stream plus diag
 The remote Circle layer applies TLS, certificate-SPKI binding, signed credentials, versioning,
 replay policy, and authorization above that stream.
 
+The first provider, `Balls.Transport.Lan`, accepts only explicit numeric private/loopback
+unicast TCP endpoints and returns `lan-tcp-v1` diagnostic metadata. It performs no DNS discovery
+and grants no authority from an IP address, port, interface, hostname, or provider label.
+
+Remote v1 validates a Circle-root-signed Node-to-transport-key binding before exact TLS 1.3/mTLS
+and `balls-circle/1` negotiation. Both sides then exchange a fixed encrypted Circle/sender/
+expected-peer confirmation before the channel becomes usable. Versioned frames have bounded
+payloads, operation IDs, per-channel duplicate rejection, timeouts, and interruption handling.
+Durable application operations retain their own transactional replay defense.
+
+This remote listener contract remains distinct from `ballsd` local-control named pipes/Unix
+sockets and the loopback browser adapter. Issue #37 ships the provider, authenticated channel,
+and explicit process/lab harness without routing local API behavior through a remote port.
+
 Possible future work:
 
 - Balls-hosted relay;

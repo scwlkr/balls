@@ -1,16 +1,17 @@
 # Threat Model Starter
 
 **Status:** Windows/Linux local Node baseline, protected production Node/Circle/transport identity
-storage, accepted Trusted Circle security design, and bounded invitation redemption, 2026-08-20.
-Remote listeners and membership admission are not implemented.
+storage, bounded invitation redemption, and authenticated LAN transport, 2026-08-20.
+Membership admission is not implemented.
 
 ## Scope
 
 This baseline covers one unelevated Windows or Linux account running `ballsd`, the same-account
 `balls` CLI, the local OS-IPC control API, the authenticated loopback browser adapter, the bundled
-browser UI, and the daemon's SQLite state directory. It also threat-models the accepted remote v1
-identity/admission boundary before those stateful paths ship. The executable spike proves
-cryptographic validation and TLS policy; it does not claim that remote membership exists yet.
+browser UI, and the daemon's SQLite state directory. It also covers the remote v1 identity,
+authenticated-channel, and admission boundaries. Executable loopback, separate-process, and
+Windows-host/Ubuntu-VM tests prove the transport controls; they do not claim that remote
+membership exists yet.
 
 ## Assets
 
@@ -60,8 +61,8 @@ processes running as that account.
 
 ## Trusted Circle remote design threats
 
-These controls are an accepted contract and executable pure-validation/TLS spike. Stateful
-enforcement lands in issues #35–#38.
+These controls are an accepted contract. Pure validation, protected identity/invitation state,
+and authenticated transport are executable; membership enforcement lands in issue #38.
 
 | Threat | Required control | Residual risk / failure boundary |
 | --- | --- | --- |
@@ -78,7 +79,10 @@ enforcement lands in issues #35–#38.
 | Valid request is used for another Circle | Circle ID, invitation digest, authority generation, identities, ALPN, and endpoint role are signed and checked against receiver context | A compromised issuer authorized in both Circles remains separately accountable in each Circle |
 | Valid Node transcript is presented over another TLS client | Exact presented certificate SPKI must match the signed proposed/active transport credential | Certificate wrapper validation still depends on correct time, key-use, name, and no-network policy |
 | TLS chain validation silently fetches attacker-controlled AIA/CRL/OCSP | Admission uses an invitation SPKI pin; admitted peers use Circle-signed transport binding; revocation checking is local and no-fetch | X.509 is only a TLS key wrapper, so Circle revocation must remain application state |
-| TLS replay/early data repeats a state change | TLS 1.3 only, exact `balls-circle/1` ALPN, and no early data for admission, authority, revocation, invitation, or durable messages | Later framing must retain operation IDs and atomic application replay checks |
+| Unknown, revoked, wrong-Circle, or substituted peer reaches application code | Circle-root-signed Node/transport bindings are validated before exact mTLS SPKI matching; an encrypted mutual confirmation binds Circle, sender Node, and expected peer Node before channel exposure | Offline peers can enforce only their newest accepted revocation/generation state |
+| TLS replay/early data repeats a state change | TLS 1.3 only, exact `balls-circle/1` ALPN, no early data, encrypted mutual confirmation, and duplicate operation-ID rejection within each bounded channel | Durable operations must retain operation IDs and atomic application replay checks across reconnects |
+| Malformed, oversized, silent, or interrupted peer consumes unbounded resources | Fixed 28-byte frame headers, 64 KiB default payload cap before allocation, bounded operation count, 10-second handshake/I/O defaults, cancellation, and fail-closed interruption | Connection concurrency/rate limits belong to the later production daemon listener |
+| LAN address or provider metadata becomes authority | The LAN provider accepts only numeric private/loopback unicast endpoints and returns an untrusted stream; the remote layer authorizes signed Circle/Node credentials independently | Diagnostic endpoints still reveal network relationships and private addresses |
 | Authority backup leaks or is restored ambiguously | Separate root/Anchor encrypted PKCS#8 values use the fixed PBES2 profile; the root signs exact Circle/generation/public-key/KDF/ciphertext-digest metadata; raw private keys are never logged or transmitted | Passphrase quality and custody remain operator responsibilities; import, rotation, restore UX, and secure deletion are separately gated |
 | Recovery silently changes ownership | No ordinary Node self-promotion; recovery must prove possession of accepted authority material and advance signed generation | Without accepted recovery material, availability is lost rather than authority guessed |
 | Revocation is claimed while peer is offline | Signed monotonic authority state and later maximum-staleness rules for privileged operations | Offline LAN behavior necessarily trades availability against revocation freshness |
@@ -95,9 +99,10 @@ enforcement lands in issues #35–#38.
   Linux private keys rely on owned mode-restricted storage. Operating-system disk encryption is a
   separate control.
 - Production Node/Circle/Anchor/bootstrap-transport keys and invitation replay state are durable.
-  There is no remote listener, membership mutation, credential revocation store, remote audit log,
-  or message security yet. Invitation revocation is represented durably but has no owner UX in
-  this slice.
+  The authenticated listener exists as a provider/library and explicit harness, not as a
+  production `ballsd` endpoint. There is no membership mutation, credential revocation store,
+  remote audit log, or message security yet. Invitation revocation is represented durably but has
+  no owner UX in this slice.
 - The state marker and ACL are safety boundaries, not proof against an administrator, LocalSystem,
   physical access, or a compromised user session.
 - Use the default LocalAppData or XDG state root, or another dedicated current-user-controlled
@@ -106,15 +111,14 @@ enforcement lands in issues #35–#38.
   provider does not yet request Windows' remote-client rejection flag. A remote SMB session with
   the same Windows SID is inside the present account-level trust boundary.
 - Circle and Node UUIDs remain non-secret object references. Durable role-scoped public
-  credentials now bind them to signing authority, but remote authentication is not live until the
-  admission and transport slices land.
+  credentials and the authenticated channel bind them to signing authority, but they grant no
+  Circle membership until admission persists an authorized relationship.
 
 ## Required implementation for the next trust boundary
 
 Before two machines exchange Circle state, implement and test the accepted design:
 
 - atomic coupling of the implemented invitation consumption result to persisted admission;
-- the remote listener/framing and mutual peer authentication independent of transport provider;
 - persisted Circle membership and bounded security audit events;
 - recovery and rotation behavior for lost or compromised devices and keys.
 

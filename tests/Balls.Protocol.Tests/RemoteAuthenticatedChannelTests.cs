@@ -171,7 +171,9 @@ public sealed class RemoteAuthenticatedChannelTests
         return X509CertificateLoader.LoadPkcs12(
             generated.Export(X509ContentType.Pkcs12),
             password: null,
-            X509KeyStorageFlags.EphemeralKeySet | X509KeyStorageFlags.Exportable);
+            OperatingSystem.IsWindows()
+                ? X509KeyStorageFlags.UserKeySet | X509KeyStorageFlags.Exportable
+                : X509KeyStorageFlags.EphemeralKeySet | X509KeyStorageFlags.Exportable);
     }
 
     private sealed class ChannelFixture : IDisposable
