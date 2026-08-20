@@ -16,8 +16,12 @@ public sealed class SqliteLocalStateStoreTests
     {
         using var firstDirectory = new TemporaryDirectory();
         using var secondDirectory = new TemporaryDirectory();
-        await using var firstStore = await SqliteLocalStateStore.OpenAsync(firstDirectory.Path);
-        await using var secondStore = await SqliteLocalStateStore.OpenAsync(secondDirectory.Path);
+        await using var firstStore = await SqliteLocalStateStore.OpenAsync(
+            firstDirectory.Path,
+            TestPrivateMaterialProtector.Instance);
+        await using var secondStore = await SqliteLocalStateStore.OpenAsync(
+            secondDirectory.Path,
+            TestPrivateMaterialProtector.Instance);
         var firstApplication = new CircleApplication(firstStore, TimeProvider.System, "Alice-PC");
         var secondApplication = new CircleApplication(secondStore, TimeProvider.System, "Alice-PC");
 
@@ -31,7 +35,9 @@ public sealed class SqliteLocalStateStoreTests
     public async Task Multiple_circles_keep_their_members_and_nodes_scoped()
     {
         using var directory = new TemporaryDirectory();
-        await using var store = await SqliteLocalStateStore.OpenAsync(directory.Path);
+        await using var store = await SqliteLocalStateStore.OpenAsync(
+            directory.Path,
+            TestPrivateMaterialProtector.Instance);
         var application = new CircleApplication(store, TimeProvider.System, "Alice-PC");
 
         var first = await application.CreateCircleAsync(
@@ -54,7 +60,9 @@ public sealed class SqliteLocalStateStoreTests
     public async Task Concurrent_unique_circle_creations_are_serialized_without_data_loss()
     {
         using var directory = new TemporaryDirectory();
-        await using var store = await SqliteLocalStateStore.OpenAsync(directory.Path);
+        await using var store = await SqliteLocalStateStore.OpenAsync(
+            directory.Path,
+            TestPrivateMaterialProtector.Instance);
         var application = new CircleApplication(store, TimeProvider.System, "Alice-PC");
 
         var creations = Enumerable.Range(1, 16).Select(
@@ -83,7 +91,9 @@ public sealed class SqliteLocalStateStoreTests
             "0198c2d8-b000-7000-8000-000000000012",
             "0198c2d8-b000-7000-8000-000000000013");
 
-        await using (var firstStore = await SqliteLocalStateStore.OpenAsync(directory.Path))
+        await using (var firstStore = await SqliteLocalStateStore.OpenAsync(
+                         directory.Path,
+                         TestPrivateMaterialProtector.Instance))
         {
             await firstStore.SaveNodeAsync(node);
             var created = await firstStore.CreateCircleAsync(
@@ -93,7 +103,9 @@ public sealed class SqliteLocalStateStoreTests
             AssertCircle(expected, created);
         }
 
-        await using var reopenedStore = await SqliteLocalStateStore.OpenAsync(directory.Path);
+        await using var reopenedStore = await SqliteLocalStateStore.OpenAsync(
+            directory.Path,
+            TestPrivateMaterialProtector.Instance);
         var reloadedNode = await reopenedStore.GetNodeAsync();
         var reloadedCircle = await reopenedStore.GetCircleAsync(expected.Circle.Id);
         var circles = await reopenedStore.ListCirclesAsync();
@@ -124,7 +136,9 @@ public sealed class SqliteLocalStateStoreTests
             "0198c2d8-b000-7000-8000-000000000024",
             "0198c2d8-b000-7000-8000-000000000025");
 
-        await using var store = await SqliteLocalStateStore.OpenAsync(directory.Path);
+        await using var store = await SqliteLocalStateStore.OpenAsync(
+            directory.Path,
+            TestPrivateMaterialProtector.Instance);
         await store.SaveNodeAsync(node);
         var firstResult = await store.CreateCircleAsync(requestId, original);
         var retryResult = await store.CreateCircleAsync(requestId, retryPayload);
@@ -156,7 +170,9 @@ public sealed class SqliteLocalStateStoreTests
             "0198c2d8-b000-7000-8000-000000000035",
             "Example Lab");
 
-        await using var store = await SqliteLocalStateStore.OpenAsync(directory.Path);
+        await using var store = await SqliteLocalStateStore.OpenAsync(
+            directory.Path,
+            TestPrivateMaterialProtector.Instance);
         await store.SaveNodeAsync(node);
         await store.CreateCircleAsync(requestId, original);
 
@@ -186,7 +202,9 @@ public sealed class SqliteLocalStateStoreTests
             "0198c2d8-b000-7000-8000-000000000042",
             "0198c2d8-b000-7000-8000-000000000043");
 
-        await using var store = await SqliteLocalStateStore.OpenAsync(directory.Path);
+        await using var store = await SqliteLocalStateStore.OpenAsync(
+            directory.Path,
+            TestPrivateMaterialProtector.Instance);
         await store.SaveNodeAsync(localNode);
 
         var created = await store.CreateCircleAsync(
@@ -220,7 +238,9 @@ public sealed class SqliteLocalStateStoreTests
             ],
             [new CircleNode(circleId, node.Id, node.DisplayName, Now)]);
 
-        await using var store = await SqliteLocalStateStore.OpenAsync(directory.Path);
+        await using var store = await SqliteLocalStateStore.OpenAsync(
+            directory.Path,
+            TestPrivateMaterialProtector.Instance);
         await store.SaveNodeAsync(node);
 
         await Assert.ThrowsExactlyAsync<SqliteException>(
@@ -244,7 +264,7 @@ public sealed class SqliteLocalStateStoreTests
                 $"""
                 PRAGMA journal_mode = DELETE;
                 PRAGMA application_id = {SqliteLocalStateStore.ApplicationId};
-                PRAGMA user_version = 2;
+                PRAGMA user_version = {SqliteLocalStateStore.CurrentSchemaVersion + 1};
                 CREATE TABLE future_state (value TEXT NOT NULL);
                 """;
             await command.ExecuteNonQueryAsync();
@@ -255,7 +275,9 @@ public sealed class SqliteLocalStateStoreTests
         UnsupportedLocalStateSchemaException? error = null;
         try
         {
-            await using var unexpectedStore = await SqliteLocalStateStore.OpenAsync(directory.Path);
+            await using var unexpectedStore = await SqliteLocalStateStore.OpenAsync(
+                directory.Path,
+                TestPrivateMaterialProtector.Instance);
             Assert.Fail("A newer state schema must not be opened or migrated.");
         }
         catch (UnsupportedLocalStateSchemaException exception)
@@ -264,7 +286,7 @@ public sealed class SqliteLocalStateStoreTests
         }
 
         Assert.IsNotNull(error);
-        Assert.AreEqual(2, error.FoundVersion);
+        Assert.AreEqual(SqliteLocalStateStore.CurrentSchemaVersion + 1, error.FoundVersion);
         Assert.AreEqual(SqliteLocalStateStore.CurrentSchemaVersion, error.SupportedVersion);
 
         await using var verificationConnection = new SqliteConnection(
@@ -273,7 +295,7 @@ public sealed class SqliteLocalStateStoreTests
         using var versionCommand = verificationConnection.CreateCommand();
         versionCommand.CommandText = "PRAGMA user_version;";
         var version = Convert.ToInt32(await versionCommand.ExecuteScalarAsync());
-        Assert.AreEqual(2, version);
+        Assert.AreEqual(SqliteLocalStateStore.CurrentSchemaVersion + 1, version);
         using var journalModeCommand = verificationConnection.CreateCommand();
         journalModeCommand.CommandText = "PRAGMA journal_mode;";
         Assert.AreEqual("delete", (string)(await journalModeCommand.ExecuteScalarAsync())!);
@@ -292,7 +314,9 @@ public sealed class SqliteLocalStateStoreTests
         await File.WriteAllTextAsync(databasePath, corruptContent);
 
         var error = await Assert.ThrowsExactlyAsync<LocalStateOpenException>(
-            () => SqliteLocalStateStore.OpenAsync(directory.Path));
+            () => SqliteLocalStateStore.OpenAsync(
+                directory.Path,
+                TestPrivateMaterialProtector.Instance));
 
         Assert.AreEqual("invalid_local_state", error.Code);
         Assert.AreEqual(corruptContent, await File.ReadAllTextAsync(databasePath));
@@ -319,7 +343,9 @@ public sealed class SqliteLocalStateStoreTests
         LocalStateException? error = null;
         try
         {
-            unexpectedStore = await SqliteLocalStateStore.OpenAsync(directory.Path);
+            unexpectedStore = await SqliteLocalStateStore.OpenAsync(
+                directory.Path,
+                TestPrivateMaterialProtector.Instance);
             Assert.Fail("A schema without its required tables must not be accepted.");
         }
         catch (LocalStateException exception)
@@ -361,7 +387,9 @@ public sealed class SqliteLocalStateStoreTests
         var original = await File.ReadAllBytesAsync(databasePath);
 
         var error = await Assert.ThrowsExactlyAsync<LocalStateException>(
-            () => SqliteLocalStateStore.OpenAsync(directory.Path));
+            () => SqliteLocalStateStore.OpenAsync(
+                directory.Path,
+                TestPrivateMaterialProtector.Instance));
 
         Assert.AreEqual("foreign_local_state", error.Code);
         CollectionAssert.AreEqual(original, await File.ReadAllBytesAsync(databasePath));
@@ -384,7 +412,9 @@ public sealed class SqliteLocalStateStoreTests
 
         var original = await File.ReadAllBytesAsync(databasePath);
         var error = await Assert.ThrowsExactlyAsync<LocalStateException>(
-            () => SqliteLocalStateStore.OpenAsync(directory.Path));
+            () => SqliteLocalStateStore.OpenAsync(
+                directory.Path,
+                TestPrivateMaterialProtector.Instance));
 
         Assert.AreEqual("foreign_local_state", error.Code);
         CollectionAssert.AreEqual(original, await File.ReadAllBytesAsync(databasePath));
@@ -422,7 +452,9 @@ public sealed class SqliteLocalStateStoreTests
         LocalStateException? error = null;
         try
         {
-            unexpectedStore = await SqliteLocalStateStore.OpenAsync(directory.Path);
+            unexpectedStore = await SqliteLocalStateStore.OpenAsync(
+                directory.Path,
+                TestPrivateMaterialProtector.Instance);
             Assert.Fail("A schema without its required constraints must not open.");
         }
         catch (LocalStateException exception)
@@ -445,7 +477,9 @@ public sealed class SqliteLocalStateStoreTests
     public async Task Unexpected_active_schema_objects_are_rejected()
     {
         using var directory = new TemporaryDirectory();
-        await using (var store = await SqliteLocalStateStore.OpenAsync(directory.Path))
+        await using (var store = await SqliteLocalStateStore.OpenAsync(
+                         directory.Path,
+                         TestPrivateMaterialProtector.Instance))
         {
         }
 
@@ -469,7 +503,9 @@ public sealed class SqliteLocalStateStoreTests
         LocalStateException? error = null;
         try
         {
-            unexpectedStore = await SqliteLocalStateStore.OpenAsync(directory.Path);
+            unexpectedStore = await SqliteLocalStateStore.OpenAsync(
+                directory.Path,
+                TestPrivateMaterialProtector.Instance);
             Assert.Fail("Unexpected active schema objects must not be accepted.");
         }
         catch (LocalStateException exception)
@@ -493,7 +529,9 @@ public sealed class SqliteLocalStateStoreTests
     {
         using var directory = new TemporaryDirectory();
         var databasePath = System.IO.Path.Combine(directory.Path, "balls.db");
-        var store = await SqliteLocalStateStore.OpenAsync(directory.Path);
+        var store = await SqliteLocalStateStore.OpenAsync(
+            directory.Path,
+            TestPrivateMaterialProtector.Instance);
         await using var blocker = new SqliteConnection($"Data Source={databasePath};Pooling=False");
         await blocker.OpenAsync();
         using var begin = blocker.CreateCommand();

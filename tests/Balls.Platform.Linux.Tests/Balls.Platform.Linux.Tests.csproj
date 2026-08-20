@@ -5,6 +5,8 @@
   </PropertyGroup>
   <ItemGroup>
     <ProjectReference Include="..\..\src\Balls.Platform.Linux\Balls.Platform.Linux.csproj" />
+    <ProjectReference Include="..\..\src\Balls.Security.Linux\Balls.Security.Linux.csproj" />
+    <ProjectReference Include="..\..\src\Balls.Storage.Sqlite\Balls.Storage.Sqlite.csproj" />
   </ItemGroup>
   <ItemGroup>
     <PackageReference Include="Microsoft.NET.Test.Sdk" />

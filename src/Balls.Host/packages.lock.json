@@ -2,6 +2,9 @@
   "version": 2,
   "dependencies": {
     "net10.0": {
+      "balls.core": {
+        "type": "Project"
+      },
       "balls.platform": {
         "type": "Project"
       },
@@ -16,6 +19,25 @@
         "dependencies": {
           "Balls.Platform": "[0.2.0-alpha.1, )"
         }
+      },
+      "balls.security.linux": {
+        "type": "Project",
+        "dependencies": {
+          "Balls.Core": "[0.2.0-alpha.1, )"
+        }
+      },
+      "balls.security.windows": {
+        "type": "Project",
+        "dependencies": {
+          "Balls.Core": "[0.2.0-alpha.1, )",
+          "System.Security.Cryptography.ProtectedData": "[10.0.11, )"
+        }
+      },
+      "System.Security.Cryptography.ProtectedData": {
+        "type": "CentralTransitive",
+        "requested": "[10.0.11, )",
+        "resolved": "10.0.11",
+        "contentHash": "PNoxCTPb+Tlux+GJyq4c89ddYdpioVSqfGx8pqOF6shCSKwUNNctXhQtRkCICjbJmGrJJsW8NY52kVYO/b8mlQ=="
       }
     }
   }

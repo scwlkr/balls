@@ -43,7 +43,8 @@ public static class DaemonCommand
             return DaemonExitCodes.PlatformUnsupported;
         }
 
-        var host = ((SupportedHostPlatform)selection).Platform;
+        var supported = (SupportedHostPlatform)selection;
+        var host = supported.Platform;
         var tokens = arguments.ToList();
         var dataDirectory = host.Defaults.DataDirectory;
         var localControlEndpoint = host.Defaults.LocalControlEndpoint;
@@ -101,6 +102,7 @@ public static class DaemonCommand
             await using var daemon = await DaemonHost.StartAsync(
                 new DaemonOptions(dataDirectory, localControlEndpoint, nodeName),
                 host,
+                supported.PrivateMaterialProtector,
                 cancellationToken).ConfigureAwait(false);
             await standardOutput.WriteLineAsync(
                 $"ballsd ready on {host.Defaults.LocalControlListenerDescription} {localControlEndpoint}.");

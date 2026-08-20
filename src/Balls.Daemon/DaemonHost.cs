@@ -28,19 +28,23 @@ public static class DaemonHost
             throw new PlatformNotSupportedException(unsupported.Message);
         }
 
+        var supported = (SupportedHostPlatform)selection;
         return await StartAsync(
             options,
-            ((SupportedHostPlatform)selection).Platform,
+            supported.Platform,
+            supported.PrivateMaterialProtector,
             cancellationToken).ConfigureAwait(false);
     }
 
     internal static async Task<DaemonInstance> StartAsync(
         DaemonOptions options,
         HostPlatform host,
+        IPrivateMaterialProtector privateMaterialProtector,
         CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(options);
         ArgumentNullException.ThrowIfNull(host);
+        ArgumentNullException.ThrowIfNull(privateMaterialProtector);
 
         ArgumentException.ThrowIfNullOrWhiteSpace(options.DataDirectory);
         host.LocalControlServer.ValidateEndpoint(options.LocalControlEndpoint);
@@ -66,7 +70,7 @@ public static class DaemonHost
         try
         {
             store = await SqliteLocalStateStore
-                .OpenAsync(securedDataDirectory, cancellationToken)
+                .OpenAsync(securedDataDirectory, privateMaterialProtector, cancellationToken)
                 .ConfigureAwait(false);
             var circleApplication = new CircleApplication(
                 store,

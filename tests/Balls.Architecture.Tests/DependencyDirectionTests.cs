@@ -6,6 +6,8 @@ using Balls.Platform;
 using Balls.Platform.Linux;
 using Balls.Platform.Windows;
 using Balls.Protocol.Control.V1;
+using Balls.Security.Linux;
+using Balls.Security.Windows;
 using Balls.Storage.Sqlite;
 
 namespace Balls.Architecture.Tests;
@@ -65,9 +67,12 @@ public sealed class DependencyDirectionTests
     {
         AssertBallsReferences(
             typeof(HostPlatformSelector).Assembly,
+            "Balls.Core",
             "Balls.Platform",
             "Balls.Platform.Linux",
-            "Balls.Platform.Windows");
+            "Balls.Platform.Windows",
+            "Balls.Security.Linux",
+            "Balls.Security.Windows");
     }
 
     [TestMethod]
@@ -80,6 +85,17 @@ public sealed class DependencyDirectionTests
     public void Windows_adapter_depends_only_on_platform_contracts()
     {
         AssertBallsReferences(typeof(WindowsNamedPipeControl).Assembly, "Balls.Platform");
+    }
+
+    [TestMethod]
+    public void Private_material_adapters_depend_only_on_Core_owned_contracts()
+    {
+        AssertBallsReferences(
+            typeof(LinuxOwnedStatePrivateMaterialProtector).Assembly,
+            "Balls.Core");
+        AssertBallsReferences(
+            typeof(WindowsCurrentUserPrivateMaterialProtector).Assembly,
+            "Balls.Core");
     }
 
     private static void AssertBallsReferences(
