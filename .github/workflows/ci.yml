@@ -148,6 +148,19 @@ jobs:
           cache: true
           cache-dependency-path: '**/packages.lock.json'
 
+      - name: Install Node.js
+        uses: actions/setup-node@2028fbc5c25fe9cf00d9f06a71cc4710d4507903 # v6.0.0
+        with:
+          node-version-file: .node-version
+
+      - name: Enable pinned pnpm
+        shell: pwsh
+        run: corepack enable
+
+      - name: Install browser dependencies
+        shell: pwsh
+        run: pnpm install --frozen-lockfile
+
       - name: Build and package Windows Canary once
         id: package
         shell: pwsh
@@ -221,6 +234,19 @@ jobs:
           global-json-file: global.json
           cache: true
           cache-dependency-path: '**/packages.lock.json'
+
+      - name: Install Node.js
+        uses: actions/setup-node@2028fbc5c25fe9cf00d9f06a71cc4710d4507903 # v6.0.0
+        with:
+          node-version-file: .node-version
+
+      - name: Enable pinned pnpm
+        shell: bash
+        run: corepack enable
+
+      - name: Install browser dependencies
+        shell: bash
+        run: pnpm install --frozen-lockfile
 
       - name: Build and package Linux Canary once
         id: package

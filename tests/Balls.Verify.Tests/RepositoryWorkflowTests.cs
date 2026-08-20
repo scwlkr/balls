@@ -33,10 +33,12 @@ public sealed partial class RepositoryWorkflowTests
     }
 
     [TestMethod]
-    public void Required_lanes_install_the_pinned_web_toolchain_and_cache_pnpm()
+    public void Build_lanes_install_the_pinned_web_toolchain_and_fast_lanes_cache_pnpm()
     {
-        Assert.AreEqual(2, Regex.Matches(Workflow, "node-version-file: .node-version").Count);
-        Assert.AreEqual(2, Regex.Matches(Workflow, "name: Enable pinned pnpm").Count);
+        Assert.AreEqual(4, Regex.Matches(Workflow, "node-version-file: .node-version").Count);
+        Assert.AreEqual(4, Regex.Matches(Workflow, "name: Enable pinned pnpm").Count);
+        Assert.AreEqual(2, Regex.Matches(Workflow, "name: Install browser dependencies").Count);
+        Assert.AreEqual(2, Regex.Matches(Workflow, "pnpm install --frozen-lockfile").Count);
         Assert.AreEqual(2, Regex.Matches(Workflow, "name: Cache pnpm store").Count);
         Assert.AreEqual(2, Regex.Matches(Workflow, "hashFiles\\('pnpm-lock.yaml'\\)").Count);
         StringAssert.Contains(
