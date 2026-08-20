@@ -29,7 +29,8 @@ the SPDX 2.3 SBOM passed unauthenticated readback.
 
 [Open the active GitHub milestone](https://github.com/scwlkr/balls/milestone/3).
 
-Status: trusted identity/admission design complete; protected authority persistence is next.
+Status: trusted identity/admission design and protected authority persistence complete; bounded
+single-use invitations are next.
 
 Exit outcome: a second Node accepts a bounded invitation, joins one Circle over authenticated
 encrypted transport, sees the same membership, restarts with stable identity, and exchanges one
@@ -122,6 +123,7 @@ those accepted bytes under the owner's explicit authorization. The final evidenc
 Completed Trusted Circle foundation:
 
 - [#33 — Decide Circle identity, admission, and remote protocol security](https://github.com/scwlkr/balls/issues/33)
+- [#35 — Persist and protect cryptographic Node and Circle authority](https://github.com/scwlkr/balls/issues/35)
 
 Remote v1 now has an accepted role-separated P-256 identity model, canonical dual-signed admission
 transcript, deterministic rejection vocabulary, invitation-pinned TLS 1.3 bootstrap, admitted-peer
@@ -131,14 +133,20 @@ design and executable spike are recorded in
 [`remote Circle v1 contract`](protocol/remote-circle-v1.md), and the
 [`dated verification record`](verification/2026-08-20-trusted-circle-security-design.md).
 
+Node, Circle-root, and delegated Anchor signing credentials now persist atomically with role-scoped
+P-256 public IDs. Windows uses current-user DPAPI; Linux uses verified owned `0700`/`0600` state.
+Schema v1 migrates transactionally without partial keys or silent regeneration, and an explicit
+root-signed envelope exports separately encrypted root/Anchor PKCS#8 material. Native Windows and
+Ubuntu WSL2 risk checks plus the complete storage/security matrix are recorded in the
+[`protected cryptographic state record`](verification/2026-08-20-protected-cryptographic-state.md).
+
 Ready frontier:
 
-- [#35 — Persist and protect cryptographic Node and Circle authority](https://github.com/scwlkr/balls/issues/35)
+- [#36 — Issue and redeem bounded single-use Circle invitations](https://github.com/scwlkr/balls/issues/36)
 
 Blocked later in the active milestone:
 
-- [#36](https://github.com/scwlkr/balls/issues/36),
-  [#37](https://github.com/scwlkr/balls/issues/37),
+- [#37](https://github.com/scwlkr/balls/issues/37),
   [#38](https://github.com/scwlkr/balls/issues/38),
   [#39](https://github.com/scwlkr/balls/issues/39), and
   [#34](https://github.com/scwlkr/balls/issues/34) remain dependency-blocked.
