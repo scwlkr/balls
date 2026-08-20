@@ -7,10 +7,11 @@ namespace Balls.Storage.Sqlite;
 public sealed partial class SqliteLocalStateStore :
     ILocalStateStore,
     IIdentityAuthorityStore,
+    IInvitationStateStore,
     IAsyncDisposable
 {
     public const int ApplicationId = 0x42414C53;
-    public const int CurrentSchemaVersion = 2;
+    public const int CurrentSchemaVersion = 3;
 
     private readonly SqliteConnection connection;
     private readonly IPrivateMaterialProtector privateMaterialProtector;
@@ -106,6 +107,16 @@ public sealed partial class SqliteLocalStateStore :
                     connection,
                     privateMaterialProtector,
                     cancellationToken).ConfigureAwait(false);
+                await ValidateSchemaAsync(connection, 2, cancellationToken)
+                    .ConfigureAwait(false);
+            }
+
+            if (!isFreshDatabase && version is 1 or 2)
+            {
+                await MigrateV2ToV3Async(
+                    connection,
+                    privateMaterialProtector,
+                    cancellationToken).ConfigureAwait(false);
                 await ValidateSchemaAsync(connection, CurrentSchemaVersion, cancellationToken)
                     .ConfigureAwait(false);
             }
@@ -180,6 +191,19 @@ public sealed partial class SqliteLocalStateStore :
                 if (cryptographicIdentity is null)
                 {
                     await InsertNodeCryptographicIdentityAsync(
+                        node,
+                        privateMaterialProtector,
+                        transaction,
+                        token).ConfigureAwait(false);
+                }
+
+
+                var transportIdentity = await ReadLocalTransportIdentityAsync(
+                    transaction,
+                    token).ConfigureAwait(false);
+                if (transportIdentity is null)
+                {
+                    await InsertTransportIdentityAsync(
                         node,
                         privateMaterialProtector,
                         transaction,
@@ -452,6 +476,43 @@ public sealed partial class SqliteLocalStateStore :
                 ],
                 [new("circles", "circle_id", "circle_id", "CASCADE")]);
         }
+        if (schemaVersion >= 3)
+        {
+            expectedTables["local_transport_credentials"] = new(
+                [
+                    new("singleton_id", "INTEGER", 1),
+                    new("key_algorithm", "TEXT", 0),
+                    new("key_id", "TEXT", 0),
+                    new("public_key_spki", "BLOB", 0),
+                    new("private_key_scheme", "TEXT", 0),
+                    new("protected_private_key", "BLOB", 0),
+                    new("created_at_utc", "TEXT", 0),
+                ],
+                [new("local_node", "singleton_id", "singleton_id", "CASCADE")]);
+            expectedTables["circle_invitations"] = new(
+                [
+                    new("invitation_id", "TEXT", 1),
+                    new("circle_id", "TEXT", 0),
+                    new("package_sha256", "BLOB", 0),
+                    new("encoded_package", "BLOB", 0),
+                    new("expires_at_utc", "TEXT", 0),
+                    new("created_at_utc", "TEXT", 0),
+                ],
+                [new("circles", "circle_id", "circle_id", "CASCADE")]);
+            expectedTables["invitation_redemptions"] = new(
+                [
+                    new("invitation_id", "TEXT", 1),
+                    new("redemption_id", "TEXT", 0),
+                    new("redeemed_at_utc", "TEXT", 0),
+                ],
+                [new("circle_invitations", "invitation_id", "invitation_id", "CASCADE")]);
+            expectedTables["revoked_invitations"] = new(
+                [
+                    new("invitation_id", "TEXT", 1),
+                    new("revoked_at_utc", "TEXT", 0),
+                ],
+                [new("circle_invitations", "invitation_id", "invitation_id", "CASCADE")]);
+        }
 
         using (var unexpectedObjectCommand = connection.CreateCommand())
         {
@@ -561,6 +622,17 @@ public sealed partial class SqliteLocalStateStore :
                         connection,
                         "circle_authorities",
                         ["anchor_key_id"],
+                        cancellationToken).ConfigureAwait(false))
+            || schemaVersion >= 3
+                && (!await HasUniqueIndexAsync(
+                        connection,
+                        "local_transport_credentials",
+                        ["key_id"],
+                        cancellationToken).ConfigureAwait(false)
+                    || !await HasUniqueIndexAsync(
+                        connection,
+                        "invitation_redemptions",
+                        ["redemption_id"],
                         cancellationToken).ConfigureAwait(false))
             || !await HasRequiredSingletonCheckAsync(connection, cancellationToken)
                 .ConfigureAwait(false))
@@ -736,6 +808,8 @@ public sealed partial class SqliteLocalStateStore :
             );
 
             {IdentitySchemaSql}
+
+            {InvitationSchemaSql}
 
             PRAGMA application_id = {ApplicationId};
             PRAGMA user_version = {CurrentSchemaVersion};

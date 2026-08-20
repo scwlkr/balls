@@ -46,7 +46,14 @@ public interface IIdentityAuthorityStore
         CircleId circleId,
         CancellationToken cancellationToken = default);
 
+    Task<LocalTransportIdentity?> GetLocalTransportIdentityAsync(
+        CancellationToken cancellationToken = default);
+
     Task<byte[]> SignWithNodeAsync(
+        ReadOnlyMemory<byte> data,
+        CancellationToken cancellationToken = default);
+
+    Task<byte[]> SignWithTransportAsync(
         ReadOnlyMemory<byte> data,
         CancellationToken cancellationToken = default);
 

@@ -313,6 +313,10 @@ public sealed class ProtectedIdentityStateTests
         command.CommandText =
             """
             PRAGMA foreign_keys = OFF;
+            DROP TABLE revoked_invitations;
+            DROP TABLE invitation_redemptions;
+            DROP TABLE circle_invitations;
+            DROP TABLE local_transport_credentials;
             DROP TABLE circle_authorities;
             DROP TABLE local_node_credentials;
             PRAGMA user_version = 1;
