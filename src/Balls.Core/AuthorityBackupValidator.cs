@@ -69,6 +69,9 @@ public static class AuthorityBackupValidator
                 "anchor");
             if (rootCredential is null
                 || anchorCredential is null
+                || CryptographicOperations.FixedTimeEquals(
+                    rootCredential.SubjectPublicKeyInfo,
+                    anchorCredential.SubjectPublicKeyInfo)
                 || !CryptographicOperations.FixedTimeEquals(
                     SHA256.HashData(encryptedRoot),
                     metadata.GetProperty("encryptedRootSha256").GetBytesFromBase64())
@@ -96,6 +99,7 @@ public static class AuthorityBackupValidator
             FormatException or
             InvalidOperationException or
             JsonException or
+            KeyNotFoundException or
             OverflowException)
         {
             return Rejected(AuthorityBackupRejectionCode.Malformed);

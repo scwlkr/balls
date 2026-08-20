@@ -1,6 +1,9 @@
 using System.Runtime.Versioning;
 using System.Security.Cryptography;
+using Balls.Core;
+using Balls.Platform.Windows;
 using Balls.Security.Windows;
+using Balls.Storage.Sqlite;
 
 namespace Balls.Daemon.Tests;
 
@@ -10,7 +13,7 @@ namespace Balls.Daemon.Tests;
 public sealed class WindowsPrivateMaterialProtectionTests
 {
     [TestMethod]
-    public void Dpapi_current_user_round_trips_without_storing_plaintext_and_rejects_substitution()
+    public async Task Dpapi_state_is_restart_stable_and_rejects_substitution()
     {
         if (!OperatingSystem.IsWindows())
         {
@@ -29,5 +32,44 @@ public sealed class WindowsPrivateMaterialProtectionTests
         Assert.ThrowsExactly<CryptographicException>(() => protector.Unprotect(protectedMaterial));
 
         CryptographicOperations.ZeroMemory(privateMaterial);
+
+        var root = Path.Combine(
+            Path.GetTempPath(),
+            "balls-windows-protected-state",
+            Guid.NewGuid().ToString("N"));
+        try
+        {
+            var stateDirectory = WindowsDataDirectorySecurity.Prepare(root);
+            string firstKeyId;
+            await using (var store = await SqliteLocalStateStore.OpenAsync(
+                             stateDirectory,
+                             protector))
+            {
+                var application = new CircleApplication(store, TimeProvider.System, "windows-node");
+                await application.GetLocalNodeAsync();
+                var identity = (await store.GetNodeCryptographicIdentityAsync())!;
+                firstKeyId = identity.Credential.KeyId;
+                var signature = await store.SignWithNodeAsync("windows-dpapi-proof"u8.ToArray());
+                Assert.IsTrue(IdentityCryptography.Verify(
+                    "windows-dpapi-proof"u8,
+                    signature,
+                    identity.Credential));
+            }
+
+            WindowsDataDirectorySecurity.Prepare(stateDirectory);
+            await using var restarted = await SqliteLocalStateStore.OpenAsync(
+                stateDirectory,
+                protector);
+            Assert.AreEqual(
+                firstKeyId,
+                (await restarted.GetNodeCryptographicIdentityAsync())!.Credential.KeyId);
+        }
+        finally
+        {
+            if (Directory.Exists(root))
+            {
+                Directory.Delete(root, recursive: true);
+            }
+        }
     }
 }

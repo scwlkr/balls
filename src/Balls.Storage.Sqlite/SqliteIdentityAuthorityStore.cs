@@ -324,6 +324,8 @@ public sealed partial class SqliteLocalStateStore
             {
                 CryptographicOperations.ZeroMemory(privateKey);
             }
+
+            CryptographicOperations.ZeroMemory(stored.ProtectedPrivateKey);
         }
     }
 
@@ -334,22 +336,29 @@ public sealed partial class SqliteLocalStateStore
         CancellationToken cancellationToken)
     {
         var material = GeneratePrivateIdentity(IdentityKeyRole.Node, protector);
-        using var command = connection.CreateCommand();
-        command.Transaction = transaction;
-        command.CommandText =
-            """
-            INSERT INTO local_node_credentials (
-                singleton_id,
-                key_algorithm,
-                key_id,
-                public_key_spki,
-                private_key_scheme,
-                protected_private_key,
-                created_at_utc)
-            VALUES (1, $algorithm, $key_id, $spki, $scheme, $private_key, $created_at_utc);
-            """;
-        AddIdentityParameters(command, material, node.CreatedAtUtc);
-        await command.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
+        try
+        {
+            using var command = connection.CreateCommand();
+            command.Transaction = transaction;
+            command.CommandText =
+                """
+                INSERT INTO local_node_credentials (
+                    singleton_id,
+                    key_algorithm,
+                    key_id,
+                    public_key_spki,
+                    private_key_scheme,
+                    protected_private_key,
+                    created_at_utc)
+                VALUES (1, $algorithm, $key_id, $spki, $scheme, $private_key, $created_at_utc);
+                """;
+            AddIdentityParameters(command, material, node.CreatedAtUtc);
+            await command.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
+        }
+        finally
+        {
+            CryptographicOperations.ZeroMemory(material.ProtectedPrivateKey);
+        }
     }
 
     private async Task InsertCircleAuthorityAsync(
@@ -359,38 +368,52 @@ public sealed partial class SqliteLocalStateStore
         CancellationToken cancellationToken)
     {
         var root = GeneratePrivateIdentity(IdentityKeyRole.CircleAuthority, protector);
-        var anchor = GeneratePrivateIdentity(IdentityKeyRole.Anchor, protector);
-        using var command = connection.CreateCommand();
-        command.Transaction = transaction;
-        command.CommandText =
-            """
-            INSERT INTO circle_authorities (
-                circle_id,
-                authority_generation,
-                root_key_id,
-                root_public_key_spki,
-                root_protected_private_key,
-                anchor_key_id,
-                anchor_public_key_spki,
-                anchor_protected_private_key,
-                private_key_scheme,
-                created_at_utc)
-            VALUES (
-                $circle_id, 1,
-                $root_key_id, $root_spki, $root_private_key,
-                $anchor_key_id, $anchor_spki, $anchor_private_key,
-                $scheme, $created_at_utc);
-            """;
-        command.Parameters.AddWithValue("$circle_id", circle.Id.ToString());
-        command.Parameters.AddWithValue("$root_key_id", root.Credential.KeyId);
-        command.Parameters.AddWithValue("$root_spki", root.Credential.SubjectPublicKeyInfo);
-        command.Parameters.AddWithValue("$root_private_key", root.ProtectedPrivateKey);
-        command.Parameters.AddWithValue("$anchor_key_id", anchor.Credential.KeyId);
-        command.Parameters.AddWithValue("$anchor_spki", anchor.Credential.SubjectPublicKeyInfo);
-        command.Parameters.AddWithValue("$anchor_private_key", anchor.ProtectedPrivateKey);
-        command.Parameters.AddWithValue("$scheme", protector.Scheme);
-        command.Parameters.AddWithValue("$created_at_utc", Format(circle.CreatedAtUtc));
-        await command.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
+        try
+        {
+            var anchor = GeneratePrivateIdentity(IdentityKeyRole.Anchor, protector);
+            try
+            {
+                using var command = connection.CreateCommand();
+                command.Transaction = transaction;
+                command.CommandText =
+                    """
+                    INSERT INTO circle_authorities (
+                        circle_id,
+                        authority_generation,
+                        root_key_id,
+                        root_public_key_spki,
+                        root_protected_private_key,
+                        anchor_key_id,
+                        anchor_public_key_spki,
+                        anchor_protected_private_key,
+                        private_key_scheme,
+                        created_at_utc)
+                    VALUES (
+                        $circle_id, 1,
+                        $root_key_id, $root_spki, $root_private_key,
+                        $anchor_key_id, $anchor_spki, $anchor_private_key,
+                        $scheme, $created_at_utc);
+                    """;
+                command.Parameters.AddWithValue("$circle_id", circle.Id.ToString());
+                command.Parameters.AddWithValue("$root_key_id", root.Credential.KeyId);
+                command.Parameters.AddWithValue("$root_spki", root.Credential.SubjectPublicKeyInfo);
+                command.Parameters.AddWithValue("$root_private_key", root.ProtectedPrivateKey);
+                command.Parameters.AddWithValue("$anchor_key_id", anchor.Credential.KeyId);
+                command.Parameters.AddWithValue("$anchor_spki", anchor.Credential.SubjectPublicKeyInfo);
+                command.Parameters.AddWithValue("$anchor_private_key", anchor.ProtectedPrivateKey);
+                command.Parameters.AddWithValue("$scheme", protector.Scheme);
+                command.Parameters.AddWithValue("$created_at_utc", Format(circle.CreatedAtUtc));
+                await command.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
+            }
+            finally
+            {
+                CryptographicOperations.ZeroMemory(anchor.ProtectedPrivateKey);
+            }
+        }
+        finally
+        {
+            CryptographicOperations.ZeroMemory(root.ProtectedPrivateKey);
+        }
     }
 
     private static GeneratedPrivateIdentity GeneratePrivateIdentity(
@@ -506,17 +529,24 @@ public sealed partial class SqliteLocalStateStore
         CancellationToken cancellationToken)
     {
         var material = GeneratePrivateIdentity(IdentityKeyRole.Node, protector);
-        using var command = connection.CreateCommand();
-        command.Transaction = transaction;
-        command.CommandText =
-            """
-            INSERT INTO local_node_credentials (
-                singleton_id, key_algorithm, key_id, public_key_spki,
-                private_key_scheme, protected_private_key, created_at_utc)
-            VALUES (1, $algorithm, $key_id, $spki, $scheme, $private_key, $created_at_utc);
-            """;
-        AddIdentityParameters(command, material, node.CreatedAtUtc);
-        await command.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
+        try
+        {
+            using var command = connection.CreateCommand();
+            command.Transaction = transaction;
+            command.CommandText =
+                """
+                INSERT INTO local_node_credentials (
+                    singleton_id, key_algorithm, key_id, public_key_spki,
+                    private_key_scheme, protected_private_key, created_at_utc)
+                VALUES (1, $algorithm, $key_id, $spki, $scheme, $private_key, $created_at_utc);
+                """;
+            AddIdentityParameters(command, material, node.CreatedAtUtc);
+            await command.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
+        }
+        finally
+        {
+            CryptographicOperations.ZeroMemory(material.ProtectedPrivateKey);
+        }
     }
 
     private static async Task InsertMigratedAuthorityAsync(
@@ -527,32 +557,46 @@ public sealed partial class SqliteLocalStateStore
         CancellationToken cancellationToken)
     {
         var root = GeneratePrivateIdentity(IdentityKeyRole.CircleAuthority, protector);
-        var anchor = GeneratePrivateIdentity(IdentityKeyRole.Anchor, protector);
-        using var command = connection.CreateCommand();
-        command.Transaction = transaction;
-        command.CommandText =
-            """
-            INSERT INTO circle_authorities (
-                circle_id, authority_generation,
-                root_key_id, root_public_key_spki, root_protected_private_key,
-                anchor_key_id, anchor_public_key_spki, anchor_protected_private_key,
-                private_key_scheme, created_at_utc)
-            VALUES (
-                $circle_id, 1,
-                $root_key_id, $root_spki, $root_private_key,
-                $anchor_key_id, $anchor_spki, $anchor_private_key,
-                $scheme, $created_at_utc);
-            """;
-        command.Parameters.AddWithValue("$circle_id", circle.Id.ToString());
-        command.Parameters.AddWithValue("$root_key_id", root.Credential.KeyId);
-        command.Parameters.AddWithValue("$root_spki", root.Credential.SubjectPublicKeyInfo);
-        command.Parameters.AddWithValue("$root_private_key", root.ProtectedPrivateKey);
-        command.Parameters.AddWithValue("$anchor_key_id", anchor.Credential.KeyId);
-        command.Parameters.AddWithValue("$anchor_spki", anchor.Credential.SubjectPublicKeyInfo);
-        command.Parameters.AddWithValue("$anchor_private_key", anchor.ProtectedPrivateKey);
-        command.Parameters.AddWithValue("$scheme", protector.Scheme);
-        command.Parameters.AddWithValue("$created_at_utc", Format(circle.CreatedAtUtc));
-        await command.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
+        try
+        {
+            var anchor = GeneratePrivateIdentity(IdentityKeyRole.Anchor, protector);
+            try
+            {
+                using var command = connection.CreateCommand();
+                command.Transaction = transaction;
+                command.CommandText =
+                    """
+                    INSERT INTO circle_authorities (
+                        circle_id, authority_generation,
+                        root_key_id, root_public_key_spki, root_protected_private_key,
+                        anchor_key_id, anchor_public_key_spki, anchor_protected_private_key,
+                        private_key_scheme, created_at_utc)
+                    VALUES (
+                        $circle_id, 1,
+                        $root_key_id, $root_spki, $root_private_key,
+                        $anchor_key_id, $anchor_spki, $anchor_private_key,
+                        $scheme, $created_at_utc);
+                    """;
+                command.Parameters.AddWithValue("$circle_id", circle.Id.ToString());
+                command.Parameters.AddWithValue("$root_key_id", root.Credential.KeyId);
+                command.Parameters.AddWithValue("$root_spki", root.Credential.SubjectPublicKeyInfo);
+                command.Parameters.AddWithValue("$root_private_key", root.ProtectedPrivateKey);
+                command.Parameters.AddWithValue("$anchor_key_id", anchor.Credential.KeyId);
+                command.Parameters.AddWithValue("$anchor_spki", anchor.Credential.SubjectPublicKeyInfo);
+                command.Parameters.AddWithValue("$anchor_private_key", anchor.ProtectedPrivateKey);
+                command.Parameters.AddWithValue("$scheme", protector.Scheme);
+                command.Parameters.AddWithValue("$created_at_utc", Format(circle.CreatedAtUtc));
+                await command.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
+            }
+            finally
+            {
+                CryptographicOperations.ZeroMemory(anchor.ProtectedPrivateKey);
+            }
+        }
+        finally
+        {
+            CryptographicOperations.ZeroMemory(root.ProtectedPrivateKey);
+        }
     }
 
     private static AuthorityBackupEnvelope CreateBackupEnvelope(
@@ -650,6 +694,28 @@ public sealed partial class SqliteLocalStateStore
         IPrivateMaterialProtector protector,
         CancellationToken cancellationToken)
     {
+        using (var completeness = connection.CreateCommand())
+        {
+            completeness.CommandText =
+                """
+                SELECT
+                    (SELECT COUNT(*) FROM local_node),
+                    (SELECT COUNT(*) FROM local_node_credentials),
+                    (SELECT COUNT(*) FROM circles),
+                    (SELECT COUNT(*) FROM circle_authorities),
+                    (SELECT COUNT(*) FROM circle_authorities WHERE authority_generation < 1);
+                """;
+            await using var reader = await completeness.ExecuteReaderAsync(cancellationToken)
+                .ConfigureAwait(false);
+            if (!await reader.ReadAsync(cancellationToken).ConfigureAwait(false)
+                || reader.GetInt64(0) != reader.GetInt64(1)
+                || reader.GetInt64(2) != reader.GetInt64(3)
+                || reader.GetInt64(4) != 0)
+            {
+                throw InvalidPrivateMaterial();
+            }
+        }
+
         var credentials = new List<(IdentityKeyRole Role, string Algorithm, string KeyId, byte[] Spki,
             string Scheme, byte[] Protected)>();
         using (var node = connection.CreateCommand())
@@ -704,44 +770,55 @@ public sealed partial class SqliteLocalStateStore
             }
         }
 
-        foreach (var item in credentials)
+        try
         {
-            if (!string.Equals(item.Scheme, protector.Scheme, StringComparison.Ordinal))
+            foreach (var item in credentials)
             {
-                throw InvalidPrivateMaterial();
-            }
+                byte[]? privateKey = null;
+                try
+                {
+                    if (!string.Equals(item.Scheme, protector.Scheme, StringComparison.Ordinal))
+                    {
+                        throw InvalidPrivateMaterial();
+                    }
 
-            byte[]? privateKey = null;
-            try
-            {
-                var credential = ReadCredential(item.Role, item.Algorithm, item.KeyId, item.Spki);
-                privateKey = protector.Unprotect(item.Protected);
-                using var key = ECDsa.Create();
-                key.ImportPkcs8PrivateKey(privateKey, out var bytesRead);
-                var actual = IdentityCryptography.CreateCredential(item.Role, key);
-                if (bytesRead != privateKey.Length
-                    || actual.KeyId != credential.KeyId
-                    || !CryptographicOperations.FixedTimeEquals(
-                        actual.SubjectPublicKeyInfo,
-                        credential.SubjectPublicKeyInfo))
+                    var credential = ReadCredential(item.Role, item.Algorithm, item.KeyId, item.Spki);
+                    privateKey = protector.Unprotect(item.Protected);
+                    using var key = ECDsa.Create();
+                    key.ImportPkcs8PrivateKey(privateKey, out var bytesRead);
+                    var actual = IdentityCryptography.CreateCredential(item.Role, key);
+                    if (bytesRead != privateKey.Length
+                        || actual.KeyId != credential.KeyId
+                        || !CryptographicOperations.FixedTimeEquals(
+                            actual.SubjectPublicKeyInfo,
+                            credential.SubjectPublicKeyInfo))
+                    {
+                        throw InvalidPrivateMaterial();
+                    }
+                }
+                catch (LocalStateException)
+                {
+                    throw;
+                }
+                catch (Exception exception) when (exception is
+                    CryptographicException or ArgumentException)
                 {
                     throw InvalidPrivateMaterial();
                 }
-            }
-            catch (LocalStateException)
-            {
-                throw;
-            }
-            catch (Exception exception) when (exception is CryptographicException or ArgumentException)
-            {
-                throw InvalidPrivateMaterial();
-            }
-            finally
-            {
-                if (privateKey is not null)
+                finally
                 {
-                    CryptographicOperations.ZeroMemory(privateKey);
+                    if (privateKey is not null)
+                    {
+                        CryptographicOperations.ZeroMemory(privateKey);
+                    }
                 }
+            }
+        }
+        finally
+        {
+            foreach (var item in credentials)
+            {
+                CryptographicOperations.ZeroMemory(item.Protected);
             }
         }
     }

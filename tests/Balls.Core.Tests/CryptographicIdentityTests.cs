@@ -47,4 +47,15 @@ public sealed class CryptographicIdentityTests
         Assert.AreEqual("Balls Circle authority backup v1 (sensitive)", envelope.ToString());
         Assert.AreEqual("{\"format\":\"balls-circle-authority-backup\",\"version\":1}", json);
     }
+
+    [TestMethod]
+    public void Missing_backup_fields_return_a_typed_malformed_result()
+    {
+        var validation = AuthorityBackupValidator.Validate(
+            "{}"u8,
+            new CircleId(Guid.Parse("0198c837-3000-7000-8000-000000000001")));
+
+        Assert.IsFalse(validation.IsValid);
+        Assert.AreEqual(AuthorityBackupRejectionCode.Malformed, validation.RejectionCode);
+    }
 }

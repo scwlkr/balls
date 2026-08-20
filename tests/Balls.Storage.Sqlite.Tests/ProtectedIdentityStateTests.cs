@@ -233,6 +233,78 @@ public sealed class ProtectedIdentityStateTests
         Assert.AreEqual("invalid_private_material", error.Code);
     }
 
+    [TestMethod]
+    public async Task Missing_credential_rows_fail_closed_without_regeneration()
+    {
+        using var directory = new TemporaryDirectory();
+        await using (var store = await SqliteLocalStateStore.OpenAsync(
+                         directory.Path,
+                         TestPrivateMaterialProtector.Instance))
+        {
+            var application = new CircleApplication(store, TimeProvider.System, "Alice-PC");
+            await application.CreateCircleAsync(
+                new CreateCircleCommand(
+                    new CreationRequestId(Guid.CreateVersion7()),
+                    "Missing Authority Circle",
+                    "Alice"));
+        }
+
+        await using (var connection = OpenDatabase(directory.Path))
+        {
+            await connection.OpenAsync();
+            using var command = connection.CreateCommand();
+            command.CommandText =
+                """
+                DELETE FROM local_node_credentials;
+                """;
+            await command.ExecuteNonQueryAsync();
+        }
+
+        var error = await Assert.ThrowsExactlyAsync<LocalStateException>(
+            () => SqliteLocalStateStore.OpenAsync(
+                directory.Path,
+                TestPrivateMaterialProtector.Instance));
+        Assert.AreEqual("invalid_private_material", error.Code);
+
+        await using var verification = OpenDatabase(directory.Path);
+        await verification.OpenAsync();
+        using var verificationCommand = verification.CreateCommand();
+        verificationCommand.CommandText =
+            "SELECT COUNT(*) FROM local_node_credentials;";
+        Assert.AreEqual(0L, (long)(await verificationCommand.ExecuteScalarAsync())!);
+    }
+
+    [TestMethod]
+    public async Task Invalid_authority_generation_fails_closed()
+    {
+        using var directory = new TemporaryDirectory();
+        await using (var store = await SqliteLocalStateStore.OpenAsync(
+                         directory.Path,
+                         TestPrivateMaterialProtector.Instance))
+        {
+            var application = new CircleApplication(store, TimeProvider.System, "Alice-PC");
+            await application.CreateCircleAsync(
+                new CreateCircleCommand(
+                    new CreationRequestId(Guid.CreateVersion7()),
+                    "Invalid Authority Circle",
+                    "Alice"));
+        }
+
+        await using (var connection = OpenDatabase(directory.Path))
+        {
+            await connection.OpenAsync();
+            using var command = connection.CreateCommand();
+            command.CommandText = "UPDATE circle_authorities SET authority_generation = 0;";
+            await command.ExecuteNonQueryAsync();
+        }
+
+        var error = await Assert.ThrowsExactlyAsync<LocalStateException>(
+            () => SqliteLocalStateStore.OpenAsync(
+                directory.Path,
+                TestPrivateMaterialProtector.Instance));
+        Assert.AreEqual("invalid_private_material", error.Code);
+    }
+
     private static async Task DowngradeToVersionOneAsync(string directory)
     {
         await using var connection = OpenDatabase(directory);
