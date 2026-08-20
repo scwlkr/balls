@@ -52,6 +52,7 @@ public static class DaemonCommand
         var localControlEndpoint = host.Defaults.LocalControlEndpoint;
         var nodeName = host.Defaults.NodeDisplayName;
         string? admissionListenEndpoint = null;
+        string? circleListenEndpoint = null;
 
         if (!TryApplyOption(tokens, "--data-directory", ref dataDirectory, out var error)
             || !TryApplyOption(tokens, "--pipe-name", ref localControlEndpoint, out error)
@@ -60,6 +61,11 @@ public static class DaemonCommand
                 tokens,
                 "--admission-listen",
                 ref admissionListenEndpoint,
+                out error)
+            || !TryApplyOptionalOption(
+                tokens,
+                "--circle-listen",
+                ref circleListenEndpoint,
                 out error))
         {
             await standardError.WriteLineAsync($"ballsd: {error}");
@@ -122,6 +128,23 @@ public static class DaemonCommand
                 return DaemonExitCodes.UsageError;
             }
         }
+        if (circleListenEndpoint is not null)
+        {
+            try
+            {
+                _ = LanTcpEndpoint.Parse(
+                    new RemoteTransportAddress(
+                        LanTcpEndpoint.ProviderName,
+                        circleListenEndpoint));
+            }
+            catch (ArgumentException)
+            {
+                await standardError.WriteLineAsync(
+                    "ballsd: invalid --circle-listen value.");
+                await WriteUsageAsync(standardError);
+                return DaemonExitCodes.UsageError;
+            }
+        }
 
         try
         {
@@ -130,7 +153,8 @@ public static class DaemonCommand
                     dataDirectory,
                     localControlEndpoint,
                     nodeName,
-                    admissionListenEndpoint),
+                    admissionListenEndpoint,
+                    circleListenEndpoint),
                 host,
                 supported.PrivateMaterialProtector,
                 cancellationToken).ConfigureAwait(false);
@@ -140,6 +164,11 @@ public static class DaemonCommand
             {
                 await standardOutput.WriteLineAsync(
                     $"ballsd admission ready on {daemon.AdmissionAddress.Value}.");
+            }
+            if (daemon.CircleAddress is not null)
+            {
+                await standardOutput.WriteLineAsync(
+                    $"ballsd Circle messaging ready on {daemon.CircleAddress.Value}.");
             }
             try
             {
@@ -220,7 +249,7 @@ public static class DaemonCommand
     private static Task WriteUsageAsync(TextWriter writer)
     {
         return writer.WriteLineAsync(
-            "usage: ballsd [--data-directory <path>] [--pipe-name <name>] [--node-name <name>] [--admission-listen <private-ip:port>]");
+            "usage: ballsd [--data-directory <path>] [--pipe-name <name>] [--node-name <name>] [--admission-listen <private-ip:port>] [--circle-listen <private-ip:port>]");
     }
 
     private static string GetProductVersion()

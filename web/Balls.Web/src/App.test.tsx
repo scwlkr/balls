@@ -5,6 +5,7 @@ import type { BrowserApi } from "./api/browserApi";
 import type {
   CircleDetailsDto,
   CircleListDto,
+  CircleMessageListDto,
   StatusDto,
 } from "./api/localControl";
 
@@ -42,6 +43,22 @@ const details = {
     },
   ],
 } satisfies CircleDetailsDto;
+
+const messageList = {
+  circleId: details.circle.id,
+  messages: [
+    {
+      id: "0198f2cc-6a50-7a08-aacb-298f4ebdf630",
+      circleId: details.circle.id,
+      sequence: 1,
+      authorMemberId: details.members[0].id,
+      authorNodeId: details.nodes[0].id,
+      text: "The first durable hello.",
+      authoredAtUtc: "2026-08-19T12:06:00.0000000+00:00",
+      acceptedAtUtc: "2026-08-19T12:06:01.0000000+00:00",
+    },
+  ],
+} satisfies CircleMessageListDto;
 
 describe("Balls browser workspace", () => {
   beforeEach(() => {
@@ -107,6 +124,11 @@ describe("Balls browser workspace", () => {
     expect(
       within(circles).getByRole("button", { name: "Example Studio" }),
     ).toHaveAttribute("aria-current", "page");
+    const messages = screen.getByRole("region", { name: "Durable history" });
+    expect(within(messages).getByText("Alice Morgan")).toBeInTheDocument();
+    expect(
+      within(messages).getByText("The first durable hello."),
+    ).toBeInTheDocument();
   });
 
   it("fails closed when no launch capability is present", async () => {
@@ -127,6 +149,7 @@ function createApi(circleList: CircleListDto): BrowserApi {
     getStatus: async () => status,
     listCircles: async () => circleList,
     getCircle: async () => details,
+    listMessages: async () => messageList,
     createCircle: async () => details,
   };
 }

@@ -292,6 +292,34 @@ public sealed partial class SqliteLocalStateStore
             token => ReadCircleNodeSecurityListAsync(circleId, transaction: null, token),
             cancellationToken);
 
+    public Task<bool> IsAdmittedMemberNodePairAsync(
+        CircleId circleId,
+        MemberId memberId,
+        NodeId nodeId,
+        CancellationToken cancellationToken = default) =>
+        ExecuteLockedAsync(
+            async token =>
+            {
+                using var command = connection.CreateCommand();
+                command.CommandText =
+                    """
+                    SELECT EXISTS (
+                        SELECT 1
+                        FROM circle_admissions
+                        WHERE circle_id = $circle
+                          AND member_id = $member
+                          AND node_id = $node
+                    );
+                    """;
+                command.Parameters.AddWithValue("$circle", circleId.ToString());
+                command.Parameters.AddWithValue("$member", memberId.ToString());
+                command.Parameters.AddWithValue("$node", nodeId.ToString());
+                return Convert.ToInt32(
+                    await command.ExecuteScalarAsync(token).ConfigureAwait(false),
+                    System.Globalization.CultureInfo.InvariantCulture) == 1;
+            },
+            cancellationToken);
+
     public Task<long> ReserveAuthoritySequenceAsync(
         CircleId circleId,
         CancellationToken cancellationToken = default) =>

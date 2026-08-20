@@ -138,6 +138,18 @@ public sealed class AdmissionStateStoreTests
         Assert.AreEqual(AnchorAdmissionCommitStatus.Replayed, conflict.Status);
         Assert.AreEqual(2, details!.Members.Count);
         Assert.AreEqual(2, details.Nodes.Count);
+        Assert.IsTrue(await store.IsAdmittedMemberNodePairAsync(
+            created.Circle.Id,
+            memberId,
+            nodeId));
+        Assert.IsFalse(await store.IsAdmittedMemberNodePairAsync(
+            created.Circle.Id,
+            memberId,
+            NodeId.New()));
+        Assert.IsFalse(await store.IsAdmittedMemberNodePairAsync(
+            created.Circle.Id,
+            MemberId.New(),
+            nodeId));
         Assert.AreEqual(
             InvitationRedemptionStatus.Replayed,
             (await store.RedeemCircleInvitationAsync(

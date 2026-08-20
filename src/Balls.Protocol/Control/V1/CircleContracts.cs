@@ -43,4 +43,23 @@ public sealed record NodeListResponse(
     string CircleId,
     IReadOnlyList<CircleNodeResponse> Nodes);
 
+public sealed record SendCircleMessageRequest(
+    string MessageId,
+    string Endpoint,
+    string Text);
+
+public sealed record CircleMessageResponse(
+    string Id,
+    string CircleId,
+    long Sequence,
+    string AuthorMemberId,
+    string AuthorNodeId,
+    string Text,
+    DateTimeOffset AuthoredAtUtc,
+    DateTimeOffset AcceptedAtUtc);
+
+public sealed record CircleMessageListResponse(
+    string CircleId,
+    IReadOnlyList<CircleMessageResponse> Messages);
+
 public sealed record ErrorResponse(string Code, string Message);
