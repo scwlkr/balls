@@ -182,16 +182,21 @@ internal static class RemoteHarnessCommand
 
     private static async Task WriteNewTextAsync(string path, string value)
     {
-        await using var stream = new FileStream(
-            path,
-            FileMode.CreateNew,
-            FileAccess.Write,
-            FileShare.Read,
-            bufferSize: 4096,
-            FileOptions.Asynchronous);
-        var encoded = Encoding.UTF8.GetBytes(value);
-        await stream.WriteAsync(encoded).ConfigureAwait(false);
-        await stream.FlushAsync().ConfigureAwait(false);
+        var temporaryPath = $"{path}.{Guid.CreateVersion7():N}.tmp";
+        await using (var stream = new FileStream(
+                         temporaryPath,
+                         FileMode.CreateNew,
+                         FileAccess.Write,
+                         FileShare.None,
+                         bufferSize: 4096,
+                         FileOptions.Asynchronous))
+        {
+            var encoded = Encoding.UTF8.GetBytes(value);
+            await stream.WriteAsync(encoded).ConfigureAwait(false);
+            await stream.FlushAsync().ConfigureAwait(false);
+        }
+
+        File.Move(temporaryPath, path);
     }
 
     private static void RestrictUnixPermissions(string path)

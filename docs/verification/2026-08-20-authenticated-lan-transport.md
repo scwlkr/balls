@@ -79,7 +79,9 @@ The complete Windows full verifier passed after the SChannel fixture correction:
 - NuGet transitive vulnerability audit reported no vulnerable package in every project; pnpm
   reported no known vulnerabilities.
 
-The corrected TLS happy path then passed 10 consecutive focused Windows process runs.
+The corrected TLS happy path passed 10 consecutive focused Windows runs. After protected CI
+exposed a separate readiness-file sharing race, the atomic readiness handoff passed 20 consecutive
+focused Windows process runs.
 
 The WSL verifier restored, formatted, and built the solution and passed all new Linux protocol,
 LAN, and remote-harness suites. Its complete test phase was not counted as a full-gate pass:
@@ -103,8 +105,15 @@ Pull request [#45](https://github.com/scwlkr/balls/pull/45) validated implementa
 - [dependency review](https://github.com/scwlkr/balls/actions/runs/32413926040/job/96570580729)
   passed in 7 seconds.
 
+The evidence-only head `d14aeccade2f6862bd57666e6cde2467f5ba0ed0` then exposed a Windows-only
+process-test race: the test observed the readiness path before the server closed its writer. That
+[Windows fast run](https://github.com/scwlkr/balls/actions/runs/32414273249/job/96571702114)
+failed honestly; Ubuntu fast, CodeQL C#, and dependency review passed. The readiness endpoint is now
+written to a same-directory temporary file and atomically published only after close. The replacement
+head receives the complete protected checks before squash merge.
+
 There were no review comments, change requests, merge conflicts, dependency findings, or CodeQL
-findings. The evidence-only final head receives the same protected checks before squash merge.
+findings at the time of this correction.
 
 ## Boundaries
 
