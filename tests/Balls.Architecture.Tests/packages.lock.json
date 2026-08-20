@@ -214,6 +214,7 @@
           "Balls.Platform": "[0.2.0-alpha.1, )",
           "Balls.Protocol": "[0.2.0-alpha.1, )",
           "Balls.Storage.Sqlite": "[0.2.0-alpha.1, )",
+          "Balls.Transport.Lan": "[0.2.0-alpha.1, )",
           "Microsoft.AspNetCore.OpenApi": "[10.0.11, )"
         }
       },
