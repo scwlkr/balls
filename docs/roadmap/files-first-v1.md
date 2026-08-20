@@ -51,8 +51,9 @@ cross-platform; the UI does not create a second product implementation.
 6. [#22 prove the Windows/Ubuntu outcome and runnable Canaries](https://github.com/scwlkr/balls/issues/22);
 7. [#23 verify and accept the milestone](https://github.com/scwlkr/balls/issues/23).
 
-#17–#22 delivered the executable product and cross-platform proof. #23 is the owner-authorized
-release verification and exact-artifact promotion gate.
+#17–#23 are closed with hosted evidence. The owner accepted exact protected-main commit
+`3935b6ac275b24c8ed2389862b012da747099f34`; its annotated tag, seven public prerelease assets,
+checksums, installers, and SPDX SBOM were verified through unauthenticated downloads.
 
 **Exit evidence:** Windows host and Ubuntu VM independently persist Node identity and pass the same
 CLI/API acceptance flow; the browser opens through `balls ui`; no non-loopback browser listener;

@@ -32,9 +32,8 @@ Balls should first feel exceptional for **2–10 trusted, somewhat technical peo
 
 ## Current status
 
-**[`0.1.0-alpha.2`](https://github.com/scwlkr/balls/releases/tag/0.1.0-alpha.2) Open and Fast
-Foundation is published; `0.2.0-alpha.1` Cross-platform Node and Web UI is an owner-authorized
-release candidate awaiting exact merged-artifact promotion.**
+**[`0.2.0-alpha.1`](https://github.com/scwlkr/balls/releases/tag/0.2.0-alpha.1)
+Cross-platform Node and Web UI is published. Trusted Circle is the active milestone.**
 
 On Windows and Linux, `ballsd` now owns persistent local Node and Circle state, and `balls` can
 create a Circle and list its Circles, Members, and Nodes through a versioned HTTP/JSON API over
@@ -46,13 +45,12 @@ then a cross-platform daemon/CLI/browser foundation, trusted join, LAN Circle Fi
 remote Files, a company Beta, and a focused v1.0. See the compact [`roadmap`](ROADMAP.md), detailed
 [`files-first program`](docs/roadmap/files-first-v1.md), and [`current state`](docs/STATE.md).
 
-The candidate has platform-neutral host composition, protected native Linux state/IPC, stable
+The published Alpha has platform-neutral host composition, protected native Linux state/IPC, stable
 machine-readable CLI output, and one typed React workspace generated from local-control v1.
 `balls ui` opens that offline bundle through a hardened loopback-only adapter, where the user can
 inspect the Node and create or revisit Circles, Members, and Nodes. Issue
-[#23](https://github.com/scwlkr/balls/issues/23) is promoting only the exact protected-main
-artifacts after final verification; [#33](https://github.com/scwlkr/balls/issues/33) is the first
-prepared Trusted Circle issue.
+[#33](https://github.com/scwlkr/balls/issues/33) is the active Trusted Circle frontier for Circle
+identity, admission, and remote-protocol security.
 
 ## Quick start
 
@@ -111,6 +109,11 @@ bash ./Install-BallsCanary.sh \
 The installer verifies both checksum layers and uses the dedicated
 `%LOCALAPPDATA%\Balls-Canary\state` directory. Canary artifacts expire after 14 days. They are not
 GitHub Releases, tags, stable installers, signed binaries, or support claims.
+
+The accepted `0.2.0-alpha.1` archives, checksum files, installers, and SPDX SBOM are retained on
+the [public prerelease](https://github.com/scwlkr/balls/releases/tag/0.2.0-alpha.1). These Alpha
+binaries are unsigned; managed Windows Application Control may require an administrator-approved
+signing or allow policy.
 
 ## Contributing and security
 

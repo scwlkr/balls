@@ -149,10 +149,16 @@ daemon, and verify stable Node/Circle identifiers. These 14-day artifacts are no
 or GitHub Releases. Use the [cross-platform lab](cross-platform-lab.md) for the dedicated Ubuntu VM
 identity/reset procedure.
 
+Accepted Alpha assets are retained on the
+[`0.2.0-alpha.1` public prerelease](https://github.com/scwlkr/balls/releases/tag/0.2.0-alpha.1).
+They are unsigned development binaries. Managed Windows Application Control can reject them unless
+an administrator approves the publisher or an appropriate allow policy; do not weaken a machine's
+security policy merely to run a Canary.
+
 ## Versioning
 
 Balls uses Semantic Versioning for product binaries. The shared version lives in
-[`Directory.Build.props`](../Directory.Build.props); this release candidate is `0.2.0-alpha.1`. Keep
+[`Directory.Build.props`](../Directory.Build.props); the current prerelease is `0.2.0-alpha.1`. Keep
 `balls` and `ballsd` on the same product version. Local-control path versions, protocol versions,
 and SQLite `user_version` are separate compatibility axes and change only when their own contract
 requires it. Do not tag a release until its milestone evidence is accepted.
