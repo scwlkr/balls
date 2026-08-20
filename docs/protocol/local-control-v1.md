@@ -54,7 +54,7 @@ options remain after their command operands. Unsupported output modes, duplicate
 values, and misplaced options return usage exit code `2` without contacting `ballsd`.
 
 Text is the default and is intended for people. `--output json` is supported for `status`,
-`circle create`, `circle list`, `member list`, `node list`, `invitation create`, and
+`circle create`, `circle join`, `circle list`, `member list`, `node list`, `invitation create`, and
 `invitation redeem`. A successful JSON document is one line on standard output:
 
 ```json
@@ -112,10 +112,11 @@ material. Selecting JSON output for this interactive command is a usage error.
 | Circle Node | `id` (UUID), `displayName`, `joinedAtUtc` |
 | Circle details | `circle` (Circle summary), `members` (Member array), `nodes` (Circle Node array) |
 | Issued invitation | `circleId`, `invitationId`, `expiresAtUtc`, `package` (canonical JSON string) |
+| Join request | `package`, `endpoint` (numeric private/loopback IP and port), `memberDisplayName` |
 | Redemption | `circleId`, `invitationId`, `redemptionId`, `status` (`accepted`) |
 | Error | `code`, `message` |
 
-The only v1 Member role is the string `owner`.
+The v1 Member roles are `owner` and `member`.
 
 ## Endpoints
 
@@ -164,6 +165,20 @@ Creates a canonical single-use Circle invitation. The request is
 most 16 KiB and contains only public signed authority/context. The CLI prints that string for
 direct copy or writes it with `--out <path>` using create-new semantics so existing files are not
 overwritten.
+
+### `POST /control/v1/circles/join`
+
+Accepts the exact invitation package, an explicit numeric private/loopback `endpoint`, and the new
+Member display name. `ballsd` connects through `lan-tcp-v1`, pins the invitation's Anchor transport
+SPKI in TLS 1.3, presents the applicant's proposed transport proof, dual-signs the admission with
+the retry-stable Member and local Node keys, validates the Anchor-signed response, and atomically
+persists the returned Circle roster. Success returns `200 OK` with Circle details. The equivalent
+CLI command is `balls circle join --file <path> --endpoint <ip:port> --member <name>`.
+
+An exact completed retry returns the already persisted Circle without a network mutation.
+Conflicting local reuse returns `409`; malformed, forged, unauthorized, revoked, stale,
+wrong-Circle/Node, expired, replayed, and downgraded exchanges return bounded typed errors. Network
+or authenticated-channel failure returns `502` without reflecting invitation or credential data.
 
 ### `POST /control/v1/invitations/redeem`
 
@@ -229,17 +244,20 @@ Handled application errors use this shape:
 | 400 | `owner_display_name_required` |
 | 400 | `owner_display_name_too_long` |
 | 400 | `invalid_circle_id` |
-| 400 | `invalid_invitation_validity`, `malformed`, `forged`, `expired`, `not_yet_valid`, `revoked`, `wrong_circle`, `unsupported_version`, `unsupported_suite`, `unauthorized_issuer`, `stale_authority_state` |
+| 400 | `invalid_invitation_validity`, `invalid_admission_endpoint`, `member_display_name`, `malformed`, `forged`, `expired`, `not_yet_valid`, `revoked`, `wrong_circle`, `wrong_node`, `downgraded`, `unsupported_version`, `unsupported_suite`, `unauthorized_issuer`, `stale_authority_state` |
 | 404 | `circle_not_found` |
 | 404 | `invitation_not_found` |
 | 409 | `creation_request_conflict` |
+| 409 | `admission_attempt_conflict` |
 | 409 | `replayed` |
+| 502 | `connection_failed`, authenticated remote-channel errors |
 
 Framework-level rejection, such as malformed JSON or a request rejected before endpoint handling,
 is not guaranteed to use the application error shape.
 
 ## Explicit non-goals
 
-v1 does not expose invitation UX to the browser and does not define remote admission transport,
-remote Node authentication, discovery, synchronization, messaging, files, AI, apps, or
-transport-provider behavior.
+v1 does not expose invitation/join UX to the browser and does not define discovery,
+synchronization, messaging, files, AI, apps, automatic Anchor failover, or multiple-Anchor
+behavior. The browser remains read-only for joined membership through its existing Circle details
+projection.

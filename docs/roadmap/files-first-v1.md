@@ -78,9 +78,10 @@ authorization, and the remote Circle protocol are separate from transport.
 7. [#34 verify and accept the Trusted Circle milestone](https://github.com/scwlkr/balls/issues/34).
 
 #33 selected the remote v1 identity, signed-admission, TLS, provider, recovery, and revocation
-boundaries with executable Windows/Linux-ready contracts. #35 protected production authority and
-#36 added direct canonical single-use invitation issue/redemption. #37 is the next implementation
-frontier; #38–#39 and #34 remain blocked by their explicit issue dependencies.
+boundaries with executable Windows/Linux-ready contracts. #35 protected production authority,
+#36 added direct canonical single-use invitations, #37 authenticated LAN transport, and #38
+persisted one signed two-Node roster through the daemon/API/CLI. #39 is the next implementation
+frontier; #34 remains blocked by its explicit issue dependency.
 
 **Exit evidence:** Windows host and Ubuntu VM join the same Circle, reject forged/expired/replayed
 admission, restart with stable identities, and exchange the same persisted message.

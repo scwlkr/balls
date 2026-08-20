@@ -29,8 +29,9 @@ the SPDX 2.3 SBOM passed unauthenticated readback.
 
 [Open the active GitHub milestone](https://github.com/scwlkr/balls/milestone/3).
 
-Status: trusted identity/admission design, protected authority persistence, bounded single-use
-invitations, and authenticated LAN transport complete; persisted admission is next.
+Status: trusted identity/admission design, protected authority, bounded invitations, authenticated
+LAN transport, and restart-stable two-Node membership complete; persistent Circle messaging is
+next.
 
 Exit outcome: a second Node accepts a bounded invitation, joins one Circle over authenticated
 encrypted transport, sees the same membership, restarts with stable identity, and exchanges one
@@ -126,6 +127,7 @@ Completed Trusted Circle foundation:
 - [#35 — Persist and protect cryptographic Node and Circle authority](https://github.com/scwlkr/balls/issues/35)
 - [#36 — Issue and redeem bounded single-use Circle invitations](https://github.com/scwlkr/balls/issues/36)
 - [#37 — Authenticate and encrypt LAN Node transport](https://github.com/scwlkr/balls/issues/37)
+- [#38 — Admit a second Node and persist shared Circle membership](https://github.com/scwlkr/balls/issues/38)
 
 Remote v1 now has an accepted role-separated P-256 identity model, canonical dual-signed admission
 transcript, deterministic rejection vocabulary, invitation-pinned TLS 1.3 bootstrap, admitted-peer
@@ -158,14 +160,23 @@ cross-host encrypted channel while local-control/browser boundaries remained sep
 is in the
 [`authenticated LAN transport record`](verification/2026-08-20-authenticated-lan-transport.md).
 
+`ballsd` now composes an opt-in numeric private/loopback admission listener. `balls circle join`
+uses the directly exchanged invitation to pin TLS 1.3, proves separate retry-stable Member and
+local Node keys, and validates an Anchor-signed roster with root-signed transport bindings. Schema
+v4 atomically couples invitation consumption to the Member/Node/credential/response commit on the
+Anchor and stores the same public trust and signed receipt on the joiner without transferring
+private Circle authority. Exact retry is stable, conflict/revocation/expiry are typed, security
+audit retention is capped at 512 events per Circle, and CLI/local API/browser projections show the
+same roster after restart. Evidence is in the
+[`persisted Circle admission record`](verification/2026-08-20-persisted-circle-admission.md).
+
 Ready frontier:
 
-- [#38 — Admit a second Node and persist shared Circle membership](https://github.com/scwlkr/balls/issues/38)
+- [#39 — Exchange one persistent Circle message across two Nodes](https://github.com/scwlkr/balls/issues/39)
 
 Blocked later in the active milestone:
 
-- [#39](https://github.com/scwlkr/balls/issues/39) and
-  [#34](https://github.com/scwlkr/balls/issues/34) remain dependency-blocked.
+- [#34](https://github.com/scwlkr/balls/issues/34) remains dependency-blocked.
 
 ## Working rules
 
