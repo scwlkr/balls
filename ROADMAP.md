@@ -11,10 +11,10 @@ Future milestones describe outcomes, not promises that every detail is already d
 
 ## Current checkpoint
 
-[`0.1.0-alpha.2`](https://github.com/scwlkr/balls/releases/tag/0.1.0-alpha.2) is published. Its
-Windows product behavior remains the `0.1.0-alpha.1` Circle/Node checkpoint; the release adds the
-public, fast, protected, reproducible delivery foundation around it. Phase 1 is not complete: secure
-admission, Node-to-Node communication, Unix runtime support, and persistent Circle communication
+[`0.1.0-alpha.2`](https://github.com/scwlkr/balls/releases/tag/0.1.0-alpha.2) is published.
+`0.2.0-alpha.1` is an owner-authorized release candidate: the same native daemon, structured CLI,
+protected state, local IPC, and hardened React workspace run on Windows and Linux. Phase 1 is not
+complete: secure admission, Node-to-Node communication, and persistent Circle communication
 remain.
 
 ## Files-first path to v1
@@ -22,7 +22,7 @@ remain.
 | Target | Outcome | State |
 | --- | --- | --- |
 | `0.1.0-alpha.2` | **Open and Fast Foundation** — public-readiness, compact agent context, fast test lanes, issue workflow, and canary artifacts | Published |
-| `0.2.0-alpha.1` | **Cross-platform Node and Web UI** — real Windows/Linux daemon and CLI plus the local TypeScript browser shell | Active |
+| `0.2.0-alpha.1` | **Cross-platform Node and Web UI** — real Windows/Linux daemon and CLI plus the local TypeScript browser shell | Release candidate |
 | `0.3.0-alpha.1` | **Trusted Circle** — invitation, authenticated membership/transport, two virtual Nodes, and one minimal persistent message | Planned |
 | `0.4.0-alpha.1` | **LAN Circle Files** — secure contributed Windows folder mapped in Explorer for two Members | Planned |
 | `0.5.0-alpha.1` | **Operable Remote Files** — Tailscale path, existing-folder adoption, repair, revocation, installer, and updates | Planned |

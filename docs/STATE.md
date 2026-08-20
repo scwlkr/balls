@@ -36,6 +36,9 @@ CLI, local-control v1, and SQLite v1 behavior as Windows.
 
 [Open the active GitHub milestone](https://github.com/scwlkr/balls/milestone/2).
 
+Status: release-candidate verification. The owner authorized exact-artifact promotion after the
+candidate branch lands through protected `main`; no rebuild is permitted for publication.
+
 Exit outcome: the same CLI and local browser experience controls a real Node on Windows and Linux;
 platform composition, protected state, and local IPC are genuinely cross-platform; green `main`
 publishes runnable Windows and Linux Canaries.
@@ -121,8 +124,22 @@ Hyper-V lab proved explicit clean identity, enrollment, and gated reset without 
 resources. Exact artifacts and the honest physical/virtual boundary are recorded in the
 [cross-platform Node/UI record](verification/2026-08-20-cross-platform-node-ui.md).
 
-#23 is the remaining milestone verification and explicit owner-acceptance gate. Alpha publication
-is a separate owner-gated action.
+#23 is reconciling the release candidate, remeasuring feedback budgets, validating the exact
+protected-main artifacts, and publishing only those artifacts under the owner's explicit
+authorization. The candidate evidence is recorded in the
+[milestone record](verification/2026-08-20-cross-platform-node-web-ui.md).
+
+Prepared next milestone:
+
+- **`0.3.0-alpha.1` — Trusted Circle** has seven executable issues.
+- [#33 — Decide Circle identity, admission, and remote protocol security](https://github.com/scwlkr/balls/issues/33)
+  is its single ready frontier.
+- [#35](https://github.com/scwlkr/balls/issues/35),
+  [#36](https://github.com/scwlkr/balls/issues/36),
+  [#37](https://github.com/scwlkr/balls/issues/37),
+  [#38](https://github.com/scwlkr/balls/issues/38),
+  [#39](https://github.com/scwlkr/balls/issues/39), and
+  [#34](https://github.com/scwlkr/balls/issues/34) remain dependency-blocked.
 
 ## Working rules
 

@@ -42,6 +42,11 @@ Do not reinterpret Balls as merely a server manager, file-sharing utility, homel
 Discord clone, or self-hosted Google Workspace clone. Those can be pieces of the system; the
 product is the Circle.
 
+## Visual direction
+
+Before designing or changing product UI, inspect [`balls-brand.png`](balls-brand.png) and use it
+as the visual reference.
+
 ## Architecture discipline
 
 Prefer:

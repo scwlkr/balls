@@ -1,6 +1,6 @@
 # Threat Model Starter
 
-**Status:** Windows/Linux local Node baseline, 2026-08-19. Review before any remote listener, invitation,
+**Status:** Windows/Linux local Node baseline, 2026-08-20. Review before any remote listener, invitation,
 Node-to-Node transport, or credential storage is added.
 
 ## Scope

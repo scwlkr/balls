@@ -57,9 +57,9 @@
       "balls.host": {
         "type": "Project",
         "dependencies": {
-          "Balls.Platform": "[0.1.0-alpha.2, )",
-          "Balls.Platform.Linux": "[0.1.0-alpha.2, )",
-          "Balls.Platform.Windows": "[0.1.0-alpha.2, )"
+          "Balls.Platform": "[0.2.0-alpha.1, )",
+          "Balls.Platform.Linux": "[0.2.0-alpha.1, )",
+          "Balls.Platform.Windows": "[0.2.0-alpha.1, )"
         }
       },
       "balls.platform": {
@@ -68,13 +68,13 @@
       "balls.platform.linux": {
         "type": "Project",
         "dependencies": {
-          "Balls.Platform": "[0.1.0-alpha.2, )"
+          "Balls.Platform": "[0.2.0-alpha.1, )"
         }
       },
       "balls.platform.windows": {
         "type": "Project",
         "dependencies": {
-          "Balls.Platform": "[0.1.0-alpha.2, )"
+          "Balls.Platform": "[0.2.0-alpha.1, )"
         }
       },
       "balls.protocol": {
@@ -83,7 +83,7 @@
       "balls.storage.sqlite": {
         "type": "Project",
         "dependencies": {
-          "Balls.Core": "[0.1.0-alpha.2, )",
+          "Balls.Core": "[0.2.0-alpha.1, )",
           "Microsoft.Data.Sqlite": "[10.0.11, )"
         }
       },
