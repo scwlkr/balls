@@ -129,8 +129,8 @@ jobs:
     name: Windows Canary
     needs: required
     if: >-
-      github.event_name == 'push' &&
-      github.ref == 'refs/heads/main' &&
+      (github.event_name == 'workflow_dispatch' ||
+      (github.event_name == 'push' && github.ref == 'refs/heads/main')) &&
       needs.required.result == 'success'
     runs-on: windows-2025
     timeout-minutes: 15
@@ -147,6 +147,19 @@ jobs:
           global-json-file: global.json
           cache: true
           cache-dependency-path: '**/packages.lock.json'
+
+      - name: Install Node.js
+        uses: actions/setup-node@2028fbc5c25fe9cf00d9f06a71cc4710d4507903 # v6.0.0
+        with:
+          node-version-file: .node-version
+
+      - name: Enable pinned pnpm
+        shell: pwsh
+        run: corepack enable
+
+      - name: Install browser dependencies
+        shell: pwsh
+        run: pnpm install --frozen-lockfile
 
       - name: Build and package Windows Canary once
         id: package
@@ -203,8 +216,8 @@ jobs:
     name: Linux Canary
     needs: required
     if: >-
-      github.event_name == 'push' &&
-      github.ref == 'refs/heads/main' &&
+      (github.event_name == 'workflow_dispatch' ||
+      (github.event_name == 'push' && github.ref == 'refs/heads/main')) &&
       needs.required.result == 'success'
     runs-on: ubuntu-24.04
     timeout-minutes: 15
@@ -221,6 +234,19 @@ jobs:
           global-json-file: global.json
           cache: true
           cache-dependency-path: '**/packages.lock.json'
+
+      - name: Install Node.js
+        uses: actions/setup-node@2028fbc5c25fe9cf00d9f06a71cc4710d4507903 # v6.0.0
+        with:
+          node-version-file: .node-version
+
+      - name: Enable pinned pnpm
+        shell: bash
+        run: corepack enable
+
+      - name: Install browser dependencies
+        shell: bash
+        run: pnpm install --frozen-lockfile
 
       - name: Build and package Linux Canary once
         id: package
@@ -254,7 +280,10 @@ jobs:
           set -euo pipefail
           output_directory="$RUNNER_TEMP/balls-canary/output"
           archive="$(find "$output_directory" -maxdepth 1 -name '*.zip' -type f -print -quit)"
-          bash ./eng/canary/Test-LinuxCanary.sh "$archive" "$archive.sha256"
+          bash ./eng/canary/Test-LinuxCanary.sh \
+            "$archive" \
+            "$archive.sha256" \
+            "$output_directory/Install-BallsCanary.sh"
 
       - name: Upload Linux Canary
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1

@@ -103,9 +103,9 @@ The generated client is committed at `web/Balls.Web/src/api/generated`. Update i
 ## Download and run a Windows Canary
 
 The CI workflow starts its Canary jobs only after the required Windows and Ubuntu lanes succeed for
-a `main` push. It checks out that exact accepted commit, builds each platform package once, and
-retains the results for 14 days. Pull-request runs skip publication. Artifact names have this
-deterministic shape:
+a `main` push or an explicit branch `workflow_dispatch`. It checks out that exact commit, builds
+each platform package once, and retains the results for 14 days. Ordinary pull-request runs skip
+Canaries. Artifact names have this deterministic shape:
 
 ```text
 balls-<version>-canary-<windows|linux>-x64-<12-character-commit>
@@ -129,9 +129,25 @@ Stop-Process -Id ([int](Get-Content (Join-Path $canaryRoot 'ballsd.pid') -Raw))
 Remove-Item -LiteralPath (Join-Path $canaryRoot 'ballsd.pid')
 ```
 
-The Linux Canary is a runnable development artifact. Its manifest records runtime support, and CI
-smokes the packaged daemon and CLI over a fresh Unix-domain socket before upload. It is not a
-stable installer or release.
+The Linux Canary is a runnable development artifact. Download and extract its workflow artifact,
+then install it with the included checksum-verifying command:
+
+```bash
+bash ./Install-BallsCanary.sh \
+  ./balls-*-canary-linux-x64-*.zip \
+  ./balls-*-canary-linux-x64-*.zip.sha256
+```
+
+The Linux guest needs the ASP.NET Core 10 runtime and `unzip`. The default install, state, and
+runtime stay below protected `$HOME/.balls-canary`; an explicit `$XDG_DATA_HOME` or
+`$XDG_RUNTIME_DIR` is honored. The same-user control socket never falls back directly below the
+system temporary directory.
+
+Both platform jobs smoke the packaged daemon and CLI from fresh state, create and list a Circle,
+render the live workspace in Chrome/Chromium, require loopback-only browser listeners, restart the
+daemon, and verify stable Node/Circle identifiers. These 14-day artifacts are not stable installers
+or GitHub Releases. Use the [cross-platform lab](cross-platform-lab.md) for the dedicated Ubuntu VM
+identity/reset procedure.
 
 ## Versioning
 

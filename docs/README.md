@@ -7,6 +7,7 @@ Use this directory for ADRs, threat models, protocol specifications, milestone d
 - [`STATE.md`](STATE.md) — compact current checkpoint, active milestone, and continuation route.
 - [`development.md`](development.md) — locked build/test commands, local run instructions, state-directory safety, and exit codes.
 - [`development-process.md`](development-process.md) — ticket flow, feedback loops, virtual lab, release channels, and public-source gate.
+- [`cross-platform-lab.md`](cross-platform-lab.md) — namespaced Hyper-V/WSL lab creation, clean identity checkpoint, reset, package proof, and cleanup.
 
 ## Roadmap
 
@@ -43,3 +44,4 @@ Use this directory for ADRs, threat models, protocol specifications, milestone d
 - [`verification/2026-08-19-security-automation.md`](verification/2026-08-19-security-automation.md) — dependency review, CodeQL, Scorecard, action policy, and fork boundary.
 - [`verification/2026-08-19-open-fast-foundation.md`](verification/2026-08-19-open-fast-foundation.md) — final feedback budgets, exact-artifact checks, repository state, and owner acceptance gate.
 - [`verification/2026-08-19-browser-ui.md`](verification/2026-08-19-browser-ui.md) — hardened loopback boundary, live browser workspace, and Chromium evidence.
+- [`verification/2026-08-20-cross-platform-node-ui.md`](verification/2026-08-20-cross-platform-node-ui.md) — exact Windows/Linux Canary artifacts, physical Windows and Ubuntu VM browser proof, and clean identity reset.

@@ -1,6 +1,6 @@
 # Current State
 
-**Updated:** 2026-08-19
+**Updated:** 2026-08-20
 
 This is the compact entry point for a coding agent. GitHub Issues are the execution authority;
 [`ROADMAP.md`](../ROADMAP.md) is the outcome index; detailed design and contract documents are
@@ -85,7 +85,7 @@ readback, and next executable milestone are reconciled in the
 
 Ready frontier:
 
-- [#22 — Prove the Windows and Ubuntu Node/UI outcome and publish runnable Canaries](https://github.com/scwlkr/balls/issues/22)
+- [#23 — Verify and accept the Cross-platform Node and Web UI milestone](https://github.com/scwlkr/balls/issues/23)
 
 Completed in the active milestone:
 
@@ -94,6 +94,7 @@ Completed in the active milestone:
 - [#19 — Add stable structured CLI output and dual-platform process acceptance](https://github.com/scwlkr/balls/issues/19)
 - [#20 — Create the typed React workspace and generated local API client](https://github.com/scwlkr/balls/issues/20)
 - [#21 — Serve a hardened local browser UI from ballsd](https://github.com/scwlkr/balls/issues/21)
+- [#22 — Prove the Windows and Ubuntu Node/UI outcome and publish runnable Canaries](https://github.com/scwlkr/balls/issues/22)
 
 The executable layers consume neutral host contracts and one centralized selector. Windows keeps
 its protected state and same-user named pipe; Linux adds owned `0700` state, `0600` known files,
@@ -114,8 +115,14 @@ launch/create/list/restart journey run in focused/fast/full verification and bot
 The implementation and observed security evidence are recorded in the
 [browser UI record](verification/2026-08-19-browser-ui.md).
 
-#22 becomes ready when #21 lands; #23 remains dependency-blocked behind the issue chain recorded
-in its acceptance contract.
+The exact Windows and Linux Canaries now pass checksum installation, structured CLI/Circle work,
+real Chrome rendering, restart-stable identifiers, and loopback-only exposure. A namespaced Ubuntu
+Hyper-V lab proved explicit clean identity, enrollment, and gated reset without touching unrelated
+resources. Exact artifacts and the honest physical/virtual boundary are recorded in the
+[cross-platform Node/UI record](verification/2026-08-20-cross-platform-node-ui.md).
+
+#23 is the remaining milestone verification and explicit owner-acceptance gate. Alpha publication
+is a separate owner-gated action.
 
 ## Working rules
 

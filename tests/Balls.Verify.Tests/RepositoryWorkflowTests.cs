@@ -33,10 +33,12 @@ public sealed partial class RepositoryWorkflowTests
     }
 
     [TestMethod]
-    public void Required_lanes_install_the_pinned_web_toolchain_and_cache_pnpm()
+    public void Build_lanes_install_the_pinned_web_toolchain_and_fast_lanes_cache_pnpm()
     {
-        Assert.AreEqual(2, Regex.Matches(Workflow, "node-version-file: .node-version").Count);
-        Assert.AreEqual(2, Regex.Matches(Workflow, "name: Enable pinned pnpm").Count);
+        Assert.AreEqual(4, Regex.Matches(Workflow, "node-version-file: .node-version").Count);
+        Assert.AreEqual(4, Regex.Matches(Workflow, "name: Enable pinned pnpm").Count);
+        Assert.AreEqual(2, Regex.Matches(Workflow, "name: Install browser dependencies").Count);
+        Assert.AreEqual(2, Regex.Matches(Workflow, "pnpm install --frozen-lockfile").Count);
         Assert.AreEqual(2, Regex.Matches(Workflow, "name: Cache pnpm store").Count);
         Assert.AreEqual(2, Regex.Matches(Workflow, "hashFiles\\('pnpm-lock.yaml'\\)").Count);
         StringAssert.Contains(
@@ -96,16 +98,70 @@ public sealed partial class RepositoryWorkflowTests
     }
 
     [TestMethod]
-    public void Canary_publication_follows_successful_required_main_push()
+    public void Canary_publication_follows_successful_required_push_or_dispatch()
     {
         StringAssert.Contains(Workflow, "windows-canary:");
         StringAssert.Contains(Workflow, "linux-canary:");
+        StringAssert.Contains(Workflow, "Smoke packaged Windows Canary");
         StringAssert.Contains(Workflow, "Smoke packaged Linux Canary");
         StringAssert.Contains(Workflow, "Test-LinuxCanary.sh");
+        StringAssert.Contains(Workflow, "Install-BallsCanary.sh");
         Assert.AreEqual(2, Regex.Matches(Workflow, @"(?m)^    needs: required$").Count);
         Assert.AreEqual(2, Regex.Matches(Workflow, @"github.event_name == 'push'").Count);
+        Assert.AreEqual(2, Regex.Matches(Workflow, @"github.event_name == 'workflow_dispatch'").Count);
         Assert.AreEqual(2, Regex.Matches(Workflow, @"github.ref == 'refs/heads/main'").Count);
         Assert.AreEqual(2, Regex.Matches(Workflow, @"needs.required.result == 'success'").Count);
+
+        var repositoryRoot = FindRepositoryRoot();
+        var windowsSmoke = File.ReadAllText(
+            Path.Combine(repositoryRoot, "eng", "canary", "Test-WindowsCanary.ps1"));
+        var linuxSmoke = File.ReadAllText(
+            Path.Combine(repositoryRoot, "eng", "canary", "Test-LinuxCanary.sh"));
+        var linuxInstaller = File.ReadAllText(
+            Path.Combine(repositoryRoot, "eng", "canary", "Install-BallsCanary.sh"));
+        foreach (var smoke in new[] { windowsSmoke, linuxSmoke })
+        {
+            StringAssert.Contains(smoke, "Canary Circle");
+            StringAssert.Contains(smoke, "browser");
+            StringAssert.Contains(smoke, "status");
+        }
+        StringAssert.Contains(windowsSmoke, "'circle', 'create'");
+        StringAssert.Contains(windowsSmoke, "'circle', 'list'");
+        StringAssert.Contains(linuxSmoke, "circle create");
+        StringAssert.Contains(linuxSmoke, "circle list");
+        StringAssert.Contains(linuxSmoke, "awk '{print $4}'");
+        StringAssert.Contains(linuxSmoke, "127\\\\.0\\\\.0\\\\.1");
+        StringAssert.Contains(linuxInstaller, "$HOME/.balls-canary");
+        StringAssert.Contains(linuxInstaller, "runtime_root=\"$install_root/runtime\"");
+        Assert.IsFalse(linuxInstaller.Contains("/tmp/balls-canary", StringComparison.Ordinal));
+    }
+
+    [TestMethod]
+    public void Lab_harness_namespaces_resources_and_gates_identity_reset_and_cleanup()
+    {
+        var harness = File.ReadAllText(
+            Path.Combine(FindRepositoryRoot(), "eng", "lab", "Invoke-BallsLab.ps1"));
+
+        StringAssert.Contains(harness, "Balls.Lab.Ubuntu");
+        StringAssert.Contains(harness, "Balls.Lab.Clean");
+        StringAssert.Contains(harness, "PrepareImage");
+        StringAssert.Contains(harness, "Assert-CleanIdentity");
+        StringAssert.Contains(harness, "ConfirmReset");
+        StringAssert.Contains(harness, "ConfirmCleanup");
+        StringAssert.Contains(harness, "cloud-images.ubuntu.com");
+        StringAssert.Contains(harness, "Refusing to adopt");
+        StringAssert.Contains(harness, "QemuImgWslPath");
+        StringAssert.Contains(harness, "subformat=dynamic");
+        StringAssert.Contains(harness, "$minimumOsDiskSize = 16GB");
+        StringAssert.Contains(harness, "Resize-VHD -Path $baseVhdPath");
+        StringAssert.Contains(harness, "Generation = 2");
+        StringAssert.Contains(harness, "EnableSecureBoot Off");
+        StringAssert.Contains(harness, "AutomaticCheckpointsEnabled $false");
+        StringAssert.Contains(harness, "aspnetcore-runtime-10.0");
+        StringAssert.Contains(harness, "  - unzip");
+        StringAssert.Contains(harness, "$HOME/.local/share/Balls-Canary");
+        StringAssert.Contains(harness, "$HOME/.balls-canary");
+        StringAssert.Contains(harness, "within 30 minutes");
     }
 
     [TestMethod]

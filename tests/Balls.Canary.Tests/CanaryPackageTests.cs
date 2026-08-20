@@ -107,13 +107,15 @@ public sealed class CanaryPackageTests
         Assert.AreEqual(
             "balls-0.1.0-alpha.1-canary-linux-x64-0123456789ab",
             result.ArtifactName);
-        Assert.IsNull(result.InstallerPath);
+        Assert.IsTrue(File.Exists(result.InstallerPath));
         using var archive = ZipFile.OpenRead(result.ArchivePath);
+        Assert.IsNotNull(archive.GetEntry("Install-BallsCanary.sh"));
         using var manifest = ReadJson(archive, "canary.json");
         Assert.IsTrue(manifest.RootElement.GetProperty("runtimeSupported").GetBoolean());
         var readme = ReadText(archive, "README.md");
         StringAssert.Contains(readme, "Balls Linux Canary");
         StringAssert.Contains(readme, "Unix-domain socket");
+        StringAssert.Contains(readme, "bash ./Install-BallsCanary.sh");
         AssertInternalChecksums(archive);
     }
 
@@ -175,6 +177,9 @@ public sealed class CanaryPackageTests
             File.WriteAllText(
                 Path.Combine(RepositoryRoot, "eng", "canary", "Install-BallsCanary.ps1"),
                 "# test installer");
+            File.WriteAllText(
+                Path.Combine(RepositoryRoot, "eng", "canary", "Install-BallsCanary.sh"),
+                "#!/usr/bin/env bash");
             File.WriteAllText(Path.Combine(CliDirectory, cliFileName), "cli");
             File.WriteAllText(Path.Combine(DaemonDirectory, daemonFileName), "daemon");
         }

@@ -51,8 +51,8 @@ cross-platform; the UI does not create a second product implementation.
 6. [#22 prove the Windows/Ubuntu outcome and runnable Canaries](https://github.com/scwlkr/balls/issues/22);
 7. [#23 verify and accept the milestone](https://github.com/scwlkr/balls/issues/23).
 
-#17 is the ready frontier. Later issues form the dependency chain recorded in their acceptance
-contracts.
+#17–#22 deliver the executable product and cross-platform proof. #23 is the remaining milestone
+verification and owner-acceptance gate.
 
 **Exit evidence:** Windows host and Ubuntu VM independently persist Node identity and pass the same
 CLI/API acceptance flow; the browser opens through `balls ui`; no non-loopback browser listener;

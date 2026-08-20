@@ -49,7 +49,8 @@ The active milestone has platform-neutral host composition, protected native Lin
 stable machine-readable CLI output, and one typed React workspace generated from local-control v1.
 `balls ui` now opens that offline bundle through a hardened loopback-only adapter, where the user
 can inspect the Node and create or revisit Circles, Members, and Nodes. Issue
-[#22](https://github.com/scwlkr/balls/issues/22) is the next frontier after this delivery lands.
+[#23](https://github.com/scwlkr/balls/issues/23) is the milestone verification and acceptance
+frontier after the Windows/Ubuntu Canary proof lands.
 
 ## Quick start
 
@@ -94,6 +95,15 @@ the downloaded Windows workflow artifact, install and start it with one command:
 
 ```powershell
 pwsh -File .\Install-BallsCanary.ps1 -PackagePath .\balls-*-canary-windows-x64-*.zip
+```
+
+On Ubuntu with the ASP.NET Core 10 runtime and `unzip`, the extracted Linux artifact uses the
+same checksum-verifying one-command flow:
+
+```bash
+bash ./Install-BallsCanary.sh \
+  ./balls-*-canary-linux-x64-*.zip \
+  ./balls-*-canary-linux-x64-*.zip.sha256
 ```
 
 The installer verifies both checksum layers and uses the dedicated
