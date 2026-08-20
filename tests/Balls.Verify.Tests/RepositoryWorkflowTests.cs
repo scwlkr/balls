@@ -117,6 +117,8 @@ public sealed partial class RepositoryWorkflowTests
             Path.Combine(repositoryRoot, "eng", "canary", "Test-WindowsCanary.ps1"));
         var linuxSmoke = File.ReadAllText(
             Path.Combine(repositoryRoot, "eng", "canary", "Test-LinuxCanary.sh"));
+        var linuxInstaller = File.ReadAllText(
+            Path.Combine(repositoryRoot, "eng", "canary", "Install-BallsCanary.sh"));
         foreach (var smoke in new[] { windowsSmoke, linuxSmoke })
         {
             StringAssert.Contains(smoke, "Canary Circle");
@@ -129,6 +131,9 @@ public sealed partial class RepositoryWorkflowTests
         StringAssert.Contains(linuxSmoke, "circle list");
         StringAssert.Contains(linuxSmoke, "awk '{print $4}'");
         StringAssert.Contains(linuxSmoke, "127\\\\.0\\\\.0\\\\.1");
+        StringAssert.Contains(linuxInstaller, "$HOME/.balls-canary");
+        StringAssert.Contains(linuxInstaller, "runtime_root=\"$install_root/runtime\"");
+        Assert.IsFalse(linuxInstaller.Contains("/tmp/balls-canary", StringComparison.Ordinal));
     }
 
     [TestMethod]
@@ -152,6 +157,10 @@ public sealed partial class RepositoryWorkflowTests
         StringAssert.Contains(harness, "Generation = 2");
         StringAssert.Contains(harness, "EnableSecureBoot Off");
         StringAssert.Contains(harness, "AutomaticCheckpointsEnabled $false");
+        StringAssert.Contains(harness, "aspnetcore-runtime-10.0");
+        StringAssert.Contains(harness, "  - unzip");
+        StringAssert.Contains(harness, "$HOME/.local/share/Balls-Canary");
+        StringAssert.Contains(harness, "$HOME/.balls-canary");
         StringAssert.Contains(harness, "within 30 minutes");
     }
 

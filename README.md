@@ -96,6 +96,15 @@ the downloaded Windows workflow artifact, install and start it with one command:
 pwsh -File .\Install-BallsCanary.ps1 -PackagePath .\balls-*-canary-windows-x64-*.zip
 ```
 
+On Ubuntu with the ASP.NET Core 10 runtime and `unzip`, the extracted Linux artifact uses the
+same checksum-verifying one-command flow:
+
+```bash
+bash ./Install-BallsCanary.sh \
+  ./balls-*-canary-linux-x64-*.zip \
+  ./balls-*-canary-linux-x64-*.zip.sha256
+```
+
 The installer verifies both checksum layers and uses the dedicated
 `%LOCALAPPDATA%\Balls-Canary\state` directory. Canary artifacts expire after 14 days. They are not
 GitHub Releases, tags, stable installers, signed binaries, or support claims.

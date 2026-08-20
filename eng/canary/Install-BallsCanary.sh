@@ -13,8 +13,20 @@ fi
 umask 077
 package_path="$(realpath "$1")"
 checksum_path="$(realpath "${2:-$package_path.sha256}")"
-install_root="$(realpath -m "${3:-${XDG_DATA_HOME:-$HOME/.local/share}/Balls-Canary}")"
-runtime_root="$(realpath -m "${4:-${XDG_RUNTIME_DIR:-/tmp/balls-canary-$UID}/Balls-Canary}")"
+if [[ -n "${3:-}" ]]; then
+  install_root="$(realpath -m "$3")"
+elif [[ -n "${XDG_DATA_HOME:-}" ]]; then
+  install_root="$(realpath -m "$XDG_DATA_HOME/Balls-Canary")"
+else
+  install_root="$(realpath -m "$HOME/.balls-canary")"
+fi
+if [[ -n "${4:-}" ]]; then
+  runtime_root="$(realpath -m "$4")"
+elif [[ -n "${XDG_RUNTIME_DIR:-}" ]]; then
+  runtime_root="$(realpath -m "$XDG_RUNTIME_DIR/Balls-Canary")"
+else
+  runtime_root="$install_root/runtime"
+fi
 node_name="${5:-$(hostname)}"
 temporary_root="$(mktemp -d)"
 daemon_pid=""

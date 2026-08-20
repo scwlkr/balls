@@ -138,6 +138,11 @@ bash ./Install-BallsCanary.sh \
   ./balls-*-canary-linux-x64-*.zip.sha256
 ```
 
+The Linux guest needs the ASP.NET Core 10 runtime and `unzip`. The default install, state, and
+runtime stay below protected `$HOME/.balls-canary`; an explicit `$XDG_DATA_HOME` or
+`$XDG_RUNTIME_DIR` is honored. The same-user control socket never falls back directly below the
+system temporary directory.
+
 Both platform jobs smoke the packaged daemon and CLI from fresh state, create and list a Circle,
 render the live workspace in Chrome/Chromium, require loopback-only browser listeners, restart the
 daemon, and verify stable Node/Circle identifiers. These 14-day artifacts are not stable installers

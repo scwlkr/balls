@@ -68,9 +68,12 @@ memory, one copied dynamic 16 GB OS disk, and one generated `CIDATA` ISO. Cloud-
 action does not succeed until SSH, the marker, and all three clean-identity checks pass:
 
 Automatic Hyper-V checkpoints are disabled so the only restorable identity boundary is the
-explicit `Balls.Lab.Clean` checkpoint.
+explicit `Balls.Lab.Clean` checkpoint. Cloud-init installs Ubuntu's `aspnetcore-runtime-10.0`
+and `unzip` packages required by the framework-dependent Canary and checksum installer.
 
 - no `$HOME/.local/state/balls`;
+- no `$HOME/.local/share/Balls-Canary` development installation or identity;
+- no `$HOME/.balls-canary` default development installation or identity;
 - no Balls control socket;
 - no running `ballsd`.
 

@@ -229,6 +229,10 @@ hostname: balls-lab-ubuntu
 manage_etc_hosts: true
 ssh_pwauth: false
 disable_root: true
+package_update: true
+packages:
+  - aspnetcore-runtime-10.0
+  - unzip
 users:
   - name: $guestUser
     gecos: Balls Lab
@@ -366,6 +370,8 @@ function Wait-Guest {
 function Assert-CleanIdentity {
     Invoke-Guest @'
 test ! -e "$HOME/.local/state/balls" &&
+test ! -e "$HOME/.local/share/Balls-Canary" &&
+test ! -e "$HOME/.balls-canary" &&
 test ! -e "/run/user/$(id -u)/balls/control.sock" &&
 ! pgrep -x ballsd >/dev/null
 '@ | Out-Null
@@ -447,7 +453,7 @@ function Checkpoint-Lab {
 
 function Show-Identity {
     $machineId = Invoke-Guest 'cat /etc/machine-id'
-    $ballsState = Invoke-Guest 'if test -e "$HOME/.local/state/balls"; then echo enrolled; else echo clean; fi'
+    $ballsState = Invoke-Guest 'if test -e "$HOME/.local/state/balls" || test -e "$HOME/.local/share/Balls-Canary" || test -e "$HOME/.balls-canary"; then echo enrolled; else echo clean; fi'
     Write-Output "VM: $vmName"
     Write-Output "Machine ID: $machineId"
     Write-Output "Balls identity state: $ballsState"
