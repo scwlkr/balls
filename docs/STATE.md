@@ -29,8 +29,8 @@ the SPDX 2.3 SBOM passed unauthenticated readback.
 
 [Open the active GitHub milestone](https://github.com/scwlkr/balls/milestone/3).
 
-Status: trusted identity/admission design, protected authority persistence, and bounded single-use
-invitations complete; authenticated LAN transport is next.
+Status: trusted identity/admission design, protected authority persistence, bounded single-use
+invitations, and authenticated LAN transport complete; persisted admission is next.
 
 Exit outcome: a second Node accepts a bounded invitation, joins one Circle over authenticated
 encrypted transport, sees the same membership, restarts with stable identity, and exchanges one
@@ -125,6 +125,7 @@ Completed Trusted Circle foundation:
 - [#33 — Decide Circle identity, admission, and remote protocol security](https://github.com/scwlkr/balls/issues/33)
 - [#35 — Persist and protect cryptographic Node and Circle authority](https://github.com/scwlkr/balls/issues/35)
 - [#36 — Issue and redeem bounded single-use Circle invitations](https://github.com/scwlkr/balls/issues/36)
+- [#37 — Authenticate and encrypt LAN Node transport](https://github.com/scwlkr/balls/issues/37)
 
 Remote v1 now has an accepted role-separated P-256 identity model, canonical dual-signed admission
 transcript, deterministic rejection vocabulary, invitation-pinned TLS 1.3 bootstrap, admitted-peer
@@ -148,14 +149,22 @@ schema v3. The CLI supports exact copy/file creation and bounded file redemption
 remain deliberately unchanged. Contract, concurrency, and local-control evidence is recorded in
 the [`bounded invitation record`](verification/2026-08-20-bounded-circle-invitations.md).
 
+Remote v1 now validates Circle-root-signed Node/transport bindings, establishes exact TLS 1.3
+mutual authentication with encrypted Circle/peer confirmation, and exchanges replay-aware bounded
+frames over a provider-neutral stream. The first `lan-tcp-v1` provider accepts only numeric
+private/loopback endpoints and never treats network metadata as authority. Separate Windows and
+Linux process tests pass, and the owned Windows-host/Ubuntu-VM private network proved the exact
+cross-host encrypted channel while local-control/browser boundaries remained separate. Evidence
+is in the
+[`authenticated LAN transport record`](verification/2026-08-20-authenticated-lan-transport.md).
+
 Ready frontier:
 
-- [#37 — Authenticate and encrypt LAN Node transport](https://github.com/scwlkr/balls/issues/37)
+- [#38 — Admit a second Node and persist shared Circle membership](https://github.com/scwlkr/balls/issues/38)
 
 Blocked later in the active milestone:
 
-- [#38](https://github.com/scwlkr/balls/issues/38),
-  [#39](https://github.com/scwlkr/balls/issues/39), and
+- [#39](https://github.com/scwlkr/balls/issues/39) and
   [#34](https://github.com/scwlkr/balls/issues/34) remain dependency-blocked.
 
 ## Working rules

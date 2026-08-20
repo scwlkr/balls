@@ -1,7 +1,7 @@
 # Remote Circle Security v1
 
-**Status:** accepted security core and executable spike; no listener, admission mutation, or remote
-application frame ships yet.
+**Status:** authenticated LAN transport implemented; admission mutation and Circle application
+semantics remain later slices.
 
 This contract is the authenticated security core for Node-to-Node Circle behavior. It is separate
 from [`local-control v1`](local-control-v1.md), and it does not trust a LAN, Tailscale, DNS name,
@@ -28,7 +28,8 @@ the stream into an authenticated channel.
 
 The interfaces live under `Balls.Protocol.Remote.V1` so local-control transports and remote
 Circle providers cannot be substituted for each other accidentally. Provider implementations,
-discovery, retries, framing, and a listener are later issues.
+discovery, and retries remain replaceable; v1 now includes bounded framing and one explicit LAN
+provider/listener, while production daemon composition remains later work.
 
 ## Constants
 
@@ -70,8 +71,8 @@ big-endian. Text and bytes are prefixed by an unsigned-shape 32-bit big-endian l
 is non-empty bounded ASCII; timestamps are signed 64-bit UTC Unix seconds. Arrays, maps, floats,
 local times, duplicate fields, and implicit optional values do not occur.
 
-The current spike bounds individual byte strings to 16 KiB and text to 1,024 ASCII characters.
-Production framing will impose a tighter total message limit before allocation and signature work.
+Signed structures bound individual byte strings to 16 KiB and text to 1,024 ASCII characters.
+Authenticated-channel framing applies its own limit before payload allocation.
 
 ### Invitation transcript
 
@@ -109,7 +110,25 @@ Issuance stores the exact package digest and expiry. Redemption first performs p
 Circle, issuer authorization, generation, time, protocol, revocation, and canonical checks, then
 atomically inserts one durable redemption result keyed by invitation ID. Concurrent or later use
 returns `replayed`; digest substitution fails closed. This local application slice prepares the
-operation for the remote transport/admission transaction in #37 and #38.
+operation for the remote admission transaction in #38.
+
+### Node-transport binding transcript
+
+Domain: `balls/trusted-circle/node-transport-binding/v1\0`
+
+Fields in exact order:
+
+1. remote protocol version;
+2. Circle ID and Node ID;
+3. authority generation;
+4. complete transport credential;
+5. not-before and expiry Unix seconds;
+6. minimum and maximum remote-protocol versions.
+
+The Circle root signs the binding with the fixed v1 suite. Validation checks structure, suite,
+authority credential, signature, revocation, authority-generation floor, expected Circle and
+Node, validity, and highest-common-version negotiation in deterministic order. A transport
+certificate is only an X.509 wrapper for the bound SPKI.
 
 ### Admission-request transcript
 
@@ -167,6 +186,51 @@ After admission, connections require a client certificate at handshake start. Ea
 certificate time/use and binds the exact SPKI to an active Circle-signed Node transport credential.
 TLS early data is not used for admission or any durable or authority-bearing mutation.
 
+## Admitted-peer channel
+
+An admitted peer channel is established in this order:
+
+1. the selected provider returns an untrusted duplex stream and diagnostic endpoint metadata;
+2. each side validates its expected peer's Circle-root-signed Node-transport binding;
+3. `SslStream` negotiates exactly TLS 1.3 and `balls-circle/1`, with mutual certificates whose
+   SPKIs exactly match those bindings;
+4. before exposing the channel, both peers exchange a fixed 56-byte encrypted confirmation:
+   `BCH1`, protocol version, Circle UUID, sender Node UUID, and expected peer Node UUID;
+5. any mismatch closes the stream as `authentication_failed`.
+
+The confirmation makes both peers finish explicit Circle/Node authorization and binds their
+opposite expectations inside the live TLS session. Certificate DNS validation remains a wrapper
+integrity check; DNS, IP address, port, interface, and provider label grant no authority.
+
+Application frames use a fixed 28-byte header followed by a bounded payload:
+
+| Offset | Size | Value |
+| --- | ---: | --- |
+| 0 | 4 | ASCII `BRF1` |
+| 4 | 4 | big-endian protocol version |
+| 8 | 16 | big-endian operation UUID |
+| 24 | 4 | big-endian payload length |
+
+Defaults are a 64 KiB payload maximum, 4,096 received operation IDs per channel, a 10-second
+handshake timeout, and a 10-second I/O timeout. The receiver rejects a duplicate operation ID
+within the channel, unsupported version, malformed header, oversized length, operation-count
+exhaustion, timeout, or interrupted frame before returning application data. Durable operations
+must also enforce replay/idempotency at their state transaction; a new TLS session does not erase
+that application responsibility.
+
+## LAN TCP provider
+
+`Balls.Transport.Lan` implements the provider seam as `lan-tcp-v1`. It accepts only numeric
+IPv4/IPv6 loopback, RFC 1918, IPv4 link-local, IPv6 unique-local, or IPv6 link-local unicast
+endpoints. DNS names, wildcard, multicast, public, missing, and out-of-range endpoints reject.
+Connect attempts are bounded and external cancellation remains distinguishable from timeout.
+Listener disposal is idempotent and cancels pending accepts.
+
+The provider never parses, creates, or authorizes a Circle or Node identity. It does not expose
+the local-control named pipe/Unix socket or the loopback browser adapter. The only listener in
+this slice is the explicit remote transport listener used by the process/lab harness; `ballsd`
+does not route local-control or browser operations through it.
+
 ## Validation and rejection
 
 Validation returns one deterministic typed result and performs no state mutation. Checks run in
@@ -223,15 +287,18 @@ must occur before invitation, authority, membership, or message state changes.
 dual-signed admission, highest-common-version selection, and deterministic forged, expired,
 replayed, downgraded, wrong-Circle, and wrong-Node rejection.
 
-`AuthenticatedChannelSpikeTests` exercise the configured policy through a real loopback TLS 1.3
-mutual-auth handshake with exact SPKI and ALPN binding, and prove that admission bootstrap rejects
-a server key not pinned by the invitation. The Windows test loads generated test certificates
-through PKCS#12 because SChannel rejects ephemeral server keys. Production Node/Circle signing
-keys are now persisted through the protected Core-owned storage boundary from #35; remote
-transport-credential issuance and rotation remain part of the admission/transport slices.
+`AuthenticatedChannelSpikeTests` preserve the admission-bootstrap pin and baseline mutual-TLS
+policy. `NodeTransportSecurityTests`, `RemoteAuthenticatedChannelTests`, and
+`RemoteFrameTests` cover signed transport bindings, mutual peer confirmation, replay,
+downgrade, revocation, wrong-Circle/Node, tamper, bounds, timeout, and interruption.
+`Balls.Transport.Lan.Tests` exercises the numeric private-endpoint policy and real loopback TCP
+I/O. `Balls.RemoteHarness.Tests` starts independent server/client processes on Windows and Linux;
+the owned Hyper-V lab additionally runs the Windows client against the Ubuntu server on its
+private switch.
 
 ## Explicit non-goals
 
-No remote listener is opened, hosted control plane selected, authority response committed, remote
-application frame exchanged, membership created, or message stored. Invitation redemption is a
-local durable request/result until the transport and admission slices make the remote protocol live.
+No production daemon listener is opened, hosted control plane selected, authority response
+committed, membership created, or message stored. The transport frame carries opaque test bytes
+only; invitation redemption remains a local durable request/result until admission joins it to
+membership state.

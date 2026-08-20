@@ -200,6 +200,12 @@
           "Microsoft.Data.Sqlite": "[10.0.11, )"
         }
       },
+      "balls.transport.lan": {
+        "type": "Project",
+        "dependencies": {
+          "Balls.Protocol": "[0.2.0-alpha.1, )"
+        }
+      },
       "ballsd": {
         "type": "Project",
         "dependencies": {

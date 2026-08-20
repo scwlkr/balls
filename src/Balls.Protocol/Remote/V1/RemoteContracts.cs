@@ -97,6 +97,62 @@ public sealed record InvitationValidationResult(
         new(false, rejectionCode);
 }
 
+public sealed record NodeTransportBinding(
+    int Version,
+    string CircleId,
+    string NodeId,
+    long AuthorityGeneration,
+    PublicKeyCredential TransportCredential,
+    DateTimeOffset NotBeforeUtc,
+    DateTimeOffset ExpiresAtUtc,
+    int MinimumProtocolVersion,
+    int MaximumProtocolVersion);
+
+public sealed record SignedNodeTransportBinding(
+    NodeTransportBinding Binding,
+    PublicKeyCredential AuthorityCredential,
+    string SignatureSuite,
+    byte[] AuthoritySignature);
+
+public sealed record NodeTransportVerificationContext(
+    string ExpectedCircleId,
+    string ExpectedNodeId,
+    PublicKeyCredential TrustedRootCredential,
+    DateTimeOffset NowUtc,
+    long MinimumAuthorityGeneration,
+    int SupportedMinimumProtocolVersion,
+    int SupportedMaximumProtocolVersion,
+    IReadOnlySet<string> RevokedKeyIds);
+
+public enum NodeTransportRejectionCode
+{
+    None,
+    Malformed,
+    UnsupportedVersion,
+    UnsupportedSuite,
+    UnauthorizedAuthority,
+    Forged,
+    Revoked,
+    StaleAuthorityState,
+    WrongCircle,
+    WrongNode,
+    NotYetValid,
+    Expired,
+    Downgraded,
+}
+
+public sealed record NodeTransportValidationResult(
+    bool IsValid,
+    NodeTransportRejectionCode RejectionCode,
+    int? NegotiatedProtocolVersion)
+{
+    public static NodeTransportValidationResult Valid(int negotiatedProtocolVersion) =>
+        new(true, NodeTransportRejectionCode.None, negotiatedProtocolVersion);
+
+    public static NodeTransportValidationResult Rejected(NodeTransportRejectionCode code) =>
+        new(false, code, null);
+}
+
 public sealed record AdmissionRequest(
     string CircleId,
     string InvitationId,

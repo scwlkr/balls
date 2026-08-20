@@ -13,6 +13,7 @@
     <ProjectReference Include="..\..\src\Balls.Platform.Windows\Balls.Platform.Windows.csproj" />
     <ProjectReference Include="..\..\src\Balls.Protocol\Balls.Protocol.csproj" />
     <ProjectReference Include="..\..\src\Balls.Storage.Sqlite\Balls.Storage.Sqlite.csproj" />
+    <ProjectReference Include="..\..\src\Balls.Transport.Lan\Balls.Transport.Lan.csproj" />
   </ItemGroup>
   <ItemGroup>
     <PackageReference Include="Microsoft.NET.Test.Sdk" />

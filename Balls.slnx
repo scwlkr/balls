@@ -3,6 +3,7 @@
     <Project Path="eng/Balls.BrowserHarness/Balls.BrowserHarness.csproj" />
     <Project Path="eng/Balls.Canary/Balls.Canary.csproj" />
     <Project Path="eng/Balls.Verify/Balls.Verify.csproj" />
+    <Project Path="eng/Balls.RemoteHarness/Balls.RemoteHarness.csproj" />
   </Folder>
   <Folder Name="/src/">
     <Project Path="src/Balls.Cli/Balls.Cli.csproj" />
@@ -16,6 +17,7 @@
     <Project Path="src/Balls.Security.Linux/Balls.Security.Linux.csproj" />
     <Project Path="src/Balls.Security.Windows/Balls.Security.Windows.csproj" />
     <Project Path="src/Balls.Storage.Sqlite/Balls.Storage.Sqlite.csproj" />
+    <Project Path="src/Balls.Transport.Lan/Balls.Transport.Lan.csproj" />
   </Folder>
   <Folder Name="/tests/">
     <Project Path="tests/Balls.Architecture.Tests/Balls.Architecture.Tests.csproj" />
@@ -24,7 +26,9 @@
     <Project Path="tests/Balls.Daemon.Tests/Balls.Daemon.Tests.csproj" />
     <Project Path="tests/Balls.Platform.Linux.Tests/Balls.Platform.Linux.Tests.csproj" />
     <Project Path="tests/Balls.Protocol.Tests/Balls.Protocol.Tests.csproj" />
+    <Project Path="tests/Balls.RemoteHarness.Tests/Balls.RemoteHarness.Tests.csproj" />
     <Project Path="tests/Balls.Storage.Sqlite.Tests/Balls.Storage.Sqlite.Tests.csproj" />
+    <Project Path="tests/Balls.Transport.Lan.Tests/Balls.Transport.Lan.Tests.csproj" />
     <Project Path="tests/Balls.Canary.Tests/Balls.Canary.Tests.csproj" />
     <Project Path="tests/Balls.Verify.Tests/Balls.Verify.Tests.csproj" />
   </Folder>

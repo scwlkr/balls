@@ -68,8 +68,11 @@ memory, one copied dynamic 16 GB OS disk, and one generated `CIDATA` ISO. Cloud-
 action does not succeed until SSH, the marker, and all three clean-identity checks pass:
 
 Automatic Hyper-V checkpoints are disabled so the only restorable identity boundary is the
-explicit `Balls.Lab.Clean` checkpoint. Cloud-init installs Ubuntu's `aspnetcore-runtime-10.0`
-and `unzip` packages required by the framework-dependent Canary and checksum installer.
+explicit `Balls.Lab.Clean` checkpoint. Cloud-init requests Ubuntu's
+`aspnetcore-runtime-10.0` and `unzip` packages required by the framework-dependent Canary and
+checksum installer. Verify `dotnet --info` before relying on that runtime: the 2026-08-20 owned
+checkpoint was clean but did not contain `dotnet`, so the authenticated-transport gate used an
+exact-commit self-contained Linux harness rather than mutating the guest.
 
 - no `$HOME/.local/state/balls`;
 - no `$HOME/.local/share/Balls-Canary` development installation or identity;
@@ -113,6 +116,30 @@ The committed Linux and Windows smoke scripts then prove fresh install, structur
 Circle create/list, a real Chromium-rendered `balls ui`, loopback-only listeners, daemon restart,
 stable Node/Circle identifiers, and socket cleanup. The Linux guest needs Chrome or Chromium for
 that UI smoke; set `BALLS_CHROME` to an explicit executable when it is not on `PATH`.
+
+## Authenticated LAN channel proof
+
+`eng/Balls.RemoteHarness` is the explicit two-process risk harness for remote v1. It does not
+host local-control or browser routes. Build the exact commit for Windows and Linux, then:
+
+1. run `Balls.RemoteHarness prepare <isolated-directory>` once on the Windows host;
+2. transfer only the Linux harness and `server.json` to a mode-`0700` guest temporary
+   directory;
+3. start `server <server.json> <guest-private-ip>:0 <ready-file>` as a truly detached guest
+   process and read the numeric bound endpoint from the ready file;
+4. run `client <client.json> <bound-endpoint>` on Windows;
+5. require exit code zero and JSON from both peers with the same Circle ID,
+   `provider: "lan-tcp-v1"`, `protocolVersion: 1`, `encrypted: true`, and opposite Node IDs;
+6. remove the guest temporary directory and both generated PKCS#12-bearing configuration files,
+   then rerun `Identity`.
+
+The generated configuration is test-only secret material: never commit it, print it, retain it as
+evidence, or reuse it for another run. Record only commit/hash identities and the bounded result
+fields. A framework-dependent Linux harness is acceptable when the guest runtime is verified;
+otherwise publish the exact committed source self-contained outside the worktree's tracked files.
+
+The dated issue evidence records the observed Windows-host/Ubuntu-VM result and any lab drift:
+[authenticated LAN transport record](verification/2026-08-20-authenticated-lan-transport.md).
 
 ## Cleanup
 
