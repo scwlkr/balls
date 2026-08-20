@@ -13,6 +13,8 @@
     <Project Path="src/Balls.Platform.Linux/Balls.Platform.Linux.csproj" />
     <Project Path="src/Balls.Platform.Windows/Balls.Platform.Windows.csproj" />
     <Project Path="src/Balls.Protocol/Balls.Protocol.csproj" />
+    <Project Path="src/Balls.Security.Linux/Balls.Security.Linux.csproj" />
+    <Project Path="src/Balls.Security.Windows/Balls.Security.Windows.csproj" />
     <Project Path="src/Balls.Storage.Sqlite/Balls.Storage.Sqlite.csproj" />
   </Folder>
   <Folder Name="/tests/">

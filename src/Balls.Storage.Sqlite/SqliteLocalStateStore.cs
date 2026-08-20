@@ -4,25 +4,35 @@ using Microsoft.Data.Sqlite;
 
 namespace Balls.Storage.Sqlite;
 
-public sealed class SqliteLocalStateStore : ILocalStateStore, IAsyncDisposable
+public sealed partial class SqliteLocalStateStore :
+    ILocalStateStore,
+    IIdentityAuthorityStore,
+    IAsyncDisposable
 {
     public const int ApplicationId = 0x42414C53;
-    public const int CurrentSchemaVersion = 1;
+    public const int CurrentSchemaVersion = 2;
 
     private readonly SqliteConnection connection;
+    private readonly IPrivateMaterialProtector privateMaterialProtector;
     private readonly SemaphoreSlim operationLock = new(1, 1);
     private int disposed;
 
-    private SqliteLocalStateStore(SqliteConnection connection)
+    private SqliteLocalStateStore(
+        SqliteConnection connection,
+        IPrivateMaterialProtector privateMaterialProtector)
     {
         this.connection = connection;
+        this.privateMaterialProtector = privateMaterialProtector;
     }
 
     public static async Task<SqliteLocalStateStore> OpenAsync(
         string dataDirectory,
+        IPrivateMaterialProtector privateMaterialProtector,
         CancellationToken cancellationToken = default)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(dataDirectory);
+        ArgumentNullException.ThrowIfNull(privateMaterialProtector);
+        ArgumentException.ThrowIfNullOrWhiteSpace(privateMaterialProtector.Scheme);
 
         var fullDataDirectory = Path.GetFullPath(dataDirectory);
         Directory.CreateDirectory(fullDataDirectory);
@@ -72,24 +82,39 @@ public sealed class SqliteLocalStateStore : ILocalStateStore, IAsyncDisposable
 
             if (!isFreshDatabase)
             {
-                if (version != CurrentSchemaVersion)
+                if (version is < 1 or > CurrentSchemaVersion)
                 {
                     throw new LocalStateException(
                         "invalid_state_schema",
                         "The Balls local state schema is incomplete and was left unchanged.");
                 }
 
-                await ValidateSchemaAsync(connection, cancellationToken).ConfigureAwait(false);
+                await ValidateSchemaAsync(connection, version, cancellationToken)
+                    .ConfigureAwait(false);
             }
 
             await ConfigureConnectionAsync(connection, cancellationToken).ConfigureAwait(false);
             if (isFreshDatabase)
             {
                 await MigrateAsync(connection, cancellationToken).ConfigureAwait(false);
-                await ValidateSchemaAsync(connection, cancellationToken).ConfigureAwait(false);
+                await ValidateSchemaAsync(connection, CurrentSchemaVersion, cancellationToken)
+                    .ConfigureAwait(false);
+            }
+            else if (version == 1)
+            {
+                await MigrateV1ToV2Async(
+                    connection,
+                    privateMaterialProtector,
+                    cancellationToken).ConfigureAwait(false);
+                await ValidateSchemaAsync(connection, CurrentSchemaVersion, cancellationToken)
+                    .ConfigureAwait(false);
             }
 
-            return new SqliteLocalStateStore(connection);
+            await ValidatePrivateMaterialsAsync(
+                connection,
+                privateMaterialProtector,
+                cancellationToken).ConfigureAwait(false);
+            return new SqliteLocalStateStore(connection, privateMaterialProtector);
         }
         catch (SqliteException exception)
         {
@@ -149,6 +174,18 @@ public sealed class SqliteLocalStateStore : ILocalStateStore, IAsyncDisposable
                         "This data directory already belongs to a different Node identity.");
                 }
 
+                var cryptographicIdentity = await ReadNodeCryptographicIdentityAsync(
+                    transaction,
+                    token).ConfigureAwait(false);
+                if (cryptographicIdentity is null)
+                {
+                    await InsertNodeCryptographicIdentityAsync(
+                        node,
+                        privateMaterialProtector,
+                        transaction,
+                        token).ConfigureAwait(false);
+                }
+
                 await transaction.CommitAsync(token).ConfigureAwait(false);
             },
             cancellationToken).ConfigureAwait(false);
@@ -177,6 +214,11 @@ public sealed class SqliteLocalStateStore : ILocalStateStore, IAsyncDisposable
                 }
 
                 await InsertCircleAsync(circle.Circle, transaction, token).ConfigureAwait(false);
+                await InsertCircleAuthorityAsync(
+                    circle.Circle,
+                    privateMaterialProtector,
+                    transaction,
+                    token).ConfigureAwait(false);
                 foreach (var member in circle.Members)
                 {
                     await InsertMemberAsync(member, transaction, token).ConfigureAwait(false);
@@ -326,6 +368,7 @@ public sealed class SqliteLocalStateStore : ILocalStateStore, IAsyncDisposable
 
     private static async Task ValidateSchemaAsync(
         SqliteConnection connection,
+        int schemaVersion,
         CancellationToken cancellationToken)
     {
         var expectedTables = new Dictionary<string, TableSchema>(StringComparer.Ordinal)
@@ -381,6 +424,34 @@ public sealed class SqliteLocalStateStore : ILocalStateStore, IAsyncDisposable
                     new("nodes", "node_id", "node_id", "NO ACTION"),
                 ]),
         };
+        if (schemaVersion >= 2)
+        {
+            expectedTables["local_node_credentials"] = new(
+                [
+                    new("singleton_id", "INTEGER", 1),
+                    new("key_algorithm", "TEXT", 0),
+                    new("key_id", "TEXT", 0),
+                    new("public_key_spki", "BLOB", 0),
+                    new("private_key_scheme", "TEXT", 0),
+                    new("protected_private_key", "BLOB", 0),
+                    new("created_at_utc", "TEXT", 0),
+                ],
+                [new("local_node", "singleton_id", "singleton_id", "CASCADE")]);
+            expectedTables["circle_authorities"] = new(
+                [
+                    new("circle_id", "TEXT", 1),
+                    new("authority_generation", "INTEGER", 0),
+                    new("root_key_id", "TEXT", 0),
+                    new("root_public_key_spki", "BLOB", 0),
+                    new("root_protected_private_key", "BLOB", 0),
+                    new("anchor_key_id", "TEXT", 0),
+                    new("anchor_public_key_spki", "BLOB", 0),
+                    new("anchor_protected_private_key", "BLOB", 0),
+                    new("private_key_scheme", "TEXT", 0),
+                    new("created_at_utc", "TEXT", 0),
+                ],
+                [new("circles", "circle_id", "circle_id", "CASCADE")]);
+        }
 
         using (var unexpectedObjectCommand = connection.CreateCommand())
         {
@@ -475,6 +546,22 @@ public sealed class SqliteLocalStateStore : ILocalStateStore, IAsyncDisposable
                 "circle_creations",
                 ["circle_id"],
                 cancellationToken).ConfigureAwait(false)
+            || schemaVersion >= 2
+                && (!await HasUniqueIndexAsync(
+                        connection,
+                        "local_node_credentials",
+                        ["key_id"],
+                        cancellationToken).ConfigureAwait(false)
+                    || !await HasUniqueIndexAsync(
+                        connection,
+                        "circle_authorities",
+                        ["root_key_id"],
+                        cancellationToken).ConfigureAwait(false)
+                    || !await HasUniqueIndexAsync(
+                        connection,
+                        "circle_authorities",
+                        ["anchor_key_id"],
+                        cancellationToken).ConfigureAwait(false))
             || !await HasRequiredSingletonCheckAsync(connection, cancellationToken)
                 .ConfigureAwait(false))
         {
@@ -647,6 +734,8 @@ public sealed class SqliteLocalStateStore : ILocalStateStore, IAsyncDisposable
                 FOREIGN KEY (circle_id) REFERENCES circles(circle_id) ON DELETE CASCADE,
                 FOREIGN KEY (node_id) REFERENCES nodes(node_id)
             );
+
+            {IdentitySchemaSql}
 
             PRAGMA application_id = {ApplicationId};
             PRAGMA user_version = {CurrentSchemaVersion};

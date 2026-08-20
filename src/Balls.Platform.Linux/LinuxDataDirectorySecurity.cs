@@ -70,6 +70,22 @@ public static class LinuxDataDirectorySecurity
             marker.Flush(flushToDisk: true);
         }
 
+        var databasePath = Path.Combine(fullPath, "balls.db");
+        if (LinuxNativeFileSystem.TryReadStatus(databasePath) is null)
+        {
+            using var database = new FileStream(
+                databasePath,
+                new FileStreamOptions
+                {
+                    Mode = FileMode.CreateNew,
+                    Access = FileAccess.ReadWrite,
+                    Share = FileShare.None,
+                    UnixCreateMode = PrivateFileMode,
+                    Options = FileOptions.WriteThrough,
+                });
+            database.Flush(flushToDisk: true);
+        }
+
         ProtectKnownFiles(fullPath);
         return fullPath;
     }

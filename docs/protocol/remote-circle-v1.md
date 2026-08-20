@@ -211,11 +211,13 @@ replayed, downgraded, wrong-Circle, and wrong-Node rejection.
 `AuthenticatedChannelSpikeTests` exercise the configured policy through a real loopback TLS 1.3
 mutual-auth handshake with exact SPKI and ALPN binding, and prove that admission bootstrap rejects
 a server key not pinned by the invitation. The Windows test loads generated test certificates
-through PKCS#12 because SChannel rejects ephemeral server keys; production storage remains issue
-#35.
+through PKCS#12 because SChannel rejects ephemeral server keys. Production Node/Circle signing
+keys are now persisted through the protected Core-owned storage boundary from #35; remote
+transport-credential issuance and rotation remain part of the admission/transport slices.
 
 ## Explicit non-goals
 
-No invitation is redeemed, listener opened, production private key persisted, hosted control
-plane selected, authority response committed, remote application frame exchanged, or message
-stored by this design/spike.
+No invitation is redeemed, listener opened, hosted control plane selected, authority response
+committed, remote application frame exchanged, or message stored by this design/spike. Production
+Node/Circle authority persistence is implemented separately and does not make the remote protocol
+live.

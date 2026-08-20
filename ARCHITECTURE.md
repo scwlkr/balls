@@ -378,6 +378,12 @@ Balls.Platform contracts
 Windows adapter   Linux adapter
 ```
 
+`ballsd` also consumes the Core-owned `IPrivateMaterialProtector` capability selected by
+`Balls.Host`. Separate `Balls.Security.Windows` and `Balls.Security.Linux` adapters implement that
+inward-facing port: Windows uses current-user DPAPI, while Linux relies on the verified owned
+`0700` directory and `0600` database boundary. The SQLite adapter sees only the typed protection
+contract and stored scheme identifier; it contains no platform commands.
+
 `HostPlatform` supplies platform defaults plus independent seams for local-state preparation,
 local-control server transport, and local-control client transport. `Balls.Host` is the only
 project that selects an OS adapter. Windows and Linux are registered; other hosts return one typed,
@@ -552,8 +558,9 @@ src/
   Balls.Platform/
   Balls.Platform.Linux/
   Balls.Platform.Windows/
-  Balls.Platform.Linux/
   Balls.Platform.MacOS/
+  Balls.Security.Linux/
+  Balls.Security.Windows/
 
 web/
   Balls.Web/                 React/TypeScript browser client

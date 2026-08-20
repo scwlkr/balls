@@ -35,6 +35,7 @@ public sealed class HostCompositionTests
         Assert.IsNotNull(supported.Platform.LocalState);
         Assert.IsNotNull(supported.Platform.LocalControlServer);
         Assert.IsNotNull(supported.Platform.LocalControlClient);
+        Assert.AreEqual("linux-owned-state-v1", supported.PrivateMaterialProtector.Scheme);
         Assert.AreEqual("Unix-domain socket", supported.Platform.Defaults.LocalControlListenerDescription);
         Assert.AreEqual("socket", supported.Platform.Defaults.LocalControlEndpointDescription);
     }
@@ -55,6 +56,7 @@ public sealed class HostCompositionTests
         Assert.IsNotNull(supported.Platform.LocalState);
         Assert.IsNotNull(supported.Platform.LocalControlServer);
         Assert.IsNotNull(supported.Platform.LocalControlClient);
+        Assert.AreEqual("windows-dpapi-current-user-v1", supported.PrivateMaterialProtector.Scheme);
         Assert.AreEqual(Environment.MachineName, supported.Platform.Defaults.NodeDisplayName);
         Assert.AreEqual(
             "named pipe",

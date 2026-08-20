@@ -1,8 +1,8 @@
 # Threat Model Starter
 
-**Status:** Windows/Linux local Node baseline plus accepted Trusted Circle security design,
-2026-08-20. Remote listeners, invitation redemption, and production credential storage are not
-implemented.
+**Status:** Windows/Linux local Node baseline, protected production Node/Circle authority storage,
+and accepted Trusted Circle security design, 2026-08-20. Remote listeners and invitation
+redemption are not implemented.
 
 ## Scope
 
@@ -49,6 +49,8 @@ processes running as that account.
 | Injected browser content gains broad authority | Only the bundled production assets are served; CSP restricts content to the same origin, framing and objects are disabled, responses are not cached, and the browser API is a narrow application projection | A future feature that renders rich or third-party content requires a new review |
 | State placed on an unsafe or substituted path | Windows rejects network/reparse paths; Linux requires absolute local paths, rejects symbolic links and writable ancestry, and verifies ownership; both require an exact marker and entry allowlist | Retained-directory-handle defenses are not yet implemented; administrator/root and same-user races remain powerful |
 | Another ordinary user reads or changes state | Windows applies protected current-user/LocalSystem ACLs; Linux applies user-owned `0700` directories and `0600` known files | Administrators/root, offline disk access, and inherited account compromise remain powerful |
+| Node or Circle private signing material is read from local state | Windows wraps each PKCS#8 key with current-user DPAPI and domain entropy; Linux creates the database as `0600` inside a verified owned `0700` directory | Same-user compromise, administrator/root, memory inspection, and offline attacks against an unencrypted Linux disk remain powerful |
+| Protected key state is substituted, malformed, or moved between protection schemes | Startup validates the exact scheme, P-256 encoding, role-scoped public key ID, and public/private binding before serving; failure returns one bounded error and never regenerates | Same-user code execution can replace the whole database and its public identifiers; trusted recovery/import is not implemented |
 | Stale or substituted Linux socket | The adapter removes only a disconnected socket owned by the effective user, refuses live/non-socket/foreign-owned entries, applies `0600` after bind, and removes the socket during orderly shutdown | A killed daemon leaves a stale socket until the next validated startup; same-user races remain possible |
 | Wrong, newer, incomplete, or corrupt SQLite state is opened | Application ID, schema version, exact schema shape, integrity, and foreign-key checks fail closed | Recovery and backup tooling do not yet exist |
 | Two daemons write the same state | An exclusive `ballsd.lock` lease permits one daemon owner | A crash can leave the file, but the OS releases the lease |
@@ -76,7 +78,7 @@ enforcement lands in issues #35–#38.
 | Valid Node transcript is presented over another TLS client | Exact presented certificate SPKI must match the signed proposed/active transport credential | Certificate wrapper validation still depends on correct time, key-use, name, and no-network policy |
 | TLS chain validation silently fetches attacker-controlled AIA/CRL/OCSP | Admission uses an invitation SPKI pin; admitted peers use Circle-signed transport binding; revocation checking is local and no-fetch | X.509 is only a TLS key wrapper, so Circle revocation must remain application state |
 | TLS replay/early data repeats a state change | TLS 1.3 only, exact `balls-circle/1` ALPN, and no early data for admission, authority, revocation, invitation, or durable messages | Later framing must retain operation IDs and atomic application replay checks |
-| Authority backup leaks or is restored ambiguously | Explicit encrypted PKCS#8 export plus authenticated Circle/generation metadata; never log or transmit raw private key | KDF parameters, storage adapters, custody UX, restore verification, and secure deletion are #35 decisions |
+| Authority backup leaks or is restored ambiguously | Separate root/Anchor encrypted PKCS#8 values use the fixed PBES2 profile; the root signs exact Circle/generation/public-key/KDF/ciphertext-digest metadata; raw private keys are never logged or transmitted | Passphrase quality and custody remain operator responsibilities; import, rotation, restore UX, and secure deletion are separately gated |
 | Recovery silently changes ownership | No ordinary Node self-promotion; recovery must prove possession of accepted authority material and advance signed generation | Without accepted recovery material, availability is lost rather than authority guessed |
 | Revocation is claimed while peer is offline | Signed monotonic authority state and later maximum-staleness rules for privileged operations | Offline LAN behavior necessarily trades availability against revocation freshness |
 | Validation differences leak cryptographic detail or mutate partial state | Pure validation returns one deterministic typed rejection before persistence; network errors may collapse detail | Local audit data must stay bounded and omit keys, transcripts, and signatures |
@@ -88,10 +90,12 @@ enforcement lands in issues #35–#38.
 - The browser adapter is local HTTP rather than TLS. It relies on an IP-loopback-only listener,
   strict authority/origin checks, and Chromium's trustworthy-loopback handling of the Secure
   session cookie; it must not be exposed through a proxy or remote bind.
-- Local state is not encrypted by Balls. Operating-system disk encryption is a separate control.
-- The remote v1 security core is designed and spiked, but there is no remote listener, invitation
-  redemption, production credential store, membership mutation, revocation store, remote audit
-  log, or message security yet.
+- Ordinary local records are not encrypted by Balls. Windows private keys are DPAPI-protected;
+  Linux private keys rely on owned mode-restricted storage. Operating-system disk encryption is a
+  separate control.
+- The remote v1 security core is designed and spiked, and production Node/Circle authority keys
+  are now durable. There is no remote listener, invitation redemption, membership mutation,
+  revocation store, remote audit log, or message security yet.
 - The state marker and ACL are safety boundaries, not proof against an administrator, LocalSystem,
   physical access, or a compromised user session.
 - Use the default LocalAppData or XDG state root, or another dedicated current-user-controlled
@@ -99,14 +103,14 @@ enforcement lands in issues #35–#38.
 - `CurrentUserOnly` authenticates the Windows account and elevation level, but the current pipe
   provider does not yet request Windows' remote-client rejection flag. A remote SMB session with
   the same Windows SID is inside the present account-level trust boundary.
-- Circle and Node UUIDs in Slice 1 remain persistent identifiers, not authenticators. Issue #35
-  will bind them to cryptographic credentials and authority state.
+- Circle and Node UUIDs remain non-secret object references. Durable role-scoped public
+  credentials now bind them to signing authority, but remote authentication is not live until the
+  admission and transport slices land.
 
 ## Required implementation for the next trust boundary
 
 Before two machines exchange Circle state, implement and test the accepted design:
 
-- protected cryptographic Node and Circle authority storage plus explicit export/restore;
 - atomic invitation issuance, expiry, single-use admission, replay state, and revocation;
 - the remote listener/framing and mutual peer authentication independent of transport provider;
 - persisted Circle membership and bounded security audit events;

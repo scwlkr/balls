@@ -146,10 +146,13 @@ membership.
 
 ### Recovery, backup, and revocation
 
-The Circle authority private key requires an explicit encrypted offline export. Export uses
-encrypted PKCS#8 and authenticated metadata; password KDF parameters, custody UX, protected
-storage adapters, and cross-platform restore are owned by issue #35. Raw private-key bytes never
-appear in protocol messages, logs, or ordinary state exports.
+The Circle authority private key requires an explicit encrypted offline export. The implemented v1
+envelope stores separate PBES2-encrypted root and Anchor PKCS#8 values (AES-256-CBC,
+PBKDF2-HMAC-SHA256, 600,000 iterations) and a root-signed exact manifest covering Circle,
+generation, public credentials, profile, and ciphertext digests. Windows live state uses
+current-user DPAPI; Linux uses verified owned `0700`/`0600` state. Import, rotation, custody UX,
+and secure deletion remain separately gated. Raw private-key bytes never appear in protocol
+messages, logs, or ordinary state exports.
 
 If both live authority and its accepted export are lost, the Circle is cryptographically
 unrecoverable. Recovery cannot infer a new owner or silently promote a Node. Root rotation and
@@ -168,8 +171,8 @@ claim instant offline revocation.
   listener.
 - TLS removes the need to design a custom encrypted record layer while preserving transport
   replacement below it.
-- Production key storage, invitation redemption, remote framing/listening, atomic authority state,
-  recovery UX, and messaging remain independently reviewable slices.
+- Invitation redemption, remote framing/listening, recovery UX/import, key rotation, and messaging
+  remain independently reviewable slices.
 
 ## Rejected alternatives
 

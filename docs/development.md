@@ -8,9 +8,10 @@ commands and safety rules implemented by the current checkpoint.
 
 The projects target .NET 10. The repository pins SDK `10.0.400` in
 [`global.json`](../global.json). `ballsd` and `balls` run natively and unelevated on Windows and
-Linux through the same application, local-control v1, and SQLite v1 behavior. Windows composes
-protected ACLs and same-user named pipes; Linux composes effective-user Unix modes and a protected
-Unix-domain socket.
+Linux through the same application, local-control v1, and SQLite v2 behavior. Windows composes
+protected ACLs, current-user DPAPI private-key protection, and same-user named pipes; Linux
+composes effective-user Unix modes, mode-restricted key storage, and a protected Unix-domain
+socket.
 
 ## Build and verify
 
@@ -249,7 +250,7 @@ Every current test class declares one of these `TestCategory` values:
 | `Unit` | isolated domain and verifier behavior | Yes |
 | `Contract` | architecture, protocol, storage, daemon, and CLI contracts | Yes |
 | `ProcessIntegration` | real `ballsd`/`balls` process acceptance | Yes |
-| `OSIntegration` | Windows ACL and named-pipe defaults | Full only |
+| `OSIntegration` | Windows ACL/DPAPI and Linux ownership/mode/IPC behavior | Full only |
 | `Browser` | React components plus a real Chrome launch/create/list/restart journey | Yes |
 | `Lab` | reserved for explicit VM/multi-node evidence | No |
 
@@ -260,9 +261,10 @@ On the 2026-08-19 Windows development host, the browser-enabled warm fast gate t
 passing the 60-second budget. Focused generated-client and component commands also passed. See the
 [dated verification record](verification/2026-08-19-developer-verification.md).
 
-Keep Windows-specific APIs in `Balls.Platform.Windows`. A change to behavior, wire contracts,
-storage, or trust boundaries should update the relevant document in [`docs/`](README.md) in the
-same checkpoint.
+Keep host-edge APIs in `Balls.Platform.Windows`/`Balls.Platform.Linux`; Core-owned OS capability
+implementations belong in focused `Balls.Security.*` adapters. A change to behavior, wire
+contracts, storage, or trust boundaries should update the relevant document in [`docs/`](README.md)
+in the same checkpoint.
 
 ## Process exit codes
 

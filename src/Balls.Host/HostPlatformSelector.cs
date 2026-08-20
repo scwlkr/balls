@@ -1,6 +1,9 @@
+using Balls.Core;
 using Balls.Platform;
 using Balls.Platform.Linux;
 using Balls.Platform.Windows;
+using Balls.Security.Linux;
+using Balls.Security.Windows;
 
 namespace Balls.Host;
 
@@ -14,7 +17,9 @@ public enum HostOperatingSystem
 
 public abstract record HostSelectionResult;
 
-public sealed record SupportedHostPlatform(HostPlatform Platform) : HostSelectionResult;
+public sealed record SupportedHostPlatform(
+    HostPlatform Platform,
+    IPrivateMaterialProtector PrivateMaterialProtector) : HostSelectionResult;
 
 public sealed record UnsupportedHostPlatform(HostOperatingSystem OperatingSystem) : HostSelectionResult
 {
@@ -34,12 +39,16 @@ public static class HostPlatformSelector
     {
         if (operatingSystem == HostOperatingSystem.Windows && OperatingSystem.IsWindows())
         {
-            return new SupportedHostPlatform(WindowsHostPlatform.Create());
+            return new SupportedHostPlatform(
+                WindowsHostPlatform.Create(),
+                new WindowsCurrentUserPrivateMaterialProtector());
         }
 
         if (operatingSystem == HostOperatingSystem.Linux && OperatingSystem.IsLinux())
         {
-            return new SupportedHostPlatform(LinuxHostPlatform.Create());
+            return new SupportedHostPlatform(
+                LinuxHostPlatform.Create(),
+                new LinuxOwnedStatePrivateMaterialProtector());
         }
 
         return new UnsupportedHostPlatform(operatingSystem);
