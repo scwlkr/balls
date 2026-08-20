@@ -96,17 +96,56 @@ public sealed partial class RepositoryWorkflowTests
     }
 
     [TestMethod]
-    public void Canary_publication_follows_successful_required_main_push()
+    public void Canary_publication_follows_successful_required_push_or_dispatch()
     {
         StringAssert.Contains(Workflow, "windows-canary:");
         StringAssert.Contains(Workflow, "linux-canary:");
+        StringAssert.Contains(Workflow, "Smoke packaged Windows Canary");
         StringAssert.Contains(Workflow, "Smoke packaged Linux Canary");
         StringAssert.Contains(Workflow, "Test-LinuxCanary.sh");
         StringAssert.Contains(Workflow, "Install-BallsCanary.sh");
         Assert.AreEqual(2, Regex.Matches(Workflow, @"(?m)^    needs: required$").Count);
         Assert.AreEqual(2, Regex.Matches(Workflow, @"github.event_name == 'push'").Count);
+        Assert.AreEqual(2, Regex.Matches(Workflow, @"github.event_name == 'workflow_dispatch'").Count);
         Assert.AreEqual(2, Regex.Matches(Workflow, @"github.ref == 'refs/heads/main'").Count);
         Assert.AreEqual(2, Regex.Matches(Workflow, @"needs.required.result == 'success'").Count);
+
+        var repositoryRoot = FindRepositoryRoot();
+        var windowsSmoke = File.ReadAllText(
+            Path.Combine(repositoryRoot, "eng", "canary", "Test-WindowsCanary.ps1"));
+        var linuxSmoke = File.ReadAllText(
+            Path.Combine(repositoryRoot, "eng", "canary", "Test-LinuxCanary.sh"));
+        foreach (var smoke in new[] { windowsSmoke, linuxSmoke })
+        {
+            StringAssert.Contains(smoke, "Canary Circle");
+            StringAssert.Contains(smoke, "browser");
+            StringAssert.Contains(smoke, "status");
+        }
+        StringAssert.Contains(windowsSmoke, "'circle', 'create'");
+        StringAssert.Contains(windowsSmoke, "'circle', 'list'");
+        StringAssert.Contains(linuxSmoke, "circle create");
+        StringAssert.Contains(linuxSmoke, "circle list");
+    }
+
+    [TestMethod]
+    public void Lab_harness_namespaces_resources_and_gates_identity_reset_and_cleanup()
+    {
+        var harness = File.ReadAllText(
+            Path.Combine(FindRepositoryRoot(), "eng", "lab", "Invoke-BallsLab.ps1"));
+
+        StringAssert.Contains(harness, "Balls.Lab.Ubuntu");
+        StringAssert.Contains(harness, "Balls.Lab.Clean");
+        StringAssert.Contains(harness, "PrepareImage");
+        StringAssert.Contains(harness, "Assert-CleanIdentity");
+        StringAssert.Contains(harness, "ConfirmReset");
+        StringAssert.Contains(harness, "ConfirmCleanup");
+        StringAssert.Contains(harness, "cloud-images.ubuntu.com");
+        StringAssert.Contains(harness, "Refusing to adopt");
+        StringAssert.Contains(harness, "QemuImgWslPath");
+        StringAssert.Contains(harness, "subformat=dynamic");
+        StringAssert.Contains(harness, "Generation = 2");
+        StringAssert.Contains(harness, "EnableSecureBoot Off");
+        StringAssert.Contains(harness, "within 30 minutes");
     }
 
     [TestMethod]

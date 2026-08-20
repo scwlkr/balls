@@ -14,6 +14,19 @@ install_root="$smoke_root/install"
 runtime_root="$smoke_root/runtime"
 socket_path="$runtime_root/control.sock"
 daemon_pid=""
+chrome="${BALLS_CHROME:-}"
+if [[ -z "$chrome" ]]; then
+  for candidate in google-chrome chromium chromium-browser; do
+    if command -v "$candidate" >/dev/null 2>&1; then
+      chrome="$candidate"
+      break
+    fi
+  done
+fi
+if [[ -z "$chrome" ]]; then
+  echo "Chromium or Google Chrome is required for the Linux Canary UI smoke." >&2
+  exit 1
+fi
 
 terminate_daemon() {
   if [[ -n "$daemon_pid" ]] && kill -0 "$daemon_pid" 2>/dev/null; then
@@ -111,7 +124,7 @@ if [[ -z "$listeners" ]] || grep -Eq '(^|[[:space:]])(0\.0\.0\.0|\[::\]):' <<<"$
   exit 1
 fi
 
-google-chrome \
+"$chrome" \
   --headless=new \
   --no-sandbox \
   --disable-gpu \
@@ -170,7 +183,7 @@ assert listed["circles"][0]["id"] == sys.argv[4]
 PY
 
 PATH="$smoke_root/bin:$PATH" "$cli" --pipe-name "$socket_path" ui >"$smoke_root/ui-after.out"
-google-chrome \
+"$chrome" \
   --headless=new \
   --no-sandbox \
   --disable-gpu \

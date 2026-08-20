@@ -7,6 +7,7 @@ Use this directory for ADRs, threat models, protocol specifications, milestone d
 - [`STATE.md`](STATE.md) — compact current checkpoint, active milestone, and continuation route.
 - [`development.md`](development.md) — locked build/test commands, local run instructions, state-directory safety, and exit codes.
 - [`development-process.md`](development-process.md) — ticket flow, feedback loops, virtual lab, release channels, and public-source gate.
+- [`cross-platform-lab.md`](cross-platform-lab.md) — namespaced Hyper-V/WSL lab creation, clean identity checkpoint, reset, package proof, and cleanup.
 
 ## Roadmap
 

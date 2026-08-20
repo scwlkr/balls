@@ -34,12 +34,14 @@ if [[ ! "$checksum_line" =~ ^([0-9A-Fa-f]{64})\ \ (.+)$ ]]; then
   echo "Invalid archive checksum file: $checksum_path" >&2
   exit 1
 fi
-if [[ "${BASH_REMATCH[2]}" != "$(basename "$package_path")" ]]; then
+expected_hash="${BASH_REMATCH[1]}"
+expected_name="${BASH_REMATCH[2]}"
+if [[ "$expected_name" != "$(basename "$package_path")" ]]; then
   echo "The checksum file names a different archive." >&2
   exit 1
 fi
 actual_hash="$(sha256sum "$package_path" | cut -d' ' -f1)"
-if [[ "${actual_hash,,}" != "${BASH_REMATCH[1],,}" ]]; then
+if [[ "${actual_hash,,}" != "${expected_hash,,}" ]]; then
   echo "The Canary archive SHA-256 checksum does not match." >&2
   exit 1
 fi
