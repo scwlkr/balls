@@ -98,8 +98,3 @@ risk. Never weaken checks merely to obtain green status, and never claim an unob
 `scwlkr/balls-server` is archived prior research. Inspect it only for a specific
 Windows/networking/security problem. Port concepts deliberately; do not transplant its
 server-first architecture.
-
-## Visual direction
-
-Before designing or changing product UI, inspect [`balls-brand.png`](balls-brand.png) and use it
-as the visual reference.

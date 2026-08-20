@@ -60,6 +60,7 @@ public sealed class AdmissionResponseSecurityTests
         private readonly ECDsa memberKey = ECDsa.Create(ECCurve.NamedCurves.nistP256);
         private readonly ECDsa nodeKey = ECDsa.Create(ECCurve.NamedCurves.nistP256);
         private readonly ECDsa transportKey = ECDsa.Create(ECCurve.NamedCurves.nistP256);
+        private readonly ECDsa anchorNodeKey = ECDsa.Create(ECCurve.NamedCurves.nistP256);
         private readonly ECDsa anchorTransportKey = ECDsa.Create(ECCurve.NamedCurves.nistP256);
         private readonly PublicKeyCredential root;
         private readonly PublicKeyCredential anchor;
@@ -132,8 +133,13 @@ public sealed class AdmissionResponseSecurityTests
                     new(MemberId, "Bob", "member", Now),
                 ],
                 [
-                    new(AnchorNodeId, "Anchor", Now.AddDays(-1), anchorBinding),
-                    new(NodeId, "Bob-PC", Now, admittedBinding),
+                    new(
+                        AnchorNodeId,
+                        "Anchor",
+                        Now.AddDays(-1),
+                        RemoteIdentity.CreateCredential(KeyRole.Node, anchorNodeKey),
+                        anchorBinding),
+                    new(NodeId, "Bob-PC", Now, request.NodeCredential, admittedBinding),
                 ]);
             SignedResponse = AdmissionSecurity.SignResponse(response, anchor, anchorKey);
             Context = new(
@@ -169,18 +175,28 @@ public sealed class AdmissionResponseSecurityTests
                         AdmissionSecurity.SignResponse(wrongCircle, anchor, anchorKey),
                         Context);
                 case ResponseMutation.WrongNode:
-                {
-                    using var otherNodeKey = ECDsa.Create(ECCurve.NamedCurves.nistP256);
-                    var wrongNode = SignedResponse.Response with
                     {
-                        AdmittedNodeCredential = RemoteIdentity.CreateCredential(
-                            KeyRole.Node,
-                            otherNodeKey),
-                    };
-                    return (
-                        AdmissionSecurity.SignResponse(wrongNode, anchor, anchorKey),
-                        Context);
-                }
+                        using var otherNodeKey = ECDsa.Create(ECCurve.NamedCurves.nistP256);
+                        var wrongNode = SignedResponse.Response with
+                        {
+                            AdmittedNodeCredential = RemoteIdentity.CreateCredential(
+                                KeyRole.Node,
+                                otherNodeKey),
+                        };
+                        wrongNode = wrongNode with
+                        {
+                            Nodes = wrongNode.Nodes.Select(node =>
+                                node.NodeId == wrongNode.AdmittedNodeId
+                                    ? node with
+                                    {
+                                        NodeCredential = wrongNode.AdmittedNodeCredential,
+                                    }
+                                    : node).ToArray(),
+                        };
+                        return (
+                            AdmissionSecurity.SignResponse(wrongNode, anchor, anchorKey),
+                            Context);
+                    }
                 case ResponseMutation.Revoked:
                     return (
                         SignedResponse,
@@ -208,6 +224,7 @@ public sealed class AdmissionResponseSecurityTests
             memberKey.Dispose();
             nodeKey.Dispose();
             transportKey.Dispose();
+            anchorNodeKey.Dispose();
             anchorTransportKey.Dispose();
         }
 

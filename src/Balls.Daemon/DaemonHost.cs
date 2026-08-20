@@ -5,7 +5,9 @@ using Balls.Host;
 using Balls.Platform;
 using Balls.Protocol.Browser.V1;
 using Balls.Protocol.Control.V1;
+using Balls.Protocol.Remote.V1;
 using Balls.Storage.Sqlite;
+using Balls.Transport.Lan;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting.Server;
 using Microsoft.AspNetCore.Hosting.Server.Features;
@@ -61,10 +63,31 @@ public static class DaemonHost
                 "Node display name cannot exceed 100 characters.");
         }
 
+        System.Net.IPEndPoint? admissionListenEndpoint = null;
+        if (options.AdmissionListenEndpoint is not null)
+        {
+            try
+            {
+                admissionListenEndpoint = LanTcpEndpoint.Parse(
+                    new RemoteTransportAddress(
+                        LanTcpEndpoint.ProviderName,
+                        options.AdmissionListenEndpoint));
+            }
+            catch (ArgumentException)
+            {
+                throw new InputValidationException(
+                    "invalid_admission_listen_endpoint",
+                    "Admission listening requires a numeric private or loopback IP address and non-zero port.");
+            }
+        }
+
         var securedDataDirectory = host.LocalState.Prepare(options.DataDirectory);
         var dataDirectoryLease = DataDirectoryLease.Acquire(securedDataDirectory);
         SqliteLocalStateStore? store = null;
         WebApplication? application = null;
+        TcpLanTransportListener? admissionListener = null;
+        CancellationTokenSource? admissionShutdown = null;
+        Task? admissionTask = null;
         var endpointPrepared = false;
 
         try
@@ -80,6 +103,13 @@ public static class DaemonHost
                 store,
                 store,
                 store,
+                TimeProvider.System);
+            var admissionApplication = new TrustedCircleAdmissionApplication(
+                store,
+                store,
+                store,
+                store,
+                new TcpLanTransportConnector(),
                 TimeProvider.System);
             var browserAccess = new BrowserAccessBroker(
                 TimeProvider.System,
@@ -168,6 +198,67 @@ public static class DaemonHost
                 .Produces<CircleDetailsResponse>(StatusCodes.Status201Created)
                 .Produces<ErrorResponse>(StatusCodes.Status400BadRequest)
                 .Produces<ErrorResponse>(StatusCodes.Status409Conflict);
+            application.MapPost(
+                ControlRoutes.CircleJoin,
+                async (JoinCircleRequest request, CancellationToken token) =>
+                {
+                    try
+                    {
+                        var circle = await admissionApplication.JoinAsync(
+                            request.Package,
+                            new RemoteTransportAddress(
+                                LanTcpEndpoint.ProviderName,
+                                request.Endpoint),
+                            request.MemberDisplayName,
+                            token).ConfigureAwait(false);
+                        return Results.Ok(ToResponse(circle));
+                    }
+                    catch (InputValidationException exception)
+                    {
+                        return Results.BadRequest(new ErrorResponse(exception.Code, exception.Message));
+                    }
+                    catch (ArgumentException)
+                    {
+                        return Results.BadRequest(
+                            new ErrorResponse(
+                                "invalid_admission_endpoint",
+                                "Admission requires a numeric private or loopback IP address and port."));
+                    }
+                    catch (AdmissionRejectedException exception)
+                    {
+                        var error = new ErrorResponse(
+                            exception.Code,
+                            "The Circle admission was rejected.");
+                        return exception.Code == "replayed"
+                            ? Results.Conflict(error)
+                            : Results.BadRequest(error);
+                    }
+                    catch (LocalStateConflictException exception)
+                    {
+                        return Results.Conflict(new ErrorResponse(exception.Code, exception.Message));
+                    }
+                    catch (RemoteChannelException exception)
+                    {
+                        return Results.Json(
+                            new ErrorResponse(
+                                exception.Code,
+                                "The remote Anchor could not complete admission."),
+                            statusCode: StatusCodes.Status502BadGateway);
+                    }
+                    catch (Exception exception) when (exception is
+                        IOException or TimeoutException or System.Net.Sockets.SocketException)
+                    {
+                        return Results.Json(
+                            new ErrorResponse(
+                                "connection_failed",
+                                "The remote Anchor could not be reached."),
+                            statusCode: StatusCodes.Status502BadGateway);
+                    }
+                })
+                .Produces<CircleDetailsResponse>(StatusCodes.Status200OK)
+                .Produces<ErrorResponse>(StatusCodes.Status400BadRequest)
+                .Produces<ErrorResponse>(StatusCodes.Status409Conflict)
+                .Produces<ErrorResponse>(StatusCodes.Status502BadGateway);
             application.MapGet(
                 ControlRoutes.Circles,
                 async (CancellationToken token) =>
@@ -294,6 +385,15 @@ public static class DaemonHost
             BrowserAdapter.MapRoutes(application, circleApplication, browserAccess);
 
             await application.StartAsync(cancellationToken).ConfigureAwait(false);
+            if (admissionListenEndpoint is not null)
+            {
+                admissionListener = new TcpLanTransportListener(admissionListenEndpoint);
+                admissionShutdown = new CancellationTokenSource();
+                admissionTask = RunAdmissionListenerAsync(
+                    admissionListener,
+                    admissionApplication,
+                    admissionShutdown.Token);
+            }
             browserEndpoint.Initialize(FindBrowserBaseUri(application));
             host.LocalControlServer.SecureEndpoint(options.LocalControlEndpoint);
             return new DaemonInstance(
@@ -301,12 +401,21 @@ public static class DaemonHost
                 store,
                 dataDirectoryLease,
                 host.LocalControlServer,
-                options.LocalControlEndpoint);
+                options.LocalControlEndpoint,
+                admissionListener,
+                admissionShutdown,
+                admissionTask);
         }
         catch
         {
             try
             {
+                admissionShutdown?.Cancel();
+                if (admissionListener is not null)
+                {
+                    await admissionListener.DisposeAsync().ConfigureAwait(false);
+                }
+
                 if (application is not null)
                 {
                     await application.DisposeAsync().ConfigureAwait(false);
@@ -338,6 +447,35 @@ public static class DaemonHost
             }
 
             throw;
+        }
+    }
+
+    private static async Task RunAdmissionListenerAsync(
+        TcpLanTransportListener listener,
+        TrustedCircleAdmissionApplication application,
+        CancellationToken cancellationToken)
+    {
+        try
+        {
+            await foreach (var connection in listener.AcceptAsync(cancellationToken)
+                               .ConfigureAwait(false))
+            {
+                try
+                {
+                    await application.HandleAsync(connection, cancellationToken)
+                        .ConfigureAwait(false);
+                }
+                catch (RemoteChannelException)
+                {
+                }
+                finally
+                {
+                    await connection.DisposeAsync().ConfigureAwait(false);
+                }
+            }
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
         }
     }
 
@@ -439,6 +577,7 @@ public static class DaemonHost
             member.Role switch
             {
                 MemberRole.Owner => "owner",
+                MemberRole.Member => "member",
                 _ => throw new InvalidOperationException($"Unknown Member role: {member.Role}."),
             },
             member.JoinedAtUtc);
@@ -462,6 +601,9 @@ public sealed class DaemonInstance : IAsyncDisposable
     private readonly DataDirectoryLease dataDirectoryLease;
     private readonly ILocalControlServerTransport localControlServer;
     private readonly string localControlEndpoint;
+    private readonly TcpLanTransportListener? admissionListener;
+    private readonly CancellationTokenSource? admissionShutdown;
+    private readonly Task? admissionTask;
     private int disposed;
 
     internal DaemonInstance(
@@ -469,14 +611,22 @@ public sealed class DaemonInstance : IAsyncDisposable
         SqliteLocalStateStore store,
         DataDirectoryLease dataDirectoryLease,
         ILocalControlServerTransport localControlServer,
-        string localControlEndpoint)
+        string localControlEndpoint,
+        TcpLanTransportListener? admissionListener,
+        CancellationTokenSource? admissionShutdown,
+        Task? admissionTask)
     {
         this.application = application;
         this.store = store;
         this.dataDirectoryLease = dataDirectoryLease;
         this.localControlServer = localControlServer;
         this.localControlEndpoint = localControlEndpoint;
+        this.admissionListener = admissionListener;
+        this.admissionShutdown = admissionShutdown;
+        this.admissionTask = admissionTask;
     }
+
+    public RemoteTransportAddress? AdmissionAddress => admissionListener?.BoundAddress;
 
     public async ValueTask DisposeAsync()
     {
@@ -487,8 +637,24 @@ public sealed class DaemonInstance : IAsyncDisposable
 
         try
         {
-            await application.StopAsync().ConfigureAwait(false);
-            await application.DisposeAsync().ConfigureAwait(false);
+            admissionShutdown?.Cancel();
+            if (admissionListener is not null)
+            {
+                await admissionListener.DisposeAsync().ConfigureAwait(false);
+            }
+
+            try
+            {
+                if (admissionTask is not null)
+                {
+                    await admissionTask.ConfigureAwait(false);
+                }
+            }
+            finally
+            {
+                await application.StopAsync().ConfigureAwait(false);
+                await application.DisposeAsync().ConfigureAwait(false);
+            }
         }
         finally
         {
@@ -504,6 +670,7 @@ public sealed class DaemonInstance : IAsyncDisposable
                 }
                 finally
                 {
+                    admissionShutdown?.Dispose();
                     dataDirectoryLease.Dispose();
                 }
             }

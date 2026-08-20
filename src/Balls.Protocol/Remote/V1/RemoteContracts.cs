@@ -186,6 +186,7 @@ public sealed record AdmissionNodeSnapshot(
     string NodeId,
     string DisplayName,
     DateTimeOffset JoinedAtUtc,
+    PublicKeyCredential NodeCredential,
     SignedNodeTransportBinding TransportBinding);
 
 public sealed record AdmissionResponse(

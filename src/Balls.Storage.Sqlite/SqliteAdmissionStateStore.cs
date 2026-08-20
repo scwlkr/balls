@@ -316,6 +316,41 @@ public sealed partial class SqliteLocalStateStore
             },
             cancellationToken);
 
+    public Task<AnchorAdmissionCommitResult?> GetAnchorAdmissionResultAsync(
+        InvitationId invitationId,
+        ReadOnlyMemory<byte> requestSha256,
+        CancellationToken cancellationToken = default)
+    {
+        if (requestSha256.Length != SHA256.HashSizeInBytes)
+        {
+            throw new ArgumentException("The admission request digest is invalid.");
+        }
+
+        return ExecuteLockedAsync<AnchorAdmissionCommitResult?>(
+            async token =>
+            {
+                using var transaction = connection.BeginTransaction();
+                var existing = await ReadAnchorAdmissionAsync(
+                    invitationId,
+                    transaction,
+                    token).ConfigureAwait(false);
+                await transaction.CommitAsync(token).ConfigureAwait(false);
+                if (existing is null)
+                {
+                    return null;
+                }
+
+                return CryptographicOperations.FixedTimeEquals(
+                        existing.Value.RequestSha256,
+                        requestSha256.Span)
+                    ? new AnchorAdmissionCommitResult(
+                        AnchorAdmissionCommitStatus.IdempotentRetry,
+                        existing.Value.EncodedResponse)
+                    : new AnchorAdmissionCommitResult(AnchorAdmissionCommitStatus.Replayed, null);
+            },
+            cancellationToken);
+    }
+
     public Task<AnchorAdmissionCommitResult> CommitAnchorAdmissionAsync(
         AnchorAdmissionCommit commit,
         CancellationToken cancellationToken = default)
@@ -569,6 +604,36 @@ public sealed partial class SqliteLocalStateStore
                     "admission",
                     "joined",
                     commit.JoinedAtUtc,
+                    transaction,
+                    token).ConfigureAwait(false);
+                await transaction.CommitAsync(token).ConfigureAwait(false);
+            },
+            cancellationToken);
+    }
+
+    public Task RecordAdmissionAuditAsync(
+        CircleId circleId,
+        string outcome,
+        DateTimeOffset occurredAtUtc,
+        CancellationToken cancellationToken = default)
+    {
+        if (string.IsNullOrWhiteSpace(outcome)
+            || outcome.Length > 64
+            || outcome.Any(character => character > 0x7f)
+            || occurredAtUtc.Offset != TimeSpan.Zero)
+        {
+            throw new ArgumentException("The admission audit event is invalid.");
+        }
+
+        return ExecuteLockedAsync(
+            async token =>
+            {
+                using var transaction = connection.BeginTransaction();
+                await InsertAuditEventAsync(
+                    circleId,
+                    "admission",
+                    outcome,
+                    occurredAtUtc,
                     transaction,
                     token).ConfigureAwait(false);
                 await transaction.CommitAsync(token).ConfigureAwait(false);

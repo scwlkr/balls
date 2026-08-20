@@ -6,6 +6,7 @@
   <ItemGroup>
     <ProjectReference Include="..\..\src\Balls.Daemon\Balls.Daemon.csproj" />
     <ProjectReference Include="..\..\src\Balls.Security.Windows\Balls.Security.Windows.csproj" />
+    <ProjectReference Include="..\..\src\Balls.Transport.Lan\Balls.Transport.Lan.csproj" />
   </ItemGroup>
   <ItemGroup>
     <PackageReference Include="Microsoft.NET.Test.Sdk" />

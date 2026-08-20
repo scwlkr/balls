@@ -99,11 +99,22 @@ public interface IAdmissionStateStore
         CircleId circleId,
         CancellationToken cancellationToken = default);
 
+    Task<AnchorAdmissionCommitResult?> GetAnchorAdmissionResultAsync(
+        InvitationId invitationId,
+        ReadOnlyMemory<byte> requestSha256,
+        CancellationToken cancellationToken = default);
+
     Task<AnchorAdmissionCommitResult> CommitAnchorAdmissionAsync(
         AnchorAdmissionCommit commit,
         CancellationToken cancellationToken = default);
 
     Task CommitJoinedCircleAsync(
         JoinedCircleCommit commit,
+        CancellationToken cancellationToken = default);
+
+    Task RecordAdmissionAuditAsync(
+        CircleId circleId,
+        string outcome,
+        DateTimeOffset occurredAtUtc,
         CancellationToken cancellationToken = default);
 }

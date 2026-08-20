@@ -8,6 +8,7 @@
     <ProjectReference Include="..\Balls.Platform\Balls.Platform.csproj" />
     <ProjectReference Include="..\Balls.Protocol\Balls.Protocol.csproj" />
     <ProjectReference Include="..\Balls.Storage.Sqlite\Balls.Storage.Sqlite.csproj" />
+    <ProjectReference Include="..\Balls.Transport.Lan\Balls.Transport.Lan.csproj" />
   </ItemGroup>
   <ItemGroup>
     <PackageReference Include="Microsoft.AspNetCore.OpenApi" />

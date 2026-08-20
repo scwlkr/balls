@@ -25,6 +25,37 @@ public sealed class NodeTransportSecurityTests
     }
 
     [TestMethod]
+    public void Signed_binding_codec_is_canonical_and_rejects_unknown_fields()
+    {
+        using var authorityKey = ECDsa.Create(ECCurve.NamedCurves.nistP256);
+        using var transportKey = ECDsa.Create(ECCurve.NamedCurves.nistP256);
+        var authority = RemoteIdentity.CreateCredential(KeyRole.CircleAuthority, authorityKey);
+        var binding = NodeTransportSecurity.Sign(
+            new NodeTransportBinding(
+                RemoteSecurityProtocol.Version,
+                Guid.CreateVersion7().ToString("D"),
+                Guid.CreateVersion7().ToString("D"),
+                1,
+                RemoteIdentity.CreateCredential(KeyRole.Transport, transportKey),
+                DateTimeOffset.UtcNow.AddMinutes(-1),
+                DateTimeOffset.UtcNow.AddHours(1),
+                1,
+                1),
+            authority,
+            authorityKey);
+        var encoded = NodeTransportBindingCodec.Encode(binding);
+
+        CollectionAssert.AreEqual(
+            encoded,
+            NodeTransportBindingCodec.Encode(NodeTransportBindingCodec.Decode(encoded)));
+        var tampered = encoded[..^1]
+            .Concat(",\"unexpected\":true}"u8.ToArray())
+            .ToArray();
+        Assert.ThrowsExactly<RemoteChannelException>(
+            () => NodeTransportBindingCodec.Decode(tampered));
+    }
+
+    [TestMethod]
     [DataRow(BindingMutation.Tampered, NodeTransportRejectionCode.Forged)]
     [DataRow(BindingMutation.Revoked, NodeTransportRejectionCode.Revoked)]
     [DataRow(BindingMutation.Stale, NodeTransportRejectionCode.StaleAuthorityState)]

@@ -103,7 +103,7 @@ public sealed class CliApplicationTests
         Assert.AreEqual(string.Empty, misplacedOutput.ToString());
         Assert.AreEqual(
             "balls: --output must be either 'text' or 'json'." + Environment.NewLine
-                + "commands: ui | status | circle create | circle list | member list | node list | invitation create | invitation redeem"
+                + "commands: ui | status | circle create | circle join | circle list | member list | node list | invitation create | invitation redeem"
                 + Environment.NewLine,
             unsupportedError.ToString());
         StringAssert.StartsWith(misplacedError.ToString(), "balls: unknown command.");
@@ -298,6 +298,90 @@ public sealed class CliApplicationTests
     }
 
     [TestMethod]
+    public async Task Cli_joins_a_second_Node_and_lists_the_shared_roster_on_both_daemons()
+    {
+        if (!OperatingSystem.IsWindows())
+        {
+            Assert.Inconclusive("This local-control transport test is Windows-only.");
+            return;
+        }
+
+        using var directory = new TemporaryDirectory();
+        var anchorPipe = $"balls-tests-{Guid.NewGuid():N}";
+        var joinerPipe = $"balls-tests-{Guid.NewGuid():N}";
+        var port = ReservePort();
+        await using var anchor = await DaemonHost.StartAsync(
+            new DaemonOptions(
+                Path.Combine(directory.Path, "anchor"),
+                anchorPipe,
+                "Anchor-PC",
+                $"127.0.0.1:{port}"));
+        await using var joiner = await DaemonHost.StartAsync(
+            new DaemonOptions(
+                Path.Combine(directory.Path, "joiner"),
+                joinerPipe,
+                "Joiner-PC"));
+        var created = DeserializeResult<CircleDetailsResponse>((await RunAsync(
+            anchorPipe,
+            "--output",
+            "json",
+            "circle",
+            "create",
+            "Shared Circle",
+            "--owner",
+            "Alice")).StandardOutput);
+        var invitationPath = Path.Combine(directory.Path, "shared.balls-invitation");
+        var issued = await RunAsync(
+            anchorPipe,
+            "invitation",
+            "create",
+            "--circle",
+            created.Circle.Id,
+            "--out",
+            invitationPath);
+        Assert.AreEqual(CliExitCodes.Success, issued.ExitCode);
+
+        var admitted = await RunAsync(
+            joinerPipe,
+            "--output",
+            "json",
+            "circle",
+            "join",
+            "--file",
+            invitationPath,
+            "--endpoint",
+            $"127.0.0.1:{port}",
+            "--member",
+            "Bob");
+        Assert.AreEqual(CliExitCodes.Success, admitted.ExitCode);
+        var joined = DeserializeResult<CircleDetailsResponse>(admitted.StandardOutput);
+        Assert.AreEqual(2, joined.Circle.MemberCount);
+        Assert.AreEqual(2, joined.Circle.NodeCount);
+
+        foreach (var pipe in new[] { anchorPipe, joinerPipe })
+        {
+            var members = await RunAsync(
+                pipe,
+                "member",
+                "list",
+                "--circle",
+                created.Circle.Id);
+            var nodes = await RunAsync(
+                pipe,
+                "node",
+                "list",
+                "--circle",
+                created.Circle.Id);
+            Assert.AreEqual(CliExitCodes.Success, members.ExitCode);
+            Assert.AreEqual(CliExitCodes.Success, nodes.ExitCode);
+            StringAssert.Contains(members.StandardOutput, "Alice");
+            StringAssert.Contains(members.StandardOutput, "Bob");
+            StringAssert.Contains(nodes.StandardOutput, "Anchor-PC");
+            StringAssert.Contains(nodes.StandardOutput, "Joiner-PC");
+        }
+    }
+
+    [TestMethod]
     public async Task Cli_returns_daemon_unavailable_when_the_selected_pipe_has_no_daemon()
     {
         if (!OperatingSystem.IsWindows())
@@ -419,6 +503,20 @@ public sealed class CliApplicationTests
         Assert.AreEqual(1, document.RootElement.GetProperty("outputVersion").GetInt32());
         return document.RootElement.GetProperty("result").Deserialize<T>(ControlJson.Options)
             ?? throw new AssertFailedException("CLI result was null.");
+    }
+
+    private static int ReservePort()
+    {
+        var listener = new System.Net.Sockets.TcpListener(System.Net.IPAddress.Loopback, 0);
+        listener.Start();
+        try
+        {
+            return ((System.Net.IPEndPoint)listener.LocalEndpoint).Port;
+        }
+        finally
+        {
+            listener.Stop();
+        }
     }
 
     private sealed record CliResult(int ExitCode, string StandardOutput, string StandardError);

@@ -44,6 +44,16 @@ internal static class CliOutput
             $"Circle ID: {response.Circle.Id}");
     }
 
+    internal static string RenderJoinedCircle(CircleDetailsResponse response)
+    {
+        return string.Join(
+            Environment.NewLine,
+            $"Joined Circle: {response.Circle.Name}",
+            $"Circle ID: {response.Circle.Id}",
+            $"Members: {response.Circle.MemberCount}",
+            $"Nodes: {response.Circle.NodeCount}");
+    }
+
     internal static string RenderCircles(CircleListResponse response)
     {
         return response.Circles.Count == 0

@@ -2,6 +2,7 @@ using System.Security.Cryptography;
 using System.Security.Cryptography.X509Certificates;
 using Balls.Core;
 using Balls.Storage.Sqlite;
+using Microsoft.Data.Sqlite;
 
 namespace Balls.Storage.Sqlite.Tests;
 
@@ -121,12 +122,17 @@ public sealed class AdmissionStateStoreTests
             Now);
 
         var accepted = await store.CommitAnchorAdmissionAsync(commit);
+        var queried = await store.GetAnchorAdmissionResultAsync(
+            invitationId,
+            commit.RequestSha256);
         var retried = await store.CommitAnchorAdmissionAsync(commit);
         var conflict = await store.CommitAnchorAdmissionAsync(
             commit with { RequestSha256 = RandomNumberGenerator.GetBytes(32) });
         var details = await store.GetCircleAsync(created.Circle.Id);
 
         Assert.AreEqual(AnchorAdmissionCommitStatus.Accepted, accepted.Status);
+        Assert.AreEqual(AnchorAdmissionCommitStatus.IdempotentRetry, queried!.Status);
+        CollectionAssert.AreEqual(commit.EncodedResponse, queried.EncodedResponse);
         Assert.AreEqual(AnchorAdmissionCommitStatus.IdempotentRetry, retried.Status);
         CollectionAssert.AreEqual(commit.EncodedResponse, retried.EncodedResponse);
         Assert.AreEqual(AnchorAdmissionCommitStatus.Replayed, conflict.Status);
@@ -139,6 +145,68 @@ public sealed class AdmissionStateStoreTests
                 packageDigest,
                 RedemptionId.New(),
                 Now)).Status);
+
+        var revokedInvitationId = InvitationId.New();
+        var revokedPackage = "revoked-package"u8.ToArray();
+        var revokedDigest = SHA256.HashData(revokedPackage);
+        await store.StoreCircleInvitationAsync(
+            new PersistedCircleInvitation(
+                revokedInvitationId,
+                created.Circle.Id,
+                revokedDigest,
+                revokedPackage,
+                Now.AddHours(1),
+                Now));
+        await store.RevokeCircleInvitationAsync(revokedInvitationId, Now);
+        var revoked = await store.CommitAnchorAdmissionAsync(
+            commit with
+            {
+                InvitationId = revokedInvitationId,
+                PackageSha256 = revokedDigest,
+                RequestSha256 = RandomNumberGenerator.GetBytes(32),
+                Member = commit.Member with { Id = MemberId.New() },
+                Node = commit.Node with { NodeId = NodeId.New() },
+            });
+        Assert.AreEqual(AnchorAdmissionCommitStatus.Revoked, revoked.Status);
+
+        var expiredInvitationId = InvitationId.New();
+        var expiredPackage = "expired-package"u8.ToArray();
+        var expiredDigest = SHA256.HashData(expiredPackage);
+        await store.StoreCircleInvitationAsync(
+            new PersistedCircleInvitation(
+                expiredInvitationId,
+                created.Circle.Id,
+                expiredDigest,
+                expiredPackage,
+                Now,
+                Now.AddMinutes(-1)));
+        var expired = await store.CommitAnchorAdmissionAsync(
+            commit with
+            {
+                InvitationId = expiredInvitationId,
+                PackageSha256 = expiredDigest,
+                RequestSha256 = RandomNumberGenerator.GetBytes(32),
+                Member = commit.Member with { Id = MemberId.New() },
+                Node = commit.Node with { NodeId = NodeId.New() },
+            });
+        Assert.AreEqual(AnchorAdmissionCommitStatus.Expired, expired.Status);
+
+        for (var index = 0; index < 520; index++)
+        {
+            await store.RecordAdmissionAuditAsync(
+                created.Circle.Id,
+                "forged",
+                Now.AddSeconds(index));
+        }
+
+        await using var audit = new SqliteConnection(
+            $"Data Source={Path.Combine(directory.Path, "balls.db")};Pooling=False");
+        await audit.OpenAsync();
+        using var count = audit.CreateCommand();
+        count.CommandText =
+            "SELECT COUNT(*) FROM security_audit_events WHERE circle_id = $circle_id;";
+        count.Parameters.AddWithValue("$circle_id", created.Circle.Id.ToString());
+        Assert.AreEqual(512L, (long)(await count.ExecuteScalarAsync())!);
     }
 
     [TestMethod]

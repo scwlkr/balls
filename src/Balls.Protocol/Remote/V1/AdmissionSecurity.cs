@@ -286,6 +286,7 @@ public static class AdmissionSecurity
             WriteText(stream, node.NodeId);
             WriteText(stream, node.DisplayName);
             WriteInt64(stream, node.JoinedAtUtc.ToUnixTimeSeconds());
+            WriteCredential(stream, node.NodeCredential);
             WriteTransportBinding(stream, node.TransportBinding);
         }
 
@@ -474,13 +475,20 @@ public static class AdmissionSecurity
                 IsCanonicalUuid(node.NodeId)
                 && IsBoundedText(node.DisplayName, 100)
                 && IsUtc(node.JoinedAtUtc)
+                && node.NodeCredential.Role == KeyRole.Node
+                && RemoteIdentity.IsValidCredential(node.NodeCredential)
                 && node.TransportBinding.Binding.NodeId == node.NodeId)
             && response.Nodes.Select(node => node.NodeId)
                 .SequenceEqual(response.Nodes.Select(node => node.NodeId)
                     .Order(StringComparer.Ordinal))
             && response.Nodes.Select(node => node.NodeId).Distinct(StringComparer.Ordinal).Count()
                 == response.Nodes.Count
-            && response.Nodes.Any(node => node.NodeId == response.AdmittedNodeId)
+            && response.Nodes.Any(node =>
+                node.NodeId == response.AdmittedNodeId
+                && CredentialsEqual(node.NodeCredential, response.AdmittedNodeCredential)
+                && CredentialsEqual(
+                    node.TransportBinding.Binding.TransportCredential,
+                    response.AdmittedTransportBinding.Binding.TransportCredential))
             && context.TrustedRootCredential.Role == KeyRole.CircleAuthority
             && RemoteIdentity.IsValidCredential(context.TrustedRootCredential)
             && context.TrustedAnchorCredential.Role == KeyRole.Anchor

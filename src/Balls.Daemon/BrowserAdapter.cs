@@ -334,9 +334,12 @@ internal static class BrowserAdapter
                     member => new MemberResponse(
                         member.Id.ToString(),
                         member.DisplayName,
-                        member.Role == MemberRole.Owner
-                            ? "owner"
-                            : throw new InvalidOperationException("Unknown Member role."),
+                        member.Role switch
+                        {
+                            MemberRole.Owner => "owner",
+                            MemberRole.Member => "member",
+                            _ => throw new InvalidOperationException("Unknown Member role."),
+                        },
                         member.JoinedAtUtc))
                 .ToArray(),
             details.Nodes.Select(
