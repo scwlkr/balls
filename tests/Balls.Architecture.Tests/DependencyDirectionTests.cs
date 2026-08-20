@@ -60,7 +60,8 @@ public sealed class DependencyDirectionTests
             "Balls.Host",
             "Balls.Platform",
             "Balls.Protocol",
-            "Balls.Storage.Sqlite");
+            "Balls.Storage.Sqlite",
+            "Balls.Transport.Lan");
     }
 
     [TestMethod]
