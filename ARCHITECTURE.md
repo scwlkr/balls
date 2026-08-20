@@ -152,6 +152,13 @@ Remote communication must authenticate:
 
 Do not use IP address, hostname, or network location as identity.
 
+Remote v1 uses signed Circle authority state plus distinct Circle-root, delegated Anchor, Member,
+Node, and transport credentials. Purpose-specific canonical transcripts bind the Circle and peer
+context; TLS 1.3 binds the exact transport certificate SPKI to that signed state. Transport
+providers return untrusted byte streams and cannot assert Circle identity. See
+[`ADR 0006`](docs/decisions/0006-trusted-circle-identity-and-admission.md) and the
+[`remote Circle v1 contract`](docs/protocol/remote-circle-v1.md).
+
 ## Identity model
 
 Balls must distinguish:
@@ -162,17 +169,24 @@ Persistent identity for the Circle.
 
 Independent of any one member or Node.
 
+The durable Circle ID is authenticated together with current signed authority state. A UUID alone
+is not proof of identity, and the root credential is distinct from an Anchor's Node identity.
+
 ### Member identity
 
 Human identity inside a Circle.
 
 A member can own/use multiple Nodes.
 
+A Member signing credential is distinct from all of those Nodes' credentials.
+
 ### Node identity
 
 A particular Balls installation/device.
 
 A Node can belong to more than one Circle.
+
+Its Node signing credential is distinct from its replaceable, Circle-bound TLS transport key.
 
 ### App/service identity
 
@@ -242,6 +256,10 @@ A Circle may have one Anchor early and multiple Anchors later.
 
 The model should not make the first Anchor the permanent irreplaceable "master server."
 
+In v1, one selected Anchor may hold authoritative state and a delegated invitation key. Circle
+authority remains a separate role with explicit encrypted export; losing both live authority and
+its accepted export is unrecoverable rather than permission to promote an ordinary Node.
+
 ## Networking
 
 Separate three concerns:
@@ -277,6 +295,10 @@ Transport abstraction
 Tailscale can solve difficult connectivity problems now.
 
 Balls should be able to add or replace transport mechanisms later without redefining Circle identity or application APIs.
+
+The typed remote provider seam returns only an untrusted duplex stream plus diagnostic metadata.
+The remote Circle layer applies TLS, certificate-SPKI binding, signed credentials, versioning,
+replay policy, and authorization above that stream.
 
 Possible future work:
 

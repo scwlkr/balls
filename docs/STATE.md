@@ -29,7 +29,7 @@ the SPDX 2.3 SBOM passed unauthenticated readback.
 
 [Open the active GitHub milestone](https://github.com/scwlkr/balls/milestone/3).
 
-Status: identity, admission, and remote-protocol security decision.
+Status: trusted identity/admission design complete; protected authority persistence is next.
 
 Exit outcome: a second Node accepts a bounded invitation, joins one Circle over authenticated
 encrypted transport, sees the same membership, restarts with stable identity, and exchanges one
@@ -119,14 +119,25 @@ and the honest physical/virtual boundary are recorded in the
 those accepted bytes under the owner's explicit authorization. The final evidence is recorded in the
 [milestone record](verification/2026-08-20-cross-platform-node-web-ui.md).
 
-Ready frontier:
+Completed Trusted Circle foundation:
 
 - [#33 — Decide Circle identity, admission, and remote protocol security](https://github.com/scwlkr/balls/issues/33)
 
-Blocked in the active milestone:
+Remote v1 now has an accepted role-separated P-256 identity model, canonical dual-signed admission
+transcript, deterministic rejection vocabulary, invitation-pinned TLS 1.3 bootstrap, admitted-peer
+mTLS binding, transport-provider seam, and explicit authority recovery/revocation boundary. The
+design and executable spike are recorded in
+[`ADR 0006`](decisions/0006-trusted-circle-identity-and-admission.md), the
+[`remote Circle v1 contract`](protocol/remote-circle-v1.md), and the
+[`dated verification record`](verification/2026-08-20-trusted-circle-security-design.md).
 
-- [#35](https://github.com/scwlkr/balls/issues/35),
-  [#36](https://github.com/scwlkr/balls/issues/36),
+Ready frontier:
+
+- [#35 — Persist and protect cryptographic Node and Circle authority](https://github.com/scwlkr/balls/issues/35)
+
+Blocked later in the active milestone:
+
+- [#36](https://github.com/scwlkr/balls/issues/36),
   [#37](https://github.com/scwlkr/balls/issues/37),
   [#38](https://github.com/scwlkr/balls/issues/38),
   [#39](https://github.com/scwlkr/balls/issues/39), and
