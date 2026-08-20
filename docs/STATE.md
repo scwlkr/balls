@@ -17,31 +17,23 @@ replicated storage, richer messaging, macOS polish, and compute remain later pro
 
 ## Proven checkpoint
 
-Published [`0.1.0-alpha.2`](https://github.com/scwlkr/balls/releases/tag/0.1.0-alpha.2) proves on Windows:
-
-- Core, Protocol, SQLite, Windows adapter, daemon, and CLI boundaries;
-- persistent local Node identity;
-- atomic Circle creation with one Owner and enrolled local Node;
-- Circle, Member, and Node listing;
-- versioned HTTP/JSON over a same-user named pipe;
-- protected, marked, fail-closed SQLite state;
-- 72 automated tests and Windows process-boundary evidence.
-
-Linux now composes protected XDG state and a same-user Unix-domain socket through the same daemon,
-CLI, local-control v1, and SQLite v1 behavior as Windows.
+Published [`0.2.0-alpha.1`](https://github.com/scwlkr/balls/releases/tag/0.2.0-alpha.1) proves the
+same native daemon, structured CLI, durable Circle/Node state, local-control v1 behavior, and
+hardened local React workspace on Windows and Linux. The annotated tag targets exact accepted
+commit `3935b6ac275b24c8ed2389862b012da747099f34`; seven public assets, checksums, installers, and
+the SPDX 2.3 SBOM passed unauthenticated readback.
 
 ## Active milestone
 
-**`0.2.0-alpha.1` — Cross-platform Node and Web UI**
+**`0.3.0-alpha.1` — Trusted Circle**
 
-[Open the active GitHub milestone](https://github.com/scwlkr/balls/milestone/2).
+[Open the active GitHub milestone](https://github.com/scwlkr/balls/milestone/3).
 
-Status: release-candidate verification. The owner authorized exact-artifact promotion after the
-candidate branch lands through protected `main`; no rebuild is permitted for publication.
+Status: identity, admission, and remote-protocol security decision.
 
-Exit outcome: the same CLI and local browser experience controls a real Node on Windows and Linux;
-platform composition, protected state, and local IPC are genuinely cross-platform; green `main`
-publishes runnable Windows and Linux Canaries.
+Exit outcome: a second Node accepts a bounded invitation, joins one Circle over authenticated
+encrypted transport, sees the same membership, restarts with stable identity, and exchanges one
+persistent text message. Transport remains replaceable and separate from Circle authority.
 
 The active GitHub milestone owns executable tickets. Do not start product features from a future
 milestone while a ready active-milestone ticket exists.
@@ -86,11 +78,7 @@ The complete release-candidate matrix, exact downloaded-artifact observation, pu
 readback, and next executable milestone are reconciled in the
 [Open and Fast Foundation record](verification/2026-08-19-open-fast-foundation.md).
 
-Ready frontier:
-
-- [#23 — Verify and accept the Cross-platform Node and Web UI milestone](https://github.com/scwlkr/balls/issues/23)
-
-Completed in the active milestone:
+Completed Cross-platform Node and Web UI milestone:
 
 - [#17 — Compose daemon and CLI through cross-platform host seams](https://github.com/scwlkr/balls/issues/17)
 - [#18 — Run protected local state and control IPC natively on Linux](https://github.com/scwlkr/balls/issues/18)
@@ -98,6 +86,7 @@ Completed in the active milestone:
 - [#20 — Create the typed React workspace and generated local API client](https://github.com/scwlkr/balls/issues/20)
 - [#21 — Serve a hardened local browser UI from ballsd](https://github.com/scwlkr/balls/issues/21)
 - [#22 — Prove the Windows and Ubuntu Node/UI outcome and publish runnable Canaries](https://github.com/scwlkr/balls/issues/22)
+- [#23 — Verify and accept the Cross-platform Node and Web UI milestone](https://github.com/scwlkr/balls/issues/23)
 
 The executable layers consume neutral host contracts and one centralized selector. Windows keeps
 its protected state and same-user named pipe; Linux adds owned `0700` state, `0600` known files,
@@ -118,22 +107,24 @@ launch/create/list/restart journey run in focused/fast/full verification and bot
 The implementation and observed security evidence are recorded in the
 [browser UI record](verification/2026-08-19-browser-ui.md).
 
-The exact Windows and Linux Canaries now pass checksum installation, structured CLI/Circle work,
-real Chrome rendering, restart-stable identifiers, and loopback-only exposure. A namespaced Ubuntu
-Hyper-V lab proved explicit clean identity, enrollment, and gated reset without touching unrelated
-resources. Exact artifacts and the honest physical/virtual boundary are recorded in the
+The exact Windows and Linux Canary flow passes checksum installation, structured CLI/Circle work,
+real Chrome rendering, restart-stable identifiers, and loopback-only exposure in CI. A namespaced
+Ubuntu Hyper-V lab independently proved the exact Linux upload and gated clean reset without
+touching unrelated resources. The exact unsigned Windows download was checksum-intact but blocked
+by the owner's managed Application Control policy; no security policy was weakened. Exact assets
+and the honest physical/virtual boundary are recorded in the
 [cross-platform Node/UI record](verification/2026-08-20-cross-platform-node-ui.md).
 
-#23 is reconciling the release candidate, remeasuring feedback budgets, validating the exact
-protected-main artifacts, and publishing only those artifacts under the owner's explicit
-authorization. The candidate evidence is recorded in the
+#23 remeasured feedback budgets, validated the exact protected-main artifacts, and published only
+those accepted bytes under the owner's explicit authorization. The final evidence is recorded in the
 [milestone record](verification/2026-08-20-cross-platform-node-web-ui.md).
 
-Prepared next milestone:
+Ready frontier:
 
-- **`0.3.0-alpha.1` — Trusted Circle** has seven executable issues.
 - [#33 — Decide Circle identity, admission, and remote protocol security](https://github.com/scwlkr/balls/issues/33)
-  is its single ready frontier.
+
+Blocked in the active milestone:
+
 - [#35](https://github.com/scwlkr/balls/issues/35),
   [#36](https://github.com/scwlkr/balls/issues/36),
   [#37](https://github.com/scwlkr/balls/issues/37),

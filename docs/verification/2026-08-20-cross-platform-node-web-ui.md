@@ -2,10 +2,11 @@
 
 ## Status
 
-`0.2.0-alpha.1` is an owner-authorized release candidate. The release tag will target the exact
-protected `main` squash commit produced by the candidate pull request, and publication will promote
-only the Windows and Linux artifacts built once by that commit's successful CI run. Final tag,
-asset, checksum, SBOM, and anonymous-download readback will be appended after publication.
+[`0.2.0-alpha.1`](https://github.com/scwlkr/balls/releases/tag/0.2.0-alpha.1) is published as a
+public prerelease. Its annotated tag peels to exact protected-main squash commit
+`3935b6ac275b24c8ed2389862b012da747099f34`; publication promoted only the artifacts produced by
+that commit's CI run plus its matching installers and dependency-graph SPDX SBOM. Anonymous
+readback verified every public asset byte-for-byte.
 
 ## Completed outcomes
 
@@ -31,13 +32,15 @@ Measured on the Windows development host after the `0.2.0-alpha.1` version chang
 | First local fast gate after lock regeneration | all checks passed in 61.54s | `<60s` warm target | cold observation |
 | Warm local fast gate | all checks passed in 45.52s | `<60s` | pass |
 | Warm Playwright browser journey | 1 passed in 2.53s wall time | measured | pass |
-| PR #32 Ubuntu fast | 2m30s | `<5m` | pass |
-| PR #32 Windows fast | 3m38s | `<5m` | pass |
+| PR #40 Ubuntu fast | 1m58s | `<5m` | pass |
+| PR #40 Windows fast | 3m32s | `<5m` | pass |
+| Accepted-main Ubuntu fast | 1m47s | `<5m` | pass |
+| Accepted-main Windows fast | 4m26s | `<5m` | pass |
 
 The first post-version-change run is retained rather than hidden: it crossed the warm target by
 1.54 seconds while restoring regenerated project locks and rebuilding. The immediate warm rerun
-passed with 14.48 seconds of margin. PR #32's fail-closed `Required` job passed in 2 seconds;
-dependency review and CodeQL also passed.
+passed with 14.48 seconds of margin. PR #40's fail-closed `Required` job passed in 3 seconds;
+dependency review and CodeQL also passed. The accepted-main `Required` job passed in 4 seconds.
 
 The final local `full` gate completed in 44.75 seconds. Locked .NET and pnpm restore, both
 formatters, generated-client drift, lint, typecheck, and the Release build passed with zero
@@ -48,7 +51,7 @@ implementation issues, only #23 open in the active milestone, and only #33 ready
 milestone. Gitleaks found no leaks, and `pnpm audit --audit-level high` found no known
 vulnerabilities.
 
-## Exact current-main artifact observation
+## Pre-candidate current-main artifact observation
 
 Before changing the product version, protected [main CI run 32385414549](https://github.com/scwlkr/balls/actions/runs/32385414549)
 passed Windows fast, Ubuntu fast, `Required`, Windows Canary, and Linux Canary for exact commit
@@ -77,6 +80,54 @@ WSL switch state was observed unchanged.
 The final release artifacts will be the same package flow under version `0.2.0-alpha.1` from the
 candidate's protected-main merge commit, not a rebuild of the artifacts above.
 
+## Exact accepted release observation
+
+PR [#40](https://github.com/scwlkr/balls/pull/40) squash-merged the candidate as
+`3935b6ac275b24c8ed2389862b012da747099f34`. Accepted-main
+[CI run 32395509618](https://github.com/scwlkr/balls/actions/runs/32395509618) passed both fast lanes,
+`Required`, Linux Canary, and the exact-commit Windows Canary rerun. The first Windows Canary
+attempt reported only pipe unavailability through its 15-second readiness deadline; the unchanged
+rerun passed packaging, fresh install, structured CLI, real Chrome, restart, and upload in 2m58s.
+[CodeQL](https://github.com/scwlkr/balls/actions/runs/32395509631) and
+[Scorecard](https://github.com/scwlkr/balls/actions/runs/32395509705) passed.
+
+| Platform | Workflow artifact | Artifact ID | Downloaded archive bytes | Downloaded archive SHA-256 | Expires |
+| --- | --- | ---: | ---: | --- | --- |
+| Windows x64 | `balls-0.2.0-alpha.1-canary-windows-x64-3935b6ac275b` | `9416836654` | 18,450,758 | `FC3B01351168F1092220C71073507338A7C3DCAD68B900DEB6FE14477122BEDB` | 2026-09-03 17:14 UTC |
+| Linux x64 | `balls-0.2.0-alpha.1-canary-linux-x64-3935b6ac275b` | `9416652944` | 18,370,307 | `291567B0C5690A1B1676BE002EE7BA20E211C208F3A2858DB880F2DA4FF71ABD` | 2026-09-03 17:09 UTC |
+
+Both archives passed their external SHA-256 file and every internal checksum. Both manifests name
+version `0.2.0-alpha.1`, the full accepted commit, their exact platform, x64 architecture, and
+`runtimeSupported: true`. The exact Linux archive independently passed fresh installation,
+structured Circle work, real Chrome, loopback-only exposure, and restart-stable identity in the
+owned Ubuntu 24.04 VM; the explicit reset then restored its clean identity checkpoint without
+changing unrelated VMs or switches.
+
+The anonymously downloaded Windows archive was checksum-identical to the CI upload and internally
+intact. The owner's managed Windows PC rejected its unsigned `Balls.Core.dll` under Enterprise
+Application Control (`0x800711C7`; Code Integrity events 3033/3077), while a local build of the same
+commit and GitHub's exact CI package flow passed the full smoke. No security policy was weakened.
+This is an explicit unsigned-Alpha distribution limitation: a managed machine may require an
+administrator-approved signer or allow policy. It is not claimed as physical-machine proof for the
+exact accepted Windows asset.
+
+Annotated tag object `1e0ffc8facfec38b7569521a61c7958b334f38f5` peels to the accepted commit. The
+public prerelease is non-draft and contains seven assets:
+
+| Asset | Bytes | SHA-256 |
+| --- | ---: | --- |
+| Windows archive | 18,450,758 | `FC3B01351168F1092220C71073507338A7C3DCAD68B900DEB6FE14477122BEDB` |
+| Windows checksum | 123 | `43E665B6116187B13AC8E3830A653F98E3E262A462C79FB4A2C9608C54ED2B45` |
+| `Install-BallsCanary.ps1` | 7,121 | `BEF520F4D8CDD71E4AF50707F209059740C1D962E84BE12572C65BA4DD8B88D7` |
+| Linux archive | 18,370,307 | `291567B0C5690A1B1676BE002EE7BA20E211C208F3A2858DB880F2DA4FF71ABD` |
+| Linux checksum | 120 | `E40492814CF6211D368A0B344CEDD95E836E5EEBB09ADAA29332D460F6C8EA7D` |
+| `Install-BallsCanary.sh` | 4,563 | `CEB75E206B0366172BFDCE976D16A87D7328D6DDF62F6194CD1521D373277226` |
+| SPDX 2.3 SBOM | 231,968 | `C4A4008E1B8A51969C8788364F4B81E61F34C74DE268F23C9B953529FBAD395E` |
+
+Unauthenticated downloads matched every source byte and GitHub-reported digest. Both installers
+match the accepted commit. The SBOM parses as SPDX 2.3 with 332 packages and creation time
+2026-08-20 17:20:55 UTC.
+
 ## Repository and security state
 
 - `scwlkr/balls` is public and unarchived; `main` is the default branch.
@@ -104,19 +155,21 @@ and SQLite/local-control schema versions did not change with the product version
 
 ## Evidence boundary and blockers
 
-- Physical Windows host: observed.
+- Physical Windows host: pre-candidate and local-build outcome observed; exact accepted download
+  blocked by the host's Enterprise Application Control because it is unsigned.
 - Dedicated Ubuntu Hyper-V VM: observed.
 - GitHub-hosted Windows 2025 and Ubuntu 24.04 runners: observed.
 - Physical Linux hardware, macOS, service installation, binary signing, artifact attestation,
   remote Circle transport, invitation/admission, and multi-machine messaging: unverified or not
   implemented and not claimed by this Alpha.
-- No known credential/private-data exposure, destructive data loss, unsafe system mutation,
-  corrupt migration, or inability to install/start/exercise the release outcome is open.
+- No known credential/private-data exposure, destructive data loss, unsafe system mutation, or
+  corrupt migration is open. Unsigned managed-Windows distribution remains explicitly unsupported.
 
 ## Owner decision and next milestone
 
 The owner explicitly authorized completing #23, publishing `0.2.0-alpha.1`, and continuing to the
-next ready issue. The `0.3.0-alpha.1 — Trusted Circle` milestone now has seven executable issues:
+next ready issue. Publication and anonymous readback are complete. The
+`0.3.0-alpha.1 — Trusted Circle` milestone now has seven executable issues:
 
 1. [#33 identity/admission/remote-protocol decision](https://github.com/scwlkr/balls/issues/33) — ready;
 2. [#35 protected cryptographic authority](https://github.com/scwlkr/balls/issues/35);

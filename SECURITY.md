@@ -44,3 +44,5 @@ that upload security results. Scorecard is advisory and is not a required releas
 
 All controls required by issue #7 are available on the current public-repository plan. This
 baseline does not claim binary signing, artifact attestation, or private self-hosted analysis.
+Published Alpha binaries are unsigned and may be rejected by managed Windows Application Control;
+do not weaken an organization or machine security policy to run them.
