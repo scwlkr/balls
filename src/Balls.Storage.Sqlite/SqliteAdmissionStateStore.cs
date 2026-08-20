@@ -697,7 +697,7 @@ public sealed partial class SqliteLocalStateStore
 
         using var version = connection.CreateCommand();
         version.Transaction = transaction;
-        version.CommandText = $"PRAGMA user_version = {CurrentSchemaVersion};";
+        version.CommandText = "PRAGMA user_version = 4;";
         await version.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
         await transaction.CommitAsync(cancellationToken).ConfigureAwait(false);
     }

@@ -9,10 +9,11 @@ public sealed partial class SqliteLocalStateStore :
     IIdentityAuthorityStore,
     IInvitationStateStore,
     IAdmissionStateStore,
+    IMessageStateStore,
     IAsyncDisposable
 {
     public const int ApplicationId = 0x42414C53;
-    public const int CurrentSchemaVersion = 4;
+    public const int CurrentSchemaVersion = 5;
 
     private readonly SqliteConnection connection;
     private readonly IPrivateMaterialProtector privateMaterialProtector;
@@ -125,6 +126,13 @@ public sealed partial class SqliteLocalStateStore :
             if (!isFreshDatabase && version is 1 or 2 or 3)
             {
                 await MigrateV3ToV4Async(connection, cancellationToken).ConfigureAwait(false);
+                await ValidateSchemaAsync(connection, 4, cancellationToken)
+                    .ConfigureAwait(false);
+            }
+
+            if (!isFreshDatabase && version is 1 or 2 or 3 or 4)
+            {
+                await MigrateV4ToV5Async(connection, cancellationToken).ConfigureAwait(false);
                 await ValidateSchemaAsync(connection, CurrentSchemaVersion, cancellationToken)
                     .ConfigureAwait(false);
             }
@@ -527,6 +535,10 @@ public sealed partial class SqliteLocalStateStore :
         {
             AddAdmissionExpectedTables(expectedTables);
         }
+        if (schemaVersion >= 5)
+        {
+            AddMessageExpectedTables(expectedTables);
+        }
 
         using (var unexpectedObjectCommand = connection.CreateCommand())
         {
@@ -828,6 +840,8 @@ public sealed partial class SqliteLocalStateStore :
             {InvitationSchemaSql}
 
             {AdmissionSchemaSql}
+
+            {MessageSchemaSql}
 
             PRAGMA application_id = {ApplicationId};
             PRAGMA user_version = {CurrentSchemaVersion};

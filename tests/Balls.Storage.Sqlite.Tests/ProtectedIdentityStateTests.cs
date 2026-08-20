@@ -395,6 +395,8 @@ public sealed class ProtectedIdentityStateTests
         command.CommandText =
             """
             PRAGMA foreign_keys = OFF;
+            DROP TABLE circle_messages;
+            DROP TABLE message_drafts;
             DROP TABLE security_audit_events;
             DROP TABLE circle_admissions;
             DROP TABLE admission_challenges;
@@ -440,6 +442,8 @@ public sealed class ProtectedIdentityStateTests
         command.CommandText =
             """
             PRAGMA foreign_keys = OFF;
+            DROP TABLE circle_messages;
+            DROP TABLE message_drafts;
             DROP TABLE security_audit_events;
             DROP TABLE circle_admissions;
             DROP TABLE admission_challenges;

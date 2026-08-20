@@ -56,6 +56,12 @@ public interface IMessageStateStore
         MemberId memberId,
         CancellationToken cancellationToken = default);
 
+    Task<MessageCommitResult?> GetAuthoritativeMessageResultAsync(
+        CircleId circleId,
+        MessageId messageId,
+        ReadOnlyMemory<byte> requestSha256,
+        CancellationToken cancellationToken = default);
+
     Task<MessageCommitResult> CommitAuthoritativeMessageAsync(
         AuthoritativeMessageCommit commit,
         CancellationToken cancellationToken = default);
