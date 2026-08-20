@@ -65,8 +65,22 @@ required clean hosted Windows and Ubuntu `fast` lanes remain the complete pull-r
 
 ## Hosted pull-request evidence
 
-To be filled from the exact pushed commit after required Windows/Ubuntu, dependency-review, and
-CodeQL checks complete. This section must not claim green status before it is observed.
+PR [#42](https://github.com/scwlkr/balls/pull/42) first evaluated implementation/documentation
+commit `882c0b00ea76bfbf51dfa062974eba8519496c92`:
+
+- [Windows fast](https://github.com/scwlkr/balls/actions/runs/32400945171/job/96528731404):
+  passed in 3m23s, including the TLS 1.3 contract and existing Playwright journey;
+- [Ubuntu fast](https://github.com/scwlkr/balls/actions/runs/32400945171/job/96528731057):
+  passed in 1m56s with the same protocol contract;
+- [Required](https://github.com/scwlkr/balls/actions/runs/32400945171/job/96529786509):
+  passed its fail-closed platform decision in 5s;
+- [dependency review](https://github.com/scwlkr/balls/actions/runs/32400945093/job/96528730741):
+  passed in 7s;
+- [CodeQL C#](https://github.com/scwlkr/balls/actions/runs/32400944955/job/96528729909):
+  passed in 2m10s.
+
+The final documentation-only evidence commit is subject to the same required pull-request checks
+before merge.
 
 ## Non-goals observed
 
