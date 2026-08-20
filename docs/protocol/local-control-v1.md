@@ -54,8 +54,8 @@ options remain after their command operands. Unsupported output modes, duplicate
 values, and misplaced options return usage exit code `2` without contacting `ballsd`.
 
 Text is the default and is intended for people. `--output json` is supported for `status`,
-`circle create`, `circle list`, `member list`, and `node list`. A successful JSON document is one
-line on standard output:
+`circle create`, `circle list`, `member list`, `node list`, `invitation create`, and
+`invitation redeem`. A successful JSON document is one line on standard output:
 
 ```json
 {
@@ -111,6 +111,8 @@ material. Selecting JSON output for this interactive command is a usage error.
 | Member | `id` (UUID), `displayName`, `role`, `joinedAtUtc` |
 | Circle Node | `id` (UUID), `displayName`, `joinedAtUtc` |
 | Circle details | `circle` (Circle summary), `members` (Member array), `nodes` (Circle Node array) |
+| Issued invitation | `circleId`, `invitationId`, `expiresAtUtc`, `package` (canonical JSON string) |
+| Redemption | `circleId`, `invitationId`, `redemptionId`, `status` (`accepted`) |
 | Error | `code`, `message` |
 
 The only v1 Member role is the string `owner`.
@@ -154,6 +156,24 @@ normalized name, owner name, and local Node returns the original Circle without 
 Reusing that ID for different input returns `409 Conflict` with
 `creation_request_conflict`.
 
+### `POST /control/v1/circles/{circleId}/invitations`
+
+Creates a canonical single-use Circle invitation. The request is
+`{ "validForMinutes": 60 }`; validity is bounded from 1 through 10,080 minutes. Success returns
+`201 Created` with the Circle/invitation IDs, expiry, and exact package string. The package is at
+most 16 KiB and contains only public signed authority/context. The CLI prints that string for
+direct copy or writes it with `--out <path>` using create-new semantics so existing files are not
+overwritten.
+
+### `POST /control/v1/invitations/redeem`
+
+Accepts `{ "package": "..." }`, verifies the exact canonical package against the issuing
+Circle's current stored root/Anchor authority, and atomically commits one redemption result.
+Success returns `200 OK` with stable IDs and `status: "accepted"`. Replay returns `409`; malformed,
+forged, expired, future, revoked, stale, wrong-Circle, and unsupported inputs return bounded typed
+errors without reflecting credentials or package contents. `balls invitation redeem --file
+<path>` reads only an exact UTF-8 file of at most 16 KiB.
+
 ### `POST /control/v1/ui/launch`
 
 Returns the ephemeral loopback URL and expiry for a one-minute, single-use browser launch
@@ -177,7 +197,8 @@ Circle returns `404 Not Found`.
 The browser listener serves the bundled production application and only these `/browser/v1`
 routes: session exchange, status, Circle list/create, and Circle details. The browser control
 plane is intentionally narrower than `/control/v1`; control routes return `404` on TCP and browser
-routes return `404` over IPC.
+routes return `404` over IPC. Invitation creation/redemption is deliberately CLI/local-control
+only in this slice; no browser route or browser storage is added.
 
 `POST /browser/v1/session` exchanges the launch capability once. Success sets the
 `__Host-balls-session` cookie with `HttpOnly`, `Secure`, `SameSite=Strict`, and `Path=/`, and returns
@@ -208,13 +229,17 @@ Handled application errors use this shape:
 | 400 | `owner_display_name_required` |
 | 400 | `owner_display_name_too_long` |
 | 400 | `invalid_circle_id` |
+| 400 | `invalid_invitation_validity`, `malformed`, `forged`, `expired`, `not_yet_valid`, `revoked`, `wrong_circle`, `unsupported_version`, `unsupported_suite`, `unauthorized_issuer`, `stale_authority_state` |
 | 404 | `circle_not_found` |
+| 404 | `invitation_not_found` |
 | 409 | `creation_request_conflict` |
+| 409 | `replayed` |
 
 Framework-level rejection, such as malformed JSON or a request rejected before endpoint handling,
 is not guaranteed to use the application error shape.
 
 ## Explicit non-goals
 
-v1 does not define invitation, admission, remote Node authentication, discovery, synchronization,
-messaging, files, AI, apps, or transport-provider behavior.
+v1 does not expose invitation UX to the browser and does not define remote admission transport,
+remote Node authentication, discovery, synchronization, messaging, files, AI, apps, or
+transport-provider behavior.

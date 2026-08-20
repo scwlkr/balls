@@ -206,6 +206,57 @@ public sealed class ProtectedIdentityStateTests
     }
 
     [TestMethod]
+    public async Task Version_two_migration_is_atomic_preserves_authority_and_adds_transport_once()
+    {
+        using var directory = new TemporaryDirectory();
+        CircleId circleId;
+        string nodeKeyId;
+        string rootKeyId;
+        await using (var store = await SqliteLocalStateStore.OpenAsync(
+                         directory.Path,
+                         TestPrivateMaterialProtector.Instance))
+        {
+            var application = new CircleApplication(store, TimeProvider.System, "Alice-PC");
+            var circle = await application.CreateCircleAsync(
+                new CreateCircleCommand(
+                    new CreationRequestId(Guid.CreateVersion7()),
+                    "Version Two Circle",
+                    "Alice"));
+            circleId = circle.Circle.Id;
+            nodeKeyId = (await store.GetNodeCryptographicIdentityAsync())!.Credential.KeyId;
+            rootKeyId = (await store.GetCircleAuthorityAsync(circleId))!.RootCredential.KeyId;
+        }
+
+        await DowngradeToVersionTwoAsync(directory.Path);
+        await Assert.ThrowsExactlyAsync<CryptographicException>(
+            () => SqliteLocalStateStore.OpenAsync(
+                directory.Path,
+                new ThrowingMigrationProtector(failOnProtectionNumber: 1)));
+        await AssertVersionTwoInvitationTablesAbsentAsync(directory.Path);
+
+        string transportKeyId;
+        await using (var migrated = await SqliteLocalStateStore.OpenAsync(
+                         directory.Path,
+                         TestPrivateMaterialProtector.Instance))
+        {
+            Assert.AreEqual(
+                nodeKeyId,
+                (await migrated.GetNodeCryptographicIdentityAsync())!.Credential.KeyId);
+            Assert.AreEqual(
+                rootKeyId,
+                (await migrated.GetCircleAuthorityAsync(circleId))!.RootCredential.KeyId);
+            transportKeyId = (await migrated.GetLocalTransportIdentityAsync())!.Credential.KeyId;
+        }
+
+        await using var restarted = await SqliteLocalStateStore.OpenAsync(
+            directory.Path,
+            TestPrivateMaterialProtector.Instance);
+        Assert.AreEqual(
+            transportKeyId,
+            (await restarted.GetLocalTransportIdentityAsync())!.Credential.KeyId);
+    }
+
+    [TestMethod]
     public async Task Protection_scheme_substitution_fails_closed()
     {
         using var directory = new TemporaryDirectory();
@@ -340,6 +391,46 @@ public sealed class ProtectedIdentityStateTests
         await using var reader = await command.ExecuteReaderAsync();
         Assert.IsTrue(await reader.ReadAsync());
         Assert.AreEqual(1L, reader.GetInt64(0));
+        Assert.AreEqual(0L, reader.GetInt64(1));
+    }
+
+    private static async Task DowngradeToVersionTwoAsync(string directory)
+    {
+        await using var connection = OpenDatabase(directory);
+        await connection.OpenAsync();
+        using var command = connection.CreateCommand();
+        command.CommandText =
+            """
+            PRAGMA foreign_keys = OFF;
+            DROP TABLE revoked_invitations;
+            DROP TABLE invitation_redemptions;
+            DROP TABLE circle_invitations;
+            DROP TABLE local_transport_credentials;
+            PRAGMA user_version = 2;
+            """;
+        await command.ExecuteNonQueryAsync();
+    }
+
+    private static async Task AssertVersionTwoInvitationTablesAbsentAsync(string directory)
+    {
+        await using var connection = OpenDatabase(directory);
+        await connection.OpenAsync();
+        using var command = connection.CreateCommand();
+        command.CommandText =
+            """
+            SELECT
+                (SELECT user_version FROM pragma_user_version),
+                (SELECT COUNT(*) FROM sqlite_master
+                 WHERE type = 'table'
+                   AND name IN (
+                       'local_transport_credentials',
+                       'circle_invitations',
+                       'invitation_redemptions',
+                       'revoked_invitations'));
+            """;
+        await using var reader = await command.ExecuteReaderAsync();
+        Assert.IsTrue(await reader.ReadAsync());
+        Assert.AreEqual(2L, reader.GetInt64(0));
         Assert.AreEqual(0L, reader.GetInt64(1));
     }
 

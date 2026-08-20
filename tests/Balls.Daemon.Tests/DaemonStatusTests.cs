@@ -178,12 +178,17 @@ public sealed class DaemonStatusTests
 
         using var response = await client.GetAsync(ControlRoutes.OpenApi);
         var document = await response.Content.ReadAsStringAsync();
-        var committedDocument = File.ReadAllText(
-            Path.Combine(
-                FindRepositoryRoot(),
-                "docs",
-                "protocol",
-                "local-control-v1.openapi.json"));
+        var contractPath = Path.Combine(
+            FindRepositoryRoot(),
+            "docs",
+            "protocol",
+            "local-control-v1.openapi.json");
+        if (Environment.GetEnvironmentVariable("BALLS_UPDATE_OPENAPI") == "1")
+        {
+            await File.WriteAllTextAsync(contractPath, document);
+        }
+
+        var committedDocument = File.ReadAllText(contractPath);
 
         Assert.AreEqual(HttpStatusCode.OK, response.StatusCode);
         Assert.IsTrue(
@@ -192,6 +197,8 @@ public sealed class DaemonStatusTests
         StringAssert.Contains(document, ControlRoutes.Status);
         StringAssert.Contains(document, ControlRoutes.Circles);
         StringAssert.Contains(document, nameof(CreateCircleRequest));
+        StringAssert.Contains(document, nameof(CreateInvitationRequest));
+        StringAssert.Contains(document, nameof(RedeemInvitationRequest));
         StringAssert.Contains(document, nameof(ErrorResponse));
     }
 

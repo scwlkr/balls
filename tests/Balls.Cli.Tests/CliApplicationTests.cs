@@ -103,7 +103,7 @@ public sealed class CliApplicationTests
         Assert.AreEqual(string.Empty, misplacedOutput.ToString());
         Assert.AreEqual(
             "balls: --output must be either 'text' or 'json'." + Environment.NewLine
-                + "commands: ui | status | circle create | circle list | member list | node list"
+                + "commands: ui | status | circle create | circle list | member list | node list | invitation create | invitation redeem"
                 + Environment.NewLine,
             unsupportedError.ToString());
         StringAssert.StartsWith(misplacedError.ToString(), "balls: unknown command.");

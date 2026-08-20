@@ -48,9 +48,9 @@ remote Files, a company Beta, and a focused v1.0. See the compact [`roadmap`](RO
 The published Alpha has platform-neutral host composition, protected native Linux state/IPC, stable
 machine-readable CLI output, and one typed React workspace generated from local-control v1.
 `balls ui` opens that offline bundle through a hardened loopback-only adapter, where the user can
-inspect the Node and create or revisit Circles, Members, and Nodes. Issue
-[#33](https://github.com/scwlkr/balls/issues/33) is the active Trusted Circle frontier for Circle
-identity, admission, and remote-protocol security.
+inspect the Node and create or revisit Circles, Members, and Nodes. Trusted Circle now has
+protected production authority plus canonical, bounded, single-use invitation packages; encrypted
+LAN Node transport is the next frontier.
 
 ## Quick start
 
@@ -69,6 +69,8 @@ Leave the daemon running. In a second PowerShell window:
 dotnet run --project src/Balls.Cli --configuration Release --no-build -- --pipe-name balls-dev status
 dotnet run --project src/Balls.Cli --configuration Release --no-build -- --pipe-name balls-dev circle create "My Circle" --owner $env:USERNAME
 dotnet run --project src/Balls.Cli --configuration Release --no-build -- --pipe-name balls-dev circle list
+dotnet run --project src/Balls.Cli --configuration Release --no-build -- --pipe-name balls-dev invitation create --circle <circle-id> --out .\invite.balls-invitation
+dotnet run --project src/Balls.Cli --configuration Release --no-build -- --pipe-name balls-dev invitation redeem --file .\invite.balls-invitation
 dotnet run --project src/Balls.Cli --configuration Release --no-build -- --pipe-name balls-dev ui
 dotnet run --project src/Balls.Cli --configuration Release --no-build -- --output json --pipe-name balls-dev status
 ```
