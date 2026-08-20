@@ -9,6 +9,7 @@ using Balls.Protocol.Control.V1;
 using Balls.Security.Linux;
 using Balls.Security.Windows;
 using Balls.Storage.Sqlite;
+using Balls.Transport.Lan;
 
 namespace Balls.Architecture.Tests;
 
@@ -85,6 +86,12 @@ public sealed class DependencyDirectionTests
     public void Windows_adapter_depends_only_on_platform_contracts()
     {
         AssertBallsReferences(typeof(WindowsNamedPipeControl).Assembly, "Balls.Platform");
+    }
+
+    [TestMethod]
+    public void LAN_transport_depends_only_on_remote_protocol_contracts()
+    {
+        AssertBallsReferences(typeof(TcpLanTransportConnector).Assembly, "Balls.Protocol");
     }
 
     [TestMethod]
