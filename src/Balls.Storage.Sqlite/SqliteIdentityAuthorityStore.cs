@@ -816,17 +816,78 @@ public sealed partial class SqliteLocalStateStore
                     (SELECT COUNT(*) FROM local_transport_credentials),
                     (SELECT COUNT(*) FROM circles),
                     (SELECT COUNT(*) FROM circle_authorities),
-                    (SELECT COUNT(*) FROM circle_authorities WHERE authority_generation < 1);
+                    (SELECT COUNT(*) FROM circle_authorities WHERE authority_generation < 1),
+                    (SELECT COUNT(*) FROM circle_trust);
                 """;
             await using var reader = await completeness.ExecuteReaderAsync(cancellationToken)
                 .ConfigureAwait(false);
             if (!await reader.ReadAsync(cancellationToken).ConfigureAwait(false)
                 || reader.GetInt64(0) != reader.GetInt64(1)
                 || reader.GetInt64(0) != reader.GetInt64(2)
-                || reader.GetInt64(3) != reader.GetInt64(4)
-                || reader.GetInt64(5) != 0)
+                || reader.GetInt64(4) > reader.GetInt64(3)
+                || reader.GetInt64(5) != 0
+                || reader.GetInt64(6) != reader.GetInt64(3))
             {
                 throw InvalidPrivateMaterial();
+            }
+        }
+
+        using (var trust = connection.CreateCommand())
+        {
+            trust.CommandText =
+                """
+                SELECT t.authority_generation, t.authority_sequence,
+                       t.root_key_algorithm, t.root_key_id, t.root_public_key_spki,
+                       t.anchor_key_algorithm, t.anchor_key_id, t.anchor_public_key_spki,
+                       a.authority_generation, a.root_key_id, a.root_public_key_spki,
+                       a.anchor_key_id, a.anchor_public_key_spki
+                FROM circle_trust t
+                LEFT JOIN circle_authorities a ON a.circle_id = t.circle_id;
+                """;
+            await using var reader = await trust.ExecuteReaderAsync(cancellationToken)
+                .ConfigureAwait(false);
+            while (await reader.ReadAsync(cancellationToken).ConfigureAwait(false))
+            {
+                try
+                {
+                    var root = ReadCredential(
+                        IdentityKeyRole.CircleAuthority,
+                        reader.GetString(2),
+                        reader.GetString(3),
+                        (byte[])reader.GetValue(4));
+                    var anchor = ReadCredential(
+                        IdentityKeyRole.Anchor,
+                        reader.GetString(5),
+                        reader.GetString(6),
+                        (byte[])reader.GetValue(7));
+                    if (reader.GetInt64(0) < 1 || reader.GetInt64(1) < 0)
+                    {
+                        throw InvalidPrivateMaterial();
+                    }
+
+                    if (!reader.IsDBNull(8)
+                        && (reader.GetInt64(0) != reader.GetInt64(8)
+                            || root.KeyId != reader.GetString(9)
+                            || !CryptographicOperations.FixedTimeEquals(
+                                root.SubjectPublicKeyInfo,
+                                (byte[])reader.GetValue(10))
+                            || anchor.KeyId != reader.GetString(11)
+                            || !CryptographicOperations.FixedTimeEquals(
+                                anchor.SubjectPublicKeyInfo,
+                                (byte[])reader.GetValue(12))))
+                    {
+                        throw InvalidPrivateMaterial();
+                    }
+                }
+                catch (LocalStateException)
+                {
+                    throw;
+                }
+                catch (Exception exception) when (exception is
+                    CryptographicException or ArgumentException)
+                {
+                    throw InvalidPrivateMaterial();
+                }
             }
         }
 
@@ -899,6 +960,28 @@ public sealed partial class SqliteLocalStateStore
             {
                 credentials.Add((
                     IdentityKeyRole.Transport,
+                    reader.GetString(0),
+                    reader.GetString(1),
+                    (byte[])reader.GetValue(2),
+                    reader.GetString(3),
+                    (byte[])reader.GetValue(4)));
+            }
+        }
+
+        using (var admissionMembers = connection.CreateCommand())
+        {
+            admissionMembers.CommandText =
+                """
+                SELECT member_key_algorithm, member_key_id, member_public_key_spki,
+                       member_private_key_scheme, member_protected_private_key
+                FROM admission_attempts;
+                """;
+            await using var reader = await admissionMembers.ExecuteReaderAsync(cancellationToken)
+                .ConfigureAwait(false);
+            while (await reader.ReadAsync(cancellationToken).ConfigureAwait(false))
+            {
+                credentials.Add((
+                    IdentityKeyRole.Member,
                     reader.GetString(0),
                     reader.GetString(1),
                     (byte[])reader.GetValue(2),

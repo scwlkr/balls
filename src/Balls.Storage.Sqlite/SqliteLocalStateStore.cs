@@ -8,10 +8,11 @@ public sealed partial class SqliteLocalStateStore :
     ILocalStateStore,
     IIdentityAuthorityStore,
     IInvitationStateStore,
+    IAdmissionStateStore,
     IAsyncDisposable
 {
     public const int ApplicationId = 0x42414C53;
-    public const int CurrentSchemaVersion = 3;
+    public const int CurrentSchemaVersion = 4;
 
     private readonly SqliteConnection connection;
     private readonly IPrivateMaterialProtector privateMaterialProtector;
@@ -117,6 +118,13 @@ public sealed partial class SqliteLocalStateStore :
                     connection,
                     privateMaterialProtector,
                     cancellationToken).ConfigureAwait(false);
+                await ValidateSchemaAsync(connection, 3, cancellationToken)
+                    .ConfigureAwait(false);
+            }
+
+            if (!isFreshDatabase && version is 1 or 2 or 3)
+            {
+                await MigrateV3ToV4Async(connection, cancellationToken).ConfigureAwait(false);
                 await ValidateSchemaAsync(connection, CurrentSchemaVersion, cancellationToken)
                     .ConfigureAwait(false);
             }
@@ -243,6 +251,8 @@ public sealed partial class SqliteLocalStateStore :
                     privateMaterialProtector,
                     transaction,
                     token).ConfigureAwait(false);
+                await InsertCreatorCircleTrustAsync(circle.Circle.Id, transaction, token)
+                    .ConfigureAwait(false);
                 foreach (var member in circle.Members)
                 {
                     await InsertMemberAsync(member, transaction, token).ConfigureAwait(false);
@@ -513,6 +523,10 @@ public sealed partial class SqliteLocalStateStore :
                 ],
                 [new("circle_invitations", "invitation_id", "invitation_id", "CASCADE")]);
         }
+        if (schemaVersion >= 4)
+        {
+            AddAdmissionExpectedTables(expectedTables);
+        }
 
         using (var unexpectedObjectCommand = connection.CreateCommand())
         {
@@ -555,7 +569,9 @@ public sealed partial class SqliteLocalStateStore :
                 expectedTables.Keys.Order(StringComparer.Ordinal),
                 StringComparer.Ordinal))
         {
-            ThrowInvalidSchema();
+            throw new LocalStateException(
+                "invalid_state_schema",
+                "The Balls local state schema has an unexpected table set and was left unchanged.");
         }
 
         foreach (var (table, expected) in expectedTables)
@@ -810,6 +826,8 @@ public sealed partial class SqliteLocalStateStore :
             {IdentitySchemaSql}
 
             {InvitationSchemaSql}
+
+            {AdmissionSchemaSql}
 
             PRAGMA application_id = {ApplicationId};
             PRAGMA user_version = {CurrentSchemaVersion};
