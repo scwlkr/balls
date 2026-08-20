@@ -5,6 +5,11 @@ public sealed record CreateCircleRequest(
     string Name,
     string OwnerDisplayName);
 
+public sealed record JoinCircleRequest(
+    string Package,
+    string Endpoint,
+    string MemberDisplayName);
+
 public sealed record CircleResponse(
     string Id,
     string Name,

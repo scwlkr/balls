@@ -176,6 +176,54 @@ public sealed record SignedAdmissionRequest(
     byte[] MemberSignature,
     byte[] NodeSignature);
 
+public sealed record AdmissionMemberSnapshot(
+    string MemberId,
+    string DisplayName,
+    string Role,
+    DateTimeOffset JoinedAtUtc);
+
+public sealed record AdmissionNodeSnapshot(
+    string NodeId,
+    string DisplayName,
+    DateTimeOffset JoinedAtUtc,
+    PublicKeyCredential NodeCredential,
+    SignedNodeTransportBinding TransportBinding);
+
+public sealed record AdmissionResponse(
+    int Version,
+    string CircleId,
+    string InvitationId,
+    long AuthorityGeneration,
+    long AuthoritySequence,
+    int SelectedProtocolVersion,
+    string CircleName,
+    DateTimeOffset CircleCreatedAtUtc,
+    string AdmittedMemberId,
+    PublicKeyCredential AdmittedMemberCredential,
+    string GrantedMemberRole,
+    IReadOnlyList<string> GrantedCapabilities,
+    string AdmittedNodeId,
+    PublicKeyCredential AdmittedNodeCredential,
+    SignedNodeTransportBinding AdmittedTransportBinding,
+    byte[] RequestDigest,
+    byte[] AnchorChallenge,
+    byte[] ApplicantChallenge,
+    IReadOnlyList<AdmissionMemberSnapshot> Members,
+    IReadOnlyList<AdmissionNodeSnapshot> Nodes);
+
+public sealed record SignedAdmissionResponse(
+    AdmissionResponse Response,
+    string SignatureSuite,
+    byte[] AnchorSignature);
+
+public sealed record AdmissionResponseVerificationContext(
+    SignedAdmissionRequest Request,
+    PublicKeyCredential TrustedRootCredential,
+    PublicKeyCredential TrustedAnchorCredential,
+    DateTimeOffset NowUtc,
+    long MinimumAuthorityGeneration,
+    IReadOnlySet<string> RevokedKeyIds);
+
 public enum InvitationUseState
 {
     Available,

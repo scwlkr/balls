@@ -153,6 +153,19 @@ public static class CliApplication
                         cancellationToken).ConfigureAwait(false);
                 }
 
+                if (tokens.Count >= 2
+                    && tokens[0] == "circle"
+                    && tokens[1] == "join")
+                {
+                    return await JoinCircleAsync(
+                        client,
+                        tokens,
+                        parseResult.OutputFormat,
+                        standardOutput,
+                        standardError,
+                        cancellationToken).ConfigureAwait(false);
+                }
+
                 if (tokens.SequenceEqual(["circle", "list"], StringComparer.Ordinal))
                 {
                     return await ListCirclesAsync(
@@ -388,6 +401,53 @@ public static class CliApplication
         return CliExitCodes.Success;
     }
 
+    private static async Task<int> JoinCircleAsync(
+        HttpClient client,
+        IReadOnlyList<string> tokens,
+        CliOutputFormat outputFormat,
+        TextWriter output,
+        TextWriter error,
+        CancellationToken cancellationToken)
+    {
+        if (!TryParseJoinCircle(
+                tokens,
+                out var invitationPath,
+                out var endpoint,
+                out var memberDisplayName,
+                out var parseError))
+        {
+            return await WriteUsageErrorAsync(error, outputFormat, parseError);
+        }
+
+        var package = await ReadInvitationFileAsync(
+            invitationPath,
+            outputFormat,
+            error,
+            cancellationToken).ConfigureAwait(false);
+        if (package is null)
+        {
+            return CliExitCodes.RequestRejected;
+        }
+
+        using var response = await client.PostAsJsonAsync(
+            ControlRoutes.CircleJoin,
+            new JoinCircleRequest(package, endpoint, memberDisplayName),
+            ControlJson.Options,
+            cancellationToken).ConfigureAwait(false);
+        var result = await ReadResponseAsync<CircleDetailsResponse>(
+            response,
+            outputFormat,
+            error,
+            cancellationToken).ConfigureAwait(false);
+        if (result.Value is null)
+        {
+            return result.ExitCode;
+        }
+
+        await WriteResultAsync(output, outputFormat, result.Value, CliOutput.RenderJoinedCircle);
+        return CliExitCodes.Success;
+    }
+
     private static async Task<int> CreateInvitationAsync(
         HttpClient client,
         IReadOnlyList<string> tokens,
@@ -480,41 +540,13 @@ public static class CliApplication
                 "usage: balls invitation redeem --file <path>.");
         }
 
-        string package;
-        try
+        var package = await ReadInvitationFileAsync(
+            tokens[3],
+            outputFormat,
+            error,
+            cancellationToken).ConfigureAwait(false);
+        if (package is null)
         {
-            await using var source = new FileStream(
-                tokens[3],
-                FileMode.Open,
-                FileAccess.Read,
-                FileShare.Read,
-                bufferSize: 4096,
-                FileOptions.Asynchronous | FileOptions.SequentialScan);
-            if (source.Length is 0 or > Balls.Protocol.Remote.V1.InvitationPackageCodec.MaximumEncodedLength)
-            {
-                throw new InvalidDataException();
-            }
-
-            using var reader = new StreamReader(
-                source,
-                new System.Text.UTF8Encoding(false, true),
-                detectEncodingFromByteOrderMarks: false,
-                bufferSize: 4096,
-                leaveOpen: false);
-            package = await reader.ReadToEndAsync(cancellationToken).ConfigureAwait(false);
-        }
-        catch (Exception exception) when (exception is
-            ArgumentException or
-            DecoderFallbackException or
-            IOException or
-            NotSupportedException or
-            UnauthorizedAccessException)
-        {
-            await WriteErrorAsync(
-                error,
-                outputFormat,
-                "invitation_file_invalid",
-                "The invitation file is missing, unreadable, or exceeds the 16 KiB limit.");
             return CliExitCodes.RequestRejected;
         }
 
@@ -848,6 +880,92 @@ public static class CliApplication
         return true;
     }
 
+    private static bool TryParseJoinCircle(
+        IReadOnlyList<string> tokens,
+        out string invitationPath,
+        out string endpoint,
+        out string memberDisplayName,
+        out string error)
+    {
+        invitationPath = string.Empty;
+        endpoint = string.Empty;
+        memberDisplayName = string.Empty;
+        error = "usage: balls circle join --file <path> --endpoint <private-ip:port> --member <display-name>.";
+        if (tokens.Count != 8)
+        {
+            return false;
+        }
+
+        var seen = new HashSet<string>(StringComparer.Ordinal);
+        for (var index = 2; index < tokens.Count; index += 2)
+        {
+            if (index + 1 >= tokens.Count
+                || tokens[index + 1].StartsWith("--", StringComparison.Ordinal)
+                || !seen.Add(tokens[index]))
+            {
+                return false;
+            }
+
+            switch (tokens[index])
+            {
+                case "--file":
+                    invitationPath = tokens[index + 1];
+                    break;
+                case "--endpoint":
+                    endpoint = tokens[index + 1];
+                    break;
+                case "--member":
+                    memberDisplayName = tokens[index + 1];
+                    break;
+                default:
+                    return false;
+            }
+        }
+
+        return invitationPath.Length > 0 && endpoint.Length > 0 && memberDisplayName.Length > 0;
+    }
+
+    private static async Task<string?> ReadInvitationFileAsync(
+        string path,
+        CliOutputFormat outputFormat,
+        TextWriter error,
+        CancellationToken cancellationToken)
+    {
+        try
+        {
+            await using var source = new FileStream(
+                path,
+                FileMode.Open,
+                FileAccess.Read,
+                FileShare.Read,
+                bufferSize: 4096,
+                FileOptions.Asynchronous | FileOptions.SequentialScan);
+            if (source.Length is 0 or > Balls.Protocol.Remote.V1.InvitationPackageCodec.MaximumEncodedLength)
+            {
+                throw new InvalidDataException();
+            }
+
+            using var reader = new StreamReader(
+                source,
+                new System.Text.UTF8Encoding(false, true),
+                detectEncodingFromByteOrderMarks: false,
+                bufferSize: 4096,
+                leaveOpen: false);
+            return await reader.ReadToEndAsync(cancellationToken).ConfigureAwait(false);
+        }
+        catch (Exception exception) when (exception is
+            ArgumentException or DecoderFallbackException or IOException or
+            NotSupportedException or UnauthorizedAccessException)
+        {
+            await WriteErrorAsync(
+                error,
+                outputFormat,
+                "invitation_file_invalid",
+                "The invitation file is missing, unreadable, or exceeds the 16 KiB limit.");
+            return null;
+        }
+    }
+
     private static async Task WriteResultAsync<T>(
         TextWriter output,
         CliOutputFormat outputFormat,
@@ -885,7 +1003,7 @@ public static class CliApplication
         if (outputFormat == CliOutputFormat.Text)
         {
             await error.WriteLineAsync(
-                "commands: ui | status | circle create | circle list | member list | node list | invitation create | invitation redeem");
+                "commands: ui | status | circle create | circle join | circle list | member list | node list | invitation create | invitation redeem");
         }
 
         return CliExitCodes.UsageError;

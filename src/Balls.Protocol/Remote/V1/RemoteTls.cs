@@ -15,6 +15,17 @@ public static class RemoteTls
         string targetHost,
         string expectedServerTransportKeyId)
     {
+        return CreateAdmissionClientOptions(
+            targetHost,
+            expectedServerTransportKeyId,
+            clientCertificate: null);
+    }
+
+    public static SslClientAuthenticationOptions CreateAdmissionClientOptions(
+        string targetHost,
+        string expectedServerTransportKeyId,
+        X509Certificate2? clientCertificate)
+    {
         ArgumentException.ThrowIfNullOrWhiteSpace(targetHost);
         if (!expectedServerTransportKeyId.StartsWith(
                 "transport:p256-sha256:",
@@ -25,10 +36,17 @@ public static class RemoteTls
                 nameof(expectedServerTransportKeyId));
         }
 
+        var clientCertificates = new X509CertificateCollection();
+        if (clientCertificate is not null)
+        {
+            EnsureCertificateMatchesTransportCredential(clientCertificate);
+            clientCertificates.Add(clientCertificate);
+        }
+
         return new SslClientAuthenticationOptions
         {
             TargetHost = targetHost,
-            ClientCertificates = new X509CertificateCollection(),
+            ClientCertificates = clientCertificates,
             EnabledSslProtocols = SslProtocols.Tls13,
             ApplicationProtocols = [ProtocolApplication],
             CertificateRevocationCheckMode = X509RevocationMode.NoCheck,
@@ -40,6 +58,24 @@ public static class RemoteTls
                     expectedSubjectPublicKeyInfo: null,
                     ServerAuthenticationOid,
                     targetHost),
+        };
+    }
+
+    public static SslServerAuthenticationOptions CreateAdmissionServerOptions(
+        X509Certificate2 serverCertificate)
+    {
+        ArgumentNullException.ThrowIfNull(serverCertificate);
+        EnsureCertificateMatchesTransportCredential(serverCertificate);
+        return new SslServerAuthenticationOptions
+        {
+            ServerCertificate = serverCertificate,
+            ClientCertificateRequired = true,
+            EnabledSslProtocols = SslProtocols.Tls13,
+            ApplicationProtocols = [ProtocolApplication],
+            CertificateRevocationCheckMode = X509RevocationMode.NoCheck,
+            EncryptionPolicy = EncryptionPolicy.RequireEncryption,
+            RemoteCertificateValidationCallback = (_, certificate, _, _) =>
+                ValidateProposedClientCertificate(certificate),
         };
     }
 
@@ -196,6 +232,33 @@ public static class RemoteTls
         catch (CryptographicException)
         {
             return false;
+        }
+    }
+
+    private static bool ValidateProposedClientCertificate(X509Certificate? certificate)
+    {
+        if (certificate is null)
+        {
+            return false;
+        }
+
+        using var certificate2 = new X509Certificate2(certificate);
+        var now = DateTime.UtcNow;
+        return now >= certificate2.NotBefore.ToUniversalTime()
+            && now < certificate2.NotAfter.ToUniversalTime()
+            && HasEnhancedKeyUsage(certificate2, ClientAuthenticationOid)
+            && HasDigitalSignatureUsage(certificate2)
+            && ReadTransportCredential(certificate2) is not null;
+    }
+
+    private static void EnsureCertificateMatchesTransportCredential(
+        X509Certificate2 certificate)
+    {
+        if (!certificate.HasPrivateKey || ReadTransportCredential(certificate) is null)
+        {
+            throw new ArgumentException(
+                "Admission TLS requires a valid transport certificate with its private key.",
+                nameof(certificate));
         }
     }
 

@@ -1,7 +1,7 @@
 # SQLite Local State
 
-**Status:** schema v2 implemented for local records plus protected cryptographic identity and
-Circle authority.
+**Status:** schema v4 implemented for local records, protected cryptographic authority,
+invitations, and persisted Circle admission.
 
 This database belongs to one `ballsd` instance. It preserves local Node identity and the Circles
 known to that daemon. It is a storage adapter, not the eventual replicated Circle state model.
@@ -24,7 +24,7 @@ persistent filesystem. See
 ## Database identity and open sequence
 
 - SQLite `application_id`: `0x42414C53` (`BALS`).
-- SQLite `user_version`: `2`.
+- SQLite `user_version`: `4`.
 - Connection mode: read/write/create, private cache, pooling disabled.
 
 The store reads identity and schema metadata before applying persistent configuration. A database
@@ -58,9 +58,18 @@ timestamps use round-trip ISO 8601 format.
 | `circle_creations` | Request ID primary key, unique Circle foreign key with cascade delete, normalized Circle and Owner input, local Node foreign key |
 | `local_node_credentials` | One role-scoped P-256 Node signing credential, stable public key ID, SPKI, protection scheme, protected PKCS#8 material, and creation time |
 | `circle_authorities` | One generation-1 Circle root plus distinct delegated Anchor credential, their public IDs/SPKIs, protected PKCS#8 material, protection scheme, and creation time |
+| `local_transport_credentials` | One protected P-256 TLS transport key distinct from the Node signing key |
+| `circle_invitations`, `invitation_redemptions`, `revoked_invitations` | Exact issued package material plus durable single-use, expiry, and revocation state |
+| `circle_trust` | Public root/Anchor credentials, authority generation/sequence, issuer Node, and the accepted signed admission receipt; present for every known Circle even when this Node has no private Circle authority |
+| `circle_member_credentials` | Admitted Member signing credentials keyed by Circle and Member |
+| `circle_node_credentials` | Node signing and transport credentials plus the canonical root-signed transport binding |
+| `admission_attempts`, `admission_challenges` | Retry-stable protected applicant Member identity and both persistent admission challenges |
+| `circle_admissions` | Exact accepted request digest, signed response, admitted Member/Node IDs, authority sequence, and time |
+| `security_audit_events` | Bounded admission outcomes; at most 512 newest events per Circle and no keys, transcripts, or signatures |
 
-`nodes` is deliberately broader than `local_node`: later slices can record other enrolled Nodes
-without redefining the daemon's singleton identity. No external enrollment flow exists yet.
+`nodes` is deliberately broader than `local_node`: admitted remote Nodes share the catalog without
+redefining the daemon's singleton identity. A joined Node stores public Circle trust and its signed
+receipt but does not gain private root/Anchor authority or redefine itself as the Anchor.
 
 ## Transaction and concurrency rules
 
@@ -68,7 +77,16 @@ without redefining the daemon's singleton identity. No external enrollment flow 
 - Initial local Node creation inserts the Node catalog record and singleton record together.
 - Initial local Node creation inserts its distinct signing credential in that same transaction.
 - Circle creation atomically inserts the Circle, Owner, local Node enrollment, and idempotency
-  record plus distinct Circle-root and Anchor signing credentials.
+  record plus distinct Circle-root and Anchor signing credentials and matching public trust state.
+- Applicant preparation creates one protected Member key and challenge per invitation. Exact retry
+  returns the same IDs/credential/challenge; conflicting reuse fails closed.
+- Anchor admission atomically consumes the exact invitation and inserts the Member, Node, role,
+  Member/Node/transport credentials, root-signed transport binding, monotonic authority sequence,
+  exact signed response, and bounded audit outcome. Exact request retry returns the stored response;
+  a conflicting transcript cannot create another membership.
+- Joiner admission atomically inserts the signed Circle/Member/Node roster, public authority trust,
+  local Member credential, all Node security bindings, and exact receipt. Restart retains the same
+  identifiers with no duplicate rows.
 - A repeated creation request with equivalent normalized input returns the original Circle. A
   conflicting reuse fails with `creation_request_conflict`.
 - Store operations are serialized within the process. Disposal waits for the active operation and
@@ -87,11 +105,11 @@ without redefining the daemon's singleton identity. No external enrollment flow 
 
 ## Migration policy
 
-Version 1 is migrated to version 2 in one SQLite transaction. The migration creates a Node signing
-credential for an existing local Node and distinct root/Anchor credentials for each existing
-Circle. A protection or database failure rolls back the schema, version, and every generated row;
-the next successful start performs one complete migration. Version 2 credentials are validated on
-every open and are never silently regenerated when unreadable.
+Migrations run one boundary at a time and transactionally: v1 adds protected Node/Circle authority
+(v2), v2 adds transport and invitation state (v3), and v3 adds public Circle trust and admission
+state (v4). A protection or database failure rolls back that schema version and every generated
+row; the next successful start performs one complete migration. Protected credentials and public
+Circle trust are validated on every open and are never silently regenerated when unreadable.
 
 Future schema changes must retain explicit transactional migrations, forward-version refusal, and
 failure/restart tests. SQLite remains local Node state, not the Circle's network replication
@@ -115,3 +133,6 @@ protocol.
   generation, public credentials, KDF profile, and encrypted-value SHA-256 digests.
 - Import, rotation, custody UI, and secure deletion are not implemented. Backup loss is
   unrecoverable if no accepted live authority remains.
+- Authority export is the v1 backup boundary before depending on one selected Anchor. Joined Nodes
+  cannot export or promote themselves because they possess only public trust and a signed membership
+  receipt. There is no automatic Anchor failover.

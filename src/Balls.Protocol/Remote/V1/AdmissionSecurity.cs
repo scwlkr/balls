@@ -12,6 +12,10 @@ public static class AdmissionSecurity
         "balls/trusted-circle/signed-invitation/v1\0"u8.ToArray();
     private static readonly byte[] AdmissionDomain =
         "balls/trusted-circle/admission-request/v1\0"u8.ToArray();
+    private static readonly byte[] SignedAdmissionDomain =
+        "balls/trusted-circle/signed-admission-request/v1\0"u8.ToArray();
+    private static readonly byte[] AdmissionResponseDomain =
+        "balls/trusted-circle/admission-response/v1\0"u8.ToArray();
 
     public static SignedCircleInvitation SignInvitation(
         CircleInvitation invitation,
@@ -205,7 +209,7 @@ public static class AdmissionSecurity
         }
     }
 
-    private static byte[] EncodeAdmission(AdmissionRequest request)
+    public static byte[] EncodeAdmission(AdmissionRequest request)
     {
         using var stream = new MemoryStream();
         stream.Write(AdmissionDomain);
@@ -227,6 +231,289 @@ public static class AdmissionSecurity
         WriteBytes(stream, request.ApplicantChallenge);
         return stream.ToArray();
     }
+
+    public static byte[] DigestAdmission(SignedAdmissionRequest request)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+        using var stream = new MemoryStream();
+        stream.Write(SignedAdmissionDomain);
+        WriteBytes(stream, EncodeAdmission(request.Request));
+        WriteBytes(stream, request.MemberSignature);
+        WriteBytes(stream, request.NodeSignature);
+        return SHA256.HashData(stream.ToArray());
+    }
+
+    public static byte[] EncodeResponse(AdmissionResponse response)
+    {
+        ArgumentNullException.ThrowIfNull(response);
+        using var stream = new MemoryStream();
+        stream.Write(AdmissionResponseDomain);
+        WriteInt32(stream, response.Version);
+        WriteText(stream, response.CircleId);
+        WriteText(stream, response.InvitationId);
+        WriteInt64(stream, response.AuthorityGeneration);
+        WriteInt64(stream, response.AuthoritySequence);
+        WriteInt32(stream, response.SelectedProtocolVersion);
+        WriteText(stream, response.CircleName);
+        WriteInt64(stream, response.CircleCreatedAtUtc.ToUnixTimeSeconds());
+        WriteText(stream, response.AdmittedMemberId);
+        WriteCredential(stream, response.AdmittedMemberCredential);
+        WriteText(stream, response.GrantedMemberRole);
+        WriteInt32(stream, response.GrantedCapabilities.Count);
+        foreach (var capability in response.GrantedCapabilities)
+        {
+            WriteText(stream, capability);
+        }
+
+        WriteText(stream, response.AdmittedNodeId);
+        WriteCredential(stream, response.AdmittedNodeCredential);
+        WriteTransportBinding(stream, response.AdmittedTransportBinding);
+        WriteBytes(stream, response.RequestDigest);
+        WriteBytes(stream, response.AnchorChallenge);
+        WriteBytes(stream, response.ApplicantChallenge);
+        WriteInt32(stream, response.Members.Count);
+        foreach (var member in response.Members)
+        {
+            WriteText(stream, member.MemberId);
+            WriteText(stream, member.DisplayName);
+            WriteText(stream, member.Role);
+            WriteInt64(stream, member.JoinedAtUtc.ToUnixTimeSeconds());
+        }
+
+        WriteInt32(stream, response.Nodes.Count);
+        foreach (var node in response.Nodes)
+        {
+            WriteText(stream, node.NodeId);
+            WriteText(stream, node.DisplayName);
+            WriteInt64(stream, node.JoinedAtUtc.ToUnixTimeSeconds());
+            WriteCredential(stream, node.NodeCredential);
+            WriteTransportBinding(stream, node.TransportBinding);
+        }
+
+        return stream.ToArray();
+    }
+
+    public static SignedAdmissionResponse SignResponse(
+        AdmissionResponse response,
+        PublicKeyCredential anchorCredential,
+        ECDsa anchorKey)
+    {
+        ArgumentNullException.ThrowIfNull(response);
+        ArgumentNullException.ThrowIfNull(anchorCredential);
+        ArgumentNullException.ThrowIfNull(anchorKey);
+        var actual = RemoteIdentity.CreateCredential(KeyRole.Anchor, anchorKey);
+        if (!CredentialsEqual(actual, anchorCredential))
+        {
+            throw new ArgumentException(
+                "The signing key does not match the delegated Anchor credential.",
+                nameof(anchorKey));
+        }
+
+        return new SignedAdmissionResponse(
+            response,
+            RemoteSecurityProtocol.SignatureSuite,
+            RemoteIdentity.Sign(EncodeResponse(response), anchorKey));
+    }
+
+    public static AdmissionValidationResult ValidateResponse(
+        SignedAdmissionResponse signedResponse,
+        AdmissionResponseVerificationContext context)
+    {
+        ArgumentNullException.ThrowIfNull(signedResponse);
+        ArgumentNullException.ThrowIfNull(context);
+        try
+        {
+            var response = signedResponse.Response;
+            var request = context.Request.Request;
+            if (!HasValidResponseShape(signedResponse, context))
+            {
+                return Rejected(AdmissionRejectionCode.Malformed);
+            }
+
+            if (signedResponse.SignatureSuite != RemoteSecurityProtocol.SignatureSuite)
+            {
+                return Rejected(AdmissionRejectionCode.UnsupportedSuite);
+            }
+
+            if (!RemoteIdentity.Verify(
+                    EncodeResponse(response),
+                    signedResponse.AnchorSignature,
+                    context.TrustedAnchorCredential)
+                || !CryptographicOperations.FixedTimeEquals(
+                    response.RequestDigest,
+                    DigestAdmission(context.Request)))
+            {
+                return Rejected(AdmissionRejectionCode.Forged);
+            }
+
+            if (context.RevokedKeyIds.Contains(context.TrustedAnchorCredential.KeyId)
+                || context.RevokedKeyIds.Contains(response.AdmittedMemberCredential.KeyId)
+                || context.RevokedKeyIds.Contains(response.AdmittedNodeCredential.KeyId)
+                || context.RevokedKeyIds.Contains(
+                    response.AdmittedTransportBinding.Binding.TransportCredential.KeyId))
+            {
+                return Rejected(AdmissionRejectionCode.Revoked);
+            }
+
+            if (response.AuthorityGeneration < context.MinimumAuthorityGeneration)
+            {
+                return Rejected(AdmissionRejectionCode.StaleAuthorityState);
+            }
+
+            if (response.CircleId != request.CircleId)
+            {
+                return Rejected(AdmissionRejectionCode.WrongCircle);
+            }
+
+            if (response.AdmittedNodeId != request.NodeId
+                || !CredentialsEqual(response.AdmittedNodeCredential, request.NodeCredential)
+                || !CredentialsEqual(
+                    response.AdmittedTransportBinding.Binding.TransportCredential,
+                    request.TransportCredential))
+            {
+                return Rejected(AdmissionRejectionCode.WrongNode);
+            }
+
+            if (response.SelectedProtocolVersion != request.SelectedProtocolVersion)
+            {
+                return Rejected(AdmissionRejectionCode.Downgraded);
+            }
+
+            foreach (var node in response.Nodes)
+            {
+                var binding = NodeTransportSecurity.Validate(
+                    node.TransportBinding,
+                    new NodeTransportVerificationContext(
+                        response.CircleId,
+                        node.NodeId,
+                        context.TrustedRootCredential,
+                        context.NowUtc,
+                        context.MinimumAuthorityGeneration,
+                        response.SelectedProtocolVersion,
+                        response.SelectedProtocolVersion,
+                        context.RevokedKeyIds));
+                if (!binding.IsValid)
+                {
+                    return Rejected(binding.RejectionCode switch
+                    {
+                        NodeTransportRejectionCode.Revoked => AdmissionRejectionCode.Revoked,
+                        NodeTransportRejectionCode.StaleAuthorityState =>
+                            AdmissionRejectionCode.StaleAuthorityState,
+                        NodeTransportRejectionCode.WrongCircle => AdmissionRejectionCode.WrongCircle,
+                        NodeTransportRejectionCode.WrongNode => AdmissionRejectionCode.WrongNode,
+                        NodeTransportRejectionCode.NotYetValid =>
+                            AdmissionRejectionCode.NotYetValid,
+                        NodeTransportRejectionCode.Expired => AdmissionRejectionCode.Expired,
+                        NodeTransportRejectionCode.Downgraded => AdmissionRejectionCode.Downgraded,
+                        _ => AdmissionRejectionCode.Forged,
+                    });
+                }
+            }
+
+            return AdmissionValidationResult.Accepted(response.SelectedProtocolVersion);
+        }
+        catch (Exception exception) when (exception is
+            ArgumentException or
+            CryptographicException or
+            InvalidOperationException or
+            OverflowException)
+        {
+            return Rejected(AdmissionRejectionCode.Malformed);
+        }
+    }
+
+    private static bool HasValidResponseShape(
+        SignedAdmissionResponse signedResponse,
+        AdmissionResponseVerificationContext context)
+    {
+        var response = signedResponse.Response;
+        var request = context.Request.Request;
+        return response.Version == RemoteSecurityProtocol.Version
+            && IsCanonicalUuid(response.CircleId)
+            && response.InvitationId == request.InvitationId
+            && response.AuthorityGeneration > 0
+            && response.AuthoritySequence > 0
+            && response.SelectedProtocolVersion > 0
+            && IsBoundedText(response.CircleName, 100)
+            && IsUtc(response.CircleCreatedAtUtc)
+            && response.AdmittedMemberId == request.MemberId
+            && CredentialsEqual(response.AdmittedMemberCredential, request.MemberCredential)
+            && response.AdmittedMemberCredential.Role == KeyRole.Member
+            && response.GrantedMemberRole == "member"
+            && response.GrantedCapabilities is { Count: > 0 and <= 32 }
+            && response.GrantedCapabilities.SequenceEqual(
+                response.GrantedCapabilities.Order(StringComparer.Ordinal))
+            && response.GrantedCapabilities.Distinct(StringComparer.Ordinal).Count()
+                == response.GrantedCapabilities.Count
+            && response.GrantedCapabilities.All(value => IsBoundedText(value, 100))
+            && response.AdmittedNodeId == request.NodeId
+            && response.AdmittedNodeCredential.Role == KeyRole.Node
+            && response.RequestDigest is { Length: 32 }
+            && response.AnchorChallenge is { Length: 32 }
+            && response.ApplicantChallenge is { Length: 32 }
+            && CryptographicOperations.FixedTimeEquals(
+                response.AnchorChallenge,
+                request.AnchorChallenge)
+            && CryptographicOperations.FixedTimeEquals(
+                response.ApplicantChallenge,
+                request.ApplicantChallenge)
+            && response.Members is { Count: > 0 and <= 128 }
+            && response.Members.All(member =>
+                IsCanonicalUuid(member.MemberId)
+                && IsBoundedText(member.DisplayName, 100)
+                && member.Role is "owner" or "member"
+                && IsUtc(member.JoinedAtUtc))
+            && response.Members.Select(member => member.MemberId)
+                .SequenceEqual(response.Members.Select(member => member.MemberId)
+                    .Order(StringComparer.Ordinal))
+            && response.Members.Select(member => member.MemberId).Distinct(StringComparer.Ordinal)
+                .Count() == response.Members.Count
+            && response.Members.Any(member =>
+                member.MemberId == response.AdmittedMemberId && member.Role == "member")
+            && response.Nodes is { Count: > 0 and <= 128 }
+            && response.Nodes.All(node =>
+                IsCanonicalUuid(node.NodeId)
+                && IsBoundedText(node.DisplayName, 100)
+                && IsUtc(node.JoinedAtUtc)
+                && node.NodeCredential.Role == KeyRole.Node
+                && RemoteIdentity.IsValidCredential(node.NodeCredential)
+                && node.TransportBinding.Binding.NodeId == node.NodeId)
+            && response.Nodes.Select(node => node.NodeId)
+                .SequenceEqual(response.Nodes.Select(node => node.NodeId)
+                    .Order(StringComparer.Ordinal))
+            && response.Nodes.Select(node => node.NodeId).Distinct(StringComparer.Ordinal).Count()
+                == response.Nodes.Count
+            && response.Nodes.Any(node =>
+                node.NodeId == response.AdmittedNodeId
+                && CredentialsEqual(node.NodeCredential, response.AdmittedNodeCredential)
+                && CredentialsEqual(
+                    node.TransportBinding.Binding.TransportCredential,
+                    response.AdmittedTransportBinding.Binding.TransportCredential))
+            && context.TrustedRootCredential.Role == KeyRole.CircleAuthority
+            && RemoteIdentity.IsValidCredential(context.TrustedRootCredential)
+            && context.TrustedAnchorCredential.Role == KeyRole.Anchor
+            && RemoteIdentity.IsValidCredential(context.TrustedAnchorCredential)
+            && signedResponse.AnchorSignature is { Length: 64 }
+            && IsUtc(context.NowUtc)
+            && context.MinimumAuthorityGeneration > 0;
+    }
+
+    private static void WriteTransportBinding(
+        Stream stream,
+        SignedNodeTransportBinding signedBinding)
+    {
+        WriteBytes(stream, NodeTransportSecurity.Encode(signedBinding.Binding));
+        WriteCredential(stream, signedBinding.AuthorityCredential);
+        WriteText(stream, signedBinding.SignatureSuite);
+        WriteBytes(stream, signedBinding.AuthoritySignature);
+    }
+
+    private static bool IsBoundedText(string value, int maximumLength) =>
+        !string.IsNullOrWhiteSpace(value)
+        && value.Length <= maximumLength
+        && value.All(character => character <= 0x7f);
+
+    private static bool IsUtc(DateTimeOffset value) => value.Offset == TimeSpan.Zero;
 
     private static bool HasValidShape(
         SignedAdmissionRequest signedRequest,

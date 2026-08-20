@@ -50,8 +50,8 @@ internal sealed class InvitationApplication(
         var now = ToProtocolSecond(timeProvider.GetUtcNow());
         var expires = now.AddMinutes(validForMinutes);
         var issuerId = node.NodeId.ToString();
-        var root = ToProtocolCredential(authority.RootCredential);
-        var anchor = ToProtocolCredential(authority.AnchorCredential);
+        var root = IdentityProtocolMapping.ToProtocol(authority.RootCredential);
+        var anchor = IdentityProtocolMapping.ToProtocol(authority.AnchorCredential);
         var delegation = new InvitationIssuerDelegation(
             circle.Circle.Id.ToString(),
             authority.AuthorityGeneration,
@@ -162,7 +162,7 @@ internal sealed class InvitationApplication(
             package,
             new InvitationVerificationContext(
                 stored.CircleId.ToString(),
-                ToProtocolCredential(authority.RootCredential),
+                IdentityProtocolMapping.ToProtocol(authority.RootCredential),
                 ToProtocolSecond(timeProvider.GetUtcNow()),
                 authority.AuthorityGeneration,
                 InvitationUseState.Available,
@@ -195,21 +195,6 @@ internal sealed class InvitationApplication(
             invitationId,
             redemption.RedemptionId.Value);
     }
-
-    private static PublicKeyCredential ToProtocolCredential(PublicIdentityCredential credential) =>
-        new(
-            credential.Role switch
-            {
-                IdentityKeyRole.CircleAuthority => KeyRole.CircleAuthority,
-                IdentityKeyRole.Anchor => KeyRole.Anchor,
-                IdentityKeyRole.Member => KeyRole.Member,
-                IdentityKeyRole.Node => KeyRole.Node,
-                IdentityKeyRole.Transport => KeyRole.Transport,
-                _ => throw new ArgumentOutOfRangeException(nameof(credential)),
-            },
-            credential.Algorithm,
-            credential.KeyId,
-            credential.SubjectPublicKeyInfo);
 
     private static DateTimeOffset ToProtocolSecond(DateTimeOffset value) =>
         DateTimeOffset.FromUnixTimeSeconds(value.ToUnixTimeSeconds());

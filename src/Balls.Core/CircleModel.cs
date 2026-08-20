@@ -3,6 +3,7 @@ namespace Balls.Core;
 public enum MemberRole
 {
     Owner = 1,
+    Member = 2,
 }
 
 public sealed record NodeIdentity(

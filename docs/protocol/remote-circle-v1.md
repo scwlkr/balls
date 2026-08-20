@@ -1,7 +1,7 @@
 # Remote Circle Security v1
 
-**Status:** authenticated LAN transport implemented; admission mutation and Circle application
-semantics remain later slices.
+**Status:** authenticated LAN transport and persisted single-Anchor admission implemented; durable
+Circle messaging remains a later slice.
 
 This contract is the authenticated security core for Node-to-Node Circle behavior. It is separate
 from [`local-control v1`](local-control-v1.md), and it does not trust a LAN, Tailscale, DNS name,
@@ -29,7 +29,7 @@ the stream into an authenticated channel.
 The interfaces live under `Balls.Protocol.Remote.V1` so local-control transports and remote
 Circle providers cannot be substituted for each other accidentally. Provider implementations,
 discovery, and retries remain replaceable; v1 now includes bounded framing and one explicit LAN
-provider/listener, while production daemon composition remains later work.
+provider/listener composed into `ballsd` only when `--admission-listen <private-ip:port>` is selected.
 
 ## Constants
 
@@ -109,8 +109,8 @@ credentials, discovery data, or an IP-address identity.
 Issuance stores the exact package digest and expiry. Redemption first performs pure signature,
 Circle, issuer authorization, generation, time, protocol, revocation, and canonical checks, then
 atomically inserts one durable redemption result keyed by invitation ID. Concurrent or later use
-returns `replayed`; digest substitution fails closed. This local application slice prepares the
-operation for the remote admission transaction in #38.
+returns `replayed`; digest substitution fails closed. Admission verifies this exact stored package
+before any membership mutation.
 
 ### Node-transport binding transcript
 
@@ -152,9 +152,17 @@ transitively binds Circle, issuer, authority generation, invitation constraints,
 pin, and invitation nonce. The Anchor challenge prevents a captured applicant request from being
 used in another handshake; persistent invitation state prevents replay across restarts.
 
-The later admission response must be Anchor-signed and bind the granted role/capabilities,
-resulting credentials and transport binding, authority generation/sequence, both challenges, and
-the full request/response transcript digest.
+### Admission-response transcript
+
+Domain: `balls/trusted-circle/admission-response/v1\0`
+
+The Anchor-signed response binds the protocol/Circle/invitation, monotonic authority
+generation/sequence, Circle name and creation time, admitted Member/Node credentials, granted
+`member` role and sorted capabilities, the admitted root-signed transport binding, exact signed
+request digest, both challenges, and sorted Member/Node snapshots. Every Node snapshot carries its
+Node signing credential and canonical root-signed transport binding. The joiner validates the
+Anchor signature, request binding, roster shape, admitted identities, version, revocation floor,
+and every transport binding before one local commit.
 
 ## Version negotiation
 
@@ -177,10 +185,17 @@ a new major protocol version rather than an additive guess.
    1.3 and `balls-circle/1`.
 3. The client validates certificate time, server-auth use, expected DNS name, and SPKI-derived key
    ID against the invitation. Ordinary public-chain trust does not replace the pin.
-4. The applicant is not yet a trusted Node and presents no trusted client certificate. It proves
-   Member and Node key possession in the application admission transcript.
-5. The Anchor validates without mutation, then atomically consumes the invitation and commits the
-   membership/response in the later admission implementation.
+4. The applicant is not yet a trusted Node. It presents a self-wrapped proposed transport
+   certificate only as TLS proof of possession; it receives no Circle authority from X.509.
+5. The applicant sends the exact invitation package and names, receives the persistent Anchor
+   challenge, and independently signs one transcript with its retry-stable Member key and local
+   Node key. The transcript's transport SPKI must equal the presented TLS certificate.
+6. The Anchor validates without mutation, root-signs the Node transport bindings, Anchor-signs the
+   complete roster response, then atomically consumes the invitation and commits membership plus
+   the exact response. An identical request receives those stored bytes; conflicting reuse rejects.
+7. The joiner validates and atomically stores the roster, public root/Anchor trust, local Member
+   credential, Node credentials/bindings, and exact signed receipt. It stores no private Circle
+   authority and cannot redefine the Anchor.
 
 After admission, connections require a client certificate at handshake start. Each peer validates
 certificate time/use and binds the exact SPKI to an active Circle-signed Node transport credential.
@@ -284,8 +299,8 @@ must occur before invitation, authority, membership, or message state changes.
 ## Executable evidence
 
 `AdmissionSecurityTests` pin credential shape, fixed P1363 signatures, canonical invitation bytes,
-dual-signed admission, highest-common-version selection, and deterministic forged, expired,
-replayed, downgraded, wrong-Circle, and wrong-Node rejection.
+dual-signed admission, highest-common-version selection, and deterministic unauthorized, revoked,
+stale, forged, expired, replayed, downgraded, wrong-Circle, and wrong-Node rejection.
 
 `AuthenticatedChannelSpikeTests` preserve the admission-bootstrap pin and baseline mutual-TLS
 policy. `NodeTransportSecurityTests`, `RemoteAuthenticatedChannelTests`, and
@@ -296,9 +311,14 @@ I/O. `Balls.RemoteHarness.Tests` starts independent server/client processes on W
 the owned Hyper-V lab additionally runs the Windows client against the Ubuntu server on its
 private switch.
 
+`TrustedCircleAdmissionApplicationTests`, `AdmissionEndpointsTests`, CLI contract tests, and
+SQLite admission tests prove the real TLS exchange, exact retry, atomic invitation/membership
+commit, shared API/CLI/browser projection, restart-stable roster, no private authority on the
+joiner, schema migrations, conflict/revocation/expiry outcomes, and 512-event audit retention.
+
 ## Explicit non-goals
 
-No production daemon listener is opened, hosted control plane selected, authority response
-committed, membership created, or message stored. The transport frame carries opaque test bytes
-only; invitation redemption remains a local durable request/result until admission joins it to
-membership state.
+No discovery, public bind, automatic failover, multiple-Anchor behavior, rich roles, message, file,
+AI, or app operation is defined here. Admission listening is opt-in on a numeric private/loopback
+endpoint; the invitation remains directly exchanged. Credential rotation/import and owner-facing
+revocation UX remain separate work.

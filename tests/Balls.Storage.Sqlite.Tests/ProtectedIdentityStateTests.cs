@@ -356,6 +356,37 @@ public sealed class ProtectedIdentityStateTests
         Assert.AreEqual("invalid_private_material", error.Code);
     }
 
+    [TestMethod]
+    public async Task Tampered_public_Circle_trust_fails_closed()
+    {
+        using var directory = new TemporaryDirectory();
+        await using (var store = await SqliteLocalStateStore.OpenAsync(
+                         directory.Path,
+                         TestPrivateMaterialProtector.Instance))
+        {
+            var application = new CircleApplication(store, TimeProvider.System, "Alice-PC");
+            await application.CreateCircleAsync(
+                new CreateCircleCommand(
+                    new CreationRequestId(Guid.CreateVersion7()),
+                    "Tamper Test Circle",
+                    "Alice"));
+        }
+
+        await using (var connection = OpenDatabase(directory.Path))
+        {
+            await connection.OpenAsync();
+            using var command = connection.CreateCommand();
+            command.CommandText = "UPDATE circle_trust SET root_public_key_spki = X'01';";
+            await command.ExecuteNonQueryAsync();
+        }
+
+        var error = await Assert.ThrowsExactlyAsync<LocalStateException>(
+            () => SqliteLocalStateStore.OpenAsync(
+                directory.Path,
+                TestPrivateMaterialProtector.Instance));
+        Assert.AreEqual("invalid_private_material", error.Code);
+    }
+
     private static async Task DowngradeToVersionOneAsync(string directory)
     {
         await using var connection = OpenDatabase(directory);
@@ -364,6 +395,13 @@ public sealed class ProtectedIdentityStateTests
         command.CommandText =
             """
             PRAGMA foreign_keys = OFF;
+            DROP TABLE security_audit_events;
+            DROP TABLE circle_admissions;
+            DROP TABLE admission_challenges;
+            DROP TABLE admission_attempts;
+            DROP TABLE circle_node_credentials;
+            DROP TABLE circle_member_credentials;
+            DROP TABLE circle_trust;
             DROP TABLE revoked_invitations;
             DROP TABLE invitation_redemptions;
             DROP TABLE circle_invitations;
@@ -402,6 +440,13 @@ public sealed class ProtectedIdentityStateTests
         command.CommandText =
             """
             PRAGMA foreign_keys = OFF;
+            DROP TABLE security_audit_events;
+            DROP TABLE circle_admissions;
+            DROP TABLE admission_challenges;
+            DROP TABLE admission_attempts;
+            DROP TABLE circle_node_credentials;
+            DROP TABLE circle_member_credentials;
+            DROP TABLE circle_trust;
             DROP TABLE revoked_invitations;
             DROP TABLE invitation_redemptions;
             DROP TABLE circle_invitations;

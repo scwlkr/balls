@@ -1,6 +1,8 @@
 using System.Reflection;
 using Balls.Core;
 using Balls.Host;
+using Balls.Protocol.Remote.V1;
+using Balls.Transport.Lan;
 
 namespace Balls.Daemon;
 
@@ -49,10 +51,16 @@ public static class DaemonCommand
         var dataDirectory = host.Defaults.DataDirectory;
         var localControlEndpoint = host.Defaults.LocalControlEndpoint;
         var nodeName = host.Defaults.NodeDisplayName;
+        string? admissionListenEndpoint = null;
 
         if (!TryApplyOption(tokens, "--data-directory", ref dataDirectory, out var error)
             || !TryApplyOption(tokens, "--pipe-name", ref localControlEndpoint, out error)
-            || !TryApplyOption(tokens, "--node-name", ref nodeName, out error))
+            || !TryApplyOption(tokens, "--node-name", ref nodeName, out error)
+            || !TryApplyOptionalOption(
+                tokens,
+                "--admission-listen",
+                ref admissionListenEndpoint,
+                out error))
         {
             await standardError.WriteLineAsync($"ballsd: {error}");
             await WriteUsageAsync(standardError);
@@ -97,15 +105,42 @@ public static class DaemonCommand
             return DaemonExitCodes.UsageError;
         }
 
+        if (admissionListenEndpoint is not null)
+        {
+            try
+            {
+                _ = LanTcpEndpoint.Parse(
+                    new RemoteTransportAddress(
+                        LanTcpEndpoint.ProviderName,
+                        admissionListenEndpoint));
+            }
+            catch (ArgumentException)
+            {
+                await standardError.WriteLineAsync(
+                    "ballsd: invalid --admission-listen value.");
+                await WriteUsageAsync(standardError);
+                return DaemonExitCodes.UsageError;
+            }
+        }
+
         try
         {
             await using var daemon = await DaemonHost.StartAsync(
-                new DaemonOptions(dataDirectory, localControlEndpoint, nodeName),
+                new DaemonOptions(
+                    dataDirectory,
+                    localControlEndpoint,
+                    nodeName,
+                    admissionListenEndpoint),
                 host,
                 supported.PrivateMaterialProtector,
                 cancellationToken).ConfigureAwait(false);
             await standardOutput.WriteLineAsync(
                 $"ballsd ready on {host.Defaults.LocalControlListenerDescription} {localControlEndpoint}.");
+            if (daemon.AdmissionAddress is not null)
+            {
+                await standardOutput.WriteLineAsync(
+                    $"ballsd admission ready on {daemon.AdmissionAddress.Value}.");
+            }
             try
             {
                 await Task.Delay(Timeout.InfiniteTimeSpan, cancellationToken).ConfigureAwait(false);
@@ -157,10 +192,35 @@ public static class DaemonCommand
         return true;
     }
 
+    private static bool TryApplyOptionalOption(
+        List<string> tokens,
+        string option,
+        ref string? destination,
+        out string? error)
+    {
+        var index = tokens.FindIndex(token => string.Equals(token, option, StringComparison.Ordinal));
+        if (index < 0)
+        {
+            error = null;
+            return true;
+        }
+
+        if (index == tokens.Count - 1)
+        {
+            error = $"{option} requires a value.";
+            return false;
+        }
+
+        destination = tokens[index + 1];
+        tokens.RemoveRange(index, 2);
+        error = null;
+        return true;
+    }
+
     private static Task WriteUsageAsync(TextWriter writer)
     {
         return writer.WriteLineAsync(
-            "usage: ballsd [--data-directory <path>] [--pipe-name <name>] [--node-name <name>]");
+            "usage: ballsd [--data-directory <path>] [--pipe-name <name>] [--node-name <name>] [--admission-listen <private-ip:port>]");
     }
 
     private static string GetProductVersion()

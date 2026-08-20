@@ -90,6 +90,30 @@ public sealed class DaemonCommandTests
         Assert.IsFalse(Directory.Exists(dataDirectory));
     }
 
+    [TestMethod]
+    public async Task Public_or_hostname_admission_listener_is_rejected_before_state_is_created()
+    {
+        using var directory = new TemporaryDirectory();
+        var dataDirectory = Path.Combine(directory.Path, "state");
+        var output = new StringWriter();
+        var error = new StringWriter();
+
+        var exitCode = await DaemonCommand.RunAsync(
+            [
+                "--data-directory",
+                dataDirectory,
+                "--admission-listen",
+                "8.8.8.8:443",
+            ],
+            output,
+            error);
+
+        Assert.AreEqual(DaemonExitCodes.UsageError, exitCode);
+        Assert.AreEqual(string.Empty, output.ToString());
+        StringAssert.Contains(error.ToString(), "invalid --admission-listen");
+        Assert.IsFalse(Directory.Exists(dataDirectory));
+    }
+
     private sealed class TemporaryDirectory : IDisposable
     {
         public TemporaryDirectory()

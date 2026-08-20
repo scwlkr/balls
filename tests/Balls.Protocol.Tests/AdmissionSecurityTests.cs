@@ -68,6 +68,9 @@ public sealed class AdmissionSecurityTests
     [DataRow(AdmissionMutation.Downgraded, AdmissionRejectionCode.Downgraded)]
     [DataRow(AdmissionMutation.WrongCircle, AdmissionRejectionCode.WrongCircle)]
     [DataRow(AdmissionMutation.WrongNode, AdmissionRejectionCode.WrongNode)]
+    [DataRow(AdmissionMutation.UnauthorizedIssuer, AdmissionRejectionCode.UnauthorizedIssuer)]
+    [DataRow(AdmissionMutation.Revoked, AdmissionRejectionCode.Revoked)]
+    [DataRow(AdmissionMutation.StaleAuthority, AdmissionRejectionCode.StaleAuthorityState)]
     public void Invalid_admission_has_a_deterministic_rejection(
         AdmissionMutation mutation,
         AdmissionRejectionCode expected)
@@ -107,6 +110,9 @@ public sealed class AdmissionSecurityTests
         Downgraded,
         WrongCircle,
         WrongNode,
+        UnauthorizedIssuer,
+        Revoked,
+        StaleAuthority,
     }
 
     private sealed class AdmissionFixture : IDisposable
@@ -203,6 +209,21 @@ public sealed class AdmissionSecurityTests
                                     KeyRole.Transport,
                                     otherTransportKey)));
                     }
+                case AdmissionMutation.UnauthorizedIssuer:
+                    return (
+                        SignedRequest,
+                        CreateContext(
+                            trustedIssuerId: "0198c837-3000-7000-8000-000000000099"));
+                case AdmissionMutation.Revoked:
+                    return (
+                        SignedRequest,
+                        CreateContext(
+                            revokedKeyIds: new HashSet<string>(StringComparer.Ordinal)
+                            {
+                                SignedRequest.Request.NodeCredential.KeyId,
+                            }));
+                case AdmissionMutation.StaleAuthority:
+                    return (SignedRequest, CreateContext(minimumAuthorityGeneration: 8));
                 default:
                     throw new ArgumentOutOfRangeException(nameof(mutation), mutation, null);
             }
@@ -221,9 +242,12 @@ public sealed class AdmissionSecurityTests
             DateTimeOffset? nowUtc = null,
             InvitationUseState invitationState = InvitationUseState.Available,
             int supportedMaximumProtocolVersion = 1,
-            PublicKeyCredential? peerTransportCredential = null) => new(
+            PublicKeyCredential? peerTransportCredential = null,
+            string? trustedIssuerId = null,
+            long minimumAuthorityGeneration = 7,
+            IReadOnlySet<string>? revokedKeyIds = null) => new(
                 ExpectedCircleId: expectedCircleId ?? SignedRequest.Request.CircleId,
-                TrustedIssuerId: SignedRequest.Invitation.Invitation.IssuerId,
+                TrustedIssuerId: trustedIssuerId ?? SignedRequest.Invitation.Invitation.IssuerId,
                 TrustedIssuerCredential: issuer,
                 PeerTransportCredential: peerTransportCredential ?? transport,
                 ExpectedAnchorChallenge: SignedRequest.Request.AnchorChallenge,
@@ -231,8 +255,8 @@ public sealed class AdmissionSecurityTests
                 InvitationState: invitationState,
                 SupportedMinimumProtocolVersion: 1,
                 SupportedMaximumProtocolVersion: supportedMaximumProtocolVersion,
-                MinimumAuthorityGeneration: 7,
-                RevokedKeyIds: new HashSet<string>(StringComparer.Ordinal));
+                MinimumAuthorityGeneration: minimumAuthorityGeneration,
+                RevokedKeyIds: revokedKeyIds ?? new HashSet<string>(StringComparer.Ordinal));
 
     }
 }
