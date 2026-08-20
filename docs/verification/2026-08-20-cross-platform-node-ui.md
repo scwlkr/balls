@@ -1,8 +1,8 @@
 # Cross-platform Node and UI evidence
 
-**Observed:** 2026-08-20  
-**Issue:** [#22](https://github.com/scwlkr/balls/issues/22)  
-**Pull request:** [#32](https://github.com/scwlkr/balls/pull/32)  
+- **Observed:** 2026-08-20
+- **Issue:** [#22](https://github.com/scwlkr/balls/issues/22)
+- **Pull request:** [#32](https://github.com/scwlkr/balls/pull/32)
 **Exact Canary source:** `2261eb7a4fb582e261a591383dd9d76acc13d01a`
 
 ## Outcome
