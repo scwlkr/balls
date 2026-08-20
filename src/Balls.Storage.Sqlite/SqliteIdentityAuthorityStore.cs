@@ -49,6 +49,12 @@ public sealed partial class SqliteLocalStateStore
             token => ReadCircleAuthorityAsync(circleId, transaction: null, token),
             cancellationToken);
 
+    public Task<LocalTransportIdentity?> GetLocalTransportIdentityAsync(
+        CancellationToken cancellationToken = default) =>
+        ExecuteLockedAsync(
+            token => ReadLocalTransportIdentityAsync(transaction: null, token),
+            cancellationToken);
+
     public Task<byte[]> SignWithNodeAsync(
         ReadOnlyMemory<byte> data,
         CancellationToken cancellationToken = default) =>
@@ -60,6 +66,22 @@ public sealed partial class SqliteLocalStateStore
                     ?? throw new LocalStateException(
                         "node_identity_missing",
                         "The local Node cryptographic identity is missing.");
+                using var key = OpenPrivateKey(stored);
+                return IdentityCryptography.Sign(data.Span, key);
+            },
+            cancellationToken);
+
+    public Task<byte[]> SignWithTransportAsync(
+        ReadOnlyMemory<byte> data,
+        CancellationToken cancellationToken = default) =>
+        ExecuteLockedAsync(
+            async token =>
+            {
+                var stored = await ReadTransportPrivateIdentityAsync(transaction: null, token)
+                    .ConfigureAwait(false)
+                    ?? throw new LocalStateException(
+                        "transport_identity_missing",
+                        "The local transport cryptographic identity is missing.");
                 using var key = OpenPrivateKey(stored);
                 return IdentityCryptography.Sign(data.Span, key);
             },
@@ -165,6 +187,39 @@ public sealed partial class SqliteLocalStateStore
             credential);
     }
 
+    private async Task<LocalTransportIdentity?> ReadLocalTransportIdentityAsync(
+        SqliteTransaction? transaction,
+        CancellationToken cancellationToken)
+    {
+        using var command = connection.CreateCommand();
+        command.Transaction = transaction;
+        command.CommandText =
+            """
+            SELECT local_node.node_id,
+                   local_transport_credentials.key_algorithm,
+                   local_transport_credentials.key_id,
+                   local_transport_credentials.public_key_spki
+            FROM local_transport_credentials
+            INNER JOIN local_node
+              ON local_node.singleton_id = local_transport_credentials.singleton_id
+            WHERE local_transport_credentials.singleton_id = 1;
+            """;
+        await using var reader = await command.ExecuteReaderAsync(cancellationToken)
+            .ConfigureAwait(false);
+        if (!await reader.ReadAsync(cancellationToken).ConfigureAwait(false))
+        {
+            return null;
+        }
+
+        return new LocalTransportIdentity(
+            new NodeId(Guid.Parse(reader.GetString(0))),
+            ReadCredential(
+                IdentityKeyRole.Transport,
+                reader.GetString(1),
+                reader.GetString(2),
+                (byte[])reader.GetValue(3)));
+    }
+
     private async Task<CircleAuthorityIdentity?> ReadCircleAuthorityAsync(
         CircleId circleId,
         SqliteTransaction? transaction,
@@ -203,6 +258,36 @@ public sealed partial class SqliteLocalStateStore
         return new StoredPrivateIdentity(
             ReadCredential(
                 IdentityKeyRole.Node,
+                reader.GetString(0),
+                reader.GetString(1),
+                (byte[])reader.GetValue(2)),
+            reader.GetString(3),
+            (byte[])reader.GetValue(4));
+    }
+
+    private async Task<StoredPrivateIdentity?> ReadTransportPrivateIdentityAsync(
+        SqliteTransaction? transaction,
+        CancellationToken cancellationToken)
+    {
+        using var command = connection.CreateCommand();
+        command.Transaction = transaction;
+        command.CommandText =
+            """
+            SELECT key_algorithm, key_id, public_key_spki,
+                   private_key_scheme, protected_private_key
+            FROM local_transport_credentials
+            WHERE singleton_id = 1;
+            """;
+        await using var reader = await command.ExecuteReaderAsync(cancellationToken)
+            .ConfigureAwait(false);
+        if (!await reader.ReadAsync(cancellationToken).ConfigureAwait(false))
+        {
+            return null;
+        }
+
+        return new StoredPrivateIdentity(
+            ReadCredential(
+                IdentityKeyRole.Transport,
                 reader.GetString(0),
                 reader.GetString(1),
                 (byte[])reader.GetValue(2)),
@@ -350,6 +435,33 @@ public sealed partial class SqliteLocalStateStore
                     private_key_scheme,
                     protected_private_key,
                     created_at_utc)
+                VALUES (1, $algorithm, $key_id, $spki, $scheme, $private_key, $created_at_utc);
+                """;
+            AddIdentityParameters(command, material, node.CreatedAtUtc);
+            await command.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
+        }
+        finally
+        {
+            CryptographicOperations.ZeroMemory(material.ProtectedPrivateKey);
+        }
+    }
+
+    private async Task InsertTransportIdentityAsync(
+        NodeIdentity node,
+        IPrivateMaterialProtector protector,
+        SqliteTransaction transaction,
+        CancellationToken cancellationToken)
+    {
+        var material = GeneratePrivateIdentity(IdentityKeyRole.Transport, protector);
+        try
+        {
+            using var command = connection.CreateCommand();
+            command.Transaction = transaction;
+            command.CommandText =
+                """
+                INSERT INTO local_transport_credentials (
+                    singleton_id, key_algorithm, key_id, public_key_spki,
+                    private_key_scheme, protected_private_key, created_at_utc)
                 VALUES (1, $algorithm, $key_id, $spki, $scheme, $private_key, $created_at_utc);
                 """;
             AddIdentityParameters(command, material, node.CreatedAtUtc);
@@ -514,7 +626,7 @@ public sealed partial class SqliteLocalStateStore
         using (var version = connection.CreateCommand())
         {
             version.Transaction = transaction;
-            version.CommandText = $"PRAGMA user_version = {CurrentSchemaVersion};";
+            version.CommandText = "PRAGMA user_version = 2;";
             await version.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
         }
 
@@ -701,6 +813,7 @@ public sealed partial class SqliteLocalStateStore
                 SELECT
                     (SELECT COUNT(*) FROM local_node),
                     (SELECT COUNT(*) FROM local_node_credentials),
+                    (SELECT COUNT(*) FROM local_transport_credentials),
                     (SELECT COUNT(*) FROM circles),
                     (SELECT COUNT(*) FROM circle_authorities),
                     (SELECT COUNT(*) FROM circle_authorities WHERE authority_generation < 1);
@@ -709,8 +822,9 @@ public sealed partial class SqliteLocalStateStore
                 .ConfigureAwait(false);
             if (!await reader.ReadAsync(cancellationToken).ConfigureAwait(false)
                 || reader.GetInt64(0) != reader.GetInt64(1)
-                || reader.GetInt64(2) != reader.GetInt64(3)
-                || reader.GetInt64(4) != 0)
+                || reader.GetInt64(0) != reader.GetInt64(2)
+                || reader.GetInt64(3) != reader.GetInt64(4)
+                || reader.GetInt64(5) != 0)
             {
                 throw InvalidPrivateMaterial();
             }
@@ -767,6 +881,29 @@ public sealed partial class SqliteLocalStateStore
                     (byte[])reader.GetValue(4),
                     reader.GetString(6),
                     (byte[])reader.GetValue(5)));
+            }
+        }
+
+
+        using (var transport = connection.CreateCommand())
+        {
+            transport.CommandText =
+                """
+                SELECT key_algorithm, key_id, public_key_spki,
+                       private_key_scheme, protected_private_key
+                FROM local_transport_credentials;
+                """;
+            await using var reader = await transport.ExecuteReaderAsync(cancellationToken)
+                .ConfigureAwait(false);
+            while (await reader.ReadAsync(cancellationToken).ConfigureAwait(false))
+            {
+                credentials.Add((
+                    IdentityKeyRole.Transport,
+                    reader.GetString(0),
+                    reader.GetString(1),
+                    (byte[])reader.GetValue(2),
+                    reader.GetString(3),
+                    (byte[])reader.GetValue(4)));
             }
         }
 

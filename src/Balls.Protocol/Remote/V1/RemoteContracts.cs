@@ -41,6 +41,62 @@ public sealed record SignedCircleInvitation(
     string SignatureSuite,
     byte[] IssuerSignature);
 
+public sealed record InvitationIssuerDelegation(
+    string CircleId,
+    long AuthorityGeneration,
+    string RootKeyId,
+    string IssuerId,
+    PublicKeyCredential IssuerCredential,
+    string Authorization,
+    DateTimeOffset NotBeforeUtc,
+    DateTimeOffset ExpiresAtUtc);
+
+public sealed record SignedInvitationIssuerDelegation(
+    InvitationIssuerDelegation Delegation,
+    string SignatureSuite,
+    byte[] RootSignature);
+
+public sealed record CircleInvitationPackage(
+    int Version,
+    PublicKeyCredential RootCredential,
+    SignedInvitationIssuerDelegation IssuerDelegation,
+    SignedCircleInvitation Invitation);
+
+public sealed record InvitationVerificationContext(
+    string ExpectedCircleId,
+    PublicKeyCredential TrustedRootCredential,
+    DateTimeOffset NowUtc,
+    long MinimumAuthorityGeneration,
+    InvitationUseState InvitationState,
+    IReadOnlySet<string> RevokedKeyIds);
+
+public enum InvitationRejectionCode
+{
+    None,
+    Malformed,
+    UnsupportedVersion,
+    UnsupportedSuite,
+    UnauthorizedIssuer,
+    Forged,
+    Revoked,
+    StaleAuthorityState,
+    WrongCircle,
+    NotYetValid,
+    Expired,
+    Replayed,
+}
+
+public sealed record InvitationValidationResult(
+    bool IsValid,
+    InvitationRejectionCode RejectionCode)
+{
+    public static InvitationValidationResult Valid() =>
+        new(true, InvitationRejectionCode.None);
+
+    public static InvitationValidationResult Rejected(InvitationRejectionCode rejectionCode) =>
+        new(false, rejectionCode);
+}
+
 public sealed record AdmissionRequest(
     string CircleId,
     string InvitationId,

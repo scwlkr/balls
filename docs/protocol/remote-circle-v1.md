@@ -96,6 +96,21 @@ is SHA-256 over the domain `balls/trusted-circle/signed-invitation/v1\0`, length
 invitation bytes, signature suite, and issuer signature. Admission signs that digest so neither
 the invitation nor its signer can be substituted.
 
+The implemented direct-exchange package is canonical UTF-8 JSON with format
+`balls-circle-invitation`, version `1`, and a 16 KiB total limit. It carries the Circle root public
+credential, a root-signed time-bounded Anchor delegation authorizing exactly
+`issue-single-use-invitations`, and the Anchor-signed invitation. Property order, timestamp form,
+base64 encoding, and every field are exact: decoding re-encodes and byte-compares the package, so
+whitespace, reordered/extra/duplicate properties, or alternate encodings reject as `malformed`.
+The package contains public credentials and signatures only—never private-key material, provider
+credentials, discovery data, or an IP-address identity.
+
+Issuance stores the exact package digest and expiry. Redemption first performs pure signature,
+Circle, issuer authorization, generation, time, protocol, revocation, and canonical checks, then
+atomically inserts one durable redemption result keyed by invitation ID. Concurrent or later use
+returns `replayed`; digest substitution fails closed. This local application slice prepares the
+operation for the remote transport/admission transaction in #37 and #38.
+
 ### Admission-request transcript
 
 Domain: `balls/trusted-circle/admission-request/v1\0`
@@ -217,7 +232,6 @@ transport-credential issuance and rotation remain part of the admission/transpor
 
 ## Explicit non-goals
 
-No invitation is redeemed, listener opened, hosted control plane selected, authority response
-committed, remote application frame exchanged, or message stored by this design/spike. Production
-Node/Circle authority persistence is implemented separately and does not make the remote protocol
-live.
+No remote listener is opened, hosted control plane selected, authority response committed, remote
+application frame exchanged, membership created, or message stored. Invitation redemption is a
+local durable request/result until the transport and admission slices make the remote protocol live.

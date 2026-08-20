@@ -69,6 +69,22 @@ internal static class CliOutput
             response.Nodes.Select(node => $"{node.Id}\t{node.DisplayName}"));
     }
 
+    internal static string RenderSavedInvitation(
+        CreateInvitationResponse response,
+        string path) =>
+        string.Join(
+            Environment.NewLine,
+            $"Created invitation: {response.InvitationId}",
+            $"Expires: {response.ExpiresAtUtc:O}",
+            $"Saved: {Path.GetFullPath(path)}");
+
+    internal static string RenderRedeemedInvitation(RedeemInvitationResponse response) =>
+        string.Join(
+            Environment.NewLine,
+            "Invitation accepted.",
+            $"Circle ID: {response.CircleId}",
+            $"Redemption ID: {response.RedemptionId}");
+
     private sealed record CliResultEnvelope<T>(int OutputVersion, T Result);
 
     private sealed record CliErrorEnvelope(int OutputVersion, CliError Error);

@@ -14,8 +14,9 @@ Future milestones describe outcomes, not promises that every detail is already d
 [`0.2.0-alpha.1`](https://github.com/scwlkr/balls/releases/tag/0.2.0-alpha.1) is published: the
 same native daemon, structured CLI, protected state, local IPC, and hardened React workspace run
 on Windows and Linux. Trusted Circle is active. Its remote v1 identity/admission security design
-is accepted; protected production credentials, invitation redemption, Node-to-Node communication,
-and persistent Circle communication remain.
+is accepted; protected production credentials and bounded single-use invitation redemption are
+implemented. Node-to-Node communication, membership admission, and persistent Circle
+communication remain.
 
 ## Files-first path to v1
 

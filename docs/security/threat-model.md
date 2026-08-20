@@ -1,8 +1,8 @@
 # Threat Model Starter
 
-**Status:** Windows/Linux local Node baseline, protected production Node/Circle authority storage,
-and accepted Trusted Circle security design, 2026-08-20. Remote listeners and invitation
-redemption are not implemented.
+**Status:** Windows/Linux local Node baseline, protected production Node/Circle/transport identity
+storage, accepted Trusted Circle security design, and bounded invitation redemption, 2026-08-20.
+Remote listeners and membership admission are not implemented.
 
 ## Scope
 
@@ -72,7 +72,8 @@ enforcement lands in issues #35–#38.
 | Compromised Member becomes Circle/Anchor authority | Member authority is limited by signed roles/capabilities; invitations require an authorized current-generation issuer | A compromised authorized issuer can create invitations within its delegation until revoked |
 | Compromised Anchor preserves old authority | Authority generations/sequences are monotonic; stale credentials and invitations reject after the accepted floor advances | Offline peers know only their newest verified authority state and cannot receive instant revocation |
 | Forged or substituted invitation/admission fields | P-256/SHA-256 signatures cover fixed canonical bytes, role-scoped key IDs, the signed invitation digest, and all identity/context fields | Implementation bugs in canonicalization remain high impact; cross-platform golden vectors are mandatory |
-| Captured invitation or admission is replayed | One-redemption invitation ID/nonce, fresh Anchor/applicant challenges, transcript digest, and atomic consume-plus-admit transaction | Durable replay storage is not implemented until #36; uncertain retries must return the prior result, not duplicate state |
+| Captured invitation or admission is replayed | One-redemption invitation ID/nonce, exact package digest, and an atomic durable consume result; #38 will join consumption to membership admission | Local replay survives restart; remote retries remain unavailable until transport/admission land |
+| Invitation file is oversized, noncanonical, or leaks authority | Decode is capped at 16 KiB and requires exact canonical UTF-8 JSON; only public root/Anchor credentials, signed context, and a transport key pin are present | The bearer package can be copied by anyone who can read it until it expires or is consumed |
 | Active peer forces an older protocol | Invitation, applicant, and Anchor authenticate version ranges and must select the highest common version | A vulnerability shared by the highest mutually supported version remains possible |
 | Valid request is used for another Circle | Circle ID, invitation digest, authority generation, identities, ALPN, and endpoint role are signed and checked against receiver context | A compromised issuer authorized in both Circles remains separately accountable in each Circle |
 | Valid Node transcript is presented over another TLS client | Exact presented certificate SPKI must match the signed proposed/active transport credential | Certificate wrapper validation still depends on correct time, key-use, name, and no-network policy |
@@ -93,9 +94,10 @@ enforcement lands in issues #35–#38.
 - Ordinary local records are not encrypted by Balls. Windows private keys are DPAPI-protected;
   Linux private keys rely on owned mode-restricted storage. Operating-system disk encryption is a
   separate control.
-- The remote v1 security core is designed and spiked, and production Node/Circle authority keys
-  are now durable. There is no remote listener, invitation redemption, membership mutation,
-  revocation store, remote audit log, or message security yet.
+- Production Node/Circle/Anchor/bootstrap-transport keys and invitation replay state are durable.
+  There is no remote listener, membership mutation, credential revocation store, remote audit log,
+  or message security yet. Invitation revocation is represented durably but has no owner UX in
+  this slice.
 - The state marker and ACL are safety boundaries, not proof against an administrator, LocalSystem,
   physical access, or a compromised user session.
 - Use the default LocalAppData or XDG state root, or another dedicated current-user-controlled
@@ -111,7 +113,7 @@ enforcement lands in issues #35–#38.
 
 Before two machines exchange Circle state, implement and test the accepted design:
 
-- atomic invitation issuance, expiry, single-use admission, replay state, and revocation;
+- atomic coupling of the implemented invitation consumption result to persisted admission;
 - the remote listener/framing and mutual peer authentication independent of transport provider;
 - persisted Circle membership and bounded security audit events;
 - recovery and rotation behavior for lost or compromised devices and keys.

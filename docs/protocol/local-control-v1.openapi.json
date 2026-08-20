@@ -261,6 +261,124 @@
         }
       }
     },
+    "/control/v1/circles/{circleId}/invitations": {
+      "post": {
+        "tags": [
+          "ballsd"
+        ],
+        "parameters": [
+          {
+            "name": "circleId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateInvitationRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "Created",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CreateInvitationResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/control/v1/invitations/redeem": {
+      "post": {
+        "tags": [
+          "ballsd"
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RedeemInvitationRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RedeemInvitationResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/browser/v1/session": {
       "post": {
         "tags": [
@@ -569,6 +687,46 @@
           }
         }
       },
+      "CreateInvitationRequest": {
+        "required": [
+          "validForMinutes"
+        ],
+        "type": "object",
+        "properties": {
+          "validForMinutes": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          }
+        }
+      },
+      "CreateInvitationResponse": {
+        "required": [
+          "circleId",
+          "invitationId",
+          "expiresAtUtc",
+          "package"
+        ],
+        "type": "object",
+        "properties": {
+          "circleId": {
+            "type": "string"
+          },
+          "invitationId": {
+            "type": "string"
+          },
+          "expiresAtUtc": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "package": {
+            "type": "string"
+          }
+        }
+      },
       "ErrorResponse": {
         "required": [
           "code",
@@ -688,6 +846,40 @@
           "createdAtUtc": {
             "type": "string",
             "format": "date-time"
+          }
+        }
+      },
+      "RedeemInvitationRequest": {
+        "required": [
+          "package"
+        ],
+        "type": "object",
+        "properties": {
+          "package": {
+            "type": "string"
+          }
+        }
+      },
+      "RedeemInvitationResponse": {
+        "required": [
+          "circleId",
+          "invitationId",
+          "redemptionId",
+          "status"
+        ],
+        "type": "object",
+        "properties": {
+          "circleId": {
+            "type": "string"
+          },
+          "invitationId": {
+            "type": "string"
+          },
+          "redemptionId": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
           }
         }
       },
