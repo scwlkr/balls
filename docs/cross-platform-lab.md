@@ -31,7 +31,8 @@ pwsh -File .\eng\lab\Invoke-BallsLab.ps1 -Action Inspect
 
 Use the dated Canonical image and its published SHA-256. `PrepareImage` downloads only over HTTPS,
 verifies the full digest, invokes WSL `qemu-img` to create a dynamic VHDX below `C:\BallsLab`,
-and records the exact source identity in `lab-state.json`.
+expands its virtual capacity to at least 16 GB for the packaged browser proof, and records the
+exact source identity in `lab-state.json`.
 
 ```powershell
 $image = 'https://cloud-images.ubuntu.com/releases/noble/release-20260814/ubuntu-24.04-server-cloudimg-amd64.img'
@@ -62,9 +63,12 @@ pwsh -File .\eng\lab\Invoke-BallsLab.ps1 -Action Checkpoint
 ```
 
 `Create` is idempotent. It creates a Generation 2 VM with Secure Boot disabled, fixed 4 GB
-memory, one copied OS disk, and one generated `CIDATA` ISO. Cloud-init creates only the
+memory, one copied dynamic 16 GB OS disk, and one generated `CIDATA` ISO. Cloud-init creates only the
 `balls-lab` guest, authorizes only the dedicated lab SSH key, and writes the lab marker. The
 action does not succeed until SSH, the marker, and all three clean-identity checks pass:
+
+Automatic Hyper-V checkpoints are disabled so the only restorable identity boundary is the
+explicit `Balls.Lab.Clean` checkpoint.
 
 - no `$HOME/.local/state/balls`;
 - no Balls control socket;

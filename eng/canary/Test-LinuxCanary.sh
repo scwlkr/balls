@@ -118,8 +118,9 @@ assert not url.query
 print(url.port)
 PY
 )"
-listeners="$(ss -ltnH "sport = :$browser_port")"
-if [[ -z "$listeners" ]] || grep -Eq '(^|[[:space:]])(0\.0\.0\.0|\[::\]):' <<<"$listeners"; then
+local_endpoints="$(ss -ltnH "sport = :$browser_port" | awk '{print $4}')"
+if [[ -z "$local_endpoints" ]] ||
+  grep -Evq "^(127\\.0\\.0\\.1|\\[::1\\]):$browser_port$" <<<"$local_endpoints"; then
   echo "Linux Canary browser listener is not loopback-only." >&2
   exit 1
 fi

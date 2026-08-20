@@ -25,6 +25,7 @@ Set-StrictMode -Version Latest
 $vmName = 'Balls.Lab.Ubuntu'
 $checkpointName = 'Balls.Lab.Clean'
 $guestUser = 'balls-lab'
+$minimumOsDiskSize = 16GB
 $labRootPath = [IO.Path]::GetFullPath($LabRoot)
 $labRootLeaf = Split-Path -Leaf $labRootPath
 if ($labRootPath -eq [IO.Path]::GetPathRoot($labRootPath) -or
@@ -178,6 +179,13 @@ function Prepare-Image {
     $baseVhd = Get-VHD -Path $baseVhdPath
     if ($baseVhd.VhdFormat -ne 'VHDX' -or $baseVhd.VhdType -ne 'Dynamic') {
         throw "Converted Ubuntu image is not a dynamic VHDX: $baseVhdPath"
+    }
+    if ($baseVhd.Size -lt $minimumOsDiskSize) {
+        Resize-VHD -Path $baseVhdPath -SizeBytes $minimumOsDiskSize
+        $baseVhd = Get-VHD -Path $baseVhdPath
+    }
+    if ($baseVhd.Size -lt $minimumOsDiskSize) {
+        throw "Prepared Ubuntu VHD is smaller than the required 16 GB: $baseVhdPath"
     }
     Write-LabState $baseVhdPath $actualHash
     Write-Output "Prepared verified Ubuntu image: $baseVhdPath"
@@ -414,6 +422,7 @@ function Create-Lab {
     Set-VMFirmware -VM $vm -EnableSecureBoot Off
     Set-VMProcessor -VM $vm -Count 2
     Set-VMMemory -VM $vm -DynamicMemoryEnabled $false -StartupBytes 4GB
+    Set-VM -VM $vm -AutomaticCheckpointsEnabled $false
     Add-VMDvdDrive -VM $vm -Path $seedIsoPath
     Start-VM -VM $vm | Out-Null
     Wait-Guest | Out-Null

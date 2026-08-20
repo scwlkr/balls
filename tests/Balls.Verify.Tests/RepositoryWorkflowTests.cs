@@ -127,6 +127,8 @@ public sealed partial class RepositoryWorkflowTests
         StringAssert.Contains(windowsSmoke, "'circle', 'list'");
         StringAssert.Contains(linuxSmoke, "circle create");
         StringAssert.Contains(linuxSmoke, "circle list");
+        StringAssert.Contains(linuxSmoke, "awk '{print $4}'");
+        StringAssert.Contains(linuxSmoke, "127\\\\.0\\\\.0\\\\.1");
     }
 
     [TestMethod]
@@ -145,8 +147,11 @@ public sealed partial class RepositoryWorkflowTests
         StringAssert.Contains(harness, "Refusing to adopt");
         StringAssert.Contains(harness, "QemuImgWslPath");
         StringAssert.Contains(harness, "subformat=dynamic");
+        StringAssert.Contains(harness, "$minimumOsDiskSize = 16GB");
+        StringAssert.Contains(harness, "Resize-VHD -Path $baseVhdPath");
         StringAssert.Contains(harness, "Generation = 2");
         StringAssert.Contains(harness, "EnableSecureBoot Off");
+        StringAssert.Contains(harness, "AutomaticCheckpointsEnabled $false");
         StringAssert.Contains(harness, "within 30 minutes");
     }
 
