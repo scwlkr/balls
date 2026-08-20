@@ -107,7 +107,7 @@
       "balls.platform.linux": {
         "type": "Project",
         "dependencies": {
-          "Balls.Platform": "[0.1.0-alpha.2, )"
+          "Balls.Platform": "[0.2.0-alpha.1, )"
         }
       }
     }

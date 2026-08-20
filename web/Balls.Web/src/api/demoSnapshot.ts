@@ -2,7 +2,7 @@ import type { CircleDetailsDto, StatusDto } from "./localControl";
 import type { DashboardSnapshot } from "../presentation/DashboardSnapshot";
 
 const status = {
-  productVersion: "0.1.0-alpha.2",
+  productVersion: "0.2.0-alpha.1",
   protocolVersion: 1,
   node: {
     id: "0198f2cc-6a50-7a08-aacb-298f4ebdf616",

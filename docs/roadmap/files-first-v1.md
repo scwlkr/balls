@@ -51,8 +51,8 @@ cross-platform; the UI does not create a second product implementation.
 6. [#22 prove the Windows/Ubuntu outcome and runnable Canaries](https://github.com/scwlkr/balls/issues/22);
 7. [#23 verify and accept the milestone](https://github.com/scwlkr/balls/issues/23).
 
-#17–#22 deliver the executable product and cross-platform proof. #23 is the remaining milestone
-verification and owner-acceptance gate.
+#17–#22 delivered the executable product and cross-platform proof. #23 is the owner-authorized
+release verification and exact-artifact promotion gate.
 
 **Exit evidence:** Windows host and Ubuntu VM independently persist Node identity and pass the same
 CLI/API acceptance flow; the browser opens through `balls ui`; no non-loopback browser listener;
@@ -66,14 +66,18 @@ Members/Nodes, restart, and exchange one persistent text message.
 **Architectural proof:** cryptographic Circle/Member/Node identity, authenticated admission,
 authorization, and the remote Circle protocol are separate from transport.
 
-**Candidate tickets:**
+**Executable issues:**
 
-1. prototype and record the identity/admission decision against the threat model;
-2. protect persistent cryptographic Node and Circle authority material;
-3. implement bounded, expiring, single-use invitation and admission;
-4. implement authenticated/encrypted LAN transport behind a provider seam;
-5. synchronize membership and preserve it across restart;
-6. add one minimal persistent Circle message path and virtual two-Node evidence.
+1. [#33 decide Circle identity, admission, and remote protocol security](https://github.com/scwlkr/balls/issues/33);
+2. [#35 persist and protect cryptographic Node and Circle authority](https://github.com/scwlkr/balls/issues/35);
+3. [#36 issue and redeem bounded single-use Circle invitations](https://github.com/scwlkr/balls/issues/36);
+4. [#37 authenticate and encrypt LAN Node transport](https://github.com/scwlkr/balls/issues/37);
+5. [#38 admit a second Node and persist shared Circle membership](https://github.com/scwlkr/balls/issues/38);
+6. [#39 exchange one persistent Circle message across two Nodes](https://github.com/scwlkr/balls/issues/39);
+7. [#34 verify and accept the Trusted Circle milestone](https://github.com/scwlkr/balls/issues/34).
+
+#33 is the single prepared frontier. #35–#39 and #34 remain blocked by their explicit issue
+dependencies.
 
 **Exit evidence:** Windows host and Ubuntu VM join the same Circle, reject forged/expired/replayed
 admission, restart with stable identities, and exchange the same persisted message.

@@ -27,7 +27,7 @@ Use this directory for ADRs, threat models, protocol specifications, milestone d
 
 ## Contracts and state
 
-- [`protocol/local-control-v1.md`](protocol/local-control-v1.md) — implemented HTTP/JSON local-control contract over Windows named pipes.
+- [`protocol/local-control-v1.md`](protocol/local-control-v1.md) — implemented HTTP/JSON local-control contract over Windows named pipes and Linux Unix-domain sockets.
 - [`storage/sqlite-local-state-v1.md`](storage/sqlite-local-state-v1.md) — implemented local SQLite identity, schema, transactions, and migration policy.
 
 ## Security
@@ -45,3 +45,4 @@ Use this directory for ADRs, threat models, protocol specifications, milestone d
 - [`verification/2026-08-19-open-fast-foundation.md`](verification/2026-08-19-open-fast-foundation.md) — final feedback budgets, exact-artifact checks, repository state, and owner acceptance gate.
 - [`verification/2026-08-19-browser-ui.md`](verification/2026-08-19-browser-ui.md) — hardened loopback boundary, live browser workspace, and Chromium evidence.
 - [`verification/2026-08-20-cross-platform-node-ui.md`](verification/2026-08-20-cross-platform-node-ui.md) — exact Windows/Linux Canary artifacts, physical Windows and Ubuntu VM browser proof, and clean identity reset.
+- [`verification/2026-08-20-cross-platform-node-web-ui.md`](verification/2026-08-20-cross-platform-node-web-ui.md) — milestone budgets, exact candidate artifacts, repository/security readback, owner authorization, and Trusted Circle frontier.

@@ -113,7 +113,7 @@ public sealed class CliApplicationTests
     public void Cli_output_has_stable_golden_text_and_versioned_json()
     {
         var status = new StatusResponse(
-            "0.1.0-alpha.2",
+            "0.2.0-alpha.1",
             1,
             new NodeResponse(
                 "0198f2cc-6a50-7a08-aacb-298f4ebdf616",
@@ -128,7 +128,7 @@ public sealed class CliApplicationTests
                 + "Control protocol: v1",
             CliOutput.RenderStatus(status));
         Assert.AreEqual(
-            "{\"outputVersion\":1,\"result\":{\"productVersion\":\"0.1.0-alpha.2\",\"protocolVersion\":1,\"node\":{\"id\":\"0198f2cc-6a50-7a08-aacb-298f4ebdf616\",\"displayName\":\"Alice-PC\",\"createdAtUtc\":\"2026-08-19T12:34:56.1234567+00:00\"}}}",
+            "{\"outputVersion\":1,\"result\":{\"productVersion\":\"0.2.0-alpha.1\",\"protocolVersion\":1,\"node\":{\"id\":\"0198f2cc-6a50-7a08-aacb-298f4ebdf616\",\"displayName\":\"Alice-PC\",\"createdAtUtc\":\"2026-08-19T12:34:56.1234567+00:00\"}}}",
             CliOutput.SerializeResult(status));
         Assert.AreEqual(
             "{\"outputVersion\":1,\"error\":{\"code\":\"circle_not_found\",\"message\":\"The requested Circle is not known to this Node.\"}}",
@@ -143,7 +143,7 @@ public sealed class CliApplicationTests
         const string responseJson =
             """
             {
-              "productVersion": "0.1.0-alpha.2",
+              "productVersion": "0.2.0-alpha.1",
               "protocolVersion": 1,
               "futureStatus": "ignored",
               "node": {
