@@ -53,8 +53,21 @@ proof. No local failure or policy exception remained.
 
 ## Hosted pull-request evidence
 
-Pending PR creation and the required fixed Windows 2025 / Ubuntu 24.04 lanes, dependency review,
-and CodeQL. This section is replaced with exact run links and observations before merge.
+PR [#43](https://github.com/scwlkr/balls/pull/43) evaluated implementation/evidence commit
+`6f26bd57b1e9b6eae9660eaf34b4ac4669c663d8`:
+
+- [Windows fast](https://github.com/scwlkr/balls/actions/runs/32405219348/job/96542599630)
+  passed in 3m34s, including the DPAPI protected-state test and real Playwright journey;
+- [Ubuntu fast](https://github.com/scwlkr/balls/actions/runs/32405219348/job/96542600167)
+  passed in 2m25s on the fixed Ubuntu 24.04 runner;
+- [Required](https://github.com/scwlkr/balls/actions/runs/32405219348/job/96543668345)
+  passed its fail-closed platform decision in 3s;
+- [dependency review](https://github.com/scwlkr/balls/actions/runs/32405219353/job/96542599568)
+  passed in 8s;
+- [CodeQL C#](https://github.com/scwlkr/balls/actions/runs/32405219337/job/96542599266)
+  passed in 2m09s.
+
+The final evidence-only commit is subject to the same required pull-request checks before merge.
 
 ## Non-goals observed
 
