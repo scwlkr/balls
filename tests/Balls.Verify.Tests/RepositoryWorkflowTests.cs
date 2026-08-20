@@ -102,6 +102,7 @@ public sealed partial class RepositoryWorkflowTests
         StringAssert.Contains(Workflow, "linux-canary:");
         StringAssert.Contains(Workflow, "Smoke packaged Linux Canary");
         StringAssert.Contains(Workflow, "Test-LinuxCanary.sh");
+        StringAssert.Contains(Workflow, "Install-BallsCanary.sh");
         Assert.AreEqual(2, Regex.Matches(Workflow, @"(?m)^    needs: required$").Count);
         Assert.AreEqual(2, Regex.Matches(Workflow, @"github.event_name == 'push'").Count);
         Assert.AreEqual(2, Regex.Matches(Workflow, @"github.ref == 'refs/heads/main'").Count);

@@ -26,7 +26,7 @@ internal sealed record CanaryPackageResult(
     string ArtifactName,
     string ArchivePath,
     string ChecksumPath,
-    string? InstallerPath);
+    string InstallerPath);
 
 internal static partial class CanaryPackageBuilder
 {
@@ -43,14 +43,15 @@ internal static partial class CanaryPackageBuilder
 
         var archivePath = Path.Combine(request.OutputDirectory, $"{artifactName}.zip");
         var checksumPath = $"{archivePath}.sha256";
+        var installerName = request.Platform == CanaryPlatform.Windows
+            ? "Install-BallsCanary.ps1"
+            : "Install-BallsCanary.sh";
         var installerSource = Path.Combine(
             request.RepositoryRoot,
             "eng",
             "canary",
-            "Install-BallsCanary.ps1");
-        var installerPath = request.Platform == CanaryPlatform.Windows
-            ? Path.Combine(request.OutputDirectory, "Install-BallsCanary.ps1")
-            : null;
+            installerName);
+        var installerPath = Path.Combine(request.OutputDirectory, installerName);
         var stagingDirectory = Path.Combine(
             Path.GetTempPath(),
             $"balls-canary-package-{Guid.NewGuid():N}");
@@ -64,11 +65,8 @@ internal static partial class CanaryPackageBuilder
                 Path.Combine(request.RepositoryRoot, "LICENSE"),
                 Path.Combine(stagingDirectory, "LICENSE"));
 
-            if (request.Platform == CanaryPlatform.Windows)
-            {
-                File.Copy(installerSource, Path.Combine(stagingDirectory, "Install-BallsCanary.ps1"));
-                File.Copy(installerSource, installerPath!, overwrite: true);
-            }
+            File.Copy(installerSource, Path.Combine(stagingDirectory, installerName));
+            File.Copy(installerSource, installerPath, overwrite: true);
 
             File.WriteAllText(
                 Path.Combine(stagingDirectory, "README.md"),
@@ -134,14 +132,13 @@ internal static partial class CanaryPackageBuilder
         RequireFile(Path.Combine(request.DaemonDirectory, daemonName));
         RequireFile(Path.Combine(request.RepositoryRoot, "Directory.Build.props"));
         RequireFile(Path.Combine(request.RepositoryRoot, "LICENSE"));
-        if (request.Platform == CanaryPlatform.Windows)
-        {
-            RequireFile(Path.Combine(
-                request.RepositoryRoot,
-                "eng",
-                "canary",
-                "Install-BallsCanary.ps1"));
-        }
+        RequireFile(Path.Combine(
+            request.RepositoryRoot,
+            "eng",
+            "canary",
+            request.Platform == CanaryPlatform.Windows
+                ? "Install-BallsCanary.ps1"
+                : "Install-BallsCanary.sh"));
     }
 
     private static string ReadVersion(string repositoryRoot)
@@ -197,9 +194,14 @@ internal static partial class CanaryPackageBuilder
 
               Development artifact `{artifactName}`. This is not a stable installer or release.
 
-              Extract the archive, preserve executable bits, start `ballsd/ballsd`, and use
-              `balls/balls status`. The daemon defaults to protected XDG state and a same-user
-              Unix-domain socket.
+              From the downloaded workflow-artifact directory:
+
+              ```bash
+              bash ./Install-BallsCanary.sh ./{artifactName}.zip
+              ```
+
+              The installer verifies both checksum layers, preserves version identity, and starts
+              the daemon with protected state and a same-user Unix-domain socket.
               """" + Environment.NewLine;
 
     private static void WriteInternalChecksums(string stagingDirectory)
