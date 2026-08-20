@@ -118,6 +118,7 @@ public static class RemoteTls
         if (now < certificate2.NotBefore.ToUniversalTime()
             || now >= certificate2.NotAfter.ToUniversalTime()
             || !HasEnhancedKeyUsage(certificate2, requiredEnhancedKeyUsage)
+            || !HasDigitalSignatureUsage(certificate2)
             || (expectedDnsName is not null
                 && !string.Equals(
                     certificate2.GetNameInfo(X509NameType.DnsName, forIssuer: false),
@@ -157,6 +158,13 @@ public static class RemoteTls
             && enhancedKeyUsage.EnhancedKeyUsages
                 .Cast<Oid>()
                 .Any(oid => string.Equals(oid.Value, requiredOid, StringComparison.Ordinal));
+    }
+
+    private static bool HasDigitalSignatureUsage(X509Certificate2 certificate)
+    {
+        var keyUsage = certificate.Extensions.OfType<X509KeyUsageExtension>().SingleOrDefault();
+        return keyUsage is not null
+            && (keyUsage.KeyUsages & X509KeyUsageFlags.DigitalSignature) != 0;
     }
 
     private static void EnsureTransportCredential(PublicKeyCredential credential)

@@ -189,7 +189,10 @@ public sealed class AdmissionSecurityTests
                             nodeKey),
                         CreateContext(supportedMaximumProtocolVersion: 2));
                 case AdmissionMutation.WrongCircle:
-                    return (SignedRequest, CreateContext(expectedCircleId: "another-circle"));
+                    return (
+                        SignedRequest,
+                        CreateContext(
+                            expectedCircleId: "0198c837-3000-7000-8000-000000000099"));
                 case AdmissionMutation.WrongNode:
                     using (var otherTransportKey = ECDsa.Create(ECCurve.NamedCurves.nistP256))
                     {

@@ -234,9 +234,9 @@ public static class AdmissionSecurity
     {
         var invitation = signedRequest.Invitation.Invitation;
         var request = signedRequest.Request;
-        return !string.IsNullOrWhiteSpace(invitation.CircleId)
-            && !string.IsNullOrWhiteSpace(invitation.InvitationId)
-            && !string.IsNullOrWhiteSpace(invitation.IssuerId)
+        return IsCanonicalUuid(invitation.CircleId)
+            && IsCanonicalUuid(invitation.InvitationId)
+            && IsCanonicalUuid(invitation.IssuerId)
             && invitation.AnchorTransportKeyId.StartsWith(
                 "transport:p256-sha256:",
                 StringComparison.Ordinal)
@@ -245,10 +245,13 @@ public static class AdmissionSecurity
             && invitation.InvitationNonce is { Length: 32 }
             && invitation.MinimumProtocolVersion > 0
             && invitation.MaximumProtocolVersion >= invitation.MinimumProtocolVersion
-            && !string.IsNullOrWhiteSpace(request.CircleId)
+            && IsCanonicalUuid(request.CircleId)
             && string.Equals(request.InvitationId, invitation.InvitationId, StringComparison.Ordinal)
-            && !string.IsNullOrWhiteSpace(request.MemberId)
-            && !string.IsNullOrWhiteSpace(request.NodeId)
+            && IsCanonicalUuid(request.MemberId)
+            && IsCanonicalUuid(request.NodeId)
+            && request.MinimumProtocolVersion > 0
+            && request.MaximumProtocolVersion >= request.MinimumProtocolVersion
+            && request.SelectedProtocolVersion > 0
             && request.InvitationDigest is { Length: 32 }
             && request.AnchorChallenge is { Length: 32 }
             && request.ApplicantChallenge is { Length: 32 }
@@ -268,6 +271,10 @@ public static class AdmissionSecurity
             && context.SupportedMinimumProtocolVersion > 0
             && context.SupportedMaximumProtocolVersion >= context.SupportedMinimumProtocolVersion;
     }
+
+    private static bool IsCanonicalUuid(string value) =>
+        Guid.TryParseExact(value, "D", out var identifier)
+        && string.Equals(identifier.ToString("D"), value, StringComparison.Ordinal);
 
     private static int? HighestCommonVersion(
         CircleInvitation invitation,

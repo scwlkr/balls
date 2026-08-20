@@ -129,3 +129,9 @@ public interface IRemoteTransportConnector
         RemoteTransportAddress address,
         CancellationToken cancellationToken = default);
 }
+
+public interface IRemoteTransportListener : IAsyncDisposable
+{
+    IAsyncEnumerable<UntrustedRemoteConnection> AcceptAsync(
+        CancellationToken cancellationToken = default);
+}

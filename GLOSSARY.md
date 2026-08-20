@@ -63,6 +63,33 @@ Anchors are expected to remain online and may maintain replicated Circle state, 
 
 Anchor is a role, not a single master server.
 
+## Circle Authority
+
+The signed root of trust for one Circle. It binds the Circle ID to current delegated Anchors,
+Members, Nodes, transport credentials, generations, and revocations.
+
+Circle Authority is a cryptographic role, not a synonym for the Anchor Node or Owner's computer.
+
+## Credential
+
+A role-scoped public key plus signed authority binding used to authenticate a Circle, Anchor,
+Member, Node, or transport certificate.
+
+A durable object UUID is an identifier, not a credential or proof of identity.
+
+## Invitation
+
+A bounded, signed authorization to attempt joining one Circle. Remote v1 invitations name their
+issuer and authority generation, expire, permit one redemption, and pin the admission Anchor's
+transport key.
+
+An invitation is not membership; admission must still prove the applicant Member and Node keys.
+
+## Admission
+
+The authenticated, replay-protected operation that consumes one valid invitation and creates
+Circle membership. Validation and durable mutation are separate boundaries.
+
 ## Contribution
 
 A capability or resource a Node explicitly offers to a Circle.

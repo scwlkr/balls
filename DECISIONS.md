@@ -163,6 +163,20 @@ LAN + Tailscale are sensible early providers.
 
 Do not make Tailscale a permanent definition of Balls.
 
+### Trusted Circle identity and admission
+
+Remote v1 keeps UUID object identifiers separate from cryptographic proof. The Circle root,
+delegated Anchor issuer, Member, Node, and transport certificate use distinct ECDSA P-256/SHA-256
+credentials identified by role-scoped hashes of canonical DER SPKI. Signed purpose-specific
+binary transcripts and exact Circle/Node/TLS context produce deterministic admission rejection.
+
+TCP plus `SslStream` TLS 1.3 is the first authenticated channel. Admission pins the server
+transport key from the signed invitation; admitted peers use mTLS bound to active Circle-signed
+Node transport credentials. LAN, Tailscale, and future providers remain untrusted stream
+providers. Circle authority requires explicit encrypted export and never silently transfers to an
+ordinary Node. See [`ADR 0006`](docs/decisions/0006-trusted-circle-identity-and-admission.md) and
+the [`remote Circle v1 contract`](docs/protocol/remote-circle-v1.md).
+
 ### Cross-platform UI
 
 Use one React/TypeScript browser application as the primary GUI and retain `balls` as a first-class
@@ -187,16 +201,6 @@ releases. See [`docs/development-process.md`](docs/development-process.md).
 ## Intentionally open technical questions
 
 These should be resolved by prototypes, threat modeling, and performance/testing rather than ideology.
-
-### Circle identity implementation
-
-Possible approaches include:
-
-- keypairs;
-- signed membership records;
-- certificate-based identity;
-- external identity plus Circle keys;
-- hybrids.
 
 ### Durable state model
 
