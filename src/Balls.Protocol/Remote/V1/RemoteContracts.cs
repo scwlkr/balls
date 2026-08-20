@@ -216,6 +216,82 @@ public sealed record SignedAdmissionResponse(
     string SignatureSuite,
     byte[] AnchorSignature);
 
+public sealed record CircleMessageRequest(
+    int Version,
+    string CircleId,
+    string MessageId,
+    string AuthorMemberId,
+    string AuthorNodeId,
+    PublicKeyCredential MemberCredential,
+    PublicKeyCredential NodeCredential,
+    string Text,
+    DateTimeOffset AuthoredAtUtc,
+    string SignatureSuite);
+
+public sealed record SignedCircleMessageRequest(
+    CircleMessageRequest Request,
+    byte[] MemberSignature,
+    byte[] NodeSignature);
+
+public sealed record CircleMessageReceipt(
+    int Version,
+    string CircleId,
+    string MessageId,
+    long Sequence,
+    string AuthorMemberId,
+    string AuthorNodeId,
+    string Text,
+    DateTimeOffset AuthoredAtUtc,
+    DateTimeOffset AcceptedAtUtc,
+    byte[] RequestDigest);
+
+public sealed record SignedCircleMessageReceipt(
+    CircleMessageReceipt Receipt,
+    string SignatureSuite,
+    byte[] AnchorSignature);
+
+public sealed record CircleMessageVerificationContext(
+    string ExpectedCircleId,
+    string ExpectedPeerNodeId,
+    PublicKeyCredential TrustedMemberCredential,
+    PublicKeyCredential TrustedNodeCredential,
+    DateTimeOffset NowUtc,
+    TimeSpan MaximumClockSkew,
+    IReadOnlySet<string> RevokedKeyIds);
+
+public sealed record CircleMessageReceiptVerificationContext(
+    SignedCircleMessageRequest Request,
+    PublicKeyCredential TrustedAnchorCredential,
+    string ExpectedCircleId,
+    DateTimeOffset NowUtc,
+    TimeSpan MaximumClockSkew);
+
+public enum CircleMessageRejectionCode
+{
+    None,
+    Malformed,
+    UnsupportedSuite,
+    Unauthorized,
+    Forged,
+    Revoked,
+    WrongCircle,
+    WrongNode,
+    Stale,
+    Replayed,
+    Conflict,
+}
+
+public sealed record CircleMessageValidationResult(
+    bool IsAccepted,
+    CircleMessageRejectionCode RejectionCode)
+{
+    public static CircleMessageValidationResult Accepted() =>
+        new(true, CircleMessageRejectionCode.None);
+
+    public static CircleMessageValidationResult Rejected(CircleMessageRejectionCode code) =>
+        new(false, code);
+}
+
 public sealed record AdmissionResponseVerificationContext(
     SignedAdmissionRequest Request,
     PublicKeyCredential TrustedRootCredential,
