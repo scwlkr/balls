@@ -30,7 +30,25 @@ request result; it does not open a remote listener or create membership, which r
 - NuGet transitive vulnerability audit: every project reported no vulnerable packages.
 - pnpm audit: no known vulnerabilities.
 
-The final pull-request lanes and merged commit are added after protected CI.
+## Protected pull-request evidence
+
+Pull request [#44](https://github.com/scwlkr/balls/pull/44) validated implementation head
+`0868daf549c8c6255587f92d7f7437647ee33242`:
+
+- [Windows fast](https://github.com/scwlkr/balls/actions/runs/32408900954/job/96554452625):
+  passed in 2 minutes 48 seconds;
+- [Ubuntu fast](https://github.com/scwlkr/balls/actions/runs/32408900954/job/96554452368):
+  passed in 2 minutes 6 seconds;
+- [Required](https://github.com/scwlkr/balls/actions/runs/32408900954/job/96555284336):
+  passed in 3 seconds after both platform lanes;
+- [CodeQL C#](https://github.com/scwlkr/balls/actions/runs/32408901116/job/96554452803):
+  passed in 2 minutes 27 seconds;
+- [dependency review](https://github.com/scwlkr/balls/actions/runs/32408900972/job/96554452141):
+  passed in 6 seconds.
+
+There were no review comments, change requests, merge conflicts, dependency findings, or CodeQL
+findings. The final evidence-only head and squash-merged commit are recorded after the second
+protected check run.
 
 ## Boundaries
 
