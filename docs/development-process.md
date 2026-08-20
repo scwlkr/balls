@@ -171,7 +171,8 @@ same artifacts. Windows public binaries must be signed before Stable.
 Canary publication is downstream of the successful `Required` job in the same CI workflow for a
 `main` push. It checks out the accepted SHA with read-only permissions, packages version/OS/
 architecture/commit identity and checksums, smokes the Windows archive from fresh state, and
-uploads with a bounded retention period. Pull-request runs skip both publication jobs. It does not
+smokes the Linux archive from fresh state with the same CLI/browser/restart outcome, then uploads
+both with a bounded retention period. Pull-request runs skip both publication jobs. It does not
 create a product tag or GitHub Release.
 
 ## Public security automation

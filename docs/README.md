@@ -44,3 +44,4 @@ Use this directory for ADRs, threat models, protocol specifications, milestone d
 - [`verification/2026-08-19-security-automation.md`](verification/2026-08-19-security-automation.md) — dependency review, CodeQL, Scorecard, action policy, and fork boundary.
 - [`verification/2026-08-19-open-fast-foundation.md`](verification/2026-08-19-open-fast-foundation.md) — final feedback budgets, exact-artifact checks, repository state, and owner acceptance gate.
 - [`verification/2026-08-19-browser-ui.md`](verification/2026-08-19-browser-ui.md) — hardened loopback boundary, live browser workspace, and Chromium evidence.
+- [`verification/2026-08-20-cross-platform-node-ui.md`](verification/2026-08-20-cross-platform-node-ui.md) — exact Windows/Linux Canary artifacts, physical Windows and Ubuntu VM browser proof, and clean identity reset.

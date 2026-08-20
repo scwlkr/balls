@@ -49,7 +49,8 @@ The active milestone has platform-neutral host composition, protected native Lin
 stable machine-readable CLI output, and one typed React workspace generated from local-control v1.
 `balls ui` now opens that offline bundle through a hardened loopback-only adapter, where the user
 can inspect the Node and create or revisit Circles, Members, and Nodes. Issue
-[#22](https://github.com/scwlkr/balls/issues/22) is the next frontier after this delivery lands.
+[#23](https://github.com/scwlkr/balls/issues/23) is the milestone verification and acceptance
+frontier after the Windows/Ubuntu Canary proof lands.
 
 ## Quick start
 
