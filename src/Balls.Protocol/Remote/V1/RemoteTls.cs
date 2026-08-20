@@ -78,8 +78,36 @@ public static class RemoteTls
         X509Certificate2 serverCertificate,
         PublicKeyCredential expectedClientTransportCredential)
     {
+        return CreateServerOptions(serverCertificate, [expectedClientTransportCredential]);
+    }
+
+    public static SslServerAuthenticationOptions CreateServerOptions(
+        X509Certificate2 serverCertificate,
+        IReadOnlyCollection<PublicKeyCredential> expectedClientTransportCredentials)
+    {
         ArgumentNullException.ThrowIfNull(serverCertificate);
-        EnsureTransportCredential(expectedClientTransportCredential);
+        ArgumentNullException.ThrowIfNull(expectedClientTransportCredentials);
+        if (expectedClientTransportCredentials.Count is 0 or > 128)
+        {
+            throw new ArgumentException(
+                "Remote v1 requires between one and 128 expected client credentials.",
+                nameof(expectedClientTransportCredentials));
+        }
+
+        foreach (var credential in expectedClientTransportCredentials)
+        {
+            EnsureTransportCredential(credential);
+        }
+
+        var credentials = expectedClientTransportCredentials.ToArray();
+        if (credentials.Select(credential => credential.KeyId).Distinct(StringComparer.Ordinal).Count()
+            != credentials.Length)
+        {
+            throw new ArgumentException(
+                "Expected client transport credentials must be unique.",
+                nameof(expectedClientTransportCredentials));
+        }
+
         return new SslServerAuthenticationOptions
         {
             ServerCertificate = serverCertificate,
@@ -89,13 +117,35 @@ public static class RemoteTls
             CertificateRevocationCheckMode = X509RevocationMode.NoCheck,
             EncryptionPolicy = EncryptionPolicy.RequireEncryption,
             RemoteCertificateValidationCallback = (_, certificate, _, _) =>
-                ValidateCertificate(
-                    certificate,
-                    expectedClientTransportCredential.KeyId,
-                    expectedClientTransportCredential.SubjectPublicKeyInfo,
-                    ClientAuthenticationOid,
-                    expectedDnsName: null),
+                credentials.Any(credential =>
+                    ValidateCertificate(
+                        certificate,
+                        credential.KeyId,
+                        credential.SubjectPublicKeyInfo,
+                        ClientAuthenticationOid,
+                        expectedDnsName: null)),
         };
+    }
+
+    public static PublicKeyCredential? ReadTransportCredential(X509Certificate? certificate)
+    {
+        if (certificate is null)
+        {
+            return null;
+        }
+
+        try
+        {
+            using var certificate2 = new X509Certificate2(certificate);
+            using var publicKey = certificate2.GetECDsaPublicKey();
+            return publicKey is null
+                ? null
+                : RemoteIdentity.CreateCredential(KeyRole.Transport, publicKey);
+        }
+        catch (CryptographicException)
+        {
+            return null;
+        }
     }
 
     private static SslApplicationProtocol ProtocolApplication =>
