@@ -37,9 +37,10 @@ using an opt-in Apple Network.framework implementation. Balls enables that clien
 10 macOS server path cannot satisfy remote v1, so this checkpoint does not claim a macOS Anchor or
 incoming remote listener and does not relax the protocol to TLS 1.2.
 
-Full macOS Trusted Circle support requires a proven TLS 1.3 server implementation or a future
-transport provider that preserves the same signed Circle/Node/transport binding. A physical
-Mac-to-Windows join/message observation remains a risk gate after persistent messaging lands.
+Mac Anchor/listener support requires a proven TLS 1.3 server implementation or a future transport
+provider that preserves the same signed Circle/Node/transport binding. The required physical
+Mac-to-Windows private-LAN join/message observation completed on 2026-08-21 and is recorded in the
+[macOS developer Node evidence](../verification/2026-08-21-macos-developer-node.md).
 
 ## Consequences
 

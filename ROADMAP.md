@@ -24,7 +24,9 @@ Circle Files successor is prepared as #56–#62.
 In parallel, [#48](https://github.com/scwlkr/balls/issues/48) establishes an Apple-Silicon,
 source-run macOS developer Node and required Mac fast lane. This accelerates portable, browser,
 brand, and macOS compatibility work without expanding the supported files-first v1 platform claim
-or introducing a native Mac GUI.
+or introducing a native Mac GUI. A physical Mac joining client has now joined a Windows-anchored
+Circle over private LAN, persisted one message on both Nodes, and retained the outcome across both
+daemon restarts; a Mac Anchor/listener remains outside the claim.
 
 ## Files-first path to v1
 
