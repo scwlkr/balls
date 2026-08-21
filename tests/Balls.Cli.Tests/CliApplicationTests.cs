@@ -103,7 +103,7 @@ public sealed class CliApplicationTests
         Assert.AreEqual(string.Empty, misplacedOutput.ToString());
         Assert.AreEqual(
             "balls: --output must be either 'text' or 'json'." + Environment.NewLine
-                + "commands: ui | status | circle create | circle join | circle list | member list | node list | invitation create | invitation redeem | message send | message list | files contribution create/list | files grant create/list"
+                + "commands: ui | status | circle create | circle join | circle list | member list | node list | invitation create | invitation redeem | message send | message list | files readiness | files contribution create/list | files grant create/list"
                 + Environment.NewLine,
             unsupportedError.ToString());
         StringAssert.StartsWith(misplacedError.ToString(), "balls: unknown command.");
@@ -345,6 +345,38 @@ public sealed class CliApplicationTests
         Assert.AreEqual(grant.Id, structuredGrants.Grants[0].Id);
         Assert.AreEqual(string.Empty, createContribution.StandardError);
         Assert.AreEqual(string.Empty, createGrant.StandardError);
+    }
+
+    [TestMethod]
+    public async Task Cli_reports_Windows_SMB_readiness_through_the_local_contract()
+    {
+        if (!OperatingSystem.IsWindows())
+        {
+            Assert.Inconclusive("The real Windows SMB readiness contract requires Windows.");
+            return;
+        }
+
+        using var directory = new TemporaryDirectory();
+        var pipeName = $"balls-tests-{Guid.NewGuid():N}";
+        await using var daemon = await DaemonHost.StartAsync(
+            new DaemonOptions(directory.Path, pipeName, "Alice-PC"));
+
+        var structured = await RunAsync(
+            pipeName,
+            "--output",
+            "json",
+            "files",
+            "readiness");
+        var text = await RunAsync(pipeName, "files", "readiness");
+        var report = DeserializeResult<CircleFilesReadinessResponse>(structured.StandardOutput);
+
+        Assert.AreEqual(CliExitCodes.Success, structured.ExitCode);
+        Assert.AreEqual(CircleFilesReadinessProviders.WindowsSmb311, report.Provider);
+        Assert.IsTrue(report.Status is "ready" or "not-ready" or "unknown");
+        Assert.HasCount(9, report.Checks);
+        StringAssert.StartsWith(text.StandardOutput, "Circle Files readiness:");
+        Assert.AreEqual(string.Empty, structured.StandardError);
+        Assert.AreEqual(string.Empty, text.StandardError);
     }
 
     [TestMethod]

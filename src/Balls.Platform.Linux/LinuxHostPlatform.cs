@@ -20,7 +20,8 @@ public static class LinuxHostPlatform
             new LinuxLocalStatePreparer(),
             transport,
             transport,
-            new LinuxSystemBrowserLauncher());
+            new LinuxSystemBrowserLauncher(),
+            new UnsupportedCircleFilesReadinessInspector());
     }
 
     private sealed class LinuxSystemBrowserLauncher : ISystemBrowserLauncher

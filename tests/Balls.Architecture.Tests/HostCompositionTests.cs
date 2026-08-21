@@ -7,6 +7,16 @@ namespace Balls.Architecture.Tests;
 public sealed class HostCompositionTests
 {
     [TestMethod]
+    public async Task Non_Windows_readiness_is_explicitly_unknown()
+    {
+        var report = await new Balls.Platform.UnsupportedCircleFilesReadinessInspector()
+            .InspectAsync(CancellationToken.None);
+
+        Assert.AreEqual(Balls.Platform.CircleFilesReadinessStatus.Unknown, report.Status);
+        Assert.AreEqual("windows_required", report.Checks.Single().Code);
+    }
+
+    [TestMethod]
     public void Unsupported_hosts_share_one_typed_fail_closed_result()
     {
         var unknown = HostPlatformSelector.Select(HostOperatingSystem.Unknown);
@@ -33,6 +43,7 @@ public sealed class HostCompositionTests
         Assert.IsNotNull(supported.Platform.LocalState);
         Assert.IsNotNull(supported.Platform.LocalControlServer);
         Assert.IsNotNull(supported.Platform.LocalControlClient);
+        Assert.IsNotNull(supported.Platform.CircleFilesReadiness);
         Assert.AreEqual("macos-owned-state-v1", supported.PrivateMaterialProtector.Scheme);
         Assert.AreEqual("Unix-domain socket", supported.Platform.Defaults.LocalControlListenerDescription);
         Assert.AreEqual("socket", supported.Platform.Defaults.LocalControlEndpointDescription);
@@ -57,6 +68,7 @@ public sealed class HostCompositionTests
         Assert.IsNotNull(supported.Platform.LocalState);
         Assert.IsNotNull(supported.Platform.LocalControlServer);
         Assert.IsNotNull(supported.Platform.LocalControlClient);
+        Assert.IsNotNull(supported.Platform.CircleFilesReadiness);
         Assert.AreEqual("linux-owned-state-v1", supported.PrivateMaterialProtector.Scheme);
         Assert.AreEqual("Unix-domain socket", supported.Platform.Defaults.LocalControlListenerDescription);
         Assert.AreEqual("socket", supported.Platform.Defaults.LocalControlEndpointDescription);
@@ -78,6 +90,7 @@ public sealed class HostCompositionTests
         Assert.IsNotNull(supported.Platform.LocalState);
         Assert.IsNotNull(supported.Platform.LocalControlServer);
         Assert.IsNotNull(supported.Platform.LocalControlClient);
+        Assert.IsNotNull(supported.Platform.CircleFilesReadiness);
         Assert.AreEqual("windows-dpapi-current-user-v1", supported.PrivateMaterialProtector.Scheme);
         Assert.AreEqual(Environment.MachineName, supported.Platform.Defaults.NodeDisplayName);
         Assert.AreEqual(

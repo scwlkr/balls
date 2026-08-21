@@ -28,6 +28,7 @@
     <Project Path="tests/Balls.Daemon.Tests/Balls.Daemon.Tests.csproj" />
     <Project Path="tests/Balls.Platform.Linux.Tests/Balls.Platform.Linux.Tests.csproj" />
     <Project Path="tests/Balls.Platform.MacOS.Tests/Balls.Platform.MacOS.Tests.csproj" />
+    <Project Path="tests/Balls.Platform.Windows.Tests/Balls.Platform.Windows.Tests.csproj" />
     <Project Path="tests/Balls.Protocol.Tests/Balls.Protocol.Tests.csproj" />
     <Project Path="tests/Balls.RemoteHarness.Tests/Balls.RemoteHarness.Tests.csproj" />
     <Project Path="tests/Balls.Storage.Sqlite.Tests/Balls.Storage.Sqlite.Tests.csproj" />

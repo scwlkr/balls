@@ -492,7 +492,10 @@ public static class CliApplication
         TextWriter standardOutput,
         TextWriter standardError,
         CancellationToken cancellationToken) =>
-        tokens.Count >= 3
+        tokens.SequenceEqual(["files", "readiness"], StringComparer.Ordinal)
+            ? GetFilesReadinessAsync(
+                client, outputFormat, standardOutput, standardError, cancellationToken)
+            : tokens.Count >= 3
             ? (tokens[1], tokens[2]) switch
             {
                 ("contribution", "create") => CreateFilesContributionAsync(
@@ -506,6 +509,34 @@ public static class CliApplication
                 _ => WriteUsageErrorAsync(standardError, outputFormat, "unknown files command."),
             }
             : WriteUsageErrorAsync(standardError, outputFormat, "unknown files command.");
+
+    private static async Task<int> GetFilesReadinessAsync(
+        HttpClient client,
+        CliOutputFormat outputFormat,
+        TextWriter output,
+        TextWriter error,
+        CancellationToken cancellationToken)
+    {
+        using var response = await client.GetAsync(
+            ControlRoutes.CircleFilesReadiness,
+            cancellationToken).ConfigureAwait(false);
+        var result = await ReadResponseAsync<CircleFilesReadinessResponse>(
+            response,
+            outputFormat,
+            error,
+            cancellationToken).ConfigureAwait(false);
+        if (result.Value is null)
+        {
+            return result.ExitCode;
+        }
+
+        await WriteResultAsync(
+            output,
+            outputFormat,
+            result.Value,
+            CliOutput.RenderFilesReadiness);
+        return CliExitCodes.Success;
+    }
 
     private static async Task<int> CreateFilesContributionAsync(
         HttpClient client,
@@ -1408,7 +1439,7 @@ public static class CliApplication
         if (outputFormat == CliOutputFormat.Text)
         {
             await error.WriteLineAsync(
-                "commands: ui | status | circle create | circle join | circle list | member list | node list | invitation create | invitation redeem | message send | message list | files contribution create/list | files grant create/list");
+                "commands: ui | status | circle create | circle join | circle list | member list | node list | invitation create | invitation redeem | message send | message list | files readiness | files contribution create/list | files grant create/list");
         }
 
         return CliExitCodes.UsageError;

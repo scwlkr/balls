@@ -1,5 +1,16 @@
 namespace Balls.Protocol.Control.V1;
 
+public sealed record CircleFilesReadinessCheckResponse(
+    string Id,
+    string Status,
+    string Code,
+    string Summary);
+
+public sealed record CircleFilesReadinessResponse(
+    string Provider,
+    string Status,
+    IReadOnlyList<CircleFilesReadinessCheckResponse> Checks);
+
 public sealed record CreateCircleFilesContributionRequest(
     string RequestId,
     string DisplayName);

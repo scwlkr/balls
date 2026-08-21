@@ -320,6 +320,25 @@
         }
       }
     },
+    "/control/v1/files/readiness": {
+      "get": {
+        "tags": [
+          "ballsd"
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CircleFilesReadinessResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/control/v1/circles/{circleId}/files/contributions": {
       "post": {
         "tags": [
@@ -1263,6 +1282,51 @@
           },
           "nodeId": {
             "type": "string"
+          }
+        }
+      },
+      "CircleFilesReadinessCheckResponse": {
+        "required": [
+          "id",
+          "status",
+          "code",
+          "summary"
+        ],
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "code": {
+            "type": "string"
+          },
+          "summary": {
+            "type": "string"
+          }
+        }
+      },
+      "CircleFilesReadinessResponse": {
+        "required": [
+          "provider",
+          "status",
+          "checks"
+        ],
+        "type": "object",
+        "properties": {
+          "provider": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "checks": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/CircleFilesReadinessCheckResponse"
+            }
           }
         }
       },

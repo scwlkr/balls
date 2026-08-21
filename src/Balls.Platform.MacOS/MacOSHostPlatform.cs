@@ -21,7 +21,8 @@ public static class MacOSHostPlatform
             new MacOSLocalStatePreparer(),
             transport,
             transport,
-            new MacOSSystemBrowserLauncher());
+            new MacOSSystemBrowserLauncher(),
+            new UnsupportedCircleFilesReadinessInspector());
     }
 
     public static string GetDefaultStateDirectory()

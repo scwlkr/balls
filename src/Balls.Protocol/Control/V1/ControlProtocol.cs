@@ -13,6 +13,7 @@ public static class ControlRoutes
     public const string CircleJoin = Circles + "/join";
     public const string BrowserLaunch = BasePath + "/ui/launch";
     public const string Invitations = BasePath + "/invitations";
+    public const string CircleFilesReadiness = BasePath + "/files/readiness";
     public const string OpenApi = BasePath + "/openapi.json";
 
     public static string Circle(string circleId)
