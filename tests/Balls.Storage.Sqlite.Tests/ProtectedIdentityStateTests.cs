@@ -396,6 +396,7 @@ public sealed class ProtectedIdentityStateTests
             """
             PRAGMA foreign_keys = OFF;
             DROP TABLE circle_messages;
+            DROP TABLE outgoing_circle_messages;
             DROP TABLE circle_member_nodes;
             DROP TABLE local_circle_members;
             DROP TABLE security_audit_events;
@@ -444,6 +445,7 @@ public sealed class ProtectedIdentityStateTests
             """
             PRAGMA foreign_keys = OFF;
             DROP TABLE circle_messages;
+            DROP TABLE outgoing_circle_messages;
             DROP TABLE circle_member_nodes;
             DROP TABLE local_circle_members;
             DROP TABLE security_audit_events;

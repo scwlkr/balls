@@ -315,6 +315,15 @@ expected-peer confirmation before the channel becomes usable. Versioned frames h
 payloads, operation IDs, per-channel duplicate rejection, timeouts, and interruption handling.
 Durable application operations retain their own transactional replay defense.
 
+The first durable application operation is a text-only Circle message. A joining Node prepares a
+stable outgoing record, dual-signs the Circle/Member/Node-bound message, and sends it to the
+selected Anchor over the admitted-peer channel. Core owns the persistence port. The SQLite
+adapter atomically records the canonical-message digest, signed bytes, Anchor-signed receipt, and
+monotonic sequence; exact retransmission returns the stored receipt and conflicting reuse rejects.
+The CLI and browser read the same ordered local history through their existing local application
+boundary. The initial opt-in message listener serves exactly one admitted Anchor Circle and does
+not add discovery, arbitrary peer synchronization, or a remote browser endpoint.
+
 This remote listener contract remains distinct from `ballsd` local-control named pipes/Unix
 sockets and the loopback browser adapter. Issue #37 ships the provider, authenticated channel,
 and explicit process/lab harness without routing local API behavior through a remote port.
@@ -468,6 +477,12 @@ Messaging needs:
 - local/LAN operation where possible.
 
 A sensible early design is durable storage on an Anchor plus synchronization to clients.
+
+The implemented first slice deliberately proves only that foundation: one bounded plain-text
+message, identity-bound Member and Node authorship, selected-Anchor order, durable idempotency,
+and restart-stable local observation on both participating Nodes. It does not yet define channels,
+direct messages, edits/deletes, attachments, reactions, typing, catch-up, or multiple-Anchor
+replication.
 
 Do not prematurely require a fully peer-to-peer messaging consensus algorithm.
 

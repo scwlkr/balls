@@ -181,6 +181,18 @@ providers. Circle authority requires explicit encrypted export and never silentl
 ordinary Node. See [`ADR 0006`](docs/decisions/0006-trusted-circle-identity-and-admission.md) and
 the [`remote Circle v1 contract`](docs/protocol/remote-circle-v1.md).
 
+### Minimal persistent Circle messaging
+
+Use the selected Anchor as the v1 ordering authority for a bounded text-only Circle history.
+Every message binds its stable UUID, Circle, author Member, author Node, protocol-second UTC time,
+and UTF-8 text in one canonical transcript signed independently by the Member and Node. The
+Anchor authenticates the admitted Node with remote-v1 mTLS, authorizes the Member-to-Node binding,
+assigns a monotonic Circle sequence, signs a receipt, and atomically stores replay state and the
+message. Sender preparation is durable so an exact retry after interruption reuses the authored
+identity and content; conflicting UUID reuse fails closed. This is a vertical proof, not rich chat:
+channels, direct messages, edits, deletes, attachments, reactions, typing state, multi-Anchor
+replication, and offline multi-peer synchronization remain deferred.
+
 ### Cross-platform UI
 
 Use one React/TypeScript browser application as the primary GUI and retain `balls` as a first-class

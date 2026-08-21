@@ -16,7 +16,7 @@ same native daemon, structured CLI, protected state, local IPC, and hardened Rea
 on Windows and Linux. Trusted Circle is active. Its remote v1 identity/admission security design
 is accepted; protected production credentials, bounded single-use invitations, authenticated LAN
 transport, and persisted two-Node Circle admission are implemented. One persistent Circle message
-and milestone acceptance remain.
+is implemented; release-candidate proof and milestone acceptance remain.
 
 In parallel, [#48](https://github.com/scwlkr/balls/issues/48) establishes an Apple-Silicon,
 source-run macOS developer Node and required Mac fast lane. This accelerates portable, browser,

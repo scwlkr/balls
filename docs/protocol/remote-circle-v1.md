@@ -1,7 +1,7 @@
 # Remote Circle Security v1
 
-**Status:** authenticated LAN transport and persisted single-Anchor admission implemented; durable
-Circle messaging remains a later slice.
+**Status:** authenticated LAN transport, persisted single-Anchor admission, and one minimal durable
+Circle message implemented.
 
 This contract is the authenticated security core for Node-to-Node Circle behavior. It is separate
 from [`local-control v1`](local-control-v1.md), and it does not trust a LAN, Tailscale, DNS name,
@@ -29,7 +29,8 @@ the stream into an authenticated channel.
 The interfaces live under `Balls.Protocol.Remote.V1` so local-control transports and remote
 Circle providers cannot be substituted for each other accidentally. Provider implementations,
 discovery, and retries remain replaceable; v1 now includes bounded framing and one explicit LAN
-provider/listener composed into `ballsd` only when `--admission-listen <private-ip:port>` is selected.
+provider/listener composed into `ballsd` only when `--admission-listen <private-ip:port>` or
+`--message-listen <private-ip:port>` is selected for its respective operation.
 
 ## Constants
 
@@ -239,6 +240,32 @@ exhaustion, timeout, or interrupted frame before returning application data. Dur
 must also enforce replay/idempotency at their state transaction; a new TLS session does not erase
 that application responsibility.
 
+## Persistent Circle message
+
+The first admitted-peer application payload is a single text-only message. Its canonical
+transcript domain is `balls/trusted-circle/message/v1\0`, followed by big-endian protocol version,
+canonical message/Circle/Member/Node UUIDs, protocol-second UTC authored time, and length-prefixed
+strict UTF-8 text. Text must be nonblank and at most 4,096 UTF-8 bytes. The authoring Member and
+Node independently sign the exact transcript with the v1 signature suite.
+
+The receiving Anchor requires the TLS peer Node to equal `authorNodeId`, loads the exact
+Circle/Member/Node credentials and authorization, and rejects malformed, oversized, wrong-Circle,
+wrong-Node, unauthorized, or forged input before mutation. On acceptance it assigns the next
+positive per-Circle sequence and signs a receipt transcript in domain
+`balls/trusted-circle/message-receipt/v1\0`. The receipt contains the complete message, sequence,
+protocol-second acceptance time, SHA-256 of the canonical message transcript, suite, and fixed
+64-byte Anchor signature.
+
+The wire envelope is `BMSG`, one-byte kind, then the bounded request, receipt, or rejection. The
+containing remote-frame operation UUID must equal the message UUID. The sender durably prepares
+the outgoing identity, author, text, and time before network I/O. Both Nodes atomically store the
+same message/receipt; an exact UUID and canonical-message retry returns the stored receipt without
+another row or sequence, while conflicting UUID reuse returns `conflict`.
+
+The v1 `--message-listen` endpoint is explicit, numeric-private/loopback, sequential, and limited
+to exactly one admitted Circle for which the local Node is the selected Anchor. It is separate
+from admission, protected local control, and loopback browser listeners.
+
 ## LAN TCP provider
 
 `Balls.Transport.Lan` implements the provider seam as `lan-tcp-v1`. It accepts only numeric
@@ -322,9 +349,15 @@ SQLite admission tests prove the real TLS exchange, exact retry, atomic invitati
 commit, shared API/CLI/browser projection, restart-stable roster, no private authority on the
 joiner, schema migrations, conflict/revocation/expiry outcomes, and 512-event audit retention.
 
+`CircleMessageSecurityTests`, `CircleMessageStateStoreTests`, the two-Node application journey,
+CLI contract test, and browser component test cover canonical dual signatures, authorization,
+tampering, bounds, Anchor receipt/order, exact retransmission, conflict, restart persistence, and
+shared CLI/browser observation.
+
 ## Explicit non-goals
 
-No discovery, public bind, automatic failover, multiple-Anchor behavior, rich roles, message, file,
-AI, or app operation is defined here. Admission listening is opt-in on a numeric private/loopback
-endpoint; the invitation remains directly exchanged. Credential rotation/import and owner-facing
-revocation UX remain separate work.
+No discovery, public bind, automatic failover, multiple-Anchor behavior, rich roles, channels,
+direct messages, edits/deletes, attachments, reactions, typing, catch-up, file, AI, or app
+operation is defined here. Admission and message listening are opt-in on separate numeric
+private/loopback endpoints; the invitation and message endpoint remain directly exchanged.
+Credential rotation/import and owner-facing revocation UX remain separate work.
