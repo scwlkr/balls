@@ -22,9 +22,10 @@ general component package or new product capability was added.
   Circle roster presentation, and fail-closed session errors.
 - The loading and switching states expose live status roles. Create and switch surfaces expose
   `aria-busy`; switch controls remain disabled while the previous Circle stays visible.
-- Browser review found and fixed a masthead defect that exposed People/Nodes links during loading
-  and error states. The regression check now requires those links to appear only with a selected
-  Circle.
+- Browser and two-axis code review fixed three trust defects: the derived mark no longer contains
+  a non-canonical right edge, loading/error mastheads use a neutral local indicator, and Circle
+  navigation is absent until its `#circle` target exists. People/Nodes still appear only with a
+  selected Circle.
 - Keyboard inspection reached the skip link with a solid `3px` signal-indigo focus outline.
 - Chromium reduced-motion emulation computed the brandmark connection animation at `1e-05s`.
 - At `390 × 844`, the document had no horizontal overflow; navigation remains reachable and the

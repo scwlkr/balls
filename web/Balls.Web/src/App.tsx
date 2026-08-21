@@ -111,7 +111,10 @@ export function App({ api = browserApi }: AppProps) {
         Skip to Circle
       </a>
       <div className="app-shell">
-        <Masthead hasCircle={workspace?.selected != null} />
+        <Masthead
+          hasWorkspace={workspace !== null}
+          hasCircle={workspace?.selected != null}
+        />
         <main id="main-content">
           {!workspace && !error ? (
             <section className="loading-state" role="status">
@@ -148,21 +151,31 @@ export function App({ api = browserApi }: AppProps) {
   );
 }
 
-function Masthead({ hasCircle }: { hasCircle: boolean }) {
+function Masthead({
+  hasWorkspace,
+  hasCircle,
+}: {
+  hasWorkspace: boolean;
+  hasCircle: boolean;
+}) {
   return (
     <header className="masthead">
       <a className="brand" href="#main-content" aria-label="Balls home">
         <BrandMark />
         <span>balls</span>
       </a>
-      <nav aria-label="Circle navigation">
-        <a href="#circle" aria-current="page">
-          Circle
-        </a>
-        {hasCircle ? <a href="#people">People</a> : null}
-        {hasCircle ? <a href="#nodes">Nodes</a> : null}
-      </nav>
-      <span className="local-label">Local workspace</span>
+      {hasWorkspace ? (
+        <nav aria-label="Circle navigation">
+          <a href="#circle" aria-current="page">
+            Circle
+          </a>
+          {hasCircle ? <a href="#people">People</a> : null}
+          {hasCircle ? <a href="#nodes">Nodes</a> : null}
+        </nav>
+      ) : null}
+      <span className="local-label" data-ready={hasWorkspace}>
+        Local workspace
+      </span>
     </header>
   );
 }

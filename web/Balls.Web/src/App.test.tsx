@@ -74,6 +74,9 @@ describe("Balls browser workspace", () => {
     expect(
       screen.getByRole("form", { name: "Create a Circle" }),
     ).toBeInTheDocument();
+    expect(
+      screen.getByText("Local workspace", { selector: ".local-label" }),
+    ).toHaveAttribute("data-ready", "true");
     expect(window.location.hash).toBe("");
   });
 
@@ -94,15 +97,12 @@ describe("Balls browser workspace", () => {
     render(<App api={api} />);
 
     expect(screen.getByRole("status")).toHaveTextContent("Opening Balls…");
-    const navigation = screen.getByRole("navigation", {
-      name: "Circle navigation",
-    });
     expect(
-      within(navigation).queryByRole("link", { name: "People" }),
+      screen.queryByRole("navigation", { name: "Circle navigation" }),
     ).toBeNull();
     expect(
-      within(navigation).queryByRole("link", { name: "Nodes" }),
-    ).toBeNull();
+      screen.getByText("Local workspace", { selector: ".local-label" }),
+    ).toHaveAttribute("data-ready", "false");
   });
 
   it("creates a Circle and renders its Member and Node through live API results", async () => {

@@ -176,7 +176,9 @@ code {
 
 .local-label {
   display: inline-flex;
+  grid-column: 3;
   align-items: center;
+  justify-self: end;
   gap: 0.55rem;
   color: var(--graphite);
   font-family: "JetBrains Mono Variable", monospace;
@@ -189,8 +191,13 @@ code {
   width: 0.5rem;
   height: 0.5rem;
   content: "";
-  background: var(--success);
+  background: var(--graphite);
   border-radius: 50%;
+  box-shadow: 0 0 0 4px var(--mist);
+}
+
+.local-label[data-ready="true"]::before {
+  background: var(--success);
   box-shadow: 0 0 0 4px var(--success-pale);
 }
 
@@ -832,6 +839,7 @@ footer code {
   }
 
   .local-label {
+    grid-column: 2;
     justify-self: end;
   }
 
