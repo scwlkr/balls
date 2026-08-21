@@ -144,6 +144,7 @@ internal static class BrowserAdapter
         WebApplication application,
         CircleApplication circleApplication,
         CircleMessageQueryApplication messageQueries,
+        CircleFilesApplication filesApplication,
         BrowserAccessBroker access)
     {
         application.MapPost(
@@ -261,6 +262,29 @@ internal static class BrowserAdapter
                         : Results.Ok(ToResponse(circle));
                 })
             .Produces<CircleDetailsResponse>(StatusCodes.Status200OK)
+            .Produces<ErrorResponse>(StatusCodes.Status400BadRequest)
+            .Produces<ErrorResponse>(StatusCodes.Status404NotFound);
+        application.MapGet(
+                BrowserRoutes.Circles + "/{circleId}/files/contributions",
+                (string circleId, CancellationToken token) =>
+                    CircleFilesReadEndpoints.ListContributionsAsync(
+                        circleApplication,
+                        filesApplication,
+                        circleId,
+                        token))
+            .Produces<CircleFilesContributionListResponse>(StatusCodes.Status200OK)
+            .Produces<ErrorResponse>(StatusCodes.Status400BadRequest)
+            .Produces<ErrorResponse>(StatusCodes.Status404NotFound);
+        application.MapGet(
+                BrowserRoutes.Circles + "/{circleId}/files/contributions/{contributionId}/grants",
+                (string circleId, string contributionId, CancellationToken token) =>
+                    CircleFilesReadEndpoints.ListAccessGrantsAsync(
+                        circleApplication,
+                        filesApplication,
+                        circleId,
+                        contributionId,
+                        token))
+            .Produces<MemberAccessGrantListResponse>(StatusCodes.Status200OK)
             .Produces<ErrorResponse>(StatusCodes.Status400BadRequest)
             .Produces<ErrorResponse>(StatusCodes.Status404NotFound);
         application.MapGet(

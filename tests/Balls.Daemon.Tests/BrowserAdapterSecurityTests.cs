@@ -166,6 +166,85 @@ public sealed partial class BrowserAdapterSecurityTests
     }
 
     [TestMethod]
+    public async Task Browser_projection_lists_Circle_Files_but_exposes_no_mutation_route()
+    {
+        using var directory = new TemporaryDirectory();
+        await using var daemon = await StartDaemonAsync(directory.Path);
+        using var ipcClient = CreateIpcClient(GetEndpoint(directory.Path));
+        using var createCircleResponse = await ipcClient.PostAsJsonAsync(
+            ControlRoutes.Circles,
+            new CreateCircleRequest(
+                "0198d000-5000-7000-8000-000000000001",
+                "Files Circle",
+                "Alice"),
+            ControlJson.Options);
+        var circle = await createCircleResponse.Content.ReadFromJsonAsync<CircleDetailsResponse>(
+            ControlJson.Options);
+        Assert.IsNotNull(circle);
+        var controlPath = ControlRoutes.CircleFilesContributions(circle.Circle.Id);
+        using var createContributionResponse = await ipcClient.PostAsJsonAsync(
+            controlPath,
+            new CreateCircleFilesContributionRequest(
+                "0198d000-5000-7000-8000-000000000002",
+                "Project Files"),
+            ControlJson.Options);
+        Assert.AreEqual(HttpStatusCode.Created, createContributionResponse.StatusCode);
+        var contribution = await createContributionResponse.Content
+            .ReadFromJsonAsync<CircleFilesContributionResponse>(ControlJson.Options);
+        Assert.IsNotNull(contribution);
+        var grantControlPath = ControlRoutes.CircleFilesAccessGrants(
+            circle.Circle.Id,
+            contribution.Id);
+        using var createGrantResponse = await ipcClient.PostAsJsonAsync(
+            grantControlPath,
+            new CreateMemberAccessGrantRequest(
+                "0198d000-5000-7000-8000-000000000003",
+                circle.Members.Single().Id,
+                "read-only"),
+            ControlJson.Options);
+        Assert.AreEqual(HttpStatusCode.Created, createGrantResponse.StatusCode);
+
+        var launch = await IssueLaunchAsync(ipcClient);
+        var browserBaseUri = GetBrowserBaseUri(launch);
+        using var browserClient = CreateBrowserClient(browserBaseUri);
+        var authenticated = await ExchangeAsync(browserClient, launch);
+        var path = BrowserRoutes.CircleFilesContributions(circle.Circle.Id);
+        using var listRequest = new HttpRequestMessage(HttpMethod.Get, path);
+        listRequest.Headers.TryAddWithoutValidation("Cookie", authenticated.Cookie);
+        using var listResponse = await browserClient.SendAsync(listRequest);
+        var listed = await listResponse.Content.ReadFromJsonAsync<CircleFilesContributionListResponse>(
+            ControlJson.Options);
+        var grantPath = BrowserRoutes.CircleFilesAccessGrants(circle.Circle.Id, contribution.Id);
+        using var grantListRequest = new HttpRequestMessage(HttpMethod.Get, grantPath);
+        grantListRequest.Headers.TryAddWithoutValidation("Cookie", authenticated.Cookie);
+        using var grantListResponse = await browserClient.SendAsync(grantListRequest);
+        var listedGrants = await grantListResponse.Content
+            .ReadFromJsonAsync<MemberAccessGrantListResponse>(ControlJson.Options);
+        using var request = CreateJsonRequest(
+            HttpMethod.Post,
+            path,
+            new CreateCircleFilesContributionRequest(
+                "0198d000-5000-7000-8000-000000000004",
+                "Must Not Be Created"),
+            GetOrigin(browserBaseUri),
+            authenticated.Cookie,
+            authenticated.Session.AntiforgeryToken);
+
+        using var response = await browserClient.SendAsync(request);
+
+        Assert.AreEqual(HttpStatusCode.OK, listResponse.StatusCode);
+        Assert.IsNotNull(listed);
+        Assert.AreEqual(circle.Circle.Id, listed.CircleId);
+        Assert.HasCount(1, listed.Contributions);
+        Assert.AreEqual("Project Files", listed.Contributions[0].DisplayName);
+        Assert.AreEqual(HttpStatusCode.OK, grantListResponse.StatusCode);
+        Assert.IsNotNull(listedGrants);
+        Assert.HasCount(1, listedGrants.Grants);
+        Assert.AreEqual("read-only", listedGrants.Grants[0].Access);
+        Assert.AreEqual(HttpStatusCode.MethodNotAllowed, response.StatusCode);
+    }
+
+    [TestMethod]
     public async Task Browser_request_body_is_bounded_before_capability_processing()
     {
         using var directory = new TemporaryDirectory();

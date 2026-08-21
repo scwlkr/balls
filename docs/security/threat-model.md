@@ -1,8 +1,8 @@
 # Threat Model Starter
 
 **Status:** Windows/Linux local Node baseline, protected production Node/Circle/transport identity
-storage, bounded invitations, authenticated LAN transport, persisted two-Node membership, and
-minimal durable Circle messaging, 2026-08-21.
+storage, bounded invitations, authenticated LAN transport, persisted two-Node membership,
+minimal durable Circle messaging, and provider-neutral Circle Files authorization, 2026-08-21.
 
 ## Scope
 
@@ -11,7 +11,9 @@ This baseline covers one unelevated Windows or Linux account running `ballsd`, t
 browser UI, and the daemon's SQLite state directory. It also covers the remote v1 identity,
 authenticated-channel, admission, and minimal persistent-message boundaries. Executable loopback,
 separate-process, and Windows-host/Ubuntu-VM tests prove the transport, admission, and
-message/restart outcomes.
+message/restart outcomes. It now also covers local definition of File Contributions and Member
+Access Grants; no provider credential, SMB, folder, share, account, ACL, or mapping operation is in
+scope yet.
 
 ## Assets
 
@@ -24,6 +26,8 @@ message/restart outcomes.
 - signed authority state, membership credentials, revocations, invitations, and admission
   transcripts;
 - explicit encrypted Circle authority exports and their custody metadata.
+- Circle Files Contribution/provider identities, Member Access Grants, lifecycle/generation, and
+  their canonical Owner-Member/current-root authorization proofs.
 
 ## Trust boundaries
 
@@ -57,7 +61,11 @@ processes running as that account.
 | Two daemons write the same state | An exclusive `ballsd.lock` lease permits one daemon owner | A crash can leave the file, but the OS releases the lease |
 | Oversized local or browser request consumes resources | Kestrel limits request bodies to 32 KiB; the IPC client limits buffered responses to 256 KiB | Same-user denial of service is not comprehensively addressed |
 | Duplicate Circle creation after retry | A caller-provided request UUID makes creation idempotent; conflicting reuse is rejected | The UUID is not authentication or a general replay defense |
-| Malformed identifiers or names reach storage | Boundary validation, typed core identifiers, length limits, and parameterized SQL | Authorization beyond the Windows account is not implemented |
+| Malformed identifiers or names reach storage | Boundary validation, typed core identifiers, length limits, and parameterized SQL | Most same-account local-control operations do not add capability-specific authorization |
+| A local non-Owner defines Circle Files state | Each mutation resolves the protected local Member identity, requires its persisted Circle role to be Owner, and verifies a Member signature over the exact mutation | Malware in the same unlocked Owner account/session can ask the daemon to sign an authorized mutation |
+| A stale or substituted Circle authority authorizes a contribution/grant | The persisted current generation/root credential must exactly match the protected live Circle authority; the same transcript is independently root-signed and verified before commit | Root rotation/recovery and replicated authorization convergence remain separate work |
+| Retry creates duplicate or conflicting contribution/grant state | Caller request UUID plus normalized input is transactional and idempotent; conflicting reuse and duplicate Contribution/Member grants fail closed | Request IDs are replay identities, not bearer authentication |
+| Circle Files metadata leaks future provider secrets or private authority | Core records contain no provider credentials; local-control, CLI, and read-only browser projections omit transcripts, signatures, credentials, and private material; browser mutation routes are absent | Object IDs, lifecycle, Member/Node relationships, and authorization times are intentionally inspectable to the same OS account |
 
 ## Trusted Circle remote design threats
 
@@ -124,13 +132,19 @@ are executable.
 - Circle and Node UUIDs remain non-secret object references. Durable role-scoped public
   credentials and the authenticated channel bind them to signing authority; only the persisted
   Anchor-signed receipt grants the joined relationship.
+- Circle Files currently stops at `defined` metadata. No readiness result, folder/share/account,
+  provider credential, mapping, activation, revocation, or remote replication is claimed. The
+  selected authority-holding Node performs Owner mutations; recovery/rotation and remote Owner
+  administration remain later trust boundaries.
 
 ## Required implementation for the next trust boundary
 
-Before remote Circle Files or richer messaging, implement and test capability-specific
-authorization plus the existing recovery/rotation boundary for lost or compromised devices and
-keys. Rich message content requires a new rendering/content review; multiple writers or Anchors
-require an explicit synchronization and history-integrity design.
+Before any provider or remote Circle Files mutation, keep the implemented capability-specific
+authorization IDs/proofs and add the narrow provider/helper authorization, ownership markers,
+secret protection, rollback, and revocation behavior required by that operation. Recovery/rotation
+for lost or compromised devices and keys remains required before claiming resilient authority.
+Rich message content requires a new rendering/content review; multiple writers or Anchors require
+an explicit synchronization and history-integrity design.
 
 The Node-to-Node protocol must remain secure whether connectivity comes from LAN, Tailscale, or a
 future provider.

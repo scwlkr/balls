@@ -94,6 +94,38 @@ internal static class CliOutput
                 response.Messages.Select(message =>
                     $"{message.Sequence}\t{message.AuthorMemberId}\t{message.Text}"));
 
+    internal static string RenderCreatedFilesContribution(
+        CircleFilesContributionResponse response) =>
+        string.Join(
+            Environment.NewLine,
+            $"Defined contribution: {response.DisplayName}",
+            $"Contribution ID: {response.Id}",
+            $"Provider ID: {response.Provider.Id}");
+
+    internal static string RenderFilesContributions(
+        CircleFilesContributionListResponse response) =>
+        response.Contributions.Count == 0
+            ? "No Circle Files contributions."
+            : string.Join(
+                Environment.NewLine,
+                response.Contributions.Select(value =>
+                    $"{value.Id}\t{value.DisplayName}\t{value.Lifecycle}\tgeneration {value.Generation}"));
+
+    internal static string RenderCreatedFilesGrant(MemberAccessGrantResponse response) =>
+        string.Join(
+            Environment.NewLine,
+            $"Defined Access Grant: {response.Id}",
+            $"Member ID: {response.MemberId}",
+            $"Access: {response.Access}");
+
+    internal static string RenderFilesGrants(MemberAccessGrantListResponse response) =>
+        response.Grants.Count == 0
+            ? "No Member Access Grants."
+            : string.Join(
+                Environment.NewLine,
+                response.Grants.Select(value =>
+                    $"{value.Id}\t{value.MemberId}\t{value.Access}\t{value.Lifecycle}\tgeneration {value.Generation}"));
+
     internal static string RenderSavedInvitation(
         CreateInvitationResponse response,
         string path) =>

@@ -1,0 +1,48 @@
+namespace Balls.Protocol.Control.V1;
+
+public sealed record CreateCircleFilesContributionRequest(
+    string RequestId,
+    string DisplayName);
+
+public sealed record CircleFilesProviderResponse(
+    string Id,
+    string NodeId);
+
+public sealed record CircleFilesContributionResponse(
+    string Id,
+    string CircleId,
+    CircleFilesProviderResponse Provider,
+    string DisplayName,
+    string Lifecycle,
+    long Generation,
+    DateTimeOffset CreatedAtUtc,
+    string AuthorizedByMemberId,
+    long AuthorityGeneration,
+    DateTimeOffset AuthorizedAtUtc);
+
+public sealed record CircleFilesContributionListResponse(
+    string CircleId,
+    IReadOnlyList<CircleFilesContributionResponse> Contributions);
+
+public sealed record CreateMemberAccessGrantRequest(
+    string RequestId,
+    string MemberId,
+    string Access);
+
+public sealed record MemberAccessGrantResponse(
+    string Id,
+    string CircleId,
+    string ContributionId,
+    string MemberId,
+    string Access,
+    string Lifecycle,
+    long Generation,
+    DateTimeOffset CreatedAtUtc,
+    string AuthorizedByMemberId,
+    long AuthorityGeneration,
+    DateTimeOffset AuthorizedAtUtc);
+
+public sealed record MemberAccessGrantListResponse(
+    string CircleId,
+    string ContributionId,
+    IReadOnlyList<MemberAccessGrantResponse> Grants);

@@ -1,6 +1,7 @@
 # Local Control API v1
 
-**Status:** implemented for Phase 1 Slice 1.
+**Status:** implemented through provider-neutral Circle Files contribution and Access Grant
+definition.
 
 This is the versioned, machine-local contract between `balls` or another local integration and
 `ballsd`. It is not a Node-to-Node or Circle replication protocol.
@@ -56,7 +57,8 @@ values, and misplaced options return usage exit code `2` without contacting `bal
 
 Text is the default and is intended for people. `--output json` is supported for `status`,
 `circle create`, `circle join`, `circle list`, `member list`, `node list`, `invitation create`, and
-`invitation redeem`. A successful JSON document is one line on standard output:
+`invitation redeem`, `message send/list`, `files contribution create/list`, and `files grant
+create/list`. A successful JSON document is one line on standard output:
 
 ```json
 {
@@ -115,9 +117,14 @@ material. Selecting JSON output for this interactive command is a usage error.
 | Issued invitation | `circleId`, `invitationId`, `expiresAtUtc`, `package` (canonical JSON string) |
 | Join request | `package`, `endpoint` (numeric private/loopback IP and port), `memberDisplayName` |
 | Redemption | `circleId`, `invitationId`, `redemptionId`, `status` (`accepted`) |
+| Circle Files provider | `id`, `nodeId`; provider implementation and credentials are absent |
+| File Contribution | `id`, `circleId`, provider, `displayName`, lifecycle, generation, created time, authorizing Member/generation/time |
+| Member Access Grant | `id`, `circleId`, `contributionId`, `memberId`, access, lifecycle, generation, created time, authorizing Member/generation/time |
 | Error | `code`, `message` |
 
-The v1 Member roles are `owner` and `member`.
+The v1 Member roles are `owner` and `member`. Contribution lifecycles are `defined`, `active`, and
+`retired`; grant lifecycles are `defined`, `active`, and `revoked`; whole-folder access values are
+`read-only` and `read-write`. Only `defined` creation is implemented in this slice.
 
 ## Endpoints
 
@@ -157,6 +164,40 @@ On success, returns `201 Created`, a `Location` header for
 normalized name, owner name, and local Node returns the original Circle without duplicates.
 Reusing that ID for different input returns `409 Conflict` with
 `creation_request_conflict`.
+
+### `POST /control/v1/circles/{circleId}/files/contributions`
+
+Defines one provider-neutral whole-folder contribution on the local Node. The request contains a
+canonical UUID `requestId` and `displayName`; the daemon creates stable contribution and provider
+IDs, derives the provider's hosting Node, and sets lifecycle `defined`, generation `1`. Names are
+trimmed, nonblank, and capped at 100 characters.
+
+The local Circle Member must be an Owner, and the daemon must hold the matching current Circle
+root. The exact normalized mutation is signed independently by the protected Member and root keys
+before transactional persistence. Exact request-ID retry returns the original response; conflicting
+reuse returns `409`. Success returns `201 Created`. The equivalent CLI is:
+
+```text
+balls files contribution create --circle <circle-id> --name <name> [--request-id <uuid>]
+```
+
+### `POST /control/v1/circles/{circleId}/files/contributions/{contributionId}/grants`
+
+Defines one whole-folder Access Grant for a Circle Member. The body contains canonical UUID
+`requestId`, canonical `memberId`, and exact access `read-only` or `read-write`. The contribution
+and Member must belong to the named Circle. The daemon applies the same current Owner-Member and
+Circle-root dual-signature rule, then stores lifecycle `defined`, generation `1` atomically.
+
+Exact request-ID retry returns the original grant; conflicting reuse or a second grant for the
+same Contribution/Member fails without partial state. Success returns `201 Created`. The CLI is:
+
+```text
+balls files grant create --circle <circle-id> --contribution <contribution-id> \
+  --member <member-id> --access <read-only|read-write> [--request-id <uuid>]
+```
+
+Responses intentionally omit the canonical authorization transcript, both signatures, protected
+private authority, and all future provider credentials.
 
 ### `POST /control/v1/circles/{circleId}/invitations`
 
@@ -216,6 +257,8 @@ protected local IPC; it is not reachable from the browser listener.
 | `GET /control/v1/circles/{circleId}/members` | `200` with `{ "circleId": "...", "members": [Member] }` |
 | `GET /control/v1/circles/{circleId}/nodes` | `200` with `{ "circleId": "...", "nodes": [Circle Node] }` |
 | `GET /control/v1/circles/{circleId}/messages` | `200` with `{ "circleId": "...", "messages": [Circle message] }` |
+| `GET /control/v1/circles/{circleId}/files/contributions` | `200` with stable ordered Contribution projections |
+| `GET /control/v1/circles/{circleId}/files/contributions/{contributionId}/grants` | `200` with stable ordered Access Grant projections |
 
 Lists are returned in stable creation/identifier order as defined by the local store. An unknown
 Circle returns `404 Not Found`.
@@ -223,11 +266,16 @@ Circle returns `404 Not Found`.
 ## Browser adapter
 
 The browser listener serves the bundled production application and only these `/browser/v1`
-routes: session exchange, status, Circle list/create/details, and ordered Circle message history.
-The browser control
+routes: session exchange, status, Circle list/create/details, ordered Circle message history, and
+read-only Circle Files contribution/Access Grant lists. The browser control
 plane is intentionally narrower than `/control/v1`; control routes return `404` on TCP and browser
-routes return `404` over IPC. Invitation creation/redemption is deliberately CLI/local-control
-only in this slice. The browser observes messages but does not author them.
+routes return `404` over IPC. Invitation creation/redemption and every Circle Files mutation are
+deliberately CLI/local-control only in this slice. The browser observes messages and Circle Files
+state but does not author either.
+
+Authenticated `GET /browser/v1/circles/{circleId}/files/contributions` and
+`GET /browser/v1/circles/{circleId}/files/contributions/{contributionId}/grants` return the same
+safe list representations and ordering as local control. Other methods are not mapped.
 
 `POST /browser/v1/session` exchanges the launch capability once. Success sets the
 `__Host-balls-session` cookie with `HttpOnly`, `Secure`, `SameSite=Strict`, and `Path=/`, and returns
@@ -260,11 +308,14 @@ Handled application errors use this shape:
 | 400 | `invalid_circle_id` |
 | 400 | `invalid_invitation_validity`, `invalid_admission_endpoint`, `member_display_name`, `malformed`, `forged`, `expired`, `not_yet_valid`, `revoked`, `wrong_circle`, `wrong_node`, `downgraded`, `unsupported_version`, `unsupported_suite`, `unauthorized_issuer`, `stale_authority_state` |
 | 400 | `invalid_message_endpoint`, `invalid_message_text`, `unauthorized`, `oversized` |
+| 400 | `contribution_name_required`, `contribution_name_too_long`, `invalid_member_access`, `circle_files_owner_required`, `circle_files_authority_unavailable`, `circle_files_authorization_failed` |
 | 404 | `circle_not_found` |
 | 404 | `invitation_not_found` |
+| 404 | `circle_files_contribution_not_found`, `member_not_found` |
 | 409 | `creation_request_conflict` |
 | 409 | `admission_attempt_conflict` |
 | 409 | `message_request_conflict`, `conflict` |
+| 409 | `circle_files_contribution_request_conflict`, `circle_files_grant_request_conflict`, `circle_files_grant_exists` |
 | 409 | `replayed` |
 | 502 | `connection_failed`, authenticated remote-channel errors |
 
@@ -273,7 +324,8 @@ is not guaranteed to use the application error shape.
 
 ## Explicit non-goals
 
-v1 does not expose invitation/join or message-authoring UX to the browser and does not define
-discovery, general synchronization, rich chat, files, AI, apps, automatic Anchor failover, or
-multiple-Anchor behavior. The browser remains read-only for joined membership and persistent
-message history.
+v1 does not expose invitation/join, message-authoring, or Circle Files mutation UX to the browser.
+This slice defines Circle Files metadata and authorization only: it does not inspect or mutate SMB,
+create folders/shares/accounts, store provider credentials, map drives, adopt existing folders,
+delete files, revoke access, synchronize or replicate content, add version history/trash, discover
+peers, or add automatic/multiple-Anchor behavior.
