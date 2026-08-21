@@ -31,12 +31,12 @@ Use this directory for ADRs, threat models, protocol specifications, milestone d
 ## Contracts and state
 
 - [`protocol/local-control-v1.md`](protocol/local-control-v1.md) — implemented HTTP/JSON local-control contract over Windows named pipes and Linux/macOS Unix-domain sockets.
-- [`protocol/remote-circle-v1.md`](protocol/remote-circle-v1.md) — accepted signed identity/admission core and transport-independent TLS boundary; stateful remote behavior is not implemented yet.
-- [`storage/sqlite-local-state-v1.md`](storage/sqlite-local-state-v1.md) — implemented local SQLite identity, schema, transactions, and migration policy.
+- [`protocol/remote-circle-v1.md`](protocol/remote-circle-v1.md) — implemented signed identity, invitation/admission, TLS 1.3, roster, and first persistent-message contract.
+- [`storage/sqlite-local-state-v1.md`](storage/sqlite-local-state-v1.md) — implemented local SQLite identity, schema v5, transactions, and migration policy.
 
 ## Security
 
-- [`security/threat-model.md`](security/threat-model.md) — Slice 1 assets, trust boundaries, mitigations, limitations, and next-slice requirements.
+- [`security/threat-model.md`](security/threat-model.md) — local/browser/remote assets, trust boundaries, mitigations, limitations, and next trust boundary.
 
 ## Research
 
@@ -56,5 +56,10 @@ Use this directory for ADRs, threat models, protocol specifications, milestone d
 - [`verification/2026-08-20-cross-platform-node-web-ui.md`](verification/2026-08-20-cross-platform-node-web-ui.md) — milestone budgets, exact candidate artifacts, repository/security readback, owner authorization, and Trusted Circle frontier.
 - [`verification/2026-08-20-trusted-circle-security-design.md`](verification/2026-08-20-trusted-circle-security-design.md) — remote identity/admission design, deterministic rejection, TLS 1.3 spike, and issue #33 delivery evidence.
 - [`verification/2026-08-20-protected-cryptographic-state.md`](verification/2026-08-20-protected-cryptographic-state.md) — protected Node/Circle authority persistence, atomic migration, encrypted export, and native Windows/Linux evidence.
+- [`verification/2026-08-20-bounded-circle-invitations.md`](verification/2026-08-20-bounded-circle-invitations.md) — canonical single-use invitation, persistence, concurrency, and rejection evidence.
+- [`verification/2026-08-20-authenticated-lan-transport.md`](verification/2026-08-20-authenticated-lan-transport.md) — TLS 1.3 authenticated-channel and Windows/Ubuntu private-LAN evidence.
+- [`verification/2026-08-20-persisted-circle-admission.md`](verification/2026-08-20-persisted-circle-admission.md) — invitation-pinned two-Node membership, restart, and shared-roster evidence.
+- [`verification/2026-08-21-persistent-circle-message.md`](verification/2026-08-21-persistent-circle-message.md) — bounded cross-Node message, browser, restart, and exact Canary evidence.
+- [`verification/2026-08-21-trusted-circle.md`](verification/2026-08-21-trusted-circle.md) — Trusted Circle release-candidate, security, exact-artifact, and owner-decision evidence.
 - [`verification/2026-08-21-macos-developer-node.md`](verification/2026-08-21-macos-developer-node.md) — physical Apple-Silicon state/IPC, process, browser, fast-gate evidence, and explicit remaining gaps.
 - [`verification/2026-08-21-browser-brand-workspace.md`](verification/2026-08-21-browser-brand-workspace.md) — canonical brandmark, responsive Circle interactions, accessibility, and reviewed browser-state screenshots.

@@ -62,7 +62,7 @@ Text is the default and is intended for people. `--output json` is supported for
 {
   "outputVersion": 1,
   "result": {
-    "productVersion": "0.2.0-alpha.1",
+    "productVersion": "0.3.0-alpha.1",
     "protocolVersion": 1,
     "node": {
       "id": "0198f2cc-6a50-7a08-aacb-298f4ebdf616",
@@ -127,7 +127,7 @@ Returns `200 OK` with the daemon version, protocol version, and persistent local
 
 ```json
 {
-  "productVersion": "0.2.0-alpha.1",
+  "productVersion": "0.3.0-alpha.1",
   "protocolVersion": 1,
   "node": {
     "id": "0198f2cc-6a50-7a08-aacb-298f4ebdf616",

@@ -34,11 +34,11 @@ the repository toolchain, and the initial source/browser/installer smokes are pr
 
 [Open the active GitHub milestone](https://github.com/scwlkr/balls/milestone/3).
 
-Status: trusted identity/admission design, protected authority, bounded invitations, authenticated
-LAN transport, restart-stable two-Node membership, and one minimal persistent Circle message are
-complete and accepted. Exact physical-Windows/virtual-Ubuntu proof and downloaded green-main
-Windows/Linux Canary evidence are recorded in the
-[persistent message verification](verification/2026-08-21-persistent-circle-message.md).
+Status: release-candidate verification. Trusted identity/admission design, protected authority,
+bounded invitations, authenticated LAN transport, restart-stable two-Node membership, and one
+minimal persistent Circle message are complete and accepted. `0.3.0-alpha.1` is awaiting exact
+protected-main Windows/Linux artifact proof and explicit owner acceptance. Current readiness is in
+the [Trusted Circle milestone record](verification/2026-08-21-trusted-circle.md).
 
 Exit outcome: a second Node accepts a bounded invitation, joins one Circle over authenticated
 encrypted transport, sees the same membership, restarts with stable identity, and exchanges one
@@ -205,12 +205,22 @@ messages, edits/deletes, attachments, reactions, typing, offline catch-up, and m
 replication remain explicit non-goals. Evidence is in the
 [`persistent Circle message record`](verification/2026-08-21-persistent-circle-message.md).
 
-Ready frontier: none until the remaining active-milestone dependency is unblocked or the owner
-accepts the milestone state.
+Active frontier:
 
-Blocked later in the active milestone:
+- [#34 — Verify and accept the Trusted Circle milestone](https://github.com/scwlkr/balls/issues/34)
+  is preparing the versioned candidate, exact artifacts, and owner decision.
 
-- [#34](https://github.com/scwlkr/balls/issues/34) remains dependency-blocked.
+Prepared next milestone:
+
+- **`0.4.0-alpha.1` — LAN Circle Files** has seven executable issues.
+- [#56 — Define Circle Files contributions and Member access grants](https://github.com/scwlkr/balls/issues/56)
+  is its single ready frontier after Trusted Circle acceptance.
+- [#57](https://github.com/scwlkr/balls/issues/57),
+  [#58](https://github.com/scwlkr/balls/issues/58),
+  [#59](https://github.com/scwlkr/balls/issues/59),
+  [#60](https://github.com/scwlkr/balls/issues/60),
+  [#61](https://github.com/scwlkr/balls/issues/61), and
+  [#62](https://github.com/scwlkr/balls/issues/62) remain dependency-blocked.
 
 ## Working rules
 
