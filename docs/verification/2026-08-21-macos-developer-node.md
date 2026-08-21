@@ -25,9 +25,9 @@ the fixed Apple-Silicon `macos-26` image.
 - Architecture composition: 14 passed, 2 other-platform skips.
 - Separate daemon/CLI create/list/restart: 2 passed.
 - Browser security and daemon isolation focus: 6 passed, 4 pre-existing Windows-only skips.
-- Repository `fast`: passed locked restore, format, generated-client drift, Release build with zero
-  warnings/errors, portable tests, web lint/typecheck/component/build, and Playwright
-  launch/create/list/restart (1 passed).
+- Repository `fast` and `full`: passed locked restore, format, generated-client drift, Release
+  build with zero warnings/errors, portable and macOS OS-integration tests, web
+  lint/typecheck/component/build, and Playwright launch/create/list/restart (1 passed).
 
 ## Honest gaps
 
