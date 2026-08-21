@@ -37,7 +37,10 @@ public sealed class TrustedCircleAdmissionApplicationTests
         await using (var listener = new TcpLanTransportListener(
                          new IPEndPoint(IPAddress.Loopback, 0)))
         {
-            var now = new DateTimeOffset(2026, 8, 20, 20, 0, 0, TimeSpan.Zero);
+            // This exercises real TLS, whose certificate validation uses the system clock.
+            // Keep the application clock aligned so the 24-hour transport certificates
+            // cannot expire merely because this integration test's fixture date gets old.
+            var now = TimeProvider.System.GetUtcNow();
             var time = new FixedTimeProvider(now);
             var anchorCircles = new CircleApplication(anchorStore, time, "Anchor-PC");
             var joinerCircles = new CircleApplication(joinerStore, time, "Joiner-PC");
