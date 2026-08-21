@@ -15,7 +15,7 @@ public sealed class CliApplicationTests
     [TestMethod]
     public async Task Unsupported_host_fails_closed_through_the_typed_platform_result()
     {
-        if (OperatingSystem.IsWindows() || OperatingSystem.IsLinux())
+        if (OperatingSystem.IsWindows() || OperatingSystem.IsLinux() || OperatingSystem.IsMacOS())
         {
             Assert.Inconclusive("Supported hosts do not exercise this path.");
             return;
@@ -536,10 +536,14 @@ public sealed class CliApplicationTests
     {
         public TemporaryDirectory()
         {
-            Path = System.IO.Path.Combine(
-                System.IO.Path.GetTempPath(),
-                "balls-tests",
-                Guid.NewGuid().ToString("N"));
+            Path = OperatingSystem.IsMacOS()
+                ? System.IO.Path.Combine(
+                    GetCanonicalTempPath(),
+                    $"bt-{Guid.NewGuid():N}"[..11])
+                : System.IO.Path.Combine(
+                    System.IO.Path.GetTempPath(),
+                    "balls-tests",
+                    Guid.NewGuid().ToString("N"));
             Directory.CreateDirectory(Path);
         }
 
@@ -551,6 +555,14 @@ public sealed class CliApplicationTests
             {
                 Directory.Delete(Path, recursive: true);
             }
+        }
+
+        private static string GetCanonicalTempPath()
+        {
+            var path = System.IO.Path.GetFullPath(System.IO.Path.GetTempPath());
+            return path.StartsWith("/var/", StringComparison.Ordinal)
+                ? "/private" + path
+                : path;
         }
     }
 }

@@ -1,8 +1,10 @@
 using Balls.Core;
 using Balls.Platform;
 using Balls.Platform.Linux;
+using Balls.Platform.MacOS;
 using Balls.Platform.Windows;
 using Balls.Security.Linux;
+using Balls.Security.MacOS;
 using Balls.Security.Windows;
 
 namespace Balls.Host;
@@ -49,6 +51,13 @@ public static class HostPlatformSelector
             return new SupportedHostPlatform(
                 LinuxHostPlatform.Create(),
                 new LinuxOwnedStatePrivateMaterialProtector());
+        }
+
+        if (operatingSystem == HostOperatingSystem.MacOS && OperatingSystem.IsMacOS())
+        {
+            return new SupportedHostPlatform(
+                MacOSHostPlatform.Create(),
+                new MacOSOwnedStatePrivateMaterialProtector());
         }
 
         return new UnsupportedHostPlatform(operatingSystem);

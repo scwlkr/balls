@@ -50,11 +50,6 @@
           "SQLitePCLRaw.core": "2.1.12"
         }
       },
-      "Microsoft.OpenApi": {
-        "type": "Transitive",
-        "resolved": "2.7.5",
-        "contentHash": "0FA67RSnRM4tcBKqiqVu/HPdZ9+QOKbmeRjxRUGTCjPU4C0bmUhd97Dso7Yild5P7nOV6GxJ2xrK0Kv/O9xp0w=="
-      },
       "Microsoft.Testing.Extensions.Telemetry": {
         "type": "Transitive",
         "resolved": "2.3.3",
@@ -144,46 +139,13 @@
       "balls.core": {
         "type": "Project"
       },
-      "balls.host": {
-        "type": "Project",
-        "dependencies": {
-          "Balls.Platform": "[0.2.0-alpha.1, )",
-          "Balls.Platform.Linux": "[0.2.0-alpha.1, )",
-          "Balls.Platform.MacOS": "[0.2.0-alpha.1, )",
-          "Balls.Platform.Windows": "[0.2.0-alpha.1, )",
-          "Balls.Security.Linux": "[0.2.0-alpha.1, )",
-          "Balls.Security.MacOS": "[0.2.0-alpha.1, )",
-          "Balls.Security.Windows": "[0.2.0-alpha.1, )"
-        }
-      },
       "balls.platform": {
         "type": "Project"
-      },
-      "balls.platform.linux": {
-        "type": "Project",
-        "dependencies": {
-          "Balls.Platform": "[0.2.0-alpha.1, )"
-        }
       },
       "balls.platform.macos": {
         "type": "Project",
         "dependencies": {
           "Balls.Platform": "[0.2.0-alpha.1, )"
-        }
-      },
-      "balls.platform.windows": {
-        "type": "Project",
-        "dependencies": {
-          "Balls.Platform": "[0.2.0-alpha.1, )"
-        }
-      },
-      "balls.protocol": {
-        "type": "Project"
-      },
-      "balls.security.linux": {
-        "type": "Project",
-        "dependencies": {
-          "Balls.Core": "[0.2.0-alpha.1, )"
         }
       },
       "balls.security.macos": {
@@ -192,45 +154,11 @@
           "Balls.Core": "[0.2.0-alpha.1, )"
         }
       },
-      "balls.security.windows": {
-        "type": "Project",
-        "dependencies": {
-          "Balls.Core": "[0.2.0-alpha.1, )",
-          "System.Security.Cryptography.ProtectedData": "[10.0.11, )"
-        }
-      },
       "balls.storage.sqlite": {
         "type": "Project",
         "dependencies": {
           "Balls.Core": "[0.2.0-alpha.1, )",
           "Microsoft.Data.Sqlite": "[10.0.11, )"
-        }
-      },
-      "balls.transport.lan": {
-        "type": "Project",
-        "dependencies": {
-          "Balls.Protocol": "[0.2.0-alpha.1, )"
-        }
-      },
-      "ballsd": {
-        "type": "Project",
-        "dependencies": {
-          "Balls.Core": "[0.2.0-alpha.1, )",
-          "Balls.Host": "[0.2.0-alpha.1, )",
-          "Balls.Platform": "[0.2.0-alpha.1, )",
-          "Balls.Protocol": "[0.2.0-alpha.1, )",
-          "Balls.Storage.Sqlite": "[0.2.0-alpha.1, )",
-          "Balls.Transport.Lan": "[0.2.0-alpha.1, )",
-          "Microsoft.AspNetCore.OpenApi": "[10.0.11, )"
-        }
-      },
-      "Microsoft.AspNetCore.OpenApi": {
-        "type": "CentralTransitive",
-        "requested": "[10.0.11, )",
-        "resolved": "10.0.11",
-        "contentHash": "R/1EATnPLU+gRfB6lwVkMcymmyAY5ppBBdRN/5lhNEiT3xP1sWccuSFkU/f1lQvN/WgRq5Vn8AhCdE3fqgsL/w==",
-        "dependencies": {
-          "Microsoft.OpenApi": "[2.7.5, 3.0.0)"
         }
       },
       "Microsoft.Data.Sqlite": {
@@ -243,12 +171,6 @@
           "SQLitePCLRaw.bundle_e_sqlite3": "2.1.12",
           "SQLitePCLRaw.core": "2.1.12"
         }
-      },
-      "System.Security.Cryptography.ProtectedData": {
-        "type": "CentralTransitive",
-        "requested": "[10.0.11, )",
-        "resolved": "10.0.11",
-        "contentHash": "PNoxCTPb+Tlux+GJyq4c89ddYdpioVSqfGx8pqOF6shCSKwUNNctXhQtRkCICjbJmGrJJsW8NY52kVYO/b8mlQ=="
       }
     }
   }

@@ -13,11 +13,15 @@ var root = OperatingSystem.IsLinux()
         "state",
         "balls-browser-tests",
         identifier)
-    : Path.Combine(Path.GetTempPath(), "balls-browser-tests", identifier);
+    : OperatingSystem.IsMacOS()
+        ? Path.Combine(GetCanonicalTempPath(), $"bb-{identifier[..8]}")
+        : Path.Combine(GetCanonicalTempPath(), "balls-browser-tests", identifier);
 var stateDirectory = Path.Combine(root, "state");
 var endpoint = OperatingSystem.IsWindows()
     ? $"balls-browser-tests-{identifier}"
-    : Path.Combine(root, "runtime", "control.sock");
+    : OperatingSystem.IsMacOS()
+        ? Path.Combine(root, "r", "c.sock")
+        : Path.Combine(root, "runtime", "control.sock");
 DaemonInstance? daemon = null;
 
 try
@@ -69,4 +73,12 @@ async Task WriteLaunchAsync()
     var launch = await response.Content.ReadFromJsonAsync<LaunchBrowserResponse>(ControlJson.Options)
         ?? throw new InvalidOperationException("ballsd returned an empty browser launch response.");
     Console.WriteLine(readyPrefix + launch.Url);
+}
+
+string GetCanonicalTempPath()
+{
+    var path = Path.GetFullPath(Path.GetTempPath());
+    return OperatingSystem.IsMacOS() && path.StartsWith("/var/", StringComparison.Ordinal)
+        ? "/private" + path
+        : path;
 }

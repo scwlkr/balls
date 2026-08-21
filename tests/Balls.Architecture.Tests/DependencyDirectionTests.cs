@@ -4,9 +4,11 @@ using Balls.Daemon;
 using Balls.Host;
 using Balls.Platform;
 using Balls.Platform.Linux;
+using Balls.Platform.MacOS;
 using Balls.Platform.Windows;
 using Balls.Protocol.Control.V1;
 using Balls.Security.Linux;
+using Balls.Security.MacOS;
 using Balls.Security.Windows;
 using Balls.Storage.Sqlite;
 using Balls.Transport.Lan;
@@ -72,8 +74,10 @@ public sealed class DependencyDirectionTests
             "Balls.Core",
             "Balls.Platform",
             "Balls.Platform.Linux",
+            "Balls.Platform.MacOS",
             "Balls.Platform.Windows",
             "Balls.Security.Linux",
+            "Balls.Security.MacOS",
             "Balls.Security.Windows");
     }
 
@@ -90,6 +94,12 @@ public sealed class DependencyDirectionTests
     }
 
     [TestMethod]
+    public void MacOS_adapter_depends_only_on_platform_contracts()
+    {
+        AssertBallsReferences(typeof(MacOSHostPlatform).Assembly, "Balls.Platform");
+    }
+
+    [TestMethod]
     public void LAN_transport_depends_only_on_remote_protocol_contracts()
     {
         AssertBallsReferences(typeof(TcpLanTransportConnector).Assembly, "Balls.Protocol");
@@ -100,6 +110,9 @@ public sealed class DependencyDirectionTests
     {
         AssertBallsReferences(
             typeof(LinuxOwnedStatePrivateMaterialProtector).Assembly,
+            "Balls.Core");
+        AssertBallsReferences(
+            typeof(MacOSOwnedStatePrivateMaterialProtector).Assembly,
             "Balls.Core");
         AssertBallsReferences(
             typeof(WindowsCurrentUserPrivateMaterialProtector).Assembly,

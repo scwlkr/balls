@@ -223,10 +223,14 @@ public sealed class DaemonStatusTests
     {
         public TemporaryDirectory()
         {
-            Path = System.IO.Path.Combine(
-                System.IO.Path.GetTempPath(),
-                "balls-tests",
-                Guid.NewGuid().ToString("N"));
+            Path = OperatingSystem.IsMacOS()
+                ? System.IO.Path.Combine(
+                    GetCanonicalTempPath(),
+                    $"bt-{Guid.NewGuid():N}"[..11])
+                : System.IO.Path.Combine(
+                    System.IO.Path.GetTempPath(),
+                    "balls-tests",
+                    Guid.NewGuid().ToString("N"));
             Directory.CreateDirectory(Path);
         }
 
@@ -238,6 +242,14 @@ public sealed class DaemonStatusTests
             {
                 Directory.Delete(Path, recursive: true);
             }
+        }
+
+        private static string GetCanonicalTempPath()
+        {
+            var path = System.IO.Path.GetFullPath(System.IO.Path.GetTempPath());
+            return path.StartsWith("/var/", StringComparison.Ordinal)
+                ? "/private" + path
+                : path;
         }
     }
 }

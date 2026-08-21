@@ -2,8 +2,10 @@
   <ItemGroup>
     <ProjectReference Include="..\Balls.Platform\Balls.Platform.csproj" />
     <ProjectReference Include="..\Balls.Platform.Linux\Balls.Platform.Linux.csproj" />
+    <ProjectReference Include="..\Balls.Platform.MacOS\Balls.Platform.MacOS.csproj" />
     <ProjectReference Include="..\Balls.Platform.Windows\Balls.Platform.Windows.csproj" />
     <ProjectReference Include="..\Balls.Security.Linux\Balls.Security.Linux.csproj" />
+    <ProjectReference Include="..\Balls.Security.MacOS\Balls.Security.MacOS.csproj" />
     <ProjectReference Include="..\Balls.Security.Windows\Balls.Security.Windows.csproj" />
   </ItemGroup>
 </Project>

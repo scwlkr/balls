@@ -380,15 +380,19 @@ public sealed partial class BrowserAdapterSecurityTests
     {
         public TemporaryDirectory()
         {
-            Path = System.IO.Path.Combine(
-                OperatingSystem.IsLinux()
-                    ? System.IO.Path.Combine(
-                        Environment.GetFolderPath(Environment.SpecialFolder.UserProfile),
-                        ".local",
-                        "state")
-                    : System.IO.Path.GetTempPath(),
-                "balls-tests",
-                Guid.NewGuid().ToString("N"));
+            Path = OperatingSystem.IsMacOS()
+                ? System.IO.Path.Combine(
+                    GetCanonicalTempPath(),
+                    $"bt-{Guid.NewGuid():N}"[..11])
+                : System.IO.Path.Combine(
+                    OperatingSystem.IsLinux()
+                        ? System.IO.Path.Combine(
+                            Environment.GetFolderPath(Environment.SpecialFolder.UserProfile),
+                            ".local",
+                            "state")
+                        : System.IO.Path.GetTempPath(),
+                    "balls-tests",
+                    Guid.NewGuid().ToString("N"));
             Directory.CreateDirectory(Path);
         }
 
@@ -400,6 +404,14 @@ public sealed partial class BrowserAdapterSecurityTests
             {
                 Directory.Delete(Path, recursive: true);
             }
+        }
+
+        private static string GetCanonicalTempPath()
+        {
+            var path = System.IO.Path.GetFullPath(System.IO.Path.GetTempPath());
+            return path.StartsWith("/var/", StringComparison.Ordinal)
+                ? "/private" + path
+                : path;
         }
     }
 }
