@@ -112,6 +112,20 @@ public sealed class TrustedCircleAdmissionApplicationTests
                 joinerStore,
                 new TcpLanTransportConnector(),
                 time);
+            var serveForged = ServeMessageOnceAsync(
+                messageListener,
+                anchorMessages,
+                timeout.Token);
+            var rejection = await SendTamperedMessageAsync(
+                joinerStore,
+                circleId,
+                messageListener.BoundAddress,
+                now,
+                timeout.Token);
+            await serveForged;
+            Assert.AreEqual("forged", rejection);
+            Assert.AreEqual(0, (await anchorStore.ListCircleMessagesAsync(circleId)).Count);
+
             var serveMessage = ServeMessageOnceAsync(
                 messageListener,
                 anchorMessages,
@@ -171,6 +185,76 @@ public sealed class TrustedCircleAdmissionApplicationTests
         Assert.AreEqual(1, anchorMessagesAfterRestart.Count);
         Assert.AreEqual(anchorMessagesAfterRestart.Single(), joinerMessagesAfterRestart.Single());
     }
+
+    private static async Task<string> SendTamperedMessageAsync(
+        SqliteLocalStateStore store,
+        CircleId circleId,
+        RemoteTransportAddress address,
+        DateTimeOffset now,
+        CancellationToken cancellationToken)
+    {
+        var author = await store.GetLocalCircleMessageAuthorAsync(circleId, cancellationToken);
+        Assert.IsNotNull(author);
+        var messageId = Guid.CreateVersion7();
+        var message = new CircleMessage(
+            RemoteSecurityProtocol.Version,
+            messageId.ToString("D"),
+            circleId.ToString(),
+            author.MemberId.ToString(),
+            author.NodeId.ToString(),
+            now,
+            "Original text.");
+        var transcript = CircleMessageSecurity.EncodeMessage(message);
+        var signed = new SignedCircleMessage(
+            message,
+            RemoteSecurityProtocol.SignatureSuite,
+            await store.SignWithLocalCircleMemberAsync(circleId, transcript, cancellationToken),
+            await store.SignWithNodeAsync(transcript, cancellationToken)) with
+        {
+            Message = message with { Text = "Tampered text." },
+        };
+        var trust = await store.GetCircleTrustAsync(circleId, cancellationToken);
+        Assert.IsNotNull(trust);
+        var security = await store.ListCircleNodeSecurityAsync(circleId, cancellationToken);
+        var local = security.Single(value => value.NodeId == author.NodeId);
+        var anchor = security.Single(value => value.NodeId == trust.IssuerNodeId);
+        using var certificate = await store.CreateTransportCertificateAsync(
+            "node.balls",
+            now,
+            cancellationToken);
+        await using var connection = await new TcpLanTransportConnector().ConnectAsync(
+            address,
+            cancellationToken);
+        await using var channel = await RemoteAuthenticatedChannel.ConnectAsync(
+            connection,
+            "anchor.balls",
+            new RemoteChannelIdentity(certificate, ToExpectation(local, trust, now)),
+            ToExpectation(anchor, trust, now),
+            cancellationToken: cancellationToken);
+        await channel.WriteAsync(
+            new RemoteFrame(messageId, CircleMessageWireCodec.EncodeRequest(signed)),
+            cancellationToken);
+        var response = await channel.ReadAsync(cancellationToken);
+        Assert.AreEqual(messageId, response.OperationId);
+        Assert.IsTrue(CircleMessageWireCodec.TryDecodeRejection(response.Payload, out var rejection));
+        return rejection!;
+    }
+
+    private static RemotePeerExpectation ToExpectation(
+        CircleNodeSecurityState state,
+        CircleTrustState trust,
+        DateTimeOffset now) =>
+        new(
+            NodeTransportBindingCodec.Decode(state.SignedTransportBinding),
+            new NodeTransportVerificationContext(
+                state.CircleId.ToString(),
+                state.NodeId.ToString(),
+                IdentityProtocolMapping.ToProtocol(trust.RootCredential),
+                now,
+                trust.AuthorityGeneration,
+                RemoteSecurityProtocol.Version,
+                RemoteSecurityProtocol.Version,
+                new HashSet<string>(StringComparer.Ordinal)));
 
     private static async Task ServeMessageOnceAsync(
         TcpLanTransportListener listener,

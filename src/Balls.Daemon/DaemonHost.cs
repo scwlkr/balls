@@ -139,6 +139,7 @@ public static class DaemonHost
                 store,
                 new TcpLanTransportConnector(),
                 TimeProvider.System);
+            var messageQueries = new CircleMessageQueryApplication(store);
             var browserAccess = new BrowserAccessBroker(
                 TimeProvider.System,
                 launchLifetime: TimeSpan.FromMinutes(1),
@@ -347,13 +348,9 @@ public static class DaemonHost
                         return lookup.Error;
                     }
 
-                    var values = await store.ListCircleMessagesAsync(
-                        lookup.Circle!.Circle.Id,
-                        token).ConfigureAwait(false);
                     return Results.Ok(
-                        new CircleMessageListResponse(
-                            lookup.Circle.Circle.Id.ToString(),
-                            values.Select(ToResponse).ToArray()));
+                        await messageQueries.ListAsync(lookup.Circle!.Circle.Id, token)
+                            .ConfigureAwait(false));
                 })
                 .Produces<CircleMessageListResponse>(StatusCodes.Status200OK)
                 .Produces<ErrorResponse>(StatusCodes.Status400BadRequest)
@@ -363,12 +360,24 @@ public static class DaemonHost
                 async (string circleId, SendCircleMessageRequest request, CancellationToken token) =>
                 {
                     if (!Guid.TryParseExact(circleId, "D", out var parsedCircleId)
-                        || !Guid.TryParseExact(request.RequestId, "D", out var requestId))
+                        || parsedCircleId == Guid.Empty
+                        || circleId != parsedCircleId.ToString("D")
+                        || !Guid.TryParseExact(request.RequestId, "D", out var requestId)
+                        || requestId == Guid.Empty
+                        || request.RequestId != requestId.ToString("D"))
                     {
                         return Results.BadRequest(
                             new ErrorResponse(
                                 "invalid_request_id",
                                 "Circle and message request IDs must be canonical UUIDs."));
+                    }
+
+                    if (!CircleMessageSecurity.IsValidText(request.Text))
+                    {
+                        return Results.BadRequest(
+                            new ErrorResponse(
+                                "invalid_message_text",
+                                "Message text must be nonblank and at most 4,096 UTF-8 bytes."));
                     }
 
                     try
@@ -383,7 +392,7 @@ public static class DaemonHost
                             address,
                             request.Text,
                             token).ConfigureAwait(false);
-                        return Results.Ok(ToResponse(sent));
+                        return Results.Ok(CircleMessageQueryApplication.ToResponse(sent));
                     }
                     catch (ArgumentException)
                     {
@@ -400,6 +409,10 @@ public static class DaemonHost
                         return exception.Code is "conflict" or "replayed"
                             ? Results.Conflict(error)
                             : Results.BadRequest(error);
+                    }
+                    catch (LocalStateConflictException exception)
+                    {
+                        return Results.Conflict(new ErrorResponse(exception.Code, exception.Message));
                     }
                     catch (LocalStateException exception)
                     {
@@ -501,7 +514,11 @@ public static class DaemonHost
                 .Produces<ErrorResponse>(StatusCodes.Status404NotFound)
                 .Produces<ErrorResponse>(StatusCodes.Status409Conflict);
             application.MapOpenApi(ControlRoutes.OpenApi);
-            BrowserAdapter.MapRoutes(application, circleApplication, store, browserAccess);
+            BrowserAdapter.MapRoutes(
+                application,
+                circleApplication,
+                messageQueries,
+                browserAccess);
 
             await application.StartAsync(cancellationToken).ConfigureAwait(false);
             if (admissionListenEndpoint is not null)
@@ -756,17 +773,6 @@ public static class DaemonHost
             node.DisplayName,
             node.JoinedAtUtc);
     }
-
-    private static CircleMessageResponse ToResponse(PersistedCircleMessage message) =>
-        new(
-            message.Id.ToString(),
-            message.CircleId.ToString(),
-            message.AuthorMemberId.ToString(),
-            message.AuthorNodeId.ToString(),
-            message.Text,
-            message.AuthoredAtUtc,
-            message.Sequence,
-            message.AcceptedAtUtc);
 
     private sealed record CircleLookup(CircleDetails? Circle, IResult? Error);
 }

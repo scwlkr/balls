@@ -145,6 +145,23 @@ public static class CircleMessageSecurity
             : CircleMessageValidationResult.Rejected(CircleMessageRejectionCode.Forged);
     }
 
+    public static bool IsValidText(string? text)
+    {
+        if (string.IsNullOrWhiteSpace(text))
+        {
+            return false;
+        }
+
+        try
+        {
+            return StrictUtf8.GetByteCount(text) <= MaximumTextBytes;
+        }
+        catch (EncoderFallbackException)
+        {
+            return false;
+        }
+    }
+
     public static CircleMessageReceipt SignReceipt(
         SignedCircleMessage signed,
         long sequence,
@@ -250,19 +267,12 @@ public static class CircleMessageSecurity
             || !IsCanonicalGuid(message.AuthorMemberId)
             || !IsCanonicalGuid(message.AuthorNodeId)
             || !IsProtocolSecond(message.AuthoredAtUtc)
-            || string.IsNullOrWhiteSpace(message.Text))
+            || !IsValidText(message.Text))
         {
             return false;
         }
 
-        try
-        {
-            return StrictUtf8.GetByteCount(message.Text) <= MaximumTextBytes;
-        }
-        catch (EncoderFallbackException)
-        {
-            return false;
-        }
+        return true;
     }
 
     private static bool IsCanonicalGuid(string value) =>

@@ -30,9 +30,30 @@ Observed on the Windows development host from the issue branch:
 
 ## Environment evidence
 
-The Windows-host/Ubuntu-VM message journey and exact post-merge Windows/Linux Canary identities
-will be appended before issue acceptance. Until then, this record does not claim cross-host or
-packaged-product completion.
+The owned `Balls.Lab.Ubuntu` Hyper-V guest was reset to checkpoint `Balls.Lab.Clean` and reported
+machine ID `498d59af31b04f34bb19722beab972aa` with clean Balls identity. Exact branch commit
+`6462b4dfd9438d2b7b2b91b4d4b614057e4b4727` was published self-contained for `linux-x64`; the
+guest executable SHA-256 values were:
+
+- `ballsd`: `d33220fa70d62ca8b6e84f3784ea6888c0a15ccc5faf0e7074241888b56d87cd`
+- `balls`: `454b53cc129bb1e05a7e50d66ee31a7bba2179aa18dbc67a5321c1d9686b9e81`
+
+The physical Windows host and virtual Ubuntu 24.04 guest created distinct fresh Node identities,
+then observed this exact journey over the Hyper-V private network:
+
+| Observation | Result |
+| --- | --- |
+| Windows Anchor Node | `01a0258f-7d49-7745-9577-6ff17f64e611` |
+| Ubuntu joining Node | `01a0258f-c342-7cc9-800c-ea96a94fe351` |
+| Circle | invitation-pinned TLS admission produced the same two Members and Nodes on both sides |
+| Message | Ubuntu CLI authored `0198c2d8-b000-7000-8000-000000000240`; both Nodes stored text `Hello from Ubuntu VM.` at sequence `1` |
+| Browser | headless installed Google Chrome loaded the real Windows `ballsd` loopback workspace and its DOM contained the Circle, `Messages`, text, `Bob · Ubuntu-VM`, and `#1` |
+| Restart/retry | both daemon processes restarted with their original Node identities; exact send retry remained sequence `1` and one row on each Node |
+| Cleanup | host state moved under the owned lab root; guest restored again to `Balls.Lab.Clean` and reported clean identity |
+
+No second physical machine was used. The Windows side was the physical development laptop; the
+Ubuntu side was an owned Hyper-V virtual machine. Exact post-merge Windows/Linux Canary artifact
+identities will be appended before issue acceptance.
 
 ## Security boundary and non-goals
 
@@ -42,4 +63,4 @@ bytes; UUIDs and timestamps are canonical; network/provider metadata grants no a
 
 No channels, direct messages, edits, deletes, attachments, reactions, typing state, offline
 multi-peer synchronization, discovery, automatic failover, or multiple-Anchor ordering is claimed.
-No physical second machine was used by the automated evidence above.
+No physical second machine was used.

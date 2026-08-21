@@ -6,6 +6,7 @@ namespace Balls.Storage.Sqlite;
 
 public sealed partial class SqliteLocalStateStore
 {
+    private static readonly System.Text.UTF8Encoding StrictMessageUtf8 = new(false, true);
     private const string CircleMessageSchemaSql =
         """
         CREATE TABLE local_circle_members (
@@ -563,7 +564,7 @@ public sealed partial class SqliteLocalStateStore
         ArgumentNullException.ThrowIfNull(commit);
         if (commit.Message is null
             || string.IsNullOrWhiteSpace(commit.Message.Text)
-            || System.Text.Encoding.UTF8.GetByteCount(commit.Message.Text) > 4096
+            || GetMessageTextByteCount(commit.Message.Text) > 4096
             || commit.Message.Sequence <= 0
             || commit.Message.AuthoredAtUtc.Offset != TimeSpan.Zero
             || commit.Message.AcceptedAtUtc.Offset != TimeSpan.Zero
@@ -578,10 +579,22 @@ public sealed partial class SqliteLocalStateStore
     private static void ValidatePreparedMessage(string text, DateTimeOffset authoredAtUtc)
     {
         if (string.IsNullOrWhiteSpace(text)
-            || System.Text.Encoding.UTF8.GetByteCount(text) > 4096
+            || GetMessageTextByteCount(text) > 4096
             || authoredAtUtc.Offset != TimeSpan.Zero)
         {
             throw new ArgumentException("The outgoing Circle message is invalid.", nameof(text));
+        }
+    }
+
+    private static int GetMessageTextByteCount(string text)
+    {
+        try
+        {
+            return StrictMessageUtf8.GetByteCount(text);
+        }
+        catch (System.Text.EncoderFallbackException)
+        {
+            return int.MaxValue;
         }
     }
 

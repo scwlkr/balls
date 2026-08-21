@@ -143,7 +143,7 @@ internal static class BrowserAdapter
     public static void MapRoutes(
         WebApplication application,
         CircleApplication circleApplication,
-        ICircleMessageStateStore messageStore,
+        CircleMessageQueryApplication messageQueries,
         BrowserAccessBroker access)
     {
         application.MapPost(
@@ -286,28 +286,14 @@ internal static class BrowserAdapter
                                 "The requested Circle is not known to this Node."));
                     }
 
-                    var values = await messageStore.ListCircleMessagesAsync(circle.Circle.Id, token)
-                        .ConfigureAwait(false);
                     return Results.Ok(
-                        new CircleMessageListResponse(
-                            circle.Circle.Id.ToString(),
-                            values.Select(ToResponse).ToArray()));
+                        await messageQueries.ListAsync(circle.Circle.Id, token)
+                            .ConfigureAwait(false));
                 })
             .Produces<CircleMessageListResponse>(StatusCodes.Status200OK)
             .Produces<ErrorResponse>(StatusCodes.Status400BadRequest)
             .Produces<ErrorResponse>(StatusCodes.Status404NotFound);
     }
-
-    private static CircleMessageResponse ToResponse(PersistedCircleMessage message) =>
-        new(
-            message.Id.ToString(),
-            message.CircleId.ToString(),
-            message.AuthorMemberId.ToString(),
-            message.AuthorNodeId.ToString(),
-            message.Text,
-            message.AuthoredAtUtc,
-            message.Sequence,
-            message.AcceptedAtUtc);
 
     private static bool IsLoopback(IPAddress? address)
     {

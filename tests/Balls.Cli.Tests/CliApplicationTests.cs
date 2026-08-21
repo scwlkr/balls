@@ -360,6 +360,23 @@ public sealed class CliApplicationTests
         Assert.AreEqual(2, joined.Circle.MemberCount);
         Assert.AreEqual(2, joined.Circle.NodeCount);
 
+        var malformedMessage = await RunAsync(
+            joinerPipe,
+            "--output",
+            "json",
+            "message",
+            "send",
+            "--circle",
+            created.Circle.Id,
+            "--endpoint",
+            $"127.0.0.1:{messagePort}",
+            "--text",
+            "Never persisted.",
+            "--request-id",
+            Guid.Empty.ToString("D"));
+        Assert.AreEqual(CliExitCodes.RequestRejected, malformedMessage.ExitCode);
+        StringAssert.Contains(malformedMessage.StandardError, "invalid_request_id");
+
         foreach (var pipe in new[] { anchorPipe, joinerPipe })
         {
             var members = await RunAsync(
@@ -400,6 +417,23 @@ public sealed class CliApplicationTests
         var message = DeserializeResult<CircleMessageResponse>(sent.StandardOutput);
         Assert.AreEqual(1, message.Sequence);
         Assert.AreEqual("Hello from Bob's Node.", message.Text);
+
+        var conflict = await RunAsync(
+            joinerPipe,
+            "--output",
+            "json",
+            "message",
+            "send",
+            "--circle",
+            created.Circle.Id,
+            "--endpoint",
+            $"127.0.0.1:{messagePort}",
+            "--text",
+            "Conflicting text.",
+            "--request-id",
+            "0198c2d8-b000-7000-8000-000000000239");
+        Assert.AreEqual(CliExitCodes.RequestRejected, conflict.ExitCode);
+        StringAssert.Contains(conflict.StandardError, "message_request_conflict");
 
         foreach (var pipe in new[] { anchorPipe, joinerPipe })
         {

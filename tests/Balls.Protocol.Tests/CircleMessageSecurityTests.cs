@@ -88,6 +88,12 @@ public sealed class CircleMessageSecurityTests
                 context with { ExpectedCircleId = "0198c2d8-b000-7000-8000-000000000099" })
                 .RejectionCode);
         Assert.AreEqual(
+            CircleMessageRejectionCode.WrongNode,
+            CircleMessageSecurity.Validate(
+                signed,
+                context with { ExpectedNodeId = "0198c2d8-b000-7000-8000-000000000099" })
+                .RejectionCode);
+        Assert.AreEqual(
             CircleMessageRejectionCode.Unauthorized,
             CircleMessageSecurity.Validate(signed, context with { IsAuthorizedAuthor = false })
                 .RejectionCode);
@@ -96,6 +102,11 @@ public sealed class CircleMessageSecurityTests
             CircleMessageSecurity.Validate(
                 signed with { Message = message with { Text = new string('x', 4097) } },
                 context).RejectionCode);
+        Assert.AreEqual(
+            CircleMessageRejectionCode.UnsupportedSuite,
+            CircleMessageSecurity.Validate(signed with { SignatureSuite = "future-suite" }, context)
+                .RejectionCode);
+        Assert.IsFalse(CircleMessageSecurity.IsValidText("\ud800"));
     }
 
     [TestMethod]

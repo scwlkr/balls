@@ -259,7 +259,7 @@ Handled application errors use this shape:
 | 400 | `owner_display_name_too_long` |
 | 400 | `invalid_circle_id` |
 | 400 | `invalid_invitation_validity`, `invalid_admission_endpoint`, `member_display_name`, `malformed`, `forged`, `expired`, `not_yet_valid`, `revoked`, `wrong_circle`, `wrong_node`, `downgraded`, `unsupported_version`, `unsupported_suite`, `unauthorized_issuer`, `stale_authority_state` |
-| 400 | `invalid_message_endpoint`, `unauthorized`, `oversized` |
+| 400 | `invalid_message_endpoint`, `invalid_message_text`, `unauthorized`, `oversized` |
 | 404 | `circle_not_found` |
 | 404 | `invitation_not_found` |
 | 409 | `creation_request_conflict` |
