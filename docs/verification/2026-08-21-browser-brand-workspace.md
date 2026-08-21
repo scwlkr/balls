@@ -51,6 +51,9 @@ bundle was then exercised separately through `ballsd`'s protected loopback brows
 
 ## Observed verification
 
+- `dotnet run --project eng/Balls.Verify --configuration Release -- full` passed the locked
+  restore, category audit, zero-warning Release build, applicable .NET suites, generated-client
+  check, web component/build checks, and Chromium journey.
 - `dotnet build eng/Balls.BrowserHarness/Balls.BrowserHarness.csproj --configuration Release`
   passed with zero warnings and zero errors; it rebuilt the production Vite bundle.
 - `pnpm web:e2e` passed its real Chromium launch, create, list, and daemon-restart journey (`1/1`).
