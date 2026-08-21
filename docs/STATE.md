@@ -59,9 +59,13 @@ Windows keeps Windows-specific, Circle Files, and release work; GitHub Issues an
 coordinate the two machines.
 
 The exact TLS 1.3 remote contract is unchanged. .NET 10 supports its macOS `SslStream` path only
-for clients, so the Mac can develop and prove local/browser behavior and is being prepared as a
-joining client, but a macOS Anchor/listener is not yet claimed. The required `macos-26` fast lane
-tests this honest boundary. [#49](https://github.com/scwlkr/balls/issues/49) now derives the shared
+for clients. The physical Apple-Silicon Mac has joined a Circle anchored by the physical Windows
+laptop over their private LAN, authored one persistent message, and retained the same identity,
+roster, and message after both daemons restarted. It is therefore a proven source-run joining
+developer Node; a macOS Anchor/listener is not claimed. The required `macos-26` fast lane tests
+this honest boundary, and the exact observation is in the
+[macOS developer Node evidence](verification/2026-08-21-macos-developer-node.md).
+[#49](https://github.com/scwlkr/balls/issues/49) now derives the shared
 browser workspace from canonical `balls-brand.png`: the connected-node mark, focused palette and
 type, responsive Circle interactions, explicit busy/error semantics, and reviewed state
 screenshots are recorded in the
