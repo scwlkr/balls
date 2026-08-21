@@ -218,11 +218,11 @@ public sealed class CircleFilesStateStoreTests
                 await downgrade.ExecuteNonQueryAsync();
             }
 
-            await Assert.ThrowsExactlyAsync<SqliteException>(
+            await Assert.ThrowsExactlyAsync<InvalidOperationException>(
                 () => SqliteLocalStateStore.ExecuteV5ToV6MigrationAsync(
                     connection,
-                    SqliteLocalStateStore.CircleFilesSchemaSql
-                        + "\nSELECT value FROM missing_migration_input;",
+                    _ => Task.FromException(
+                        new InvalidOperationException("Injected before-commit failure.")),
                     CancellationToken.None));
 
             using var state = connection.CreateCommand();

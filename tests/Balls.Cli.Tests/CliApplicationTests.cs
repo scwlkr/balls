@@ -312,11 +312,37 @@ public sealed class CliApplicationTests
             circleId,
             "--contribution",
             contribution.Id);
+        var structuredContributions = DeserializeResult<CircleFilesContributionListResponse>(
+            (await RunAsync(
+                pipeName,
+                "--output",
+                "json",
+                "files",
+                "contribution",
+                "list",
+                "--circle",
+                circleId)).StandardOutput);
+        var structuredGrants = DeserializeResult<MemberAccessGrantListResponse>(
+            (await RunAsync(
+                pipeName,
+                "--output",
+                "json",
+                "files",
+                "grant",
+                "list",
+                "--circle",
+                circleId,
+                "--contribution",
+                contribution.Id)).StandardOutput);
 
         Assert.AreEqual(CliExitCodes.Success, contributions.ExitCode);
         StringAssert.Contains(contributions.StandardOutput, "Project Files");
         Assert.AreEqual(CliExitCodes.Success, grants.ExitCode);
         StringAssert.Contains(grants.StandardOutput, "read-write");
+        Assert.HasCount(1, structuredContributions.Contributions);
+        Assert.AreEqual(contribution.Id, structuredContributions.Contributions[0].Id);
+        Assert.HasCount(1, structuredGrants.Grants);
+        Assert.AreEqual(grant.Id, structuredGrants.Grants[0].Id);
         Assert.AreEqual(string.Empty, createContribution.StandardError);
         Assert.AreEqual(string.Empty, createGrant.StandardError);
     }

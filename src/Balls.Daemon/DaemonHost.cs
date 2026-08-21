@@ -392,23 +392,12 @@ public static class DaemonHost
                 .Produces<ErrorResponse>(StatusCodes.Status409Conflict);
             application.MapGet(
                 ControlRoutes.Circles + "/{circleId}/files/contributions",
-                async (string circleId, CancellationToken token) =>
-                {
-                    var lookup = await FindCircleAsync(circleApplication, circleId, token)
-                        .ConfigureAwait(false);
-                    if (lookup.Error is not null)
-                    {
-                        return lookup.Error;
-                    }
-
-                    var contributions = await filesApplication.ListContributionsAsync(
-                        lookup.Circle!.Circle.Id,
-                        token).ConfigureAwait(false);
-                    return Results.Ok(
-                        new CircleFilesContributionListResponse(
-                            lookup.Circle.Circle.Id.ToString(),
-                            contributions.Select(CircleFilesResponseMapper.ToResponse).ToArray()));
-                })
+                (string circleId, CancellationToken token) =>
+                    CircleFilesReadEndpoints.ListContributionsAsync(
+                        circleApplication,
+                        filesApplication,
+                        circleId,
+                        token))
                 .Produces<CircleFilesContributionListResponse>(StatusCodes.Status200OK)
                 .Produces<ErrorResponse>(StatusCodes.Status400BadRequest)
                 .Produces<ErrorResponse>(StatusCodes.Status404NotFound);
@@ -477,44 +466,13 @@ public static class DaemonHost
                 .Produces<ErrorResponse>(StatusCodes.Status409Conflict);
             application.MapGet(
                 ControlRoutes.Circles + "/{circleId}/files/contributions/{contributionId}/grants",
-                async (string circleId, string contributionId, CancellationToken token) =>
-                {
-                    var lookup = await FindCircleAsync(circleApplication, circleId, token)
-                        .ConfigureAwait(false);
-                    if (lookup.Error is not null)
-                    {
-                        return lookup.Error;
-                    }
-
-                    if (!TryParseCanonicalId(contributionId, out var parsedContributionId))
-                    {
-                        return Results.BadRequest(
-                            new ErrorResponse(
-                                "invalid_contribution_id",
-                                "Contribution ID must be a canonical UUID."));
-                    }
-
-                    var contributions = await filesApplication.ListContributionsAsync(
-                        lookup.Circle!.Circle.Id,
-                        token).ConfigureAwait(false);
-                    if (contributions.All(value => value.Id.Value != parsedContributionId))
-                    {
-                        return Results.NotFound(
-                            new ErrorResponse(
-                                "circle_files_contribution_not_found",
-                                "The requested Circle Files contribution is not known."));
-                    }
-
-                    var grants = await filesApplication.ListAccessGrantsAsync(
-                        lookup.Circle.Circle.Id,
-                        new CircleFilesContributionId(parsedContributionId),
-                        token).ConfigureAwait(false);
-                    return Results.Ok(
-                        new MemberAccessGrantListResponse(
-                            lookup.Circle.Circle.Id.ToString(),
-                            parsedContributionId.ToString("D"),
-                            grants.Select(CircleFilesResponseMapper.ToResponse).ToArray()));
-                })
+                (string circleId, string contributionId, CancellationToken token) =>
+                    CircleFilesReadEndpoints.ListAccessGrantsAsync(
+                        circleApplication,
+                        filesApplication,
+                        circleId,
+                        contributionId,
+                        token))
                 .Produces<MemberAccessGrantListResponse>(StatusCodes.Status200OK)
                 .Produces<ErrorResponse>(StatusCodes.Status400BadRequest)
                 .Produces<ErrorResponse>(StatusCodes.Status404NotFound);
