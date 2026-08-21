@@ -34,9 +34,10 @@ the repository toolchain, and the initial source/browser/installer smokes are pr
 
 [Open the active GitHub milestone](https://github.com/scwlkr/balls/milestone/4).
 
-Status: ready to implement. Trusted Circle is owner-accepted and published as
-[`0.3.0-alpha.1`](https://github.com/scwlkr/balls/releases/tag/0.3.0-alpha.1). #56 is the only ready
-frontier in the seven-issue milestone; #57–#62 remain dependency-blocked.
+Status: implementation. Trusted Circle is owner-accepted and published as
+[`0.3.0-alpha.1`](https://github.com/scwlkr/balls/releases/tag/0.3.0-alpha.1). #56 establishes the
+provider-neutral contribution and Access Grant foundation; #57 is the next ready frontier and
+#58–#62 remain dependency-blocked.
 
 Exit outcome: two Windows Members can add, remove, rename, and edit files in the same persistent
 Explorer-mapped folder over a private LAN. Circle contribution and authorization drive a
@@ -216,9 +217,12 @@ Active frontier:
 
 - **`0.4.0-alpha.1` — LAN Circle Files** has seven executable issues.
 - [#56 — Define Circle Files contributions and Member access grants](https://github.com/scwlkr/balls/issues/56)
-  is its single ready frontier after Trusted Circle acceptance.
-- [#57](https://github.com/scwlkr/balls/issues/57),
-  [#58](https://github.com/scwlkr/balls/issues/58),
+  defines provider-neutral, Owner-authorized contribution and whole-folder Access Grant state in
+  Core, SQLite v6, local-control v1, and the structured CLI. The exact verification is recorded in
+  the [Circle Files contribution record](verification/2026-08-21-circle-files-contributions.md).
+- [#57 — Evaluate Windows SMB readiness before mutation](https://github.com/scwlkr/balls/issues/57)
+  is the next ready frontier.
+- [#58](https://github.com/scwlkr/balls/issues/58),
   [#59](https://github.com/scwlkr/balls/issues/59),
   [#60](https://github.com/scwlkr/balls/issues/60),
   [#61](https://github.com/scwlkr/balls/issues/61), and

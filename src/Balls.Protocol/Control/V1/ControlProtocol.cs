@@ -39,4 +39,14 @@ public static class ControlRoutes
     {
         return $"{Circle(circleId)}/messages";
     }
+
+    public static string CircleFilesContributions(string circleId)
+    {
+        return $"{Circle(circleId)}/files/contributions";
+    }
+
+    public static string CircleFilesAccessGrants(string circleId, string contributionId)
+    {
+        return $"{CircleFilesContributions(circleId)}/{Uri.EscapeDataString(contributionId)}/grants";
+    }
 }

@@ -166,6 +166,33 @@ public sealed partial class BrowserAdapterSecurityTests
     }
 
     [TestMethod]
+    public async Task Browser_projection_exposes_no_Circle_Files_mutation_route()
+    {
+        using var directory = new TemporaryDirectory();
+        await using var daemon = await StartDaemonAsync(directory.Path);
+        using var ipcClient = CreateIpcClient(GetEndpoint(directory.Path));
+        var launch = await IssueLaunchAsync(ipcClient);
+        var browserBaseUri = GetBrowserBaseUri(launch);
+        using var browserClient = CreateBrowserClient(browserBaseUri);
+        var authenticated = await ExchangeAsync(browserClient, launch);
+        var path = BrowserRoutes.Circles
+            + "/0198d000-5000-7000-8000-000000000001/files/contributions";
+        using var request = CreateJsonRequest(
+            HttpMethod.Post,
+            path,
+            new CreateCircleFilesContributionRequest(
+                "0198d000-5000-7000-8000-000000000002",
+                "Must Not Be Created"),
+            GetOrigin(browserBaseUri),
+            authenticated.Cookie,
+            authenticated.Session.AntiforgeryToken);
+
+        using var response = await browserClient.SendAsync(request);
+
+        Assert.AreEqual(HttpStatusCode.NotFound, response.StatusCode);
+    }
+
+    [TestMethod]
     public async Task Browser_request_body_is_bounded_before_capability_processing()
     {
         using var directory = new TemporaryDirectory();

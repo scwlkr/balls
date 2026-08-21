@@ -376,6 +376,222 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  "/control/v1/circles/{circleId}/files/contributions": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path: {
+          circleId: string;
+        };
+        cookie?: never;
+      };
+      requestBody?: never;
+      responses: {
+        /** @description OK */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["CircleFilesContributionListResponse"];
+          };
+        };
+        /** @description Bad Request */
+        400: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["ErrorResponse"];
+          };
+        };
+        /** @description Not Found */
+        404: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["ErrorResponse"];
+          };
+        };
+      };
+    };
+    put?: never;
+    post: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path: {
+          circleId: string;
+        };
+        cookie?: never;
+      };
+      requestBody: {
+        content: {
+          "application/json": components["schemas"]["CreateCircleFilesContributionRequest"];
+        };
+      };
+      responses: {
+        /** @description Created */
+        201: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["CircleFilesContributionResponse"];
+          };
+        };
+        /** @description Bad Request */
+        400: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["ErrorResponse"];
+          };
+        };
+        /** @description Not Found */
+        404: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["ErrorResponse"];
+          };
+        };
+        /** @description Conflict */
+        409: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["ErrorResponse"];
+          };
+        };
+      };
+    };
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/control/v1/circles/{circleId}/files/contributions/{contributionId}/grants": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path: {
+          circleId: string;
+          contributionId: string;
+        };
+        cookie?: never;
+      };
+      requestBody?: never;
+      responses: {
+        /** @description OK */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["MemberAccessGrantListResponse"];
+          };
+        };
+        /** @description Bad Request */
+        400: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["ErrorResponse"];
+          };
+        };
+        /** @description Not Found */
+        404: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["ErrorResponse"];
+          };
+        };
+      };
+    };
+    put?: never;
+    post: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path: {
+          circleId: string;
+          contributionId: string;
+        };
+        cookie?: never;
+      };
+      requestBody: {
+        content: {
+          "application/json": components["schemas"]["CreateMemberAccessGrantRequest"];
+        };
+      };
+      responses: {
+        /** @description Created */
+        201: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["MemberAccessGrantResponse"];
+          };
+        };
+        /** @description Bad Request */
+        400: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["ErrorResponse"];
+          };
+        };
+        /** @description Not Found */
+        404: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["ErrorResponse"];
+          };
+        };
+        /** @description Conflict */
+        409: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["ErrorResponse"];
+          };
+        };
+      };
+    };
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   "/control/v1/circles/{circleId}/messages": {
     parameters: {
       query?: never;
@@ -891,6 +1107,30 @@ export interface components {
       members: components["schemas"]["MemberResponse"][];
       nodes: components["schemas"]["CircleNodeResponse"][];
     };
+    CircleFilesContributionListResponse: {
+      circleId: string;
+      contributions: components["schemas"]["CircleFilesContributionResponse"][];
+    };
+    CircleFilesContributionResponse: {
+      id: string;
+      circleId: string;
+      provider: components["schemas"]["CircleFilesProviderResponse"];
+      displayName: string;
+      lifecycle: string;
+      /** Format: int64 */
+      generation: number | string;
+      /** Format: date-time */
+      createdAtUtc: string;
+      authorizedByMemberId: string;
+      /** Format: int64 */
+      authorityGeneration: number | string;
+      /** Format: date-time */
+      authorizedAtUtc: string;
+    };
+    CircleFilesProviderResponse: {
+      id: string;
+      nodeId: string;
+    };
     CircleListResponse: {
       circles: components["schemas"]["CircleResponse"][];
     };
@@ -927,6 +1167,10 @@ export interface components {
       /** Format: int32 */
       nodeCount: number | string;
     };
+    CreateCircleFilesContributionRequest: {
+      requestId: string;
+      displayName: string;
+    };
     CreateCircleRequest: {
       requestId: string;
       name: string;
@@ -942,6 +1186,11 @@ export interface components {
       /** Format: date-time */
       expiresAtUtc: string;
       package: string;
+    };
+    CreateMemberAccessGrantRequest: {
+      requestId: string;
+      memberId: string;
+      access: string;
     };
     ErrorResponse: {
       code: string;
@@ -959,6 +1208,28 @@ export interface components {
       url: string;
       /** Format: date-time */
       expiresAtUtc: string;
+    };
+    MemberAccessGrantListResponse: {
+      circleId: string;
+      contributionId: string;
+      grants: components["schemas"]["MemberAccessGrantResponse"][];
+    };
+    MemberAccessGrantResponse: {
+      id: string;
+      circleId: string;
+      contributionId: string;
+      memberId: string;
+      access: string;
+      lifecycle: string;
+      /** Format: int64 */
+      generation: number | string;
+      /** Format: date-time */
+      createdAtUtc: string;
+      authorizedByMemberId: string;
+      /** Format: int64 */
+      authorityGeneration: number | string;
+      /** Format: date-time */
+      authorizedAtUtc: string;
     };
     MemberListResponse: {
       circleId: string;

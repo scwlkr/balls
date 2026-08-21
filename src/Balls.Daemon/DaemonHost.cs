@@ -140,6 +140,10 @@ public static class DaemonHost
                 new TcpLanTransportConnector(),
                 TimeProvider.System);
             var messageQueries = new CircleMessageQueryApplication(store);
+            var filesApplication = new CircleFilesApplication(
+                store,
+                store,
+                TimeProvider.System);
             var browserAccess = new BrowserAccessBroker(
                 TimeProvider.System,
                 launchLifetime: TimeSpan.FromMinutes(1),
@@ -335,6 +339,183 @@ public static class DaemonHost
                                 lookup.Circle.Nodes.Select(ToResponse).ToArray()));
                 })
                 .Produces<NodeListResponse>(StatusCodes.Status200OK)
+                .Produces<ErrorResponse>(StatusCodes.Status400BadRequest)
+                .Produces<ErrorResponse>(StatusCodes.Status404NotFound);
+            application.MapPost(
+                ControlRoutes.Circles + "/{circleId}/files/contributions",
+                async (
+                    string circleId,
+                    CreateCircleFilesContributionRequest request,
+                    CancellationToken token) =>
+                {
+                    if (!TryParseCanonicalId(circleId, out var parsedCircleId)
+                        || !TryParseCanonicalId(request.RequestId, out var requestId))
+                    {
+                        return Results.BadRequest(
+                            new ErrorResponse(
+                                "invalid_request_id",
+                                "Circle and contribution request IDs must be canonical UUIDs."));
+                    }
+
+                    try
+                    {
+                        var contribution = await filesApplication.CreateContributionAsync(
+                            new CreateCircleFilesContributionCommand(
+                                new CircleFilesContributionRequestId(requestId),
+                                new CircleId(parsedCircleId),
+                                request.DisplayName),
+                            token).ConfigureAwait(false);
+                        return Results.Created(
+                            ControlRoutes.CircleFilesContributions(circleId) + "/" + contribution.Id,
+                            ToResponse(contribution));
+                    }
+                    catch (InputValidationException exception)
+                    {
+                        return Results.BadRequest(new ErrorResponse(exception.Code, exception.Message));
+                    }
+                    catch (LocalStateConflictException exception)
+                    {
+                        return Results.Conflict(new ErrorResponse(exception.Code, exception.Message));
+                    }
+                    catch (LocalStateException exception) when (exception.Code == "circle_not_found")
+                    {
+                        return Results.NotFound(new ErrorResponse(exception.Code, exception.Message));
+                    }
+                    catch (LocalStateException exception)
+                    {
+                        return Results.BadRequest(new ErrorResponse(exception.Code, exception.Message));
+                    }
+                })
+                .Produces<CircleFilesContributionResponse>(StatusCodes.Status201Created)
+                .Produces<ErrorResponse>(StatusCodes.Status400BadRequest)
+                .Produces<ErrorResponse>(StatusCodes.Status404NotFound)
+                .Produces<ErrorResponse>(StatusCodes.Status409Conflict);
+            application.MapGet(
+                ControlRoutes.Circles + "/{circleId}/files/contributions",
+                async (string circleId, CancellationToken token) =>
+                {
+                    var lookup = await FindCircleAsync(circleApplication, circleId, token)
+                        .ConfigureAwait(false);
+                    if (lookup.Error is not null)
+                    {
+                        return lookup.Error;
+                    }
+
+                    var contributions = await filesApplication.ListContributionsAsync(
+                        lookup.Circle!.Circle.Id,
+                        token).ConfigureAwait(false);
+                    return Results.Ok(
+                        new CircleFilesContributionListResponse(
+                            lookup.Circle.Circle.Id.ToString(),
+                            contributions.Select(ToResponse).ToArray()));
+                })
+                .Produces<CircleFilesContributionListResponse>(StatusCodes.Status200OK)
+                .Produces<ErrorResponse>(StatusCodes.Status400BadRequest)
+                .Produces<ErrorResponse>(StatusCodes.Status404NotFound);
+            application.MapPost(
+                ControlRoutes.Circles + "/{circleId}/files/contributions/{contributionId}/grants",
+                async (
+                    string circleId,
+                    string contributionId,
+                    CreateMemberAccessGrantRequest request,
+                    CancellationToken token) =>
+                {
+                    if (!TryParseCanonicalId(circleId, out var parsedCircleId)
+                        || !TryParseCanonicalId(contributionId, out var parsedContributionId)
+                        || !TryParseCanonicalId(request.RequestId, out var requestId)
+                        || !TryParseCanonicalId(request.MemberId, out var memberId))
+                    {
+                        return Results.BadRequest(
+                            new ErrorResponse(
+                                "invalid_request_id",
+                                "Circle, contribution, Member, and grant request IDs must be canonical UUIDs."));
+                    }
+
+                    if (!TryParseAccess(request.Access, out var access))
+                    {
+                        return Results.BadRequest(
+                            new ErrorResponse(
+                                "invalid_member_access",
+                                "Member access must be 'read-only' or 'read-write'."));
+                    }
+
+                    try
+                    {
+                        var grant = await filesApplication.CreateAccessGrantAsync(
+                            new CreateMemberAccessGrantCommand(
+                                new MemberAccessGrantRequestId(requestId),
+                                new CircleId(parsedCircleId),
+                                new CircleFilesContributionId(parsedContributionId),
+                                new MemberId(memberId),
+                                access),
+                            token).ConfigureAwait(false);
+                        return Results.Created(
+                            ControlRoutes.CircleFilesAccessGrants(circleId, contributionId) + "/" + grant.Id,
+                            ToResponse(grant));
+                    }
+                    catch (InputValidationException exception)
+                    {
+                        return Results.BadRequest(new ErrorResponse(exception.Code, exception.Message));
+                    }
+                    catch (LocalStateConflictException exception)
+                    {
+                        return Results.Conflict(new ErrorResponse(exception.Code, exception.Message));
+                    }
+                    catch (LocalStateException exception) when (
+                        exception.Code is "circle_not_found" or "circle_files_contribution_not_found" or "member_not_found")
+                    {
+                        return Results.NotFound(new ErrorResponse(exception.Code, exception.Message));
+                    }
+                    catch (LocalStateException exception)
+                    {
+                        return Results.BadRequest(new ErrorResponse(exception.Code, exception.Message));
+                    }
+                })
+                .Produces<MemberAccessGrantResponse>(StatusCodes.Status201Created)
+                .Produces<ErrorResponse>(StatusCodes.Status400BadRequest)
+                .Produces<ErrorResponse>(StatusCodes.Status404NotFound)
+                .Produces<ErrorResponse>(StatusCodes.Status409Conflict);
+            application.MapGet(
+                ControlRoutes.Circles + "/{circleId}/files/contributions/{contributionId}/grants",
+                async (string circleId, string contributionId, CancellationToken token) =>
+                {
+                    var lookup = await FindCircleAsync(circleApplication, circleId, token)
+                        .ConfigureAwait(false);
+                    if (lookup.Error is not null)
+                    {
+                        return lookup.Error;
+                    }
+
+                    if (!TryParseCanonicalId(contributionId, out var parsedContributionId))
+                    {
+                        return Results.BadRequest(
+                            new ErrorResponse(
+                                "invalid_contribution_id",
+                                "Contribution ID must be a canonical UUID."));
+                    }
+
+                    var contributions = await filesApplication.ListContributionsAsync(
+                        lookup.Circle!.Circle.Id,
+                        token).ConfigureAwait(false);
+                    if (contributions.All(value => value.Id.Value != parsedContributionId))
+                    {
+                        return Results.NotFound(
+                            new ErrorResponse(
+                                "circle_files_contribution_not_found",
+                                "The requested Circle Files contribution is not known."));
+                    }
+
+                    var grants = await filesApplication.ListAccessGrantsAsync(
+                        lookup.Circle.Circle.Id,
+                        new CircleFilesContributionId(parsedContributionId),
+                        token).ConfigureAwait(false);
+                    return Results.Ok(
+                        new MemberAccessGrantListResponse(
+                            lookup.Circle.Circle.Id.ToString(),
+                            parsedContributionId.ToString("D"),
+                            grants.Select(ToResponse).ToArray()));
+                })
+                .Produces<MemberAccessGrantListResponse>(StatusCodes.Status200OK)
                 .Produces<ErrorResponse>(StatusCodes.Status400BadRequest)
                 .Produces<ErrorResponse>(StatusCodes.Status404NotFound);
             application.MapGet(
@@ -772,6 +953,69 @@ public static class DaemonHost
             node.NodeId.ToString(),
             node.DisplayName,
             node.JoinedAtUtc);
+    }
+
+    private static CircleFilesContributionResponse ToResponse(
+        CircleFilesContribution contribution) =>
+        new(
+            contribution.Id.ToString(),
+            contribution.CircleId.ToString(),
+            new CircleFilesProviderResponse(
+                contribution.Provider.Id.ToString(),
+                contribution.Provider.NodeId.ToString()),
+            contribution.DisplayName,
+            contribution.Lifecycle switch
+            {
+                CircleFilesContributionLifecycle.Defined => "defined",
+                CircleFilesContributionLifecycle.Active => "active",
+                CircleFilesContributionLifecycle.Retired => "retired",
+                _ => throw new InvalidOperationException("Unknown contribution lifecycle."),
+            },
+            contribution.Generation,
+            contribution.CreatedAtUtc,
+            contribution.Authorization.OwnerMemberId.ToString(),
+            contribution.Authorization.AuthorityGeneration,
+            contribution.Authorization.AuthorizedAtUtc);
+
+    private static MemberAccessGrantResponse ToResponse(MemberAccessGrant grant) =>
+        new(
+            grant.Id.ToString(),
+            grant.CircleId.ToString(),
+            grant.ContributionId.ToString(),
+            grant.MemberId.ToString(),
+            grant.Access switch
+            {
+                MemberAccessMode.ReadOnly => "read-only",
+                MemberAccessMode.ReadWrite => "read-write",
+                _ => throw new InvalidOperationException("Unknown Member access mode."),
+            },
+            grant.Lifecycle switch
+            {
+                MemberAccessGrantLifecycle.Defined => "defined",
+                MemberAccessGrantLifecycle.Active => "active",
+                MemberAccessGrantLifecycle.Revoked => "revoked",
+                _ => throw new InvalidOperationException("Unknown Access Grant lifecycle."),
+            },
+            grant.Generation,
+            grant.CreatedAtUtc,
+            grant.Authorization.OwnerMemberId.ToString(),
+            grant.Authorization.AuthorityGeneration,
+            grant.Authorization.AuthorizedAtUtc);
+
+    private static bool TryParseCanonicalId(string value, out Guid id) =>
+        Guid.TryParseExact(value, "D", out id)
+        && id != Guid.Empty
+        && string.Equals(value, id.ToString("D"), StringComparison.Ordinal);
+
+    private static bool TryParseAccess(string value, out MemberAccessMode access)
+    {
+        access = value switch
+        {
+            "read-only" => MemberAccessMode.ReadOnly,
+            "read-write" => MemberAccessMode.ReadWrite,
+            _ => default,
+        };
+        return access != default;
     }
 
     private sealed record CircleLookup(CircleDetails? Circle, IResult? Error);

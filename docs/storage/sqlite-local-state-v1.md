@@ -1,7 +1,8 @@
 # SQLite Local State
 
-**Status:** schema v4 implemented for local records, protected cryptographic authority,
-invitations, persisted Circle admission, and the first durable Circle message.
+**Status:** schema v6 implemented for local records, protected cryptographic authority,
+invitations, persisted Circle admission, the first durable Circle message, and provider-neutral
+Circle Files contribution/grant authorization.
 
 This database belongs to one `ballsd` instance. It preserves local Node identity and the Circles
 known to that daemon. It is a storage adapter, not the eventual replicated Circle state model.
@@ -24,7 +25,7 @@ persistent filesystem. See
 ## Database identity and open sequence
 
 - SQLite `application_id`: `0x42414C53` (`BALS`).
-- SQLite `user_version`: `5`.
+- SQLite `user_version`: `6`.
 - Connection mode: read/write/create, private cache, pooling disabled.
 
 The store reads identity and schema metadata before applying persistent configuration. A database
@@ -70,6 +71,8 @@ timestamps use round-trip ISO 8601 format.
 | `circle_member_nodes` | Authorized Member-to-Node authorship binding inside a Circle |
 | `outgoing_circle_messages` | Retry-stable prepared message UUID, Circle/Member/Node attribution, text, and authored time before network I/O |
 | `circle_messages` | Per-Circle ordered accepted message, canonical request digest, exact signed request, and Anchor-signed receipt; unique message UUID and Circle sequence |
+| `circle_files_contributions` | Provider-neutral whole-folder Contribution ID, request ID, provider/hosting Node identity, lifecycle/generation, and exact Owner-Member/current-root authorization proof |
+| `circle_files_access_grants` | One Member Access Grant per Contribution/Member with whole-folder access, lifecycle/generation, request identity, and exact dual-signed Owner authorization proof |
 
 `nodes` is deliberately broader than `local_node`: admitted remote Nodes share the catalog without
 redefining the daemon's singleton identity. A joined Node stores public Circle trust and its signed
@@ -98,6 +101,12 @@ receipt but does not gain private root/Anchor authority or redefine itself as th
   retransmission returns the stored receipt; conflicting UUID or sequence reuse changes nothing.
 - The sender stores that validated receipt through the same Core-owned commit port. Ordered list
   reads survive daemon/database restart on both participating Nodes.
+- Contribution creation atomically stores the stable provider identity, normalized definition,
+  lifecycle/generation, authorizing Owner/generation/time, exact canonical transcript, and both
+  signatures. Exact request retry returns the original IDs; conflicting reuse changes nothing.
+- Grant creation first proves that its Contribution and Member belong to the same Circle, then
+  atomically stores whole-folder access plus the same dual-signed authorization metadata. A bad
+  Member/contribution, duplicate grant, or constraint failure leaves no partial grant.
 - A repeated creation request with equivalent normalized input returns the original Circle. A
   conflicting reuse fails with `creation_request_conflict`.
 - Store operations are serialized within the process. Disposal waits for the active operation and
@@ -118,7 +127,8 @@ receipt but does not gain private root/Anchor authority or redefine itself as th
 
 Migrations run one boundary at a time and transactionally: v1 adds protected Node/Circle authority
 (v2), v2 adds transport and invitation state (v3), v3 adds public Circle trust and admission
-state (v4), and v4 adds local Member authorship plus persistent message/replay state (v5). A
+state (v4), v4 adds local Member authorship plus persistent message/replay state (v5), and v5 adds
+provider-neutral Circle Files contributions and Member Access Grants (v6). A
 protection or database failure rolls back that schema version and every generated
 row; the next successful start performs one complete migration. Protected credentials and public
 Circle trust are validated on every open and are never silently regenerated when unreadable.

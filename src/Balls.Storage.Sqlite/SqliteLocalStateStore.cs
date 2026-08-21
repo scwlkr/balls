@@ -10,10 +10,11 @@ public sealed partial class SqliteLocalStateStore :
     IInvitationStateStore,
     IAdmissionStateStore,
     ICircleMessageStateStore,
+    ICircleFilesStateStore,
     IAsyncDisposable
 {
     public const int ApplicationId = 0x42414C53;
-    public const int CurrentSchemaVersion = 5;
+    public const int CurrentSchemaVersion = 6;
 
     private readonly SqliteConnection connection;
     private readonly IPrivateMaterialProtector privateMaterialProtector;
@@ -136,6 +137,13 @@ public sealed partial class SqliteLocalStateStore :
                     connection,
                     privateMaterialProtector,
                     cancellationToken).ConfigureAwait(false);
+                await ValidateSchemaAsync(connection, 5, cancellationToken)
+                    .ConfigureAwait(false);
+            }
+
+            if (!isFreshDatabase && version is 1 or 2 or 3 or 4 or 5)
+            {
+                await MigrateV5ToV6Async(connection, cancellationToken).ConfigureAwait(false);
                 await ValidateSchemaAsync(connection, CurrentSchemaVersion, cancellationToken)
                     .ConfigureAwait(false);
             }
@@ -548,6 +556,10 @@ public sealed partial class SqliteLocalStateStore :
         {
             AddCircleMessageExpectedTables(expectedTables);
         }
+        if (schemaVersion >= 6)
+        {
+            AddCircleFilesExpectedTables(expectedTables);
+        }
 
         using (var unexpectedObjectCommand = connection.CreateCommand())
         {
@@ -681,6 +693,27 @@ public sealed partial class SqliteLocalStateStore :
                         connection,
                         "circle_messages",
                         ["circle_id", "sequence"],
+                        cancellationToken).ConfigureAwait(false))
+            || schemaVersion >= 6
+                && (!await HasUniqueIndexAsync(
+                        connection,
+                        "circle_files_contributions",
+                        ["request_id"],
+                        cancellationToken).ConfigureAwait(false)
+                    || !await HasUniqueIndexAsync(
+                        connection,
+                        "circle_files_contributions",
+                        ["provider_id"],
+                        cancellationToken).ConfigureAwait(false)
+                    || !await HasUniqueIndexAsync(
+                        connection,
+                        "circle_files_access_grants",
+                        ["request_id"],
+                        cancellationToken).ConfigureAwait(false)
+                    || !await HasUniqueIndexAsync(
+                        connection,
+                        "circle_files_access_grants",
+                        ["contribution_id", "member_id"],
                         cancellationToken).ConfigureAwait(false))
             || !await HasRequiredSingletonCheckAsync(connection, cancellationToken)
                 .ConfigureAwait(false))
@@ -862,6 +895,8 @@ public sealed partial class SqliteLocalStateStore :
             {AdmissionSchemaSql}
 
             {CircleMessageSchemaSql}
+
+            {CircleFilesSchemaSql}
 
             PRAGMA application_id = {ApplicationId};
             PRAGMA user_version = {CurrentSchemaVersion};

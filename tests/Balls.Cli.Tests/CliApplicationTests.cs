@@ -103,7 +103,7 @@ public sealed class CliApplicationTests
         Assert.AreEqual(string.Empty, misplacedOutput.ToString());
         Assert.AreEqual(
             "balls: --output must be either 'text' or 'json'." + Environment.NewLine
-                + "commands: ui | status | circle create | circle join | circle list | member list | node list | invitation create | invitation redeem | message send | message list"
+                + "commands: ui | status | circle create | circle join | circle list | member list | node list | invitation create | invitation redeem | message send | message list | files contribution create/list | files grant create/list"
                 + Environment.NewLine,
             unsupportedError.ToString());
         StringAssert.StartsWith(misplacedError.ToString(), "balls: unknown command.");
@@ -228,6 +228,97 @@ public sealed class CliApplicationTests
         StringAssert.Contains(nodes.StandardOutput, "Alice-PC");
         Assert.AreEqual(string.Empty, status.StandardError);
         Assert.AreEqual(string.Empty, create.StandardError);
+    }
+
+    [TestMethod]
+    public async Task Cli_creates_and_lists_Circle_Files_contributions_and_grants_with_structured_output()
+    {
+        if (!OperatingSystem.IsWindows())
+        {
+            Assert.Inconclusive("The local-control transport contract is Windows-only in this test.");
+            return;
+        }
+
+        using var directory = new TemporaryDirectory();
+        var pipeName = $"balls-tests-{Guid.NewGuid():N}";
+        await using var daemon = await DaemonHost.StartAsync(
+            new DaemonOptions(directory.Path, pipeName, "Alice-PC"));
+        var created = DeserializeResult<CircleDetailsResponse>((await RunAsync(
+            pipeName,
+            "--output",
+            "json",
+            "circle",
+            "create",
+            "Example Studio",
+            "--owner",
+            "Alice")).StandardOutput);
+        var circleId = created.Circle.Id;
+        var ownerId = created.Members.Single().Id;
+
+        var createContribution = await RunAsync(
+            pipeName,
+            "--output",
+            "json",
+            "files",
+            "contribution",
+            "create",
+            "--circle",
+            circleId,
+            "--name",
+            "Project Files",
+            "--request-id",
+            "0198d000-4000-7000-8000-000000000001");
+        Assert.AreEqual(CliExitCodes.Success, createContribution.ExitCode);
+        var contribution = DeserializeResult<CircleFilesContributionResponse>(
+            createContribution.StandardOutput);
+        Assert.AreEqual("Project Files", contribution.DisplayName);
+        Assert.AreEqual("defined", contribution.Lifecycle);
+
+        var createGrant = await RunAsync(
+            pipeName,
+            "--output",
+            "json",
+            "files",
+            "grant",
+            "create",
+            "--circle",
+            circleId,
+            "--contribution",
+            contribution.Id,
+            "--member",
+            ownerId,
+            "--access",
+            "read-write",
+            "--request-id",
+            "0198d000-4000-7000-8000-000000000002");
+        Assert.AreEqual(CliExitCodes.Success, createGrant.ExitCode);
+        var grant = DeserializeResult<MemberAccessGrantResponse>(createGrant.StandardOutput);
+        Assert.AreEqual("read-write", grant.Access);
+        Assert.AreEqual(contribution.Id, grant.ContributionId);
+
+        var contributions = await RunAsync(
+            pipeName,
+            "files",
+            "contribution",
+            "list",
+            "--circle",
+            circleId);
+        var grants = await RunAsync(
+            pipeName,
+            "files",
+            "grant",
+            "list",
+            "--circle",
+            circleId,
+            "--contribution",
+            contribution.Id);
+
+        Assert.AreEqual(CliExitCodes.Success, contributions.ExitCode);
+        StringAssert.Contains(contributions.StandardOutput, "Project Files");
+        Assert.AreEqual(CliExitCodes.Success, grants.ExitCode);
+        StringAssert.Contains(grants.StandardOutput, "read-write");
+        Assert.AreEqual(string.Empty, createContribution.StandardError);
+        Assert.AreEqual(string.Empty, createGrant.StandardError);
     }
 
     [TestMethod]

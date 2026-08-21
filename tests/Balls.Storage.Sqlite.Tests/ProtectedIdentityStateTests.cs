@@ -436,6 +436,8 @@ public sealed class ProtectedIdentityStateTests
         command.CommandText =
             """
             PRAGMA foreign_keys = OFF;
+            DROP TABLE circle_files_access_grants;
+            DROP TABLE circle_files_contributions;
             DROP TABLE circle_messages;
             DROP TABLE outgoing_circle_messages;
             DROP TABLE circle_member_nodes;
@@ -485,6 +487,8 @@ public sealed class ProtectedIdentityStateTests
         command.CommandText =
             """
             PRAGMA foreign_keys = OFF;
+            DROP TABLE circle_files_access_grants;
+            DROP TABLE circle_files_contributions;
             DROP TABLE circle_messages;
             DROP TABLE outgoing_circle_messages;
             DROP TABLE circle_member_nodes;
@@ -536,6 +540,8 @@ public sealed class ProtectedIdentityStateTests
         command.CommandText =
             """
             PRAGMA foreign_keys = OFF;
+            DROP TABLE circle_files_access_grants;
+            DROP TABLE circle_files_contributions;
             DELETE FROM circle_member_credentials;
             DROP TABLE circle_messages;
             DROP TABLE outgoing_circle_messages;

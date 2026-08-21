@@ -228,6 +228,62 @@ public static class CliApplication
                         cancellationToken).ConfigureAwait(false);
                 }
 
+                if (tokens.Count >= 3
+                    && tokens[0] == "files"
+                    && tokens[1] == "contribution"
+                    && tokens[2] == "create")
+                {
+                    return await CreateFilesContributionAsync(
+                        client,
+                        tokens,
+                        parseResult.OutputFormat,
+                        standardOutput,
+                        standardError,
+                        cancellationToken).ConfigureAwait(false);
+                }
+
+                if (tokens.Count >= 3
+                    && tokens[0] == "files"
+                    && tokens[1] == "contribution"
+                    && tokens[2] == "list")
+                {
+                    return await ListFilesContributionsAsync(
+                        client,
+                        tokens,
+                        parseResult.OutputFormat,
+                        standardOutput,
+                        standardError,
+                        cancellationToken).ConfigureAwait(false);
+                }
+
+                if (tokens.Count >= 3
+                    && tokens[0] == "files"
+                    && tokens[1] == "grant"
+                    && tokens[2] == "create")
+                {
+                    return await CreateFilesGrantAsync(
+                        client,
+                        tokens,
+                        parseResult.OutputFormat,
+                        standardOutput,
+                        standardError,
+                        cancellationToken).ConfigureAwait(false);
+                }
+
+                if (tokens.Count >= 3
+                    && tokens[0] == "files"
+                    && tokens[1] == "grant"
+                    && tokens[2] == "list")
+                {
+                    return await ListFilesGrantsAsync(
+                        client,
+                        tokens,
+                        parseResult.OutputFormat,
+                        standardOutput,
+                        standardError,
+                        cancellationToken).ConfigureAwait(false);
+                }
+
                 if (tokens.Count >= 2
                     && tokens[0] == "message"
                     && tokens[1] == "list")
@@ -471,6 +527,191 @@ public static class CliApplication
         }
 
         await WriteResultAsync(output, outputFormat, result.Value, CliOutput.RenderJoinedCircle);
+        return CliExitCodes.Success;
+    }
+
+    private static async Task<int> CreateFilesContributionAsync(
+        HttpClient client,
+        IReadOnlyList<string> tokens,
+        CliOutputFormat outputFormat,
+        TextWriter output,
+        TextWriter error,
+        CancellationToken cancellationToken)
+    {
+        if (!TryParseNamedOptions(
+                tokens,
+                3,
+                ["--circle", "--name", "--request-id"],
+                out var options,
+                out var parseError)
+            || !options.TryGetValue("--circle", out var circleId)
+            || !options.TryGetValue("--name", out var name))
+        {
+            return await WriteUsageErrorAsync(
+                error,
+                outputFormat,
+                parseError ?? "usage: balls files contribution create --circle <circle-id> --name <name> [--request-id <uuid>].");
+        }
+
+        var requestId = options.GetValueOrDefault("--request-id")
+            ?? Guid.CreateVersion7().ToString("D");
+        using var response = await client.PostAsJsonAsync(
+            ControlRoutes.CircleFilesContributions(circleId),
+            new CreateCircleFilesContributionRequest(requestId, name),
+            ControlJson.Options,
+            cancellationToken).ConfigureAwait(false);
+        var result = await ReadResponseAsync<CircleFilesContributionResponse>(
+            response,
+            outputFormat,
+            error,
+            cancellationToken).ConfigureAwait(false);
+        if (result.Value is null)
+        {
+            return result.ExitCode;
+        }
+
+        await WriteResultAsync(
+            output,
+            outputFormat,
+            result.Value,
+            CliOutput.RenderCreatedFilesContribution);
+        return CliExitCodes.Success;
+    }
+
+    private static async Task<int> ListFilesContributionsAsync(
+        HttpClient client,
+        IReadOnlyList<string> tokens,
+        CliOutputFormat outputFormat,
+        TextWriter output,
+        TextWriter error,
+        CancellationToken cancellationToken)
+    {
+        if (!TryParseNamedOptions(
+                tokens,
+                3,
+                ["--circle"],
+                out var options,
+                out var parseError)
+            || !options.TryGetValue("--circle", out var circleId))
+        {
+            return await WriteUsageErrorAsync(
+                error,
+                outputFormat,
+                parseError ?? "usage: balls files contribution list --circle <circle-id>.");
+        }
+
+        using var response = await client.GetAsync(
+            ControlRoutes.CircleFilesContributions(circleId),
+            cancellationToken).ConfigureAwait(false);
+        var result = await ReadResponseAsync<CircleFilesContributionListResponse>(
+            response,
+            outputFormat,
+            error,
+            cancellationToken).ConfigureAwait(false);
+        if (result.Value is null)
+        {
+            return result.ExitCode;
+        }
+
+        await WriteResultAsync(
+            output,
+            outputFormat,
+            result.Value,
+            CliOutput.RenderFilesContributions);
+        return CliExitCodes.Success;
+    }
+
+    private static async Task<int> CreateFilesGrantAsync(
+        HttpClient client,
+        IReadOnlyList<string> tokens,
+        CliOutputFormat outputFormat,
+        TextWriter output,
+        TextWriter error,
+        CancellationToken cancellationToken)
+    {
+        if (!TryParseNamedOptions(
+                tokens,
+                3,
+                ["--circle", "--contribution", "--member", "--access", "--request-id"],
+                out var options,
+                out var parseError)
+            || !options.TryGetValue("--circle", out var circleId)
+            || !options.TryGetValue("--contribution", out var contributionId)
+            || !options.TryGetValue("--member", out var memberId)
+            || !options.TryGetValue("--access", out var access))
+        {
+            return await WriteUsageErrorAsync(
+                error,
+                outputFormat,
+                parseError ?? "usage: balls files grant create --circle <circle-id> --contribution <contribution-id> --member <member-id> --access <read-only|read-write> [--request-id <uuid>].");
+        }
+
+        var requestId = options.GetValueOrDefault("--request-id")
+            ?? Guid.CreateVersion7().ToString("D");
+        using var response = await client.PostAsJsonAsync(
+            ControlRoutes.CircleFilesAccessGrants(circleId, contributionId),
+            new CreateMemberAccessGrantRequest(requestId, memberId, access),
+            ControlJson.Options,
+            cancellationToken).ConfigureAwait(false);
+        var result = await ReadResponseAsync<MemberAccessGrantResponse>(
+            response,
+            outputFormat,
+            error,
+            cancellationToken).ConfigureAwait(false);
+        if (result.Value is null)
+        {
+            return result.ExitCode;
+        }
+
+        await WriteResultAsync(
+            output,
+            outputFormat,
+            result.Value,
+            CliOutput.RenderCreatedFilesGrant);
+        return CliExitCodes.Success;
+    }
+
+    private static async Task<int> ListFilesGrantsAsync(
+        HttpClient client,
+        IReadOnlyList<string> tokens,
+        CliOutputFormat outputFormat,
+        TextWriter output,
+        TextWriter error,
+        CancellationToken cancellationToken)
+    {
+        if (!TryParseNamedOptions(
+                tokens,
+                3,
+                ["--circle", "--contribution"],
+                out var options,
+                out var parseError)
+            || !options.TryGetValue("--circle", out var circleId)
+            || !options.TryGetValue("--contribution", out var contributionId))
+        {
+            return await WriteUsageErrorAsync(
+                error,
+                outputFormat,
+                parseError ?? "usage: balls files grant list --circle <circle-id> --contribution <contribution-id>.");
+        }
+
+        using var response = await client.GetAsync(
+            ControlRoutes.CircleFilesAccessGrants(circleId, contributionId),
+            cancellationToken).ConfigureAwait(false);
+        var result = await ReadResponseAsync<MemberAccessGrantListResponse>(
+            response,
+            outputFormat,
+            error,
+            cancellationToken).ConfigureAwait(false);
+        if (result.Value is null)
+        {
+            return result.ExitCode;
+        }
+
+        await WriteResultAsync(
+            output,
+            outputFormat,
+            result.Value,
+            CliOutput.RenderFilesGrants);
         return CliExitCodes.Success;
     }
 
@@ -1072,6 +1313,46 @@ public static class CliApplication
         return circleId.Length > 0 && endpoint.Length > 0 && text.Length > 0;
     }
 
+    private static bool TryParseNamedOptions(
+        IReadOnlyList<string> tokens,
+        int startIndex,
+        string[] allowed,
+        out Dictionary<string, string> options,
+        out string? error)
+    {
+        options = new Dictionary<string, string>(StringComparer.Ordinal);
+        error = null;
+        if ((tokens.Count - startIndex) % 2 != 0)
+        {
+            error = "every option requires a value.";
+            return false;
+        }
+
+        for (var index = startIndex; index < tokens.Count; index += 2)
+        {
+            var option = tokens[index];
+            if (!allowed.Contains(option))
+            {
+                error = $"unknown option '{option}'.";
+                return false;
+            }
+
+            if (index + 1 >= tokens.Count || tokens[index + 1].StartsWith("--", StringComparison.Ordinal))
+            {
+                error = $"{option} requires a value.";
+                return false;
+            }
+
+            if (!options.TryAdd(option, tokens[index + 1]))
+            {
+                error = $"{option} may be specified only once.";
+                return false;
+            }
+        }
+
+        return true;
+    }
+
     private static async Task<string?> ReadInvitationFileAsync(
         string path,
         CliOutputFormat outputFormat,
@@ -1150,7 +1431,7 @@ public static class CliApplication
         if (outputFormat == CliOutputFormat.Text)
         {
             await error.WriteLineAsync(
-                "commands: ui | status | circle create | circle join | circle list | member list | node list | invitation create | invitation redeem | message send | message list");
+                "commands: ui | status | circle create | circle join | circle list | member list | node list | invitation create | invitation redeem | message send | message list | files contribution create/list | files grant create/list");
         }
 
         return CliExitCodes.UsageError;

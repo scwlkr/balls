@@ -456,6 +456,27 @@ Initial Windows implementation may use SMB.
 
 Do not let SMB become the permanent Circle Files API.
 
+The implemented provider-neutral foundation keeps three Core concepts separate:
+
+- a File Contribution is one explicitly offered whole-folder capability with its own lifecycle
+  (`defined`, `active`, or `retired`) and generation;
+- a Circle Files Provider has a stable provider ID and hosting Node identity without embedding an
+  operating-system path, share name, account, password, or provider implementation in Core;
+- a Member Access Grant binds one Circle Member to one Contribution at whole-folder `Read-only`
+  or `Read/write` access, with its own lifecycle and generation.
+
+Contribution and grant creation are explicit Owner mutations. `ballsd` binds the local Member
+identity and current Circle authority generation into a canonical transcript, signs it separately
+with the protected Member and Circle-root keys, verifies both public credentials, and commits the
+state and exact proof atomically. A stale root, substituted key, joined non-Owner, wrong-Circle
+Member, or conflicting retry fails before partial state. Local-control and CLI projections expose
+only public object, lifecycle, and authorizing-Member metadata; signatures, transcripts, private
+authority, and future provider credentials stay behind the Core-owned persistence seam.
+
+The browser has no Circle Files mutation route in this slice. Windows readiness, folder/share
+creation, provider credentials, drive mapping, provider lifecycle transitions, and revocation are
+separate adapters and tickets built on these IDs and grants.
+
 For the files-first v1, the Windows provider uses SMB 3.1.1 with SMB1 and guest access disabled,
 signing and encryption required, and one limited provider credential per Member Access Grant. A
 narrow privileged helper owns exact share, account, ACL, and firewall mutations; normal daemon,
