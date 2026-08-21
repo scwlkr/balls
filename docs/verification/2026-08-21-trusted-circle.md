@@ -1,7 +1,9 @@
 # Trusted Circle milestone evidence
 
-**Date:** 2026-08-21  
-**Issue:** [#34](https://github.com/scwlkr/balls/issues/34)  
+**Date:** 2026-08-21
+
+**Issue:** [#34](https://github.com/scwlkr/balls/issues/34)
+
 **Target:** `0.3.0-alpha.1`
 
 ## Status
