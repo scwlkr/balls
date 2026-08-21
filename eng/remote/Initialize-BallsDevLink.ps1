@@ -5,8 +5,6 @@ param(
 
     [string] $KeyItem = 'Balls Dev Link',
 
-    [string] $AuthorizedKeyPath,
-
     [switch] $ConfirmSystemChange
 )
 
@@ -64,20 +62,7 @@ function Get-TailscaleStatus {
     return (($statusJson -join "`n") | ConvertFrom-Json)
 }
 
-function Get-PublicKey {
-    if (-not [string]::IsNullOrWhiteSpace($AuthorizedKeyPath)) {
-        $resolvedPath = (Resolve-Path -LiteralPath $AuthorizedKeyPath -ErrorAction Stop).Path
-        $info = Get-Item -LiteralPath $resolvedPath
-        if (-not $info.PSIsContainer -and $info.Length -gt 0 -and $info.Length -le 1024) {
-            $publicKey = ((Get-Content -LiteralPath $resolvedPath) -join '').Trim()
-            if ($publicKey -match '^ssh-(ed25519|rsa) [A-Za-z0-9+/=]+(?: [^\r\n]{1,200})?$') {
-                return $publicKey
-            }
-        }
-
-        throw 'The authorized-key file does not contain one supported SSH public key.'
-    }
-
+function Get-OnePasswordPublicKey {
     if ([string]::IsNullOrWhiteSpace($KeyItem)) {
         throw 'Provide one 1Password SSH Key item title.'
     }
@@ -97,34 +82,6 @@ function Get-PublicKey {
     }
 
     return $publicKey
-}
-
-function Invoke-Elevated {
-    $arguments = @(
-        '-NoProfile',
-        '-ExecutionPolicy',
-        'RemoteSigned',
-        '-File',
-        ('"' + $PSCommandPath + '"'),
-        '-Action',
-        $Action,
-        '-ConfirmSystemChange'
-    )
-    if (-not [string]::IsNullOrWhiteSpace($AuthorizedKeyPath)) {
-        $resolvedKeyPath = (Resolve-Path -LiteralPath $AuthorizedKeyPath -ErrorAction Stop).Path
-        $arguments += @('-AuthorizedKeyPath', ('"' + $resolvedKeyPath + '"'))
-    }
-    elseif (-not [string]::IsNullOrWhiteSpace($KeyItem)) {
-        $arguments += @('-KeyItem', ('"' + $KeyItem + '"'))
-    }
-
-    $process = Start-Process `
-        -FilePath 'powershell.exe' `
-        -Verb RunAs `
-        -ArgumentList $arguments `
-        -Wait `
-        -PassThru
-    exit $process.ExitCode
 }
 
 function Install-OpenSshServer {
@@ -253,9 +210,6 @@ function Write-Inspection {
 }
 
 Assert-Windows
-if ($Action -ne 'Inspect' -and -not (Test-Administrator)) {
-    Invoke-Elevated
-}
 
 switch ($Action) {
     'Inspect' {
@@ -278,7 +232,7 @@ switch ($Action) {
             throw 'Tailscale is not connected to a tailnet.'
         }
 
-        $publicKey = Get-PublicKey
+        $publicKey = Get-OnePasswordPublicKey
         Install-OpenSshServer
         Set-AuthorizedKey -PublicKey $publicKey
         Set-SshdGlobalOption -Name 'PubkeyAuthentication' -Value 'yes'

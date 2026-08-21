@@ -176,8 +176,6 @@ public sealed partial class RepositoryWorkflowTests
             Path.Combine(root, "eng", "remote", "Initialize-BallsDevLink.ps1"));
         var macBootstrap = File.ReadAllText(
             Path.Combine(root, "eng", "remote", "Initialize-BallsDevLink.sh"));
-        var windowsLauncher = File.ReadAllText(
-            Path.Combine(root, "eng", "remote", "Start-BallsDevLink.cmd"));
         var runbook = File.ReadAllText(
             Path.Combine(root, "docs", "two-machine-development.md"));
 
@@ -189,11 +187,6 @@ public sealed partial class RepositoryWorkflowTests
         StringAssert.Contains(windowsBootstrap, "Set-SshdGlobalOption -Name 'PubkeyAuthentication' -Value 'yes'");
         Assert.IsFalse(windowsBootstrap.Contains("Invoke-Expression", StringComparison.Ordinal));
         Assert.IsFalse(windowsBootstrap.Contains("Invoke-WebRequest", StringComparison.Ordinal));
-        StringAssert.Contains(windowsBootstrap, "AuthorizedKeyPath");
-
-        StringAssert.Contains(windowsLauncher, "-ExecutionPolicy RemoteSigned");
-        StringAssert.Contains(windowsLauncher, "-ConfirmSystemChange");
-        Assert.IsFalse(windowsLauncher.Contains("ExecutionPolicy Bypass", StringComparison.Ordinal));
 
         StringAssert.Contains(macBootstrap, "inspect|configure|disable");
         StringAssert.Contains(macBootstrap, "--confirm-system-change");

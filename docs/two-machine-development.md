@@ -54,11 +54,6 @@ keeps its own clone and worktrees, then exchanges commits through GitHub.
    .\eng\remote\Initialize-BallsDevLink.ps1 -Action Configure -ConfirmSystemChange
    ```
 
-   For a machine without the repository branch yet, send `Initialize-BallsDevLink.ps1`,
-   `Start-BallsDevLink.cmd`, and the key item's public key together through Tailscale Taildrop.
-   Double-clicking the launcher requests UAC and uses `RemoteSigned`; it never bypasses the local
-   execution policy. Delete the received public-key copy after setup if it is no longer useful.
-
 6. From the Mac, connect to the Windows Tailscale DNS name and prove that 1Password authorizes the
    key. Then, from that proven Windows session, make Windows key-only:
 
