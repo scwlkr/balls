@@ -169,6 +169,38 @@ public sealed partial class RepositoryWorkflowTests
     }
 
     [TestMethod]
+    public void Two_machine_development_link_is_private_key_only_and_confirmation_gated()
+    {
+        var root = FindRepositoryRoot();
+        var windowsBootstrap = File.ReadAllText(
+            Path.Combine(root, "eng", "remote", "Initialize-BallsDevLink.ps1"));
+        var macBootstrap = File.ReadAllText(
+            Path.Combine(root, "eng", "remote", "Initialize-BallsDevLink.sh"));
+        var runbook = File.ReadAllText(
+            Path.Combine(root, "docs", "two-machine-development.md"));
+
+        StringAssert.Contains(windowsBootstrap, "ValidateSet('Inspect', 'Configure', 'Finalize', 'Disable')");
+        StringAssert.Contains(windowsBootstrap, "ConfirmSystemChange");
+        StringAssert.Contains(windowsBootstrap, "100.64.0.0/10");
+        StringAssert.Contains(windowsBootstrap, "Tailscale");
+        StringAssert.Contains(windowsBootstrap, "Set-SshdGlobalOption -Name 'PasswordAuthentication' -Value 'no'");
+        StringAssert.Contains(windowsBootstrap, "Set-SshdGlobalOption -Name 'PubkeyAuthentication' -Value 'yes'");
+        Assert.IsFalse(windowsBootstrap.Contains("Invoke-Expression", StringComparison.Ordinal));
+        Assert.IsFalse(windowsBootstrap.Contains("Invoke-WebRequest", StringComparison.Ordinal));
+
+        StringAssert.Contains(macBootstrap, "inspect|configure|disable");
+        StringAssert.Contains(macBootstrap, "--confirm-system-change");
+        StringAssert.Contains(macBootstrap, "set --ssh=true");
+        Assert.IsFalse(macBootstrap.Contains("systemsetup -setremotelogin on", StringComparison.Ordinal));
+        Assert.IsFalse(macBootstrap.Contains("curl ", StringComparison.Ordinal));
+
+        StringAssert.Contains(runbook, "GitHub remains the source of truth");
+        StringAssert.Contains(runbook, "1Password SSH agent");
+        StringAssert.Contains(runbook, "No passwords, private keys, or repository files cross through GitHub Issues");
+        StringAssert.Contains(runbook, "physical Mac-to-Windows");
+    }
+
+    [TestMethod]
     public void Security_workflows_exist_and_keep_untrusted_pull_requests_unprivileged()
     {
         var workflowDirectory = Path.Combine(FindRepositoryRoot(), ".github", "workflows");

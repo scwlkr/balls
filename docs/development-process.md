@@ -118,6 +118,8 @@ scripts rather than arbitrary shell input.
 GitHub is the shared state; the computers never share a working directory. Keep one issue and one
 branch per outcome, and do not edit the same ticket from both machines. Windows owns Windows/Files/
 release tickets. The Mac owns macOS, portable code, browser UI, interaction, and brand tickets.
+Use the [two-machine development runbook](two-machine-development.md) for the private Tailscale/SSH
+link used to operate or physically verify the other laptop without sharing its checkout.
 
 At the start of work on either computer:
 
