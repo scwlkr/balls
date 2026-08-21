@@ -95,6 +95,12 @@ public interface IAdmissionStateStore
         CircleId circleId,
         CancellationToken cancellationToken = default);
 
+    Task<bool> IsAdmittedMemberNodePairAsync(
+        CircleId circleId,
+        MemberId memberId,
+        NodeId nodeId,
+        CancellationToken cancellationToken = default);
+
     Task<long> ReserveAuthoritySequenceAsync(
         CircleId circleId,
         CancellationToken cancellationToken = default);

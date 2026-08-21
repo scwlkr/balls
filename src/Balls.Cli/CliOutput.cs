@@ -93,7 +93,22 @@ internal static class CliOutput
             Environment.NewLine,
             "Invitation accepted.",
             $"Circle ID: {response.CircleId}",
-            $"Redemption ID: {response.RedemptionId}");
+        $"Redemption ID: {response.RedemptionId}");
+
+    internal static string RenderSentMessage(CircleMessageResponse response) =>
+        string.Join(
+            Environment.NewLine,
+            $"Sent message #{response.Sequence}",
+            $"Message ID: {response.Id}",
+            response.Text);
+
+    internal static string RenderMessages(CircleMessageListResponse response) =>
+        response.Messages.Count == 0
+            ? "No messages."
+            : string.Join(
+                Environment.NewLine,
+                response.Messages.Select(message =>
+                    $"{message.Sequence}\t{message.Id}\t{message.AuthorMemberId}\t{message.Text}"));
 
     private sealed record CliResultEnvelope<T>(int OutputVersion, T Result);
 

@@ -103,7 +103,7 @@ public sealed class CliApplicationTests
         Assert.AreEqual(string.Empty, misplacedOutput.ToString());
         Assert.AreEqual(
             "balls: --output must be either 'text' or 'json'." + Environment.NewLine
-                + "commands: ui | status | circle create | circle join | circle list | member list | node list | invitation create | invitation redeem"
+                + "commands: ui | status | circle create | circle join | circle list | member list | node list | message send | message list | invitation create | invitation redeem"
                 + Environment.NewLine,
             unsupportedError.ToString());
         StringAssert.StartsWith(misplacedError.ToString(), "balls: unknown command.");
@@ -378,6 +378,129 @@ public sealed class CliApplicationTests
             StringAssert.Contains(members.StandardOutput, "Bob");
             StringAssert.Contains(nodes.StandardOutput, "Anchor-PC");
             StringAssert.Contains(nodes.StandardOutput, "Joiner-PC");
+        }
+    }
+
+    [TestMethod]
+    public async Task Cli_exchanges_one_durable_Circle_message_and_preserves_it_after_both_daemons_restart()
+    {
+        if (!OperatingSystem.IsWindows())
+        {
+            Assert.Inconclusive("This local-control transport test is Windows-only.");
+            return;
+        }
+
+        using var directory = new TemporaryDirectory();
+        var anchorPath = Path.Combine(directory.Path, "anchor");
+        var joinerPath = Path.Combine(directory.Path, "joiner");
+        var anchorPipe = $"balls-tests-{Guid.NewGuid():N}";
+        var joinerPipe = $"balls-tests-{Guid.NewGuid():N}";
+        var admissionPort = ReservePort();
+        var messagePort = ReservePort();
+        var messageId = "0198c2d8-b000-7000-8000-000000000239";
+        string circleId;
+
+        await using (var anchor = await DaemonHost.StartAsync(
+            new DaemonOptions(
+                anchorPath,
+                anchorPipe,
+                "Anchor-PC",
+                $"127.0.0.1:{admissionPort}",
+                $"127.0.0.1:{messagePort}")))
+        await using (var joiner = await DaemonHost.StartAsync(
+            new DaemonOptions(joinerPath, joinerPipe, "Joiner-PC")))
+        {
+            var created = DeserializeResult<CircleDetailsResponse>((await RunAsync(
+                anchorPipe,
+                "--output",
+                "json",
+                "circle",
+                "create",
+                "Message Circle",
+                "--owner",
+                "Alice")).StandardOutput);
+            circleId = created.Circle.Id;
+            var invitationPath = Path.Combine(directory.Path, "message.balls-invitation");
+            Assert.AreEqual(CliExitCodes.Success, (await RunAsync(
+                anchorPipe,
+                "invitation",
+                "create",
+                "--circle",
+                circleId,
+                "--out",
+                invitationPath)).ExitCode);
+            Assert.AreEqual(CliExitCodes.Success, (await RunAsync(
+                joinerPipe,
+                "circle",
+                "join",
+                "--file",
+                invitationPath,
+                "--endpoint",
+                $"127.0.0.1:{admissionPort}",
+                "--member",
+                "Bob")).ExitCode);
+
+            var sent = await RunAsync(
+                joinerPipe,
+                "--output",
+                "json",
+                "message",
+                "send",
+                "--circle",
+                circleId,
+                "--endpoint",
+                $"127.0.0.1:{messagePort}",
+                "--text",
+                "Hello from Bob's Node.",
+                "--message-id",
+                messageId);
+            Assert.AreEqual(CliExitCodes.Success, sent.ExitCode);
+            var accepted = DeserializeResult<CircleMessageResponse>(sent.StandardOutput);
+            Assert.AreEqual(1L, accepted.Sequence);
+            Assert.AreEqual("Hello from Bob's Node.", accepted.Text);
+
+            foreach (var pipe in new[] { anchorPipe, joinerPipe })
+            {
+                var listed = DeserializeResult<CircleMessageListResponse>((await RunAsync(
+                    pipe,
+                    "--output",
+                    "json",
+                    "message",
+                    "list",
+                    "--circle",
+                    circleId)).StandardOutput);
+                Assert.HasCount(1, listed.Messages);
+                Assert.AreEqual(messageId, listed.Messages[0].Id);
+                Assert.AreEqual(accepted.AuthorMemberId, listed.Messages[0].AuthorMemberId);
+                Assert.AreEqual(accepted.AuthorNodeId, listed.Messages[0].AuthorNodeId);
+                Assert.AreEqual(accepted.AuthoredAtUtc, listed.Messages[0].AuthoredAtUtc);
+                Assert.AreEqual(accepted.AcceptedAtUtc, listed.Messages[0].AcceptedAtUtc);
+            }
+        }
+
+        await using var restartedAnchor = await DaemonHost.StartAsync(
+            new DaemonOptions(
+                anchorPath,
+                anchorPipe,
+                "Anchor-PC",
+                $"127.0.0.1:{admissionPort}",
+                $"127.0.0.1:{messagePort}"));
+        await using var restartedJoiner = await DaemonHost.StartAsync(
+            new DaemonOptions(joinerPath, joinerPipe, "Joiner-PC"));
+        foreach (var pipe in new[] { anchorPipe, joinerPipe })
+        {
+            var listed = DeserializeResult<CircleMessageListResponse>((await RunAsync(
+                pipe,
+                "--output",
+                "json",
+                "message",
+                "list",
+                "--circle",
+                circleId)).StandardOutput);
+            Assert.HasCount(1, listed.Messages);
+            Assert.AreEqual(messageId, listed.Messages[0].Id);
+            Assert.AreEqual(1L, listed.Messages[0].Sequence);
+            Assert.AreEqual("Hello from Bob's Node.", listed.Messages[0].Text);
         }
     }
 

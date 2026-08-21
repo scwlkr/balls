@@ -81,6 +81,24 @@ public static class DaemonHost
             }
         }
 
+        System.Net.IPEndPoint? circleListenEndpoint = null;
+        if (options.CircleListenEndpoint is not null)
+        {
+            try
+            {
+                circleListenEndpoint = LanTcpEndpoint.Parse(
+                    new RemoteTransportAddress(
+                        LanTcpEndpoint.ProviderName,
+                        options.CircleListenEndpoint));
+            }
+            catch (ArgumentException)
+            {
+                throw new InputValidationException(
+                    "invalid_circle_listen_endpoint",
+                    "Circle messaging requires a numeric private or loopback IP address and non-zero port.");
+            }
+        }
+
         var securedDataDirectory = host.LocalState.Prepare(options.DataDirectory);
         var dataDirectoryLease = DataDirectoryLease.Acquire(securedDataDirectory);
         SqliteLocalStateStore? store = null;
@@ -88,6 +106,9 @@ public static class DaemonHost
         TcpLanTransportListener? admissionListener = null;
         CancellationTokenSource? admissionShutdown = null;
         Task? admissionTask = null;
+        TcpLanTransportListener? circleListener = null;
+        CancellationTokenSource? circleShutdown = null;
+        Task? circleTask = null;
         var endpointPrepared = false;
 
         try
@@ -111,6 +132,14 @@ public static class DaemonHost
                 store,
                 new TcpLanTransportConnector(),
                 TimeProvider.System);
+            var messageApplication = new TrustedCircleMessageApplication(
+                store,
+                store,
+                store,
+                store,
+                new TcpLanTransportConnector(),
+                TimeProvider.System);
+            var circleMessageApplication = new CircleMessageApplication(store);
             var browserAccess = new BrowserAccessBroker(
                 TimeProvider.System,
                 launchLifetime: TimeSpan.FromMinutes(1),
@@ -308,6 +337,112 @@ public static class DaemonHost
                 .Produces<NodeListResponse>(StatusCodes.Status200OK)
                 .Produces<ErrorResponse>(StatusCodes.Status400BadRequest)
                 .Produces<ErrorResponse>(StatusCodes.Status404NotFound);
+            application.MapGet(
+                ControlRoutes.Circles + "/{circleId}/messages",
+                async (string circleId, CancellationToken token) =>
+                {
+                    var lookup = await FindCircleAsync(circleApplication, circleId, token)
+                        .ConfigureAwait(false);
+                    if (lookup.Error is not null)
+                    {
+                        return lookup.Error;
+                    }
+
+                    var values = await circleMessageApplication.ListAsync(
+                        lookup.Circle!.Circle.Id,
+                        token).ConfigureAwait(false);
+                    return Results.Ok(
+                        new CircleMessageListResponse(
+                            lookup.Circle.Circle.Id.ToString(),
+                            values.Select(ToResponse).ToArray()));
+                })
+                .Produces<CircleMessageListResponse>(StatusCodes.Status200OK)
+                .Produces<ErrorResponse>(StatusCodes.Status400BadRequest)
+                .Produces<ErrorResponse>(StatusCodes.Status404NotFound);
+            application.MapPost(
+                ControlRoutes.Circles + "/{circleId}/messages",
+                async (
+                    string circleId,
+                    SendCircleMessageRequest request,
+                    CancellationToken token) =>
+                {
+                    if (!Guid.TryParseExact(circleId, "D", out var parsedCircle))
+                    {
+                        return Results.BadRequest(
+                            new ErrorResponse(
+                                "invalid_circle_id",
+                                "Circle ID must be a canonical UUID."));
+                    }
+                    if (!Guid.TryParseExact(request.MessageId, "D", out var parsedMessage))
+                    {
+                        return Results.BadRequest(
+                            new ErrorResponse(
+                                "invalid_message_id",
+                                "Message ID must be a canonical UUID."));
+                    }
+
+                    try
+                    {
+                        var message = await messageApplication.SendAsync(
+                            new CircleId(parsedCircle),
+                            new MessageId(parsedMessage),
+                            request.Text,
+                            new RemoteTransportAddress(
+                                LanTcpEndpoint.ProviderName,
+                                request.Endpoint),
+                            token).ConfigureAwait(false);
+                        return Results.Ok(ToResponse(message));
+                    }
+                    catch (InputValidationException exception)
+                    {
+                        return Results.BadRequest(new ErrorResponse(exception.Code, exception.Message));
+                    }
+                    catch (ArgumentException)
+                    {
+                        return Results.BadRequest(
+                            new ErrorResponse(
+                                "invalid_message_endpoint",
+                                "Messaging requires a numeric private or loopback IP address and port."));
+                    }
+                    catch (CircleMessageRejectedException exception)
+                    {
+                        var error = new ErrorResponse(
+                            exception.Code,
+                            "The Circle message was rejected.");
+                        return exception.Code is "replayed" or "conflict"
+                            ? Results.Conflict(error)
+                            : Results.BadRequest(error);
+                    }
+                    catch (LocalStateConflictException exception)
+                    {
+                        return Results.Conflict(new ErrorResponse(exception.Code, exception.Message));
+                    }
+                    catch (LocalStateException exception)
+                    {
+                        return Results.BadRequest(new ErrorResponse(exception.Code, exception.Message));
+                    }
+                    catch (RemoteChannelException exception)
+                    {
+                        return Results.Json(
+                            new ErrorResponse(
+                                exception.Code,
+                                "The remote Anchor could not accept the Circle message."),
+                            statusCode: StatusCodes.Status502BadGateway);
+                    }
+                    catch (Exception exception) when (exception is
+                        IOException or TimeoutException or System.Net.Sockets.SocketException)
+                    {
+                        return Results.Json(
+                            new ErrorResponse(
+                                "connection_failed",
+                                "The remote Anchor could not be reached."),
+                            statusCode: StatusCodes.Status502BadGateway);
+                    }
+                })
+                .Produces<CircleMessageResponse>(StatusCodes.Status200OK)
+                .Produces<ErrorResponse>(StatusCodes.Status400BadRequest)
+                .Produces<ErrorResponse>(StatusCodes.Status409Conflict)
+                .Produces<ErrorResponse>(StatusCodes.Status502BadGateway);
             application.MapPost(
                 ControlRoutes.Circles + "/{circleId}/invitations",
                 async (string circleId, CreateInvitationRequest request, CancellationToken token) =>
@@ -382,7 +517,11 @@ public static class DaemonHost
                 .Produces<ErrorResponse>(StatusCodes.Status404NotFound)
                 .Produces<ErrorResponse>(StatusCodes.Status409Conflict);
             application.MapOpenApi(ControlRoutes.OpenApi);
-            BrowserAdapter.MapRoutes(application, circleApplication, browserAccess);
+            BrowserAdapter.MapRoutes(
+                application,
+                circleApplication,
+                circleMessageApplication,
+                browserAccess);
 
             await application.StartAsync(cancellationToken).ConfigureAwait(false);
             if (admissionListenEndpoint is not null)
@@ -394,6 +533,15 @@ public static class DaemonHost
                     admissionApplication,
                     admissionShutdown.Token);
             }
+            if (circleListenEndpoint is not null)
+            {
+                circleListener = new TcpLanTransportListener(circleListenEndpoint);
+                circleShutdown = new CancellationTokenSource();
+                circleTask = RunMessageListenerAsync(
+                    circleListener,
+                    messageApplication,
+                    circleShutdown.Token);
+            }
             browserEndpoint.Initialize(FindBrowserBaseUri(application));
             host.LocalControlServer.SecureEndpoint(options.LocalControlEndpoint);
             return new DaemonInstance(
@@ -404,7 +552,10 @@ public static class DaemonHost
                 options.LocalControlEndpoint,
                 admissionListener,
                 admissionShutdown,
-                admissionTask);
+                admissionTask,
+                circleListener,
+                circleShutdown,
+                circleTask);
         }
         catch
         {
@@ -414,6 +565,11 @@ public static class DaemonHost
                 if (admissionListener is not null)
                 {
                     await admissionListener.DisposeAsync().ConfigureAwait(false);
+                }
+                circleShutdown?.Cancel();
+                if (circleListener is not null)
+                {
+                    await circleListener.DisposeAsync().ConfigureAwait(false);
                 }
 
                 if (application is not null)
@@ -441,6 +597,8 @@ public static class DaemonHost
                     }
                     finally
                     {
+                        admissionShutdown?.Dispose();
+                        circleShutdown?.Dispose();
                         dataDirectoryLease.Dispose();
                     }
                 }
@@ -453,6 +611,35 @@ public static class DaemonHost
     private static async Task RunAdmissionListenerAsync(
         TcpLanTransportListener listener,
         TrustedCircleAdmissionApplication application,
+        CancellationToken cancellationToken)
+    {
+        try
+        {
+            await foreach (var connection in listener.AcceptAsync(cancellationToken)
+                               .ConfigureAwait(false))
+            {
+                try
+                {
+                    await application.HandleAsync(connection, cancellationToken)
+                        .ConfigureAwait(false);
+                }
+                catch (RemoteChannelException)
+                {
+                }
+                finally
+                {
+                    await connection.DisposeAsync().ConfigureAwait(false);
+                }
+            }
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+        }
+    }
+
+    private static async Task RunMessageListenerAsync(
+        TcpLanTransportListener listener,
+        TrustedCircleMessageApplication application,
         CancellationToken cancellationToken)
     {
         try
@@ -591,6 +778,19 @@ public static class DaemonHost
             node.JoinedAtUtc);
     }
 
+    private static CircleMessageResponse ToResponse(CircleMessage message)
+    {
+        return new CircleMessageResponse(
+            message.Id.ToString(),
+            message.CircleId.ToString(),
+            message.Sequence,
+            message.AuthorMemberId.ToString(),
+            message.AuthorNodeId.ToString(),
+            message.Text,
+            message.AuthoredAtUtc,
+            message.AcceptedAtUtc);
+    }
+
     private sealed record CircleLookup(CircleDetails? Circle, IResult? Error);
 }
 
@@ -604,6 +804,9 @@ public sealed class DaemonInstance : IAsyncDisposable
     private readonly TcpLanTransportListener? admissionListener;
     private readonly CancellationTokenSource? admissionShutdown;
     private readonly Task? admissionTask;
+    private readonly TcpLanTransportListener? circleListener;
+    private readonly CancellationTokenSource? circleShutdown;
+    private readonly Task? circleTask;
     private int disposed;
 
     internal DaemonInstance(
@@ -614,7 +817,10 @@ public sealed class DaemonInstance : IAsyncDisposable
         string localControlEndpoint,
         TcpLanTransportListener? admissionListener,
         CancellationTokenSource? admissionShutdown,
-        Task? admissionTask)
+        Task? admissionTask,
+        TcpLanTransportListener? circleListener,
+        CancellationTokenSource? circleShutdown,
+        Task? circleTask)
     {
         this.application = application;
         this.store = store;
@@ -624,9 +830,14 @@ public sealed class DaemonInstance : IAsyncDisposable
         this.admissionListener = admissionListener;
         this.admissionShutdown = admissionShutdown;
         this.admissionTask = admissionTask;
+        this.circleListener = circleListener;
+        this.circleShutdown = circleShutdown;
+        this.circleTask = circleTask;
     }
 
     public RemoteTransportAddress? AdmissionAddress => admissionListener?.BoundAddress;
+
+    public RemoteTransportAddress? CircleAddress => circleListener?.BoundAddress;
 
     public async ValueTask DisposeAsync()
     {
@@ -638,9 +849,14 @@ public sealed class DaemonInstance : IAsyncDisposable
         try
         {
             admissionShutdown?.Cancel();
+            circleShutdown?.Cancel();
             if (admissionListener is not null)
             {
                 await admissionListener.DisposeAsync().ConfigureAwait(false);
+            }
+            if (circleListener is not null)
+            {
+                await circleListener.DisposeAsync().ConfigureAwait(false);
             }
 
             try
@@ -648,6 +864,10 @@ public sealed class DaemonInstance : IAsyncDisposable
                 if (admissionTask is not null)
                 {
                     await admissionTask.ConfigureAwait(false);
+                }
+                if (circleTask is not null)
+                {
+                    await circleTask.ConfigureAwait(false);
                 }
             }
             finally
@@ -671,6 +891,7 @@ public sealed class DaemonInstance : IAsyncDisposable
                 finally
                 {
                     admissionShutdown?.Dispose();
+                    circleShutdown?.Dispose();
                     dataDirectoryLease.Dispose();
                 }
             }

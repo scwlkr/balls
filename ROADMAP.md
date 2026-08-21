@@ -15,8 +15,8 @@ Future milestones describe outcomes, not promises that every detail is already d
 same native daemon, structured CLI, protected state, local IPC, and hardened React workspace run
 on Windows and Linux. Trusted Circle is active. Its remote v1 identity/admission security design
 is accepted; protected production credentials, bounded single-use invitations, authenticated LAN
-transport, and persisted two-Node Circle admission are implemented. One persistent Circle message
-and milestone acceptance remain.
+transport, persisted two-Node Circle admission, and one minimal durable signed message are
+implemented. Milestone acceptance remains.
 
 ## Files-first path to v1
 

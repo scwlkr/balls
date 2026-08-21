@@ -46,3 +46,16 @@ public readonly record struct CreationRequestId(Guid Value)
         return Value.ToString("D");
     }
 }
+
+public readonly record struct MessageId(Guid Value)
+{
+    public static MessageId New()
+    {
+        return new MessageId(Guid.CreateVersion7());
+    }
+
+    public override string ToString()
+    {
+        return Value.ToString("D");
+    }
+}

@@ -29,7 +29,7 @@ Use this directory for ADRs, threat models, protocol specifications, milestone d
 ## Contracts and state
 
 - [`protocol/local-control-v1.md`](protocol/local-control-v1.md) — implemented HTTP/JSON local-control contract over Windows named pipes and Linux Unix-domain sockets.
-- [`protocol/remote-circle-v1.md`](protocol/remote-circle-v1.md) — accepted signed identity/admission core and transport-independent TLS boundary; stateful remote behavior is not implemented yet.
+- [`protocol/remote-circle-v1.md`](protocol/remote-circle-v1.md) — signed identity/admission core, transport-independent TLS boundary, persisted admission, and one durable message operation.
 - [`storage/sqlite-local-state-v1.md`](storage/sqlite-local-state-v1.md) — implemented local SQLite identity, schema, transactions, and migration policy.
 
 ## Security

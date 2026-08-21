@@ -4,4 +4,5 @@ public sealed record DaemonOptions(
     string DataDirectory,
     string LocalControlEndpoint,
     string NodeDisplayName,
-    string? AdmissionListenEndpoint = null);
+    string? AdmissionListenEndpoint = null,
+    string? CircleListenEndpoint = null);

@@ -138,6 +138,18 @@ public sealed class AdmissionStateStoreTests
         Assert.AreEqual(AnchorAdmissionCommitStatus.Replayed, conflict.Status);
         Assert.AreEqual(2, details!.Members.Count);
         Assert.AreEqual(2, details.Nodes.Count);
+        Assert.IsTrue(await store.IsAdmittedMemberNodePairAsync(
+            created.Circle.Id,
+            memberId,
+            nodeId));
+        Assert.IsFalse(await store.IsAdmittedMemberNodePairAsync(
+            created.Circle.Id,
+            memberId,
+            NodeId.New()));
+        Assert.IsFalse(await store.IsAdmittedMemberNodePairAsync(
+            created.Circle.Id,
+            MemberId.New(),
+            nodeId));
         Assert.AreEqual(
             InvitationRedemptionStatus.Replayed,
             (await store.RedeemCircleInvitationAsync(
@@ -300,6 +312,189 @@ public sealed class AdmissionStateStoreTests
                 circleId,
                 "correct horse battery staple".AsMemory()));
         Assert.AreEqual("circle_authority_not_found", error.Code);
+    }
+
+    [TestMethod]
+    public async Task Joined_member_draft_is_retry_stable_and_replication_survives_restart()
+    {
+        using var directory = new TemporaryDirectory();
+        var circleId = CircleId.New();
+        var invitationId = InvitationId.New();
+        var digest = RandomNumberGenerator.GetBytes(32);
+        MessageId messageId = MessageId.New();
+        CircleMessage message;
+        await using (var store = await OpenAsync(directory.Path))
+        {
+            var localNode = await new CircleApplication(store, TimeProvider.System, "Bob-PC")
+                .GetLocalNodeAsync();
+            var applicant = await store.PrepareAdmissionApplicantAsync(
+                invitationId,
+                circleId,
+                digest,
+                "Bob",
+                Now);
+            var anchorNodeId = NodeId.New();
+            await store.CommitJoinedCircleAsync(
+                new JoinedCircleCommit(
+                    invitationId,
+                    digest,
+                    new CircleDetails(
+                        new Circle(circleId, "Example Circle", Now.AddDays(-1)),
+                        [
+                            new(MemberId.New(), circleId, "Alice", MemberRole.Owner, Now.AddDays(-1)),
+                            new(applicant.MemberId, circleId, "Bob", MemberRole.Member, Now),
+                        ],
+                        [
+                            new(circleId, anchorNodeId, "Anchor-PC", Now.AddDays(-1)),
+                            new(circleId, localNode.Id, localNode.DisplayName, Now),
+                        ]),
+                    new CircleTrustState(
+                        circleId,
+                        1,
+                        1,
+                        anchorNodeId,
+                        Credential(IdentityKeyRole.CircleAuthority),
+                        Credential(IdentityKeyRole.Anchor),
+                        "receipt"u8.ToArray()),
+                    applicant.MemberCredential,
+                    [
+                        new(
+                            circleId,
+                            anchorNodeId,
+                            Credential(IdentityKeyRole.Node),
+                            Credential(IdentityKeyRole.Transport),
+                            "anchor-binding"u8.ToArray()),
+                        new(
+                            circleId,
+                            localNode.Id,
+                            (await store.GetNodeCryptographicIdentityAsync())!.Credential,
+                            (await store.GetLocalTransportIdentityAsync())!.Credential,
+                            "local-binding"u8.ToArray()),
+                    ],
+                    Now));
+
+            var first = await store.PrepareMessageDraftAsync(
+                circleId,
+                messageId,
+                "Hello Circle",
+                Now);
+            var retry = await store.PrepareMessageDraftAsync(
+                circleId,
+                messageId,
+                "Hello Circle",
+                Now.AddMinutes(1));
+            Assert.AreEqual(first.Id, retry.Id);
+            Assert.AreEqual(first.CircleId, retry.CircleId);
+            Assert.AreEqual(first.AuthorMemberId, retry.AuthorMemberId);
+            Assert.AreEqual(first.AuthorNodeId, retry.AuthorNodeId);
+            Assert.AreEqual(first.MemberCredential.KeyId, retry.MemberCredential.KeyId);
+            Assert.AreEqual(first.NodeCredential.KeyId, retry.NodeCredential.KeyId);
+            Assert.AreEqual(first.Text, retry.Text);
+            Assert.AreEqual(first.AuthoredAtUtc, retry.AuthoredAtUtc);
+            var signature = await store.SignMessageDraftWithMemberAsync(
+                circleId,
+                "message"u8.ToArray());
+            Assert.IsTrue(IdentityCryptography.Verify(
+                "message"u8,
+                signature,
+                applicant.MemberCredential));
+
+            message = new CircleMessage(
+                messageId,
+                circleId,
+                1,
+                applicant.MemberId,
+                localNode.Id,
+                "Hello Circle",
+                first.AuthoredAtUtc,
+                Now.AddSeconds(1));
+            var commit = new AuthoritativeMessageCommit(
+                message,
+                RandomNumberGenerator.GetBytes(32),
+                "signed-message-receipt"u8.ToArray());
+            Assert.AreEqual(
+                MessageCommitStatus.Accepted,
+                (await store.CommitReplicatedMessageAsync(commit)).Status);
+            Assert.AreEqual(
+                MessageCommitStatus.IdempotentRetry,
+                (await store.CommitReplicatedMessageAsync(commit)).Status);
+        }
+
+        await using var reopened = await OpenAsync(directory.Path);
+        var messages = await reopened.ListMessagesAsync(circleId);
+        Assert.HasCount(1, messages);
+        Assert.AreEqual(message, messages[0]);
+    }
+
+    [TestMethod]
+    public async Task Anchor_message_commit_assigns_one_order_and_rejects_conflicts()
+    {
+        using var directory = new TemporaryDirectory();
+        await using var store = await OpenAsync(directory.Path);
+        var created = await new CircleApplication(store, TimeProvider.System, "Anchor-PC")
+            .CreateCircleAsync(
+                new CreateCircleCommand(
+                    new CreationRequestId(Guid.CreateVersion7()),
+                    "Example Circle",
+                    "Alice"));
+        var memberId = MemberId.New();
+        var nodeId = NodeId.New();
+        var invitationId = InvitationId.New();
+        var package = "package"u8.ToArray();
+        var digest = SHA256.HashData(package);
+        await store.StoreCircleInvitationAsync(
+            new PersistedCircleInvitation(
+                invitationId,
+                created.Circle.Id,
+                digest,
+                package,
+                Now.AddHours(1),
+                Now));
+        await store.CommitAnchorAdmissionAsync(
+            new AnchorAdmissionCommit(
+                invitationId,
+                created.Circle.Id,
+                digest,
+                RandomNumberGenerator.GetBytes(32),
+                "admission"u8.ToArray(),
+                new Member(memberId, created.Circle.Id, "Bob", MemberRole.Member, Now),
+                new CircleNode(created.Circle.Id, nodeId, "Bob-PC", Now),
+                Credential(IdentityKeyRole.Member),
+                Credential(IdentityKeyRole.Node),
+                Credential(IdentityKeyRole.Transport),
+                "binding"u8.ToArray(),
+                await store.ReserveAuthoritySequenceAsync(created.Circle.Id),
+                Now));
+        var message = new CircleMessage(
+            MessageId.New(),
+            created.Circle.Id,
+            1,
+            memberId,
+            nodeId,
+            "Hello Anchor",
+            Now,
+            Now.AddSeconds(1));
+        var commit = new AuthoritativeMessageCommit(
+            message,
+            RandomNumberGenerator.GetBytes(32),
+            "signed-receipt"u8.ToArray());
+
+        Assert.AreEqual(
+            MessageCommitStatus.Accepted,
+            (await store.CommitAuthoritativeMessageAsync(commit)).Status);
+        Assert.AreEqual(
+            MessageCommitStatus.IdempotentRetry,
+            (await store.CommitAuthoritativeMessageAsync(commit)).Status);
+        Assert.AreEqual(
+            MessageCommitStatus.Conflict,
+            (await store.CommitAuthoritativeMessageAsync(
+                commit with { RequestSha256 = RandomNumberGenerator.GetBytes(32) })).Status);
+        var lookup = await store.GetAuthoritativeMessageResultAsync(
+            created.Circle.Id,
+            message.Id,
+            commit.RequestSha256);
+        Assert.AreEqual(MessageCommitStatus.IdempotentRetry, lookup!.Status);
+        Assert.AreEqual(message, (await store.ListMessagesAsync(created.Circle.Id)).Single());
     }
 
     private static Task<SqliteLocalStateStore> OpenAsync(string path) =>

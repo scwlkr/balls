@@ -3,6 +3,7 @@ import { useEffect, useRef, useState, type FormEvent } from "react";
 import { browserApi, type BrowserApi } from "./api/browserApi";
 import type {
   CircleDetailsDto,
+  CircleMessageDto,
   CircleSummaryDto,
   StatusDto,
 } from "./api/localControl";
@@ -18,6 +19,7 @@ interface WorkspaceState {
   status: StatusDto;
   circles: CircleSummaryDto[];
   selected: CircleDetailsDto | null;
+  messages: CircleMessageDto[];
 }
 
 export function App({ api = browserApi }: AppProps) {
@@ -53,11 +55,19 @@ export function App({ api = browserApi }: AppProps) {
           api.getStatus(),
           api.listCircles(),
         ]);
-        const selected = circleList.circles[0]
-          ? await api.getCircle(circleList.circles[0].id)
-          : null;
+        const [selected, messageList] = circleList.circles[0]
+          ? await Promise.all([
+              api.getCircle(circleList.circles[0].id),
+              api.listMessages(circleList.circles[0].id),
+            ])
+          : [null, null];
         if (active) {
-          setWorkspace({ status, circles: circleList.circles, selected });
+          setWorkspace({
+            status,
+            circles: circleList.circles,
+            selected,
+            messages: messageList?.messages ?? [],
+          });
         }
       } catch (reason) {
         if (active) setError(toMessage(reason));
@@ -82,6 +92,7 @@ export function App({ api = browserApi }: AppProps) {
         ...workspace,
         circles: mergeCircle(workspace.circles, selected.circle),
         selected,
+        messages: [],
       });
     } catch (reason) {
       setError(toMessage(reason));
@@ -95,8 +106,11 @@ export function App({ api = browserApi }: AppProps) {
     setBusy(true);
     setError(null);
     try {
-      const selected = await api.getCircle(circleId);
-      setWorkspace({ ...workspace, selected });
+      const [selected, messageList] = await Promise.all([
+        api.getCircle(circleId),
+        api.listMessages(circleId),
+      ]);
+      setWorkspace({ ...workspace, selected, messages: messageList.messages });
     } catch (reason) {
       setError(toMessage(reason));
     } finally {
@@ -162,6 +176,7 @@ function Masthead({ hasCircle }: { hasCircle: boolean }) {
         </a>
         {hasCircle ? <a href="#people">People</a> : null}
         {hasCircle ? <a href="#nodes">Nodes</a> : null}
+        {hasCircle ? <a href="#messages">Messages</a> : null}
       </nav>
       <span className="local-label">Local workspace</span>
     </header>
@@ -224,7 +239,7 @@ function Workspace({
       ) : null}
 
       {dashboard ? (
-        <CircleWorkspace dashboard={dashboard} />
+        <CircleWorkspace dashboard={dashboard} messages={workspace.messages} />
       ) : (
         <EmptyWorkspace busy={busy} onCreate={onCreate} />
       )}
@@ -232,7 +247,13 @@ function Workspace({
   );
 }
 
-function CircleWorkspace({ dashboard }: { dashboard: DashboardSnapshot }) {
+function CircleWorkspace({
+  dashboard,
+  messages,
+}: {
+  dashboard: DashboardSnapshot;
+  messages: CircleMessageDto[];
+}) {
   const { circle } = dashboard;
   return (
     <>
@@ -264,7 +285,68 @@ function CircleWorkspace({ dashboard }: { dashboard: DashboardSnapshot }) {
         </dl>
       </section>
       <CircleTopology circle={circle} />
+      <MessageHistory messages={messages} circle={circle} />
     </>
+  );
+}
+
+function MessageHistory({
+  messages,
+  circle,
+}: {
+  messages: CircleMessageDto[];
+  circle: DashboardSnapshot["circle"];
+}) {
+  const memberNames = new Map(
+    circle.members.map((member) => [member.id, member.name]),
+  );
+  return (
+    <section
+      className="message-history"
+      id="messages"
+      aria-labelledby="messages-title"
+    >
+      <div className="section-heading">
+        <div>
+          <p className="eyebrow">Circle messages</p>
+          <h2 id="messages-title">Durable history</h2>
+        </div>
+        <p>
+          Messages accepted by this Circle keep their author and order across
+          Nodes and restarts.
+        </p>
+      </div>
+      {messages.length === 0 ? (
+        <p className="message-empty">
+          No Circle messages have been accepted yet.
+        </p>
+      ) : (
+        <ol className="message-list">
+          {messages.map((message) => (
+            <li key={message.id}>
+              <span
+                className="message-sequence"
+                aria-label={`Sequence ${message.sequence}`}
+              >
+                {String(message.sequence).padStart(2, "0")}
+              </span>
+              <article>
+                <header>
+                  <strong>
+                    {memberNames.get(message.authorMemberId) ?? "Circle Member"}
+                  </strong>
+                  <time dateTime={message.acceptedAtUtc}>
+                    {formatTimestamp(message.acceptedAtUtc)}
+                  </time>
+                </header>
+                <p>{message.text}</p>
+                <code>{message.authorNodeId}</code>
+              </article>
+            </li>
+          ))}
+        </ol>
+      )}
+    </section>
   );
 }
 
@@ -351,6 +433,13 @@ function formatDate(value: string) {
     year: "numeric",
     month: "long",
     day: "numeric",
+  }).format(new Date(value));
+}
+
+function formatTimestamp(value: string) {
+  return new Intl.DateTimeFormat(undefined, {
+    dateStyle: "medium",
+    timeStyle: "short",
   }).format(new Date(value));
 }
 
