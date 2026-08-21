@@ -104,9 +104,51 @@ jobs:
       - name: Run fast verification
         run: dotnet run --project eng/Balls.Verify --configuration Release -- fast
 
+  macos-fast:
+    name: macOS fast
+    runs-on: macos-26
+    timeout-minutes: 10
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Install .NET SDK
+        uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6.0.0
+        with:
+          global-json-file: global.json
+          cache: true
+          cache-dependency-path: '**/packages.lock.json'
+
+      - name: Install Node.js
+        uses: actions/setup-node@2028fbc5c25fe9cf00d9f06a71cc4710d4507903 # v6.0.0
+        with:
+          node-version-file: .node-version
+
+      - name: Enable pinned pnpm
+        shell: bash
+        run: corepack enable
+
+      - name: Locate pnpm store
+        id: pnpm-store
+        shell: bash
+        run: echo "store_path=$(pnpm store path --silent)" >> "$GITHUB_OUTPUT"
+
+      - name: Cache pnpm store
+        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
+        with:
+          path: ${{ steps.pnpm-store.outputs.store_path }}
+          key: ${{ runner.os }}-pnpm-${{ hashFiles('pnpm-lock.yaml') }}
+          restore-keys: ${{ runner.os }}-pnpm-
+
+      - name: Run fast verification
+        run: dotnet run --project eng/Balls.Verify --configuration Release -- fast
+
   required:
     name: Required
-    needs: [windows-fast, ubuntu-fast]
+    needs: [windows-fast, ubuntu-fast, macos-fast]
     if: ${{ always() }}
     runs-on: ubuntu-24.04
     timeout-minutes: 2
@@ -117,13 +159,14 @@ jobs:
         env:
           WINDOWS_RESULT: ${{ needs.windows-fast.result }}
           UBUNTU_RESULT: ${{ needs.ubuntu-fast.result }}
+          MACOS_RESULT: ${{ needs.macos-fast.result }}
         run: |
-          if [[ "$WINDOWS_RESULT" != "success" || "$UBUNTU_RESULT" != "success" ]]; then
-            echo "Required lane failure: Windows=$WINDOWS_RESULT Ubuntu=$UBUNTU_RESULT" >&2
+          if [[ "$WINDOWS_RESULT" != "success" || "$UBUNTU_RESULT" != "success" || "$MACOS_RESULT" != "success" ]]; then
+            echo "Required lane failure: Windows=$WINDOWS_RESULT Ubuntu=$UBUNTU_RESULT macOS=$MACOS_RESULT" >&2
             exit 1
           fi
 
-          echo "Required Windows and Ubuntu lanes passed."
+          echo "Required Windows, Ubuntu, and macOS lanes passed."
 
   windows-canary:
     name: Windows Canary

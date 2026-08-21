@@ -44,8 +44,8 @@ product is the Circle.
 
 ## Visual direction
 
-Before designing or changing product UI, inspect [`balls-brand.png`](balls-brand.png) and use it
-as the visual reference.
+Before any brand or product-UI work, inspect [`balls-brand.png`](balls-brand.png). It is the
+canonical visual reference; derive new visual assets from it instead of inventing a parallel look.
 
 ## Architecture discipline
 

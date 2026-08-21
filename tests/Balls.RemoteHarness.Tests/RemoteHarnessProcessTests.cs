@@ -11,6 +11,13 @@ public sealed class RemoteHarnessProcessTests
     [TestMethod]
     public async Task Separate_processes_establish_an_authenticated_encrypted_LAN_channel()
     {
+        if (OperatingSystem.IsMacOS())
+        {
+            Assert.Inconclusive(
+                ".NET 10 supports TLS 1.3 on macOS clients, but not macOS SslStream servers.");
+            return;
+        }
+
         using var directory = new TemporaryDirectory();
         var prepared = await RunAsync("prepare", directory.Path);
         Assert.AreEqual(0, prepared.ExitCode, prepared.StandardError);

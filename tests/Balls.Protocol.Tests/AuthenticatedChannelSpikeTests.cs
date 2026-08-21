@@ -38,6 +38,13 @@ public sealed class AuthenticatedChannelSpikeTests
     [TestMethod]
     public async Task Tls_13_mtls_binds_both_transport_credentials_and_alpn()
     {
+        if (OperatingSystem.IsMacOS())
+        {
+            Assert.Inconclusive(
+                ".NET 10 supports TLS 1.3 on macOS clients, but not macOS SslStream servers.");
+            return;
+        }
+
         using var serverKey = ECDsa.Create(ECCurve.NamedCurves.nistP256);
         using var clientKey = ECDsa.Create(ECCurve.NamedCurves.nistP256);
         using var serverCertificate = CreateCertificate("anchor.balls", serverKey, isServer: true);

@@ -26,6 +26,7 @@ public static class RemoteTls
         string expectedServerTransportKeyId,
         X509Certificate2? clientCertificate)
     {
+        EnableMacOSTls13Client();
         ArgumentException.ThrowIfNullOrWhiteSpace(targetHost);
         if (!expectedServerTransportKeyId.StartsWith(
                 "transport:p256-sha256:",
@@ -84,6 +85,7 @@ public static class RemoteTls
         X509Certificate2? clientCertificate,
         PublicKeyCredential expectedServerTransportCredential)
     {
+        EnableMacOSTls13Client();
         ArgumentException.ThrowIfNullOrWhiteSpace(targetHost);
         EnsureTransportCredential(expectedServerTransportCredential);
         var clientCertificates = new X509CertificateCollection();
@@ -186,6 +188,14 @@ public static class RemoteTls
 
     private static SslApplicationProtocol ProtocolApplication =>
         new(Encoding.ASCII.GetBytes(RemoteSecurityProtocol.Alpn));
+
+    private static void EnableMacOSTls13Client()
+    {
+        if (OperatingSystem.IsMacOS())
+        {
+            AppContext.SetSwitch("System.Net.Security.UseNetworkFramework", true);
+        }
+    }
 
     private static bool ValidateCertificate(
         X509Certificate? certificate,

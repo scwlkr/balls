@@ -13,6 +13,13 @@ public sealed class RemoteAuthenticatedChannelTests
     [TestMethod]
     public async Task Tls13_channel_binds_Circle_Node_transport_and_rejects_replayed_frames()
     {
+        if (OperatingSystem.IsMacOS())
+        {
+            Assert.Inconclusive(
+                ".NET 10 supports TLS 1.3 on macOS clients, but not macOS SslStream servers.");
+            return;
+        }
+
         using var fixture = new ChannelFixture();
         using var listener = new TcpListener(IPAddress.Loopback, 0);
         listener.Start(1);
@@ -53,6 +60,13 @@ public sealed class RemoteAuthenticatedChannelTests
     [TestMethod]
     public async Task Unknown_transport_certificate_fails_closed_during_mutual_authentication()
     {
+        if (OperatingSystem.IsMacOS())
+        {
+            Assert.Inconclusive(
+                ".NET 10 supports TLS 1.3 on macOS clients, but not macOS SslStream servers.");
+            return;
+        }
+
         using var fixture = new ChannelFixture();
         using var unknownKey = ECDsa.Create(ECCurve.NamedCurves.nistP256);
         using var unknownCertificate = CreateCertificate("unknown.balls", unknownKey, isServer: false);
@@ -173,7 +187,9 @@ public sealed class RemoteAuthenticatedChannelTests
             password: null,
             OperatingSystem.IsWindows()
                 ? X509KeyStorageFlags.UserKeySet | X509KeyStorageFlags.Exportable
-                : X509KeyStorageFlags.EphemeralKeySet | X509KeyStorageFlags.Exportable);
+                : OperatingSystem.IsMacOS()
+                    ? X509KeyStorageFlags.Exportable
+                    : X509KeyStorageFlags.EphemeralKeySet | X509KeyStorageFlags.Exportable);
     }
 
     private sealed class ChannelFixture : IDisposable

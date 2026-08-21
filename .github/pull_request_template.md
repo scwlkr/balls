@@ -14,7 +14,7 @@ Describe the user outcome and architectural capability delivered.
 
 - [ ] Acceptance criteria are complete.
 - [ ] Focused/local fast checks pass.
-- [ ] Required Windows/Linux pull-request checks pass.
+- [ ] Required Windows/Linux/macOS pull-request checks pass.
 - [ ] Any triggered OS, networking, security, migration, installer, recovery, or UI gate passes.
 - [ ] Product behavior, contracts, security notes, roadmap, and `docs/STATE.md` are current.
 - [ ] Evidence says exactly what was observed and identifies unverified scenarios.
