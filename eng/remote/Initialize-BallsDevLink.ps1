@@ -3,7 +3,7 @@ param(
     [ValidateSet('Inspect', 'Configure', 'Finalize', 'Disable')]
     [string] $Action = 'Inspect',
 
-    [string] $KeyItem = 'Balls Dev Link',
+    [string] $KeyComment,
 
     [switch] $ConfirmSystemChange
 )
@@ -62,26 +62,27 @@ function Get-TailscaleStatus {
     return (($statusJson -join "`n") | ConvertFrom-Json)
 }
 
-function Get-OnePasswordPublicKey {
-    if ([string]::IsNullOrWhiteSpace($KeyItem)) {
-        throw 'Provide one 1Password SSH Key item title.'
+function Get-AgentPublicKey {
+    if ([string]::IsNullOrWhiteSpace($KeyComment)) {
+        throw 'Provide -KeyComment for exactly one public key exposed by the 1Password SSH agent.'
     }
 
-    $op = Get-Command 'op.exe' -ErrorAction SilentlyContinue
-    if ($null -eq $op) {
-        throw '1Password CLI is required to read only the selected SSH public key.'
-    }
-
-    $publicKey = ((& $op.Source item get $KeyItem --fields public_key 2>$null) -join '').Trim()
+    $keys = @(& ssh-add.exe -L 2>$null)
     if ($LASTEXITCODE -ne 0) {
-        throw "Could not read the '$KeyItem' public key from 1Password."
+        throw 'No SSH agent keys are available. Enable the 1Password SSH agent and expose the shared development key.'
     }
 
-    if ($publicKey -notmatch '^ssh-(ed25519|rsa) [A-Za-z0-9+/=]+(?: [^\r\n]{1,200})?$') {
+    $suffix = " $KeyComment"
+    $matches = @($keys | Where-Object { $_.EndsWith($suffix, [StringComparison]::Ordinal) })
+    if ($matches.Count -ne 1) {
+        throw "Expected exactly one SSH agent key ending with '$KeyComment'; found $($matches.Count)."
+    }
+
+    if ($matches[0] -notmatch '^ssh-(ed25519|rsa) [A-Za-z0-9+/=]+ [^\r\n]{1,200}$') {
         throw 'The selected SSH public key has an unexpected format.'
     }
 
-    return $publicKey
+    return $matches[0]
 }
 
 function Install-OpenSshServer {
@@ -232,7 +233,7 @@ switch ($Action) {
             throw 'Tailscale is not connected to a tailnet.'
         }
 
-        $publicKey = Get-OnePasswordPublicKey
+        $publicKey = Get-AgentPublicKey
         Install-OpenSshServer
         Set-AuthorizedKey -PublicKey $publicKey
         Set-SshdGlobalOption -Name 'PubkeyAuthentication' -Value 'yes'

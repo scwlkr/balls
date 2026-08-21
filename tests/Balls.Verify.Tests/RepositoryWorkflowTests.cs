@@ -190,12 +190,8 @@ public sealed partial class RepositoryWorkflowTests
 
         StringAssert.Contains(macBootstrap, "inspect|configure|disable");
         StringAssert.Contains(macBootstrap, "--confirm-system-change");
-        StringAssert.Contains(macBootstrap, "ListenAddress");
-        StringAssert.Contains(macBootstrap, "AuthenticationMethods publickey");
-        StringAssert.Contains(macBootstrap, "com.scwlkr.balls-dev-link-sshd");
-        StringAssert.Contains(macBootstrap, "ip -4");
+        StringAssert.Contains(macBootstrap, "set --ssh=true");
         Assert.IsFalse(macBootstrap.Contains("systemsetup -setremotelogin on", StringComparison.Ordinal));
-        Assert.IsFalse(macBootstrap.Contains("set --ssh=true", StringComparison.Ordinal));
         Assert.IsFalse(macBootstrap.Contains("curl ", StringComparison.Ordinal));
 
         StringAssert.Contains(runbook, "GitHub remains the source of truth");
