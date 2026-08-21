@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, within } from "@testing-library/react";
+import { act, fireEvent, render, screen, within } from "@testing-library/react";
 
 import { App } from "./App";
 import type { BrowserApi } from "./api/browserApi";
@@ -43,6 +43,15 @@ const details = {
   ],
 } satisfies CircleDetailsDto;
 
+const secondDetails = {
+  ...details,
+  circle: {
+    ...details.circle,
+    id: "0198f2cc-6a50-7a08-aacb-298f4ebdf630",
+    name: "Neighborhood Circle",
+  },
+} satisfies CircleDetailsDto;
+
 describe("Balls browser workspace", () => {
   beforeEach(() => {
     window.history.replaceState(null, "", "/#launch=test-capability");
@@ -65,7 +74,35 @@ describe("Balls browser workspace", () => {
     expect(
       screen.getByRole("form", { name: "Create a Circle" }),
     ).toBeInTheDocument();
+    expect(
+      screen.getByText("Local workspace", { selector: ".local-label" }),
+    ).toHaveAttribute("data-ready", "true");
     expect(window.location.hash).toBe("");
+  });
+
+  it("uses the Balls brandmark in the home link instead of a placeholder letter", () => {
+    render(<App api={createApi({ circles: [] })} />);
+
+    const home = screen.getByRole("link", { name: "Balls home" });
+    const mark = home.querySelector("svg");
+    expect(mark).toHaveAttribute("aria-hidden", "true");
+    expect(mark).toHaveAttribute("viewBox", "0 0 64 64");
+    expect(home.querySelector(".brand-mark")).not.toHaveTextContent("B");
+  });
+
+  it("announces the workspace loading state", () => {
+    const api = createApi({ circles: [] });
+    api.exchangeLaunchCapability = () => new Promise(() => undefined);
+
+    render(<App api={api} />);
+
+    expect(screen.getByRole("status")).toHaveTextContent("Opening Balls…");
+    expect(
+      screen.queryByRole("navigation", { name: "Circle navigation" }),
+    ).toBeNull();
+    expect(
+      screen.getByText("Local workspace", { selector: ".local-label" }),
+    ).toHaveAttribute("data-ready", "false");
   });
 
   it("creates a Circle and renders its Member and Node through live API results", async () => {
@@ -91,6 +128,35 @@ describe("Balls browser workspace", () => {
     expect(within(nodes).getByText("This device")).toBeInTheDocument();
   });
 
+  it("announces when Circle creation is busy", async () => {
+    let finishCreate: ((value: CircleDetailsDto) => void) | undefined;
+    const api = createApi({ circles: [] });
+    api.createCircle = () =>
+      new Promise((resolve) => {
+        finishCreate = resolve;
+      });
+
+    render(<App api={api} />);
+    const form = await screen.findByRole("form", { name: "Create a Circle" });
+    fireEvent.change(within(form).getByLabelText("Circle name"), {
+      target: { value: "Example Studio" },
+    });
+    fireEvent.change(within(form).getByLabelText("Your display name"), {
+      target: { value: "Alice Morgan" },
+    });
+    fireEvent.submit(form);
+
+    expect(form).toHaveAttribute("aria-busy", "true");
+    expect(
+      within(form).getByRole("button", { name: "Creating…" }),
+    ).toBeDisabled();
+
+    await act(async () => finishCreate?.(details));
+    expect(
+      await screen.findByRole("heading", { level: 1, name: "Example Studio" }),
+    ).toBeInTheDocument();
+  });
+
   it("loads the first persisted Circle and exposes the Circle list", async () => {
     render(
       <App
@@ -106,6 +172,46 @@ describe("Balls browser workspace", () => {
     const circles = screen.getByRole("navigation", { name: "Your Circles" });
     expect(
       within(circles).getByRole("button", { name: "Example Studio" }),
+    ).toHaveAttribute("aria-current", "page");
+  });
+
+  it("announces a busy Circle switch and moves selection after loading", async () => {
+    let finishSwitch: ((value: CircleDetailsDto) => void) | undefined;
+    const api = createApi({ circles: [details.circle, secondDetails.circle] });
+    api.getCircle = (circleId) => {
+      if (circleId === details.circle.id) return Promise.resolve(details);
+      return new Promise((resolve) => {
+        finishSwitch = resolve;
+      });
+    };
+
+    render(<App api={api} />);
+    await screen.findByRole("heading", { level: 1, name: "Example Studio" });
+    const circles = screen.getByRole("navigation", { name: "Your Circles" });
+    fireEvent.click(
+      within(circles).getByRole("button", { name: "Neighborhood Circle" }),
+    );
+
+    expect(circles).toHaveAttribute("aria-busy", "true");
+    expect(within(circles).getByRole("status")).toHaveTextContent(
+      "Switching Circle…",
+    );
+    expect(
+      within(circles).getByRole("button", { name: "Neighborhood Circle" }),
+    ).toBeDisabled();
+    expect(
+      screen.getByRole("heading", { level: 1, name: "Example Studio" }),
+    ).toBeInTheDocument();
+
+    await act(async () => finishSwitch?.(secondDetails));
+    expect(
+      await screen.findByRole("heading", {
+        level: 1,
+        name: "Neighborhood Circle",
+      }),
+    ).toBeInTheDocument();
+    expect(
+      within(circles).getByRole("button", { name: "Neighborhood Circle" }),
     ).toHaveAttribute("aria-current", "page");
   });
 

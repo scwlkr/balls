@@ -13,7 +13,7 @@ export function StatusBanner({ snapshot }: StatusBannerProps) {
       <span className="status-dot" aria-hidden="true" />
       <div>
         <strong>{snapshot.localNode.name}</strong>
-        <span>ballsd is ready on this device</span>
+        <span>Local Node ready</span>
       </div>
       <dl className="status-facts">
         <div>
