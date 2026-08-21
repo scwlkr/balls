@@ -11,8 +11,9 @@ keeps its own clone and worktrees, then exchanges commits through GitHub.
 
 ## Security boundary
 
-- The Mac accepts inbound SSH through Tailscale SSH, governed by the tailnet SSH policy. Native
-  macOS Remote Login remains off, so port 22 is not opened generally on the LAN.
+- The sandboxed Tailscale macOS app cannot host Tailscale SSH. The Mac therefore runs one dedicated
+  native `sshd` bound only to its Tailscale IPv4 address. Native macOS Remote Login remains off, so
+  port 22 is not opened generally on the LAN.
 - Windows uses the native OpenSSH Server because Tailscale SSH does not provide a Windows server.
   Its broad default firewall rule is disabled and replaced by one rule limited to the Tailscale
   interface and `100.64.0.0/10`.
@@ -40,17 +41,17 @@ keeps its own clone and worktrees, then exchanges commits through GitHub.
    .\eng\remote\Initialize-BallsDevLink.ps1 -Action Inspect
    ```
 
-4. On the Mac, enable the tailnet-governed SSH server:
+4. On the Mac, install the key-only SSH daemon bound to its current Tailscale address:
 
    ```bash
    ./eng/remote/Initialize-BallsDevLink.sh configure --confirm-system-change
    ```
 
-5. In an elevated Windows PowerShell from its local Balls clone, install/configure OpenSSH. Replace
-   the example comment with the exact 1Password SSH key comment:
+5. In an elevated Windows PowerShell from its local Balls clone, install/configure OpenSSH. The
+   default key item is `Balls Dev Link`; pass `-KeyItem` only if its title differs:
 
    ```powershell
-   .\eng\remote\Initialize-BallsDevLink.ps1 -Action Configure -KeyComment 'Balls Dev Link' -ConfirmSystemChange
+   .\eng\remote\Initialize-BallsDevLink.ps1 -Action Configure -ConfirmSystemChange
    ```
 
 6. From the Mac, connect to the Windows Tailscale DNS name and prove that 1Password authorizes the
@@ -63,8 +64,7 @@ keeps its own clone and worktrees, then exchanges commits through GitHub.
 7. Add stable SSH aliases locally. Keep machine-specific usernames and hostnames outside the public
    repository. VS Code Remote SSH and ordinary `ssh`, `scp`, and `rsync` can use those aliases.
 
-Tailscale SSH also needs a tailnet SSH rule allowing the Windows identity to reach the Mac. Keep
-that rule scoped to the owner's user and these tagged/devices; do not add a public or wildcard
+Keep the tailnet device-access rule scoped to the owner's devices; do not add a public or wildcard
 source solely for convenience.
 
 ## Daily loop
@@ -82,6 +82,6 @@ dated verification document.
 
 ## Disable access
 
-Run the matching confirmed `Disable` action locally on either laptop. The Mac action turns off
-Tailscale SSH. The Windows action stops/disables `sshd` and disables the Balls-specific firewall
-rule. Neither action signs out of Tailscale or removes 1Password data.
+Run the matching confirmed `Disable` action locally on either laptop. The Mac action persistently
+unloads the dedicated Tailscale-bound daemon. The Windows action stops/disables `sshd` and disables
+the Balls-specific firewall rule. Neither action signs out of Tailscale or removes 1Password data.
