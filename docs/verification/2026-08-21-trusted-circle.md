@@ -11,10 +11,10 @@
 Trusted Circle is a release candidate. Product code, contracts, migrations, and the milestone's
 cross-host outcome are implemented. The shared .NET/web product version is `0.3.0-alpha.1`.
 
-The final accepted commit is not defined until this candidate lands through protected `main`.
-Only the Windows and Linux Canaries built once by that commit may be promoted. Exact downloaded
-artifact verification and explicit owner acceptance are still required; no tag or GitHub Release
-has been created.
+The candidate landed through protected `main` as exact commit
+`8dc39455ac432c6f295a86fad3a765d4f70a1fe9`. Its once-built Windows and Linux Canaries passed
+hosted and independent exact-artifact verification. Explicit owner acceptance is still required;
+no tag or GitHub Release has been created.
 
 ## Completed implementation outcomes
 
@@ -49,21 +49,44 @@ The release-version change was developed against the public daemon status bounda
   active milestone, exactly #56 ready in the seven-issue prepared milestone, and no existing
   `0.3.0-alpha.1` tag or release.
 
+[Pull request #63](https://github.com/scwlkr/balls/pull/63) passed dependency review, CodeQL, and
+fixed Windows 2025, Ubuntu 24.04, and Apple-Silicon macOS 26 lanes before squash merge. Its first
+Windows attempt exposed an old fixed test instant whose real 24-hour TLS certificate had expired
+25 seconds before the run. The fixture now samples wall-clock UTC once and freezes application
+time without bypassing certificate validity. The focused test then passed 11 consecutive runs,
+the local fast gate passed, both independent reviews found no violation, and the hosted Windows
+rerun passed in 4 minutes 25 seconds.
+
 The historical gitleaks match for the literal metadata pair
 `privateKeyEncoding` / `encrypted-pkcs8` is not a credential. Its exact fingerprint is ignored;
 the final tracked-history scan found no leaks.
 
 ## Proven headline outcome
 
-The [persistent-message record](2026-08-21-persistent-circle-message.md) proves the full outcome
-on one physical Windows host and the owned Ubuntu 24.04 Hyper-V guest: invitation-pinned TLS 1.3
-admission, the same two Members and Nodes, one Ubuntu-authored message with identical CLI/browser
-history, both-daemon restart, and retry-stable Anchor sequence `1`.
+The [persistent-message record](2026-08-21-persistent-circle-message.md) first proved the full
+outcome from exact source. Protected-main
+[CI run 32522245443](https://github.com/scwlkr/balls/actions/runs/32522245443) then passed Windows,
+Ubuntu, macOS, Required, and both once-built Canary jobs for `8dc39455ac43`.
 
-That source proof and the subsequent individual green-main Canary smokes establish the product
-behavior but are not substituted for this release's exact artifact gate. After the candidate merge,
-the exact `0.3.0-alpha.1` Windows and Linux Canaries must repeat checksum installation, invitation,
-admission, shared membership, persistent message, real browser observation, restart, and retry.
+| Platform | GitHub artifact | Downloaded package | Independent smoke |
+| --- | --- | --- | --- |
+| Physical Windows | ID `9461108213`; 18,955,912 bytes; artifact digest `9fefd3cc4eb059f31d6222a1884ebc07ae07540db72d82084d3f1fdbaf3b208f` | 18,948,090-byte ZIP; SHA-256 `8d7f4c5d02a4ae17787d7617ff6a75394b35c898efa7d55be8c63d51fb049ae1` | outer/internal checksums, fresh install, structured CLI/Circle, real Chrome UI, and restart passed; fresh Node `01a025f8-82ff-7f31-91de-838b4007169a` |
+| Ubuntu 24.04 Hyper-V guest | ID `9461099183`; 18,872,208 bytes; artifact digest `15e9bb345c6f2e6eb1f28915393b3ad5a8a3681ad44986a2b5cbbc8a3ce4f5b2` | 18,866,957-byte ZIP; SHA-256 `ab09f8795f4ef9f6ef31b7fcd606b889a62aab0daca68a488a8f0a710ac2f0fe` | outer/internal checksums, fresh install, structured CLI/Circle, Chrome-for-Testing UI, socket cleanup, and restart passed; fresh Node `01a025fb-34d2-7679-875a-caae185c5caa` |
+
+The two downloaded packages then completed one shared private-network journey. Ubuntu Anchor Node
+`01a025fc-4d1d-77d7-989e-29665f77c39d` created Circle
+`01a025fe-dfc8-7841-bb14-df1511a4e2a6`; invitation-pinned TLS 1.3 admitted physical-Windows Node
+`01a025fd-e5f9-72a7-a8f3-5c8bcb657c88`. Both sides showed Alice/Bob and the same two Nodes.
+Windows authored message `0198c2d8-b000-7000-8000-000000000635`; both histories stored exactly
+one identical sequence-`1` row. The packaged Windows browser rendered the Circle, attribution,
+message, and `#1` before and after both daemons restarted. Exact retry after restart retained both
+Node identities, the original authored/accepted times, sequence `1`, and one row per Node.
+
+The guest retained machine ID `498d59af31b04f34bb19722beab972aa`. Its dated checkpoint lacked
+the intended runtime/browser, so .NET 10.0.11, Chrome for Testing 152.0.7977.54, and only the
+required extracted user-local libraries were staged without system package installation. Spent
+invitation files and all generated private identity/state/tool directories were removed; the lab
+again reported a clean Balls identity. No second physical machine was used.
 
 ## Repository and security state
 
@@ -77,8 +100,10 @@ admission, shared membership, persistent message, real browser observation, rest
   open code alerts. Six open Scorecard findings are repository-maturity signals rather than an
   observed credential, code vulnerability, corruption path, or launch failure.
 - Canary packages carry external and internal SHA-256 checksums plus GitHub artifact digests and
-  workflow/commit provenance. Artifact attestations are not currently claimed. The Alpha release
-  will attach the exact installers, checksums, and GitHub dependency-graph SPDX 2.3 SBOM.
+  workflow/commit provenance. Artifact attestations are not currently claimed. GitHub produced a
+  valid SPDX 2.3 dependency-graph SBOM with 333 packages and 487 relationships; the staged
+  313,580-byte JSON has SHA-256
+  `60901d2bb3378a0b53660a025bee1fd70491c017f6f3b7f3edd5a63991c79daf`.
 
 ## Documentation reconciliation
 
@@ -109,10 +134,7 @@ implementation does not start before Trusted Circle is accepted.
 
 ## Remaining acceptance gates
 
-1. Merge this candidate through protected `main` with all required hosted checks green.
-2. Download the resulting exact Windows/Linux Canaries and complete the cross-artifact outcome.
-3. Append artifact IDs, sizes, SHA-256 values, commit identity, environment evidence, and any
-   honest limitations to this record.
-4. Obtain explicit owner acceptance.
-5. Tag the accepted commit, promote only those exact artifacts, attach the SPDX SBOM, verify
-   anonymous public readback, and then close #34 and the milestone.
+1. Obtain explicit owner acceptance.
+2. Tag `8dc39455ac432c6f295a86fad3a765d4f70a1fe9`, promote only the verified exact artifacts, and
+   attach their checksum files, installers, and the staged SPDX SBOM.
+3. Verify anonymous public readback, then close #34 and the milestone.

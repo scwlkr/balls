@@ -34,10 +34,11 @@ the repository toolchain, and the initial source/browser/installer smokes are pr
 
 [Open the active GitHub milestone](https://github.com/scwlkr/balls/milestone/3).
 
-Status: release-candidate verification. Trusted identity/admission design, protected authority,
-bounded invitations, authenticated LAN transport, restart-stable two-Node membership, and one
-minimal persistent Circle message are complete and accepted. `0.3.0-alpha.1` is awaiting exact
-protected-main Windows/Linux artifact proof and explicit owner acceptance. Current readiness is in
+Status: owner acceptance. Trusted identity/admission design, protected authority, bounded
+invitations, authenticated LAN transport, restart-stable two-Node membership, and one minimal
+persistent Circle message are complete. Exact protected-main Windows/Linux artifacts passed
+independent and shared two-Node verification; `0.3.0-alpha.1` awaits explicit owner acceptance.
+Current readiness is in
 the [Trusted Circle milestone record](verification/2026-08-21-trusted-circle.md).
 
 Exit outcome: a second Node accepts a bounded invitation, joins one Circle over authenticated
@@ -208,7 +209,7 @@ replication remain explicit non-goals. Evidence is in the
 Active frontier:
 
 - [#34 — Verify and accept the Trusted Circle milestone](https://github.com/scwlkr/balls/issues/34)
-  is preparing the versioned candidate, exact artifacts, and owner decision.
+  has verified the exact versioned artifacts and is awaiting the owner decision.
 
 Prepared next milestone:
 

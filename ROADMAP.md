@@ -17,8 +17,9 @@ on Windows and Linux. Trusted Circle is a release candidate. Its remote v1 ident
 security design is accepted; protected production credentials, bounded single-use invitations,
 authenticated LAN transport, persisted two-Node Circle admission, and one persistent Circle
 message are implemented.
-The `0.3.0-alpha.1` release candidate is awaiting exact protected-main artifact verification and
-explicit owner acceptance. The executable LAN Circle Files successor is prepared as #56–#62.
+The exact `0.3.0-alpha.1` protected-main Windows/Linux artifacts passed independent and shared
+two-Node verification; the release candidate awaits explicit owner acceptance. The executable LAN
+Circle Files successor is prepared as #56–#62.
 
 In parallel, [#48](https://github.com/scwlkr/balls/issues/48) establishes an Apple-Silicon,
 source-run macOS developer Node and required Mac fast lane. This accelerates portable, browser,
