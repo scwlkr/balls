@@ -27,6 +27,7 @@ public sealed class TrustedCircleAdmissionApplicationTests
         string package;
         CircleId circleId;
         CircleDetails joined;
+        CircleMessageId messageId = new(Guid.CreateVersion7());
         await using (var anchorStore = await SqliteLocalStateStore.OpenAsync(
                          anchorDirectory.Path,
                          protector))
@@ -94,6 +95,56 @@ public sealed class TrustedCircleAdmissionApplicationTests
                 timeout.Token);
             Assert.AreEqual(2, retried.Members.Count);
             Assert.AreEqual(2, retried.Nodes.Count);
+
+            await using var messageListener = new TcpLanTransportListener(
+                new IPEndPoint(IPAddress.Loopback, 0));
+            var anchorMessages = new TrustedCircleMessageApplication(
+                anchorStore,
+                anchorStore,
+                anchorStore,
+                anchorStore,
+                new TcpLanTransportConnector(),
+                time);
+            var joinerMessages = new TrustedCircleMessageApplication(
+                joinerStore,
+                joinerStore,
+                joinerStore,
+                joinerStore,
+                new TcpLanTransportConnector(),
+                time);
+            var serveMessage = ServeMessageOnceAsync(
+                messageListener,
+                anchorMessages,
+                timeout.Token);
+            var sent = await joinerMessages.SendAsync(
+                messageId,
+                circleId,
+                messageListener.BoundAddress,
+                "Hello from Bob's Node.",
+                timeout.Token);
+            await serveMessage;
+
+            Assert.AreEqual(messageId, sent.Id);
+            Assert.AreEqual(1, sent.Sequence);
+            Assert.AreEqual("Hello from Bob's Node.", sent.Text);
+            Assert.AreEqual("Bob", joined.Members.Single(member => member.Id == sent.AuthorMemberId).DisplayName);
+            Assert.AreEqual(1, (await anchorStore.ListCircleMessagesAsync(circleId)).Count);
+            Assert.AreEqual(1, (await joinerStore.ListCircleMessagesAsync(circleId)).Count);
+
+            var serveRetry = ServeMessageOnceAsync(
+                messageListener,
+                anchorMessages,
+                timeout.Token);
+            var retriedMessage = await joinerMessages.SendAsync(
+                messageId,
+                circleId,
+                messageListener.BoundAddress,
+                "Hello from Bob's Node.",
+                timeout.Token);
+            await serveRetry;
+            Assert.AreEqual(sent, retriedMessage);
+            Assert.AreEqual(1, (await anchorStore.ListCircleMessagesAsync(circleId)).Count);
+            Assert.AreEqual(1, (await joinerStore.ListCircleMessagesAsync(circleId)).Count);
         }
 
         await using var reopenedAnchor = await SqliteLocalStateStore.OpenAsync(
@@ -115,6 +166,22 @@ public sealed class TrustedCircleAdmissionApplicationTests
             joinerRestart.Members.Select(value => value.Id.ToString())
                 .Order(StringComparer.Ordinal).ToArray());
         Assert.IsNull(await reopenedJoiner.GetCircleAuthorityAsync(circleId));
+        var anchorMessagesAfterRestart = await reopenedAnchor.ListCircleMessagesAsync(circleId);
+        var joinerMessagesAfterRestart = await reopenedJoiner.ListCircleMessagesAsync(circleId);
+        Assert.AreEqual(1, anchorMessagesAfterRestart.Count);
+        Assert.AreEqual(anchorMessagesAfterRestart.Single(), joinerMessagesAfterRestart.Single());
+    }
+
+    private static async Task ServeMessageOnceAsync(
+        TcpLanTransportListener listener,
+        TrustedCircleMessageApplication application,
+        CancellationToken cancellationToken)
+    {
+        await foreach (var connection in listener.AcceptAsync(cancellationToken))
+        {
+            await application.HandleAsync(connection, cancellationToken);
+            return;
+        }
     }
 
     private static async Task ServeOneAsync(

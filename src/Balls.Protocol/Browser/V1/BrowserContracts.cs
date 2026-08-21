@@ -11,6 +11,11 @@ public static class BrowserRoutes
     {
         return $"{Circles}/{Uri.EscapeDataString(circleId)}";
     }
+
+    public static string CircleMessages(string circleId)
+    {
+        return $"{Circle(circleId)}/messages";
+    }
 }
 
 public sealed record LaunchBrowserResponse(string Url, DateTimeOffset ExpiresAtUtc);

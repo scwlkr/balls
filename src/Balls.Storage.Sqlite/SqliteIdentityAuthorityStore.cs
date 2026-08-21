@@ -877,7 +877,8 @@ public sealed partial class SqliteLocalStateStore
                     (SELECT COUNT(*) FROM circles),
                     (SELECT COUNT(*) FROM circle_authorities),
                     (SELECT COUNT(*) FROM circle_authorities WHERE authority_generation < 1),
-                    (SELECT COUNT(*) FROM circle_trust);
+                    (SELECT COUNT(*) FROM circle_trust),
+                    (SELECT COUNT(*) FROM local_circle_members);
                 """;
             await using var reader = await completeness.ExecuteReaderAsync(cancellationToken)
                 .ConfigureAwait(false);
@@ -886,7 +887,8 @@ public sealed partial class SqliteLocalStateStore
                 || reader.GetInt64(0) != reader.GetInt64(2)
                 || reader.GetInt64(4) > reader.GetInt64(3)
                 || reader.GetInt64(5) != 0
-                || reader.GetInt64(6) != reader.GetInt64(3))
+                || reader.GetInt64(6) != reader.GetInt64(3)
+                || reader.GetInt64(7) != reader.GetInt64(3))
             {
                 throw InvalidPrivateMaterial();
             }
@@ -1037,6 +1039,28 @@ public sealed partial class SqliteLocalStateStore
                 FROM admission_attempts;
                 """;
             await using var reader = await admissionMembers.ExecuteReaderAsync(cancellationToken)
+                .ConfigureAwait(false);
+            while (await reader.ReadAsync(cancellationToken).ConfigureAwait(false))
+            {
+                credentials.Add((
+                    IdentityKeyRole.Member,
+                    reader.GetString(0),
+                    reader.GetString(1),
+                    (byte[])reader.GetValue(2),
+                    reader.GetString(3),
+                    (byte[])reader.GetValue(4)));
+            }
+        }
+
+        using (var localCircleMembers = connection.CreateCommand())
+        {
+            localCircleMembers.CommandText =
+                """
+                SELECT key_algorithm, key_id, public_key_spki,
+                       private_key_scheme, protected_private_key
+                FROM local_circle_members;
+                """;
+            await using var reader = await localCircleMembers.ExecuteReaderAsync(cancellationToken)
                 .ConfigureAwait(false);
             while (await reader.ReadAsync(cancellationToken).ConfigureAwait(false))
             {

@@ -143,6 +143,7 @@ internal static class BrowserAdapter
     public static void MapRoutes(
         WebApplication application,
         CircleApplication circleApplication,
+        ICircleMessageStateStore messageStore,
         BrowserAccessBroker access)
     {
         application.MapPost(
@@ -262,7 +263,51 @@ internal static class BrowserAdapter
             .Produces<CircleDetailsResponse>(StatusCodes.Status200OK)
             .Produces<ErrorResponse>(StatusCodes.Status400BadRequest)
             .Produces<ErrorResponse>(StatusCodes.Status404NotFound);
+        application.MapGet(
+                BrowserRoutes.Circles + "/{circleId}/messages",
+                async (string circleId, CancellationToken token) =>
+                {
+                    if (!Guid.TryParseExact(circleId, "D", out var parsedCircleId))
+                    {
+                        return Results.BadRequest(
+                            new ErrorResponse(
+                                "invalid_circle_id",
+                                "Circle ID must be a canonical UUID."));
+                    }
+
+                    var circle = await circleApplication
+                        .GetCircleAsync(new CircleId(parsedCircleId), token)
+                        .ConfigureAwait(false);
+                    if (circle is null)
+                    {
+                        return Results.NotFound(
+                            new ErrorResponse(
+                                "circle_not_found",
+                                "The requested Circle is not known to this Node."));
+                    }
+
+                    var values = await messageStore.ListCircleMessagesAsync(circle.Circle.Id, token)
+                        .ConfigureAwait(false);
+                    return Results.Ok(
+                        new CircleMessageListResponse(
+                            circle.Circle.Id.ToString(),
+                            values.Select(ToResponse).ToArray()));
+                })
+            .Produces<CircleMessageListResponse>(StatusCodes.Status200OK)
+            .Produces<ErrorResponse>(StatusCodes.Status400BadRequest)
+            .Produces<ErrorResponse>(StatusCodes.Status404NotFound);
     }
+
+    private static CircleMessageResponse ToResponse(PersistedCircleMessage message) =>
+        new(
+            message.Id.ToString(),
+            message.CircleId.ToString(),
+            message.AuthorMemberId.ToString(),
+            message.AuthorNodeId.ToString(),
+            message.Text,
+            message.AuthoredAtUtc,
+            message.Sequence,
+            message.AcceptedAtUtc);
 
     private static bool IsLoopback(IPAddress? address)
     {

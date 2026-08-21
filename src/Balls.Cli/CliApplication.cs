@@ -215,6 +215,32 @@ public static class CliApplication
                         cancellationToken).ConfigureAwait(false);
                 }
 
+                if (tokens.Count >= 2
+                    && tokens[0] == "message"
+                    && tokens[1] == "send")
+                {
+                    return await SendMessageAsync(
+                        client,
+                        tokens,
+                        parseResult.OutputFormat,
+                        standardOutput,
+                        standardError,
+                        cancellationToken).ConfigureAwait(false);
+                }
+
+                if (tokens.Count >= 2
+                    && tokens[0] == "message"
+                    && tokens[1] == "list")
+                {
+                    return await ListMessagesAsync(
+                        client,
+                        tokens,
+                        parseResult.OutputFormat,
+                        standardOutput,
+                        standardError,
+                        cancellationToken).ConfigureAwait(false);
+                }
+
                 return await WriteUsageErrorAsync(
                     standardError,
                     parseResult.OutputFormat,
@@ -639,6 +665,77 @@ public static class CliApplication
         return CliExitCodes.Success;
     }
 
+    private static async Task<int> SendMessageAsync(
+        HttpClient client,
+        IReadOnlyList<string> tokens,
+        CliOutputFormat outputFormat,
+        TextWriter output,
+        TextWriter error,
+        CancellationToken cancellationToken)
+    {
+        if (!TryParseSendMessage(
+                tokens,
+                out var circleId,
+                out var endpoint,
+                out var text,
+                out var requestId,
+                out var parseError))
+        {
+            return await WriteUsageErrorAsync(error, outputFormat, parseError);
+        }
+
+        using var response = await client.PostAsJsonAsync(
+            ControlRoutes.CircleMessages(circleId),
+            new SendCircleMessageRequest(requestId, endpoint, text),
+            ControlJson.Options,
+            cancellationToken).ConfigureAwait(false);
+        var result = await ReadResponseAsync<CircleMessageResponse>(
+            response,
+            outputFormat,
+            error,
+            cancellationToken).ConfigureAwait(false);
+        if (result.Value is null)
+        {
+            return result.ExitCode;
+        }
+
+        await WriteResultAsync(output, outputFormat, result.Value, CliOutput.RenderSentMessage);
+        return CliExitCodes.Success;
+    }
+
+    private static async Task<int> ListMessagesAsync(
+        HttpClient client,
+        IReadOnlyList<string> tokens,
+        CliOutputFormat outputFormat,
+        TextWriter output,
+        TextWriter error,
+        CancellationToken cancellationToken)
+    {
+        if (tokens.Count != 4 || tokens[2] != "--circle")
+        {
+            return await WriteUsageErrorAsync(
+                error,
+                outputFormat,
+                "usage: balls message list --circle <circle-id>.");
+        }
+
+        using var response = await client.GetAsync(
+            ControlRoutes.CircleMessages(tokens[3]),
+            cancellationToken).ConfigureAwait(false);
+        var result = await ReadResponseAsync<CircleMessageListResponse>(
+            response,
+            outputFormat,
+            error,
+            cancellationToken).ConfigureAwait(false);
+        if (result.Value is null)
+        {
+            return result.ExitCode;
+        }
+
+        await WriteResultAsync(output, outputFormat, result.Value, CliOutput.RenderMessages);
+        return CliExitCodes.Success;
+    }
+
     private static async Task<ResponseResult<T>> ReadResponseAsync<T>(
         HttpResponseMessage response,
         CliOutputFormat outputFormat,
@@ -925,6 +1022,56 @@ public static class CliApplication
         return invitationPath.Length > 0 && endpoint.Length > 0 && memberDisplayName.Length > 0;
     }
 
+    private static bool TryParseSendMessage(
+        IReadOnlyList<string> tokens,
+        out string circleId,
+        out string endpoint,
+        out string text,
+        out string requestId,
+        out string error)
+    {
+        circleId = string.Empty;
+        endpoint = string.Empty;
+        text = string.Empty;
+        requestId = Guid.CreateVersion7().ToString("D");
+        error = "usage: balls message send --circle <circle-id> --endpoint <private-ip:port> --text <text> [--request-id <uuid>].";
+        if (tokens.Count is not 8 and not 10)
+        {
+            return false;
+        }
+
+        var seen = new HashSet<string>(StringComparer.Ordinal);
+        for (var index = 2; index < tokens.Count; index += 2)
+        {
+            if (index + 1 >= tokens.Count
+                || tokens[index + 1].StartsWith("--", StringComparison.Ordinal)
+                || !seen.Add(tokens[index]))
+            {
+                return false;
+            }
+
+            switch (tokens[index])
+            {
+                case "--circle":
+                    circleId = tokens[index + 1];
+                    break;
+                case "--endpoint":
+                    endpoint = tokens[index + 1];
+                    break;
+                case "--text":
+                    text = tokens[index + 1];
+                    break;
+                case "--request-id":
+                    requestId = tokens[index + 1];
+                    break;
+                default:
+                    return false;
+            }
+        }
+
+        return circleId.Length > 0 && endpoint.Length > 0 && text.Length > 0;
+    }
+
     private static async Task<string?> ReadInvitationFileAsync(
         string path,
         CliOutputFormat outputFormat,
@@ -1003,7 +1150,7 @@ public static class CliApplication
         if (outputFormat == CliOutputFormat.Text)
         {
             await error.WriteLineAsync(
-                "commands: ui | status | circle create | circle join | circle list | member list | node list | invitation create | invitation redeem");
+                "commands: ui | status | circle create | circle join | circle list | member list | node list | invitation create | invitation redeem | message send | message list");
         }
 
         return CliExitCodes.UsageError;

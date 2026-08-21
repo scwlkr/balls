@@ -10,6 +10,9 @@ export type StatusDto = components["schemas"]["StatusResponse"];
 export type CircleDetailsDto = components["schemas"]["CircleDetailsResponse"];
 export type CircleListDto = components["schemas"]["CircleListResponse"];
 export type CircleSummaryDto = components["schemas"]["CircleResponse"];
+export type CircleMessageDto = components["schemas"]["CircleMessageResponse"];
+export type CircleMessageListDto =
+  components["schemas"]["CircleMessageListResponse"];
 export type CreateCircleDto = components["schemas"]["CreateCircleRequest"];
 export type BrowserSessionDto = components["schemas"]["BrowserSessionResponse"];
 export type MemberDto = components["schemas"]["MemberResponse"];

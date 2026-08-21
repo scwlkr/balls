@@ -103,7 +103,7 @@ public sealed class CliApplicationTests
         Assert.AreEqual(string.Empty, misplacedOutput.ToString());
         Assert.AreEqual(
             "balls: --output must be either 'text' or 'json'." + Environment.NewLine
-                + "commands: ui | status | circle create | circle join | circle list | member list | node list | invitation create | invitation redeem"
+                + "commands: ui | status | circle create | circle join | circle list | member list | node list | invitation create | invitation redeem | message send | message list"
                 + Environment.NewLine,
             unsupportedError.ToString());
         StringAssert.StartsWith(misplacedError.ToString(), "balls: unknown command.");
@@ -298,7 +298,7 @@ public sealed class CliApplicationTests
     }
 
     [TestMethod]
-    public async Task Cli_joins_a_second_Node_and_lists_the_shared_roster_on_both_daemons()
+    public async Task Cli_joins_a_second_Node_and_exchanges_one_durable_message()
     {
         if (!OperatingSystem.IsWindows())
         {
@@ -309,13 +309,15 @@ public sealed class CliApplicationTests
         using var directory = new TemporaryDirectory();
         var anchorPipe = $"balls-tests-{Guid.NewGuid():N}";
         var joinerPipe = $"balls-tests-{Guid.NewGuid():N}";
-        var port = ReservePort();
+        var admissionPort = ReservePort();
+        var messagePort = ReservePort();
         await using var anchor = await DaemonHost.StartAsync(
             new DaemonOptions(
                 Path.Combine(directory.Path, "anchor"),
                 anchorPipe,
                 "Anchor-PC",
-                $"127.0.0.1:{port}"));
+                $"127.0.0.1:{admissionPort}",
+                $"127.0.0.1:{messagePort}"));
         await using var joiner = await DaemonHost.StartAsync(
             new DaemonOptions(
                 Path.Combine(directory.Path, "joiner"),
@@ -350,7 +352,7 @@ public sealed class CliApplicationTests
             "--file",
             invitationPath,
             "--endpoint",
-            $"127.0.0.1:{port}",
+            $"127.0.0.1:{admissionPort}",
             "--member",
             "Bob");
         Assert.AreEqual(CliExitCodes.Success, admitted.ExitCode);
@@ -378,6 +380,38 @@ public sealed class CliApplicationTests
             StringAssert.Contains(members.StandardOutput, "Bob");
             StringAssert.Contains(nodes.StandardOutput, "Anchor-PC");
             StringAssert.Contains(nodes.StandardOutput, "Joiner-PC");
+        }
+
+        var sent = await RunAsync(
+            joinerPipe,
+            "--output",
+            "json",
+            "message",
+            "send",
+            "--circle",
+            created.Circle.Id,
+            "--endpoint",
+            $"127.0.0.1:{messagePort}",
+            "--text",
+            "Hello from Bob's Node.",
+            "--request-id",
+            "0198c2d8-b000-7000-8000-000000000239");
+        Assert.AreEqual(CliExitCodes.Success, sent.ExitCode);
+        var message = DeserializeResult<CircleMessageResponse>(sent.StandardOutput);
+        Assert.AreEqual(1, message.Sequence);
+        Assert.AreEqual("Hello from Bob's Node.", message.Text);
+
+        foreach (var pipe in new[] { anchorPipe, joinerPipe })
+        {
+            var listed = await RunAsync(
+                pipe,
+                "message",
+                "list",
+                "--circle",
+                created.Circle.Id);
+            Assert.AreEqual(CliExitCodes.Success, listed.ExitCode);
+            StringAssert.StartsWith(listed.StandardOutput, "1\t");
+            StringAssert.Contains(listed.StandardOutput, "Hello from Bob's Node.");
         }
     }
 
