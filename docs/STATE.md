@@ -36,7 +36,9 @@ the repository toolchain, and the initial source/browser/installer smokes are pr
 
 Status: trusted identity/admission design, protected authority, bounded invitations, authenticated
 LAN transport, restart-stable two-Node membership, and one minimal persistent Circle message are
-complete in source; exact cross-host and Canary evidence is being finalized.
+complete and accepted. Exact physical-Windows/virtual-Ubuntu proof and downloaded green-main
+Windows/Linux Canary evidence are recorded in the
+[persistent message verification](verification/2026-08-21-persistent-circle-message.md).
 
 Exit outcome: a second Node accepts a bounded invitation, joins one Circle over authenticated
 encrypted transport, sees the same membership, restarts with stable identity, and exchanges one

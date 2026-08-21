@@ -55,8 +55,27 @@ then observed this exact journey over the Hyper-V private network:
 | Cleanup | host state moved under the owned lab root; guest restored again to `Balls.Lab.Clean` and reported clean identity |
 
 No second physical machine was used. The Windows side was the physical development laptop; the
-Ubuntu side was an owned Hyper-V virtual machine. Exact post-merge Windows/Linux Canary artifact
-identities and downloaded-package smoke results will be appended to the issue acceptance record.
+Ubuntu side was an owned Hyper-V virtual machine.
+
+## Green-main Canary evidence
+
+Pull request [#54](https://github.com/scwlkr/balls/pull/54) squash-merged as exact commit
+`f2a2d72678a872f60cb816a62d67b40778c3566c`. Its
+[main CI run](https://github.com/scwlkr/balls/actions/runs/32516147187) passed Windows, Ubuntu,
+macOS, Required, Linux Canary, and Windows Canary. Each Canary job built once from that accepted
+commit, smoked the package it built, and uploaded it.
+
+The workflow artifacts were downloaded and smoked again from fresh local state:
+
+| Platform | Artifact | Downloaded ZIP evidence | Independent smoke |
+| --- | --- | --- | --- |
+| Physical Windows | `9459023271`, `balls-0.2.0-alpha.1-canary-windows-x64-f2a2d72678a8` | 18,948,121 bytes; SHA-256 `e5460bc535ed054a155586ff15694eebb910fa37b27ea8adfa1c0d1a92f4a06d` | checksum install, structured CLI/Circle, real Chrome UI, and restart passed; fresh Node `01a025b7-f3e4-757c-8fd1-e449cc7275b6` |
+| Virtual Ubuntu | `9458982984`, `balls-0.2.0-alpha.1-canary-linux-x64-f2a2d72678a8` | 18,866,987 bytes; SHA-256 `eb8e43f4deaf68bca5a5c7d59fe77aa6a96c4c1f04d57b927442473e065af1d3` | outer and internal checksums, fresh install, structured CLI/Circle, real Chrome UI, socket cleanup, and restart passed; fresh Node `01a025bc-04f5-7117-abc7-4f6ba1c73768` |
+
+The Ubuntu guest was restored again to `Balls.Lab.Clean`; it reported the expected machine ID, no
+Balls state, and no installed browser. Windows smoke state and processes were also cleaned. The
+[Issue #39 acceptance ledger](https://github.com/scwlkr/balls/issues/39#issuecomment-5374169896)
+contains the same post-merge record. No tag or GitHub Release was created.
 
 ## Security boundary and non-goals
 
