@@ -93,6 +93,9 @@ Fast checks belong on every pull request. Expensive VM, installer, migration, re
 multi-machine checks run only for a release candidate or a change that touches the corresponding
 risk. Never weaken checks merely to obtain green status, and never claim an unobserved scenario.
 
+For Windows VM automation, unsigned UI or installer execution, Canary checks, or lab recovery,
+read [`docs/windows-development-lab.md`](docs/windows-development-lab.md) before acting.
+
 ## Prior research
 
 `scwlkr/balls-server` is archived prior research. Inspect it only for a specific
