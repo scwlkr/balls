@@ -27,33 +27,36 @@ Observed on the Windows development host from the issue branch:
 | Browser component | 9 tests passed; authenticated Circle history renders text, Member/Node attribution, and Anchor sequence |
 | Compile/type gate | Release solution build and TypeScript typecheck passed with no build warnings |
 | Warm local fast gate | Passed in 94.73 seconds; functionally green but above the 60-second feedback target on this host |
+| Full local gate | Passed on `35a7c974cd79e984b9ced60ea4a24f48a41a2c80` in 111 seconds: 203 .NET tests, 9 browser-component tests, and 1 installed-browser journey passed |
 
 ## Environment evidence
 
 The owned `Balls.Lab.Ubuntu` Hyper-V guest was reset to checkpoint `Balls.Lab.Clean` and reported
 machine ID `498d59af31b04f34bb19722beab972aa` with clean Balls identity. Exact branch commit
-`6462b4dfd9438d2b7b2b91b4d4b614057e4b4727` was published self-contained for `linux-x64`; the
-guest executable SHA-256 values were:
+`35a7c974cd79e984b9ced60ea4a24f48a41a2c80` was exported with `git archive` and published
+self-contained for `linux-x64` outside the worktree. Host and guest SHA-256 values matched:
 
 - `ballsd`: `d33220fa70d62ca8b6e84f3784ea6888c0a15ccc5faf0e7074241888b56d87cd`
+- `ballsd.dll`: `824a193a89ddeac46752b7f3e132c392386cde17f09622101526b07be671ba19`
 - `balls`: `454b53cc129bb1e05a7e50d66ee31a7bba2179aa18dbc67a5321c1d9686b9e81`
+- `balls.dll`: `91252eea6262f714d64fe2a30a568241eefe3bbbdff061b266aa38bd9358aa98`
 
 The physical Windows host and virtual Ubuntu 24.04 guest created distinct fresh Node identities,
 then observed this exact journey over the Hyper-V private network:
 
 | Observation | Result |
 | --- | --- |
-| Windows Anchor Node | `01a0258f-7d49-7745-9577-6ff17f64e611` |
-| Ubuntu joining Node | `01a0258f-c342-7cc9-800c-ea96a94fe351` |
+| Windows Anchor Node | `01a025a5-e28c-7eab-ac7c-6d3a96c4512b` |
+| Ubuntu joining Node | `01a025a6-cad5-74de-993d-dacd3cd4790f` |
 | Circle | invitation-pinned TLS admission produced the same two Members and Nodes on both sides |
-| Message | Ubuntu CLI authored `0198c2d8-b000-7000-8000-000000000240`; both Nodes stored text `Hello from Ubuntu VM.` at sequence `1` |
+| Message | Ubuntu CLI authored `0198c2d8-b000-7000-8000-000000000352`; both Nodes stored text `Hello from final Ubuntu VM.` at sequence `1` |
 | Browser | headless installed Google Chrome loaded the real Windows `ballsd` loopback workspace and its DOM contained the Circle, `Messages`, text, `Bob · Ubuntu-VM`, and `#1` |
 | Restart/retry | both daemon processes restarted with their original Node identities; exact send retry remained sequence `1` and one row on each Node |
 | Cleanup | host state moved under the owned lab root; guest restored again to `Balls.Lab.Clean` and reported clean identity |
 
 No second physical machine was used. The Windows side was the physical development laptop; the
 Ubuntu side was an owned Hyper-V virtual machine. Exact post-merge Windows/Linux Canary artifact
-identities will be appended before issue acceptance.
+identities and downloaded-package smoke results will be appended to the issue acceptance record.
 
 ## Security boundary and non-goals
 
