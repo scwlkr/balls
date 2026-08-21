@@ -107,7 +107,7 @@
       "balls.transport.lan": {
         "type": "Project",
         "dependencies": {
-          "Balls.Protocol": "[0.2.0-alpha.1, )"
+          "Balls.Protocol": "[0.3.0-alpha.1, )"
         }
       }
     }

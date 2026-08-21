@@ -102,6 +102,7 @@ public sealed class DaemonStatusTests
                 ControlJson.Options);
 
             Assert.IsNotNull(response);
+            Assert.AreEqual("0.3.0-alpha.1", response.ProductVersion);
             Assert.AreEqual(ControlProtocol.Version, response.ProtocolVersion);
             Assert.AreEqual("Alice-PC", response.Node.DisplayName);
             Assert.AreNotEqual(Guid.Empty.ToString("D"), response.Node.Id);

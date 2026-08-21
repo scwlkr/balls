@@ -8,13 +8,13 @@
       "balls.host": {
         "type": "Project",
         "dependencies": {
-          "Balls.Platform": "[0.2.0-alpha.1, )",
-          "Balls.Platform.Linux": "[0.2.0-alpha.1, )",
-          "Balls.Platform.MacOS": "[0.2.0-alpha.1, )",
-          "Balls.Platform.Windows": "[0.2.0-alpha.1, )",
-          "Balls.Security.Linux": "[0.2.0-alpha.1, )",
-          "Balls.Security.MacOS": "[0.2.0-alpha.1, )",
-          "Balls.Security.Windows": "[0.2.0-alpha.1, )"
+          "Balls.Platform": "[0.3.0-alpha.1, )",
+          "Balls.Platform.Linux": "[0.3.0-alpha.1, )",
+          "Balls.Platform.MacOS": "[0.3.0-alpha.1, )",
+          "Balls.Platform.Windows": "[0.3.0-alpha.1, )",
+          "Balls.Security.Linux": "[0.3.0-alpha.1, )",
+          "Balls.Security.MacOS": "[0.3.0-alpha.1, )",
+          "Balls.Security.Windows": "[0.3.0-alpha.1, )"
         }
       },
       "balls.platform": {
@@ -23,19 +23,19 @@
       "balls.platform.linux": {
         "type": "Project",
         "dependencies": {
-          "Balls.Platform": "[0.2.0-alpha.1, )"
+          "Balls.Platform": "[0.3.0-alpha.1, )"
         }
       },
       "balls.platform.macos": {
         "type": "Project",
         "dependencies": {
-          "Balls.Platform": "[0.2.0-alpha.1, )"
+          "Balls.Platform": "[0.3.0-alpha.1, )"
         }
       },
       "balls.platform.windows": {
         "type": "Project",
         "dependencies": {
-          "Balls.Platform": "[0.2.0-alpha.1, )"
+          "Balls.Platform": "[0.3.0-alpha.1, )"
         }
       },
       "balls.protocol": {
@@ -44,19 +44,19 @@
       "balls.security.linux": {
         "type": "Project",
         "dependencies": {
-          "Balls.Core": "[0.2.0-alpha.1, )"
+          "Balls.Core": "[0.3.0-alpha.1, )"
         }
       },
       "balls.security.macos": {
         "type": "Project",
         "dependencies": {
-          "Balls.Core": "[0.2.0-alpha.1, )"
+          "Balls.Core": "[0.3.0-alpha.1, )"
         }
       },
       "balls.security.windows": {
         "type": "Project",
         "dependencies": {
-          "Balls.Core": "[0.2.0-alpha.1, )",
+          "Balls.Core": "[0.3.0-alpha.1, )",
           "System.Security.Cryptography.ProtectedData": "[10.0.11, )"
         }
       },
