@@ -8,13 +8,15 @@
 
 ## Status
 
-Trusted Circle is a release candidate. Product code, contracts, migrations, and the milestone's
-cross-host outcome are implemented. The shared .NET/web product version is `0.3.0-alpha.1`.
+Trusted Circle is published as
+[`0.3.0-alpha.1`](https://github.com/scwlkr/balls/releases/tag/0.3.0-alpha.1). Product code,
+contracts, migrations, and the milestone's cross-host outcome are implemented. The shared
+.NET/web product version is `0.3.0-alpha.1`.
 
 The candidate landed through protected `main` as exact commit
 `8dc39455ac432c6f295a86fad3a765d4f70a1fe9`. Its once-built Windows and Linux Canaries passed
-hosted and independent exact-artifact verification. Explicit owner acceptance is still required;
-no tag or GitHub Release has been created.
+hosted and independent exact-artifact verification. The owner explicitly accepted the candidate
+on 2026-08-21; its annotated tag and public prerelease promote only those verified exact bytes.
 
 ## Completed implementation outcomes
 
@@ -45,9 +47,9 @@ The release-version change was developed against the public daemon status bounda
 - NuGet reported no vulnerable direct or transitive packages, and pnpm reported no known
   vulnerabilities;
 - 54 tracked Markdown files had zero broken relative links;
-- repository state validation confirmed product version `0.3.0-alpha.1`, only #34 open in the
-  active milestone, exactly #56 ready in the seven-issue prepared milestone, and no existing
-  `0.3.0-alpha.1` tag or release.
+- pre-promotion repository state validation confirmed product version `0.3.0-alpha.1`, only #34
+  open in the active milestone, exactly #56 ready in the seven-issue prepared milestone, and no
+  existing `0.3.0-alpha.1` tag or release.
 
 [Pull request #63](https://github.com/scwlkr/balls/pull/63) passed dependency review, CodeQL, and
 fixed Windows 2025, Ubuntu 24.04, and Apple-Silicon macOS 26 lanes before squash merge. Its first
@@ -119,7 +121,24 @@ failover. The loopback browser boundary remains separate from remote Circle tran
 direct messages, edits/deletes, attachments, reactions, offline catch-up, Tailscale, Circle Files,
 and multiple-Anchor replication remain non-goals for this Alpha.
 
-## Prepared next milestone
+## Publication and public readback
+
+Owner acceptance authorized promotion without rebuilding. Annotated tag `0.3.0-alpha.1` resolves
+to exact candidate `8dc39455ac432c6f295a86fad3a765d4f70a1fe9`; the public GitHub Release is a non-draft
+prerelease with seven assets: both verified archives, both matching checksum files, both installers,
+and the staged GitHub dependency-graph SPDX document.
+
+Unauthenticated GitHub API and asset downloads then passed. The Windows archive read back as
+18,948,090 bytes with SHA-256
+`8d7f4c5d02a4ae17787d7617ff6a75394b35c898efa7d55be8c63d51fb049ae1`; Linux read back as
+18,866,957 bytes with SHA-256
+`ab09f8795f4ef9f6ef31b7fcd606b889a62aab0daca68a488a8f0a710ac2f0fe`. The 313,580-byte
+dependency-graph response read back with SHA-256
+`60901d2bb3378a0b53660a025bee1fd70491c017f6f3b7f3edd5a63991c79daf` and contains an SPDX 2.3
+document with 333 packages and 487 relationships. Both installer bytes and both checksum-file
+bytes also matched the accepted staging set.
+
+## Active next milestone
 
 The `0.4.0-alpha.1 — LAN Circle Files` milestone now has seven executable issues:
 
@@ -131,12 +150,6 @@ The `0.4.0-alpha.1 — LAN Circle Files` milestone now has seven executable issu
 6. [#61 revocation and owned-only cleanup](https://github.com/scwlkr/balls/issues/61);
 7. [#62 milestone verification and acceptance](https://github.com/scwlkr/balls/issues/62).
 
-#56 is the only `ready-for-agent` frontier. #57–#62 are dependency-blocked. Circle Files
-implementation does not start before Trusted Circle is accepted.
-
-## Remaining acceptance gates
-
-1. Obtain explicit owner acceptance.
-2. Tag `8dc39455ac432c6f295a86fad3a765d4f70a1fe9`, promote only the verified exact artifacts, and
-   attach their checksum files, installers, and the staged SPDX SBOM.
-3. Verify anonymous public readback, then close #34 and the milestone.
+#56 is the only `ready-for-agent` frontier. #57–#62 are dependency-blocked. Trusted Circle's
+acceptance dependency is satisfied, so #56 becomes the active implementation frontier when this
+reconciled record lands and #34 closes.

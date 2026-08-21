@@ -30,20 +30,17 @@ the repository toolchain, and the initial source/browser/installer smokes are pr
 
 ## Active milestone
 
-**`0.3.0-alpha.1` — Trusted Circle**
+**`0.4.0-alpha.1` — LAN Circle Files**
 
-[Open the active GitHub milestone](https://github.com/scwlkr/balls/milestone/3).
+[Open the active GitHub milestone](https://github.com/scwlkr/balls/milestone/4).
 
-Status: owner acceptance. Trusted identity/admission design, protected authority, bounded
-invitations, authenticated LAN transport, restart-stable two-Node membership, and one minimal
-persistent Circle message are complete. Exact protected-main Windows/Linux artifacts passed
-independent and shared two-Node verification; `0.3.0-alpha.1` awaits explicit owner acceptance.
-Current readiness is in
-the [Trusted Circle milestone record](verification/2026-08-21-trusted-circle.md).
+Status: ready to implement. Trusted Circle is owner-accepted and published as
+[`0.3.0-alpha.1`](https://github.com/scwlkr/balls/releases/tag/0.3.0-alpha.1). #56 is the only ready
+frontier in the seven-issue milestone; #57–#62 remain dependency-blocked.
 
-Exit outcome: a second Node accepts a bounded invitation, joins one Circle over authenticated
-encrypted transport, sees the same membership, restarts with stable identity, and exchanges one
-persistent text message. Transport remains replaceable and separate from Circle authority.
+Exit outcome: two Windows Members can add, remove, rename, and edit files in the same persistent
+Explorer-mapped folder over a private LAN. Circle contribution and authorization drive a
+provider-neutral product model; SMB is the first provider rather than the Circle Files model.
 
 The active GitHub milestone owns executable tickets. Do not start product features from a future
 milestone while a ready active-milestone ticket exists.
@@ -210,12 +207,12 @@ messages, edits/deletes, attachments, reactions, typing, offline catch-up, and m
 replication remain explicit non-goals. Evidence is in the
 [`persistent Circle message record`](verification/2026-08-21-persistent-circle-message.md).
 
-Active frontier:
+Completed Trusted Circle acceptance:
 
 - [#34 — Verify and accept the Trusted Circle milestone](https://github.com/scwlkr/balls/issues/34)
-  has verified the exact versioned artifacts and is awaiting the owner decision.
+  promoted the exact verified artifacts as public prerelease `0.3.0-alpha.1`.
 
-Prepared next milestone:
+Active frontier:
 
 - **`0.4.0-alpha.1` — LAN Circle Files** has seven executable issues.
 - [#56 — Define Circle Files contributions and Member access grants](https://github.com/scwlkr/balls/issues/56)
