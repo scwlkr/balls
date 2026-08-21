@@ -54,7 +54,7 @@ fixed Windows 2025, Ubuntu 24.04, and Apple-Silicon macOS 26 lanes before squash
 Windows attempt exposed an old fixed test instant whose real 24-hour TLS certificate had expired
 25 seconds before the run. The fixture now samples wall-clock UTC once and freezes application
 time without bypassing certificate validity. The focused test then passed 11 consecutive runs,
-the local fast gate passed, both independent reviews found no violation, and the hosted Windows
+the local fast gate passed, two internal review passes found no violation, and the hosted Windows
 rerun passed in 4 minutes 25 seconds.
 
 The historical gitleaks match for the literal metadata pair
@@ -82,11 +82,11 @@ one identical sequence-`1` row. The packaged Windows browser rendered the Circle
 message, and `#1` before and after both daemons restarted. Exact retry after restart retained both
 Node identities, the original authored/accepted times, sequence `1`, and one row per Node.
 
-The guest retained machine ID `498d59af31b04f34bb19722beab972aa`. Its dated checkpoint lacked
-the intended runtime/browser, so .NET 10.0.11, Chrome for Testing 152.0.7977.54, and only the
-required extracted user-local libraries were staged without system package installation. Spent
-invitation files and all generated private identity/state/tool directories were removed; the lab
-again reported a clean Balls identity. No second physical machine was used.
+The owned guest retained its identity. Its dated checkpoint lacked the intended runtime/browser,
+so .NET 10.0.11, Chrome for Testing 152.0.7977.54, and only the required extracted user-local
+libraries were staged without system package installation. Spent invitation files and all
+generated private identity/state/tool directories were removed; the lab again reported a clean
+Balls identity. No second physical machine was used.
 
 ## Repository and security state
 
