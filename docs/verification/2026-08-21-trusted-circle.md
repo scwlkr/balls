@@ -39,16 +39,19 @@ The release-version change was developed against the public daemon status bounda
   `0.2.0-alpha.1`;
 - green: after the shared version change and lock regeneration, the same contract passed;
 - locked .NET restore and frozen pnpm resolution passed;
-- the complete local `full` verifier passed in 132.21 seconds;
+- the final pre-push `full` verifier passed in 117.92 seconds;
 - formatting, generated-client drift, web lint/typecheck, zero-warning Release build, all current
   .NET/web tests, and the Playwright Chromium journey passed;
 - NuGet reported no vulnerable direct or transitive packages, and pnpm reported no known
   vulnerabilities;
-- 53 tracked Markdown files had zero broken relative links.
+- 54 tracked Markdown files had zero broken relative links;
+- repository state validation confirmed product version `0.3.0-alpha.1`, only #34 open in the
+  active milestone, exactly #56 ready in the seven-issue prepared milestone, and no existing
+  `0.3.0-alpha.1` tag or release.
 
 The historical gitleaks match for the literal metadata pair
 `privateKeyEncoding` / `encrypted-pkcs8` is not a credential. Its exact fingerprint is ignored;
-the tracked-history scan must be rerun on the final candidate.
+the final tracked-history scan covered 46 commits and found no leaks.
 
 ## Proven headline outcome
 
