@@ -1,7 +1,7 @@
 # Remote Circle Security v1
 
-**Status:** authenticated LAN transport and persisted single-Anchor admission implemented; durable
-Circle messaging remains a later slice.
+**Status:** authenticated LAN transport, persisted single-Anchor admission, and one durable signed
+Circle message operation implemented.
 
 This contract is the authenticated security core for Node-to-Node Circle behavior. It is separate
 from [`local-control v1`](local-control-v1.md), and it does not trust a LAN, Tailscale, DNS name,
@@ -29,7 +29,8 @@ the stream into an authenticated channel.
 The interfaces live under `Balls.Protocol.Remote.V1` so local-control transports and remote
 Circle providers cannot be substituted for each other accidentally. Provider implementations,
 discovery, and retries remain replaceable; v1 now includes bounded framing and one explicit LAN
-provider/listener composed into `ballsd` only when `--admission-listen <private-ip:port>` is selected.
+provider/listener composed into `ballsd` only when `--admission-listen <private-ip:port>` or the
+separate `--circle-listen <private-ip:port>` message endpoint is selected.
 
 ## Constants
 
@@ -164,6 +165,34 @@ Node signing credential and canonical root-signed transport binding. The joiner 
 Anchor signature, request binding, roster shape, admitted identities, version, revocation floor,
 and every transport binding before one local commit.
 
+### Circle-message transcripts
+
+The smallest durable message request uses domain
+`balls/trusted-circle/message-request/v1\0` and signs these fixed-order fields:
+
+1. remote protocol version, Circle ID, and message UUID;
+2. author Member ID and complete Member credential;
+3. author Node ID and complete Node credential;
+4. UTF-8 text and authored UTC Unix milliseconds;
+5. signature suite.
+
+The Member and Node independently sign the identical transcript. Text is nonblank, contains no
+control characters other than line feed, and is capped at 4,096 UTF-8 bytes. The outer signed
+request digest uses domain `balls/trusted-circle/signed-message-request/v1\0` and includes both
+fixed 64-byte signatures, making the durable idempotency key exact rather than JSON-dependent.
+
+The selected Anchor validates the live mTLS Node, Circle membership, the admitted Member/Node
+pair, both credentials and signatures, clock skew, canonical request, and prior durable result.
+It assigns the next positive Circle sequence and accepted UTC time, commits the message and exact
+response atomically, then signs a receipt under domain
+`balls/trusted-circle/message-receipt/v1\0`. The receipt binds all message fields and the exact
+request digest. An identical retry returns the stored bytes; reuse of the message UUID for a
+different request returns `conflict`. The sending Node validates the receipt and persists the same
+message before reporting success.
+
+Wire envelopes are exact canonical UTF-8 JSON capped at 16 KiB. JSON is only the transport
+envelope; signatures cover the purpose-specific length-prefixed binary transcripts above.
+
 ## Version negotiation
 
 An invitation, applicant, and Anchor each have authenticated inclusive `[minimum, maximum]`
@@ -231,7 +260,8 @@ handshake timeout, and a 10-second I/O timeout. The receiver rejects a duplicate
 within the channel, unsupported version, malformed header, oversized length, operation-count
 exhaustion, timeout, or interrupted frame before returning application data. Durable operations
 must also enforce replay/idempotency at their state transaction; a new TLS session does not erase
-that application responsibility.
+that application responsibility. Circle messaging implements this with the message UUID, signed
+request digest, and exact stored Anchor response.
 
 ## LAN TCP provider
 
@@ -242,9 +272,10 @@ Connect attempts are bounded and external cancellation remains distinguishable f
 Listener disposal is idempotent and cancels pending accepts.
 
 The provider never parses, creates, or authorizes a Circle or Node identity. It does not expose
-the local-control named pipe/Unix socket or the loopback browser adapter. The only listener in
-this slice is the explicit remote transport listener used by the process/lab harness; `ballsd`
-does not route local-control or browser operations through it.
+the local-control named pipe/Unix socket or the loopback browser adapter. Admission and messaging
+use separate explicit listeners; neither routes local-control or browser operations through the
+remote provider. Message listener v1 serves exactly one locally authoritative Circle and fails
+closed otherwise.
 
 ## Validation and rejection
 
@@ -277,6 +308,8 @@ this order so identical inputs and context produce the same result:
 | `not_yet_valid` | Invitation validity has not begun |
 | `expired` | Invitation expiry is reached |
 | `replayed` | Invitation is already consumed or its operation/transcript was seen |
+| `unauthorized` | The Member/Node is not an active authorized pair for the Circle |
+| `conflict` | A durable operation ID is already bound to different signed content |
 | `downgraded` | No common version exists or the highest common version was not selected |
 
 The public network error may intentionally reveal less detail, but local code and security audit
@@ -316,9 +349,14 @@ SQLite admission tests prove the real TLS exchange, exact retry, atomic invitati
 commit, shared API/CLI/browser projection, restart-stable roster, no private authority on the
 joiner, schema migrations, conflict/revocation/expiry outcomes, and 512-event audit retention.
 
+`CircleMessageSecurityTests`, SQLite message tests, browser component tests, and the two-daemon CLI
+journey cover dual signatures, Circle/Node/Member authorization, tamper and bounds, exact receipts,
+atomic order/idempotency, common projections, and restart-stable identity/authorship/content.
+
 ## Explicit non-goals
 
-No discovery, public bind, automatic failover, multiple-Anchor behavior, rich roles, message, file,
-AI, or app operation is defined here. Admission listening is opt-in on a numeric private/loopback
-endpoint; the invitation remains directly exchanged. Credential rotation/import and owner-facing
-revocation UX remain separate work.
+No discovery, public bind, automatic failover, multiple-Anchor behavior, channels, direct
+messages, edits, deletion, attachments, reactions, typing state, offline multi-peer sync, file,
+AI, or app operation is defined here. Admission and message listening are separately opt-in on
+numeric private/loopback endpoints; the invitation and Anchor endpoint remain directly exchanged.
+Credential rotation/import and owner-facing revocation UX remain separate work.

@@ -463,6 +463,11 @@ Messaging needs:
 
 A sensible early design is durable storage on an Anchor plus synchronization to clients.
 
+The first implemented slice follows that boundary: an admitted Member/Node dual-signs one bounded
+Circle message, the selected Anchor assigns durable order and signs the receipt, and the sending
+Node stores the same result. This is a minimal proof, not the eventual channel or synchronization
+model.
+
 Do not prematurely require a fully peer-to-peer messaging consensus algorithm.
 
 ## Apps architecture

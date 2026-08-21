@@ -1,6 +1,6 @@
 # Current State
 
-**Updated:** 2026-08-20
+**Updated:** 2026-08-21
 
 This is the compact entry point for a coding agent. GitHub Issues are the execution authority;
 [`ROADMAP.md`](../ROADMAP.md) is the outcome index; detailed design and contract documents are
@@ -30,8 +30,8 @@ the SPDX 2.3 SBOM passed unauthenticated readback.
 [Open the active GitHub milestone](https://github.com/scwlkr/balls/milestone/3).
 
 Status: trusted identity/admission design, protected authority, bounded invitations, authenticated
-LAN transport, and restart-stable two-Node membership complete; persistent Circle messaging is
-next.
+LAN transport, restart-stable two-Node membership, and one durable signed Circle message complete;
+milestone acceptance is next.
 
 Exit outcome: a second Node accepts a bounded invitation, joins one Circle over authenticated
 encrypted transport, sees the same membership, restarts with stable identity, and exchanges one
@@ -128,6 +128,7 @@ Completed Trusted Circle foundation:
 - [#36 — Issue and redeem bounded single-use Circle invitations](https://github.com/scwlkr/balls/issues/36)
 - [#37 — Authenticate and encrypt LAN Node transport](https://github.com/scwlkr/balls/issues/37)
 - [#38 — Admit a second Node and persist shared Circle membership](https://github.com/scwlkr/balls/issues/38)
+- [#39 — Exchange one persistent Circle message across two Nodes](https://github.com/scwlkr/balls/issues/39)
 
 Remote v1 now has an accepted role-separated P-256 identity model, canonical dual-signed admission
 transcript, deterministic rejection vocabulary, invitation-pinned TLS 1.3 bootstrap, admitted-peer
@@ -170,13 +171,17 @@ audit retention is capped at 512 events per Circle, and CLI/local API/browser pr
 same roster after restart. Evidence is in the
 [`persisted Circle admission record`](verification/2026-08-20-persisted-circle-admission.md).
 
-Ready frontier:
+An admitted Member/Node now independently signs one purpose-specific bounded message request over
+the admitted-peer mTLS channel. The selected Anchor validates the exact persisted Member/Node
+pair, assigns monotonic Circle order, atomically commits the signed-request digest and exact
+Anchor-signed response, and the sender persists the same UUID, authorship, content, sequence, and
+timestamps. Schema v5 keeps retry-stable drafts and durable history across both restarts; the
+structured CLI sends/lists while the brand-aligned browser projects read-only history. Evidence is
+in the [`persistent Circle message record`](verification/2026-08-21-persistent-circle-message.md).
 
-- [#39 — Exchange one persistent Circle message across two Nodes](https://github.com/scwlkr/balls/issues/39)
+Ready frontier after #39 lands:
 
-Blocked later in the active milestone:
-
-- [#34](https://github.com/scwlkr/balls/issues/34) remains dependency-blocked.
+- [#34 — Verify and accept the Trusted Circle milestone](https://github.com/scwlkr/balls/issues/34)
 
 ## Working rules
 

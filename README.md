@@ -51,7 +51,9 @@ machine-readable CLI output, and one typed React workspace generated from local-
 inspect the Node and create or revisit Circles, Members, and Nodes. Trusted Circle now has
 protected production authority, canonical single-use invitations, and an invitation-pinned TLS 1.3
 admission path that atomically persists the same signed Member/Node roster on two Nodes. Persistent
-Circle messaging is the next frontier.
+Circle messaging now lets an admitted Member/Node dual-sign one bounded text message, lets the
+selected Anchor assign durable order and sign the result, and projects the same restart-stable
+history through the CLI and local browser.
 
 ## Quick start
 
@@ -61,7 +63,7 @@ On Windows with the .NET SDK selected by [`global.json`](global.json):
 dotnet restore Balls.slnx --locked-mode
 dotnet build Balls.slnx --configuration Release --no-restore
 $ballsDevState = Join-Path $env:LOCALAPPDATA "Balls-Dev"
-dotnet run --project src/Balls.Daemon --configuration Release --no-build -- --data-directory $ballsDevState --pipe-name balls-dev --node-name $env:COMPUTERNAME --admission-listen 127.0.0.1:46321
+dotnet run --project src/Balls.Daemon --configuration Release --no-build -- --data-directory $ballsDevState --pipe-name balls-dev --node-name $env:COMPUTERNAME --admission-listen 127.0.0.1:46321 --circle-listen 127.0.0.1:46322
 ```
 
 Leave the daemon running. In a second PowerShell window:
@@ -72,6 +74,8 @@ dotnet run --project src/Balls.Cli --configuration Release --no-build -- --pipe-
 dotnet run --project src/Balls.Cli --configuration Release --no-build -- --pipe-name balls-dev circle list
 dotnet run --project src/Balls.Cli --configuration Release --no-build -- --pipe-name balls-dev invitation create --circle <circle-id> --out .\invite.balls-invitation
 dotnet run --project src/Balls.Cli --configuration Release --no-build -- --pipe-name <second-node-pipe> circle join --file .\invite.balls-invitation --endpoint 127.0.0.1:46321 --member <display-name>
+dotnet run --project src/Balls.Cli --configuration Release --no-build -- --pipe-name <second-node-pipe> message send --circle <circle-id> --endpoint 127.0.0.1:46322 --text "Hello Circle"
+dotnet run --project src/Balls.Cli --configuration Release --no-build -- --pipe-name balls-dev message list --circle <circle-id>
 dotnet run --project src/Balls.Cli --configuration Release --no-build -- --pipe-name balls-dev ui
 dotnet run --project src/Balls.Cli --configuration Release --no-build -- --output json --pipe-name balls-dev status
 ```

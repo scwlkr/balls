@@ -55,7 +55,8 @@ values, and misplaced options return usage exit code `2` without contacting `bal
 
 Text is the default and is intended for people. `--output json` is supported for `status`,
 `circle create`, `circle join`, `circle list`, `member list`, `node list`, `invitation create`, and
-`invitation redeem`. A successful JSON document is one line on standard output:
+`invitation redeem`, `message send`, and `message list`. A successful JSON document is one line on
+standard output:
 
 ```json
 {
@@ -114,6 +115,7 @@ material. Selecting JSON output for this interactive command is a usage error.
 | Issued invitation | `circleId`, `invitationId`, `expiresAtUtc`, `package` (canonical JSON string) |
 | Join request | `package`, `endpoint` (numeric private/loopback IP and port), `memberDisplayName` |
 | Redemption | `circleId`, `invitationId`, `redemptionId`, `status` (`accepted`) |
+| Circle message | `id`, `circleId`, positive `sequence`, `authorMemberId`, `authorNodeId`, `text`, `authoredAtUtc`, `acceptedAtUtc` |
 | Error | `code`, `message` |
 
 The v1 Member roles are `owner` and `member`.
@@ -189,6 +191,19 @@ forged, expired, future, revoked, stale, wrong-Circle, and unsupported inputs re
 errors without reflecting credentials or package contents. `balls invitation redeem --file
 <path>` reads only an exact UTF-8 file of at most 16 KiB.
 
+### `POST /control/v1/circles/{circleId}/messages`
+
+Accepts a canonical message UUID, explicit numeric private/loopback Anchor `endpoint`, and bounded
+`text`. `ballsd` prepares a retry-stable local draft, dual-signs the remote v1 request with the
+joined Member and local Node, and sends it through the admitted-peer mTLS channel. Success returns
+the Anchor-signed durable message. The equivalent CLI command is `balls message send --circle
+<circle-id> --endpoint <ip:port> --text <text> [--message-id <uuid>]`.
+
+Text must be nonblank, contain no disallowed control characters, and encode to at most 4,096 UTF-8
+bytes. Reusing a message ID with the same completed local content returns the prior message;
+different content returns `409`. Remote authentication/transport failure returns a bounded error
+without reflecting signatures or credentials.
+
 ### `POST /control/v1/ui/launch`
 
 Returns the ephemeral loopback URL and expiry for a one-minute, single-use browser launch
@@ -203,6 +218,7 @@ protected local IPC; it is not reachable from the browser listener.
 | `GET /control/v1/circles/{circleId}` | `200` with Circle details |
 | `GET /control/v1/circles/{circleId}/members` | `200` with `{ "circleId": "...", "members": [Member] }` |
 | `GET /control/v1/circles/{circleId}/nodes` | `200` with `{ "circleId": "...", "nodes": [Circle Node] }` |
+| `GET /control/v1/circles/{circleId}/messages` | `200` with `{ "circleId": "...", "messages": [Circle message] }` in authoritative sequence order |
 
 Lists are returned in stable creation/identifier order as defined by the local store. An unknown
 Circle returns `404 Not Found`.
@@ -210,10 +226,11 @@ Circle returns `404 Not Found`.
 ## Browser adapter
 
 The browser listener serves the bundled production application and only these `/browser/v1`
-routes: session exchange, status, Circle list/create, and Circle details. The browser control
+routes: session exchange, status, Circle list/create/details, and read-only Circle messages. The browser control
 plane is intentionally narrower than `/control/v1`; control routes return `404` on TCP and browser
 routes return `404` over IPC. Invitation creation/redemption is deliberately CLI/local-control
-only in this slice; no browser route or browser storage is added.
+only in this slice; message composition remains CLI/local-control only, and the browser stores no
+message state outside React memory.
 
 `POST /browser/v1/session` exchanges the launch capability once. Success sets the
 `__Host-balls-session` cookie with `HttpOnly`, `Secure`, `SameSite=Strict`, and `Path=/`, and returns
@@ -250,6 +267,8 @@ Handled application errors use this shape:
 | 409 | `creation_request_conflict` |
 | 409 | `admission_attempt_conflict` |
 | 409 | `replayed` |
+| 400 | `invalid_message_id`, `invalid_message_endpoint`, message validation and remote rejection codes |
+| 409 | `message_id_conflict`, `conflict` |
 | 502 | `connection_failed`, authenticated remote-channel errors |
 
 Framework-level rejection, such as malformed JSON or a request rejected before endpoint handling,
@@ -257,7 +276,7 @@ is not guaranteed to use the application error shape.
 
 ## Explicit non-goals
 
-v1 does not expose invitation/join UX to the browser and does not define discovery,
-synchronization, messaging, files, AI, apps, automatic Anchor failover, or multiple-Anchor
-behavior. The browser remains read-only for joined membership through its existing Circle details
-projection.
+v1 does not expose invitation/join or message-composition UX to the browser and does not define
+discovery, channels, direct messages, edits, deletion, attachments, reactions, typing indicators,
+offline multi-peer sync, files, AI, apps, automatic Anchor failover, or multiple-Anchor behavior.
+The browser projects joined membership and durable message history read-only.

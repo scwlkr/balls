@@ -80,8 +80,8 @@ authorization, and the remote Circle protocol are separate from transport.
 #33 selected the remote v1 identity, signed-admission, TLS, provider, recovery, and revocation
 boundaries with executable Windows/Linux-ready contracts. #35 protected production authority,
 #36 added direct canonical single-use invitations, #37 authenticated LAN transport, and #38
-persisted one signed two-Node roster through the daemon/API/CLI. #39 is the next implementation
-frontier; #34 remains blocked by its explicit issue dependency.
+persisted one signed two-Node roster through the daemon/API/CLI, and #39 added one Anchor-ordered,
+dual-signed durable message with CLI/browser projection. #34 is the next acceptance frontier.
 
 **Exit evidence:** Windows host and Ubuntu VM join the same Circle, reject forged/expired/replayed
 admission, restart with stable identities, and exchange the same persisted message.
