@@ -73,14 +73,16 @@ Ubuntu, macOS, Required, and both once-built Canary jobs for `8dc39455ac43`.
 | Physical Windows | ID `9461108213`; 18,955,912 bytes; artifact digest `9fefd3cc4eb059f31d6222a1884ebc07ae07540db72d82084d3f1fdbaf3b208f` | 18,948,090-byte ZIP; SHA-256 `8d7f4c5d02a4ae17787d7617ff6a75394b35c898efa7d55be8c63d51fb049ae1` | outer/internal checksums, fresh install, structured CLI/Circle, real Chrome UI, and restart passed; fresh Node `01a025f8-82ff-7f31-91de-838b4007169a` |
 | Ubuntu 24.04 Hyper-V guest | ID `9461099183`; 18,872,208 bytes; artifact digest `15e9bb345c6f2e6eb1f28915393b3ad5a8a3681ad44986a2b5cbbc8a3ce4f5b2` | 18,866,957-byte ZIP; SHA-256 `ab09f8795f4ef9f6ef31b7fcd606b889a62aab0daca68a488a8f0a710ac2f0fe` | outer/internal checksums, fresh install, structured CLI/Circle, Chrome-for-Testing UI, socket cleanup, and restart passed; fresh Node `01a025fb-34d2-7679-875a-caae185c5caa` |
 
-The two downloaded packages then completed one shared private-network journey. Ubuntu Anchor Node
-`01a025fc-4d1d-77d7-989e-29665f77c39d` created Circle
-`01a025fe-dfc8-7841-bb14-df1511a4e2a6`; invitation-pinned TLS 1.3 admitted physical-Windows Node
-`01a025fd-e5f9-72a7-a8f3-5c8bcb657c88`. Both sides showed Alice/Bob and the same two Nodes.
-Windows authored message `0198c2d8-b000-7000-8000-000000000635`; both histories stored exactly
-one identical sequence-`1` row. The packaged Windows browser rendered the Circle, attribution,
-message, and `#1` before and after both daemons restarted. Exact retry after restart retained both
-Node identities, the original authored/accepted times, sequence `1`, and one row per Node.
+The two downloaded packages then completed repeatable shared private-network journeys. In the
+final browser-complete run, Ubuntu Anchor Node `01a0260e-4020-70c2-86b9-09f936c28f39` created
+Circle `01a0260e-f57f-7deb-8911-c1b16a5f06af`; invitation-pinned TLS 1.3 admitted
+physical-Windows Node `01a0260e-6626-77e5-bdf6-d04667aa1b05`. Both sides showed Alice/Bob and the
+same two Nodes. Windows authored message `0198c2d8-b000-7000-8000-000000000641`; both histories
+stored exactly one identical sequence-`1` row. The packaged Linux browser rendered the joined
+Circle, attribution, message, and `#1` before and after both daemons restarted; the packaged
+Windows browser rendered that same post-restart state. A preceding same-artifact run also rendered
+Windows before and after restart. Exact retry retained both Node identities, the original
+authored/accepted times, sequence `1`, and one row per Node.
 
 The owned guest retained its identity. Its dated checkpoint lacked the intended runtime/browser,
 so .NET 10.0.11, Chrome for Testing 152.0.7977.54, and only the required extracted user-local
