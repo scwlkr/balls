@@ -15,7 +15,8 @@
   exact-retry idempotency, conflicts fail closed, and list order remains stable after reopen.
 - Local-control v1 and `balls files contribution|grant create|list` expose deterministic safe
   projections. Transcripts, signatures, provider credentials, and private authority are absent.
-- Browser Files routes remain absent; an authenticated request to that route receives `404`.
+- Authenticated browser GETs reuse the same application queries for read-only contribution/grant
+  lists. Circle Files mutation methods remain unmapped and receive `405` on those read routes.
 
 ## Automated evidence
 
@@ -24,14 +25,14 @@ Observed on the Windows development host from the issue branch:
 | Gate | Observation |
 | --- | --- |
 | Core/application | 4 focused tests passed: dual authorization, Read-only/Read-write behavior, non-Owner rejection before signing/mutation, and stale/substituted authority rejection |
-| SQLite contract | 3 focused tests passed: idempotent restart-stable state, v5-to-v6 forward migration with preserved Circle state, and failed-grant rollback with restart absence |
-| Local API/browser boundary | 3 focused tests passed: safe create/list projections, OpenAPI contract, and authenticated browser mutation-route absence |
+| SQLite contract | 5 focused tests passed: idempotent restart-stable state, v3-step interruption resume, v5-to-v6 migration with preserved Circle state, injected v6 migration rollback/retry, and failed-grant rollback with restart absence |
+| Local API/browser boundary | 3 focused tests passed: safe control create/list projections, OpenAPI contract, and authenticated read-only browser lists with mutation absence |
 | Structured CLI | 1 focused separate-process test passed for contribution/grant create/list text and JSON output |
-| Local fast gate | Passed in 48.5 seconds; Release build had 0 warnings/errors, 208 .NET tests passed, 9 browser-component tests passed, and the installed-browser journey passed |
+| Local fast gate | Passed after review fixes in 54.4 seconds; Release build had 0 warnings/errors, 210 .NET tests passed, 9 browser-component tests passed, and the installed-browser journey passed |
 | Full local gate | Not yet run; scheduled once after independent code review |
 
 Existing storage contract coverage also refuses a database whose `user_version` is newer than the
-supported schema and exercises transactional rollback for prior forward migrations. No VM,
+supported schema. No VM,
 installer, network, privileged helper, or provider mutation was run because this slice introduces
 no OS/provider behavior.
 

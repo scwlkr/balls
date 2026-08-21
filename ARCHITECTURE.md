@@ -473,7 +473,8 @@ Member, or conflicting retry fails before partial state. Local-control and CLI p
 only public object, lifecycle, and authorizing-Member metadata; signatures, transcripts, private
 authority, and future provider credentials stay behind the Core-owned persistence seam.
 
-The browser has no Circle Files mutation route in this slice. Windows readiness, folder/share
+The browser adapter reuses the same application queries for read-only contribution and Access
+Grant lists and has no Circle Files mutation route in this slice. Windows readiness, folder/share
 creation, provider credentials, drive mapping, provider lifecycle transitions, and revocation are
 separate adapters and tickets built on these IDs and grants.
 

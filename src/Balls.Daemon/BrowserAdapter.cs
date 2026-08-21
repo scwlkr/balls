@@ -144,6 +144,7 @@ internal static class BrowserAdapter
         WebApplication application,
         CircleApplication circleApplication,
         CircleMessageQueryApplication messageQueries,
+        CircleFilesApplication filesApplication,
         BrowserAccessBroker access)
     {
         application.MapPost(
@@ -264,6 +265,71 @@ internal static class BrowserAdapter
             .Produces<ErrorResponse>(StatusCodes.Status400BadRequest)
             .Produces<ErrorResponse>(StatusCodes.Status404NotFound);
         application.MapGet(
+                BrowserRoutes.Circles + "/{circleId}/files/contributions",
+                async (string circleId, CancellationToken token) =>
+                {
+                    var circle = await FindCircleAsync(circleApplication, circleId, token)
+                        .ConfigureAwait(false);
+                    if (circle.Error is not null)
+                    {
+                        return circle.Error;
+                    }
+
+                    var contributions = await filesApplication.ListContributionsAsync(
+                        circle.Details!.Circle.Id,
+                        token).ConfigureAwait(false);
+                    return Results.Ok(
+                        new CircleFilesContributionListResponse(
+                            circle.Details.Circle.Id.ToString(),
+                            contributions.Select(CircleFilesResponseMapper.ToResponse).ToArray()));
+                })
+            .Produces<CircleFilesContributionListResponse>(StatusCodes.Status200OK)
+            .Produces<ErrorResponse>(StatusCodes.Status400BadRequest)
+            .Produces<ErrorResponse>(StatusCodes.Status404NotFound);
+        application.MapGet(
+                BrowserRoutes.Circles + "/{circleId}/files/contributions/{contributionId}/grants",
+                async (string circleId, string contributionId, CancellationToken token) =>
+                {
+                    var circle = await FindCircleAsync(circleApplication, circleId, token)
+                        .ConfigureAwait(false);
+                    if (circle.Error is not null)
+                    {
+                        return circle.Error;
+                    }
+
+                    if (!TryParseCanonicalId(contributionId, out var parsedContributionId))
+                    {
+                        return Results.BadRequest(
+                            new ErrorResponse(
+                                "invalid_contribution_id",
+                                "Contribution ID must be a canonical UUID."));
+                    }
+
+                    var contributions = await filesApplication.ListContributionsAsync(
+                        circle.Details!.Circle.Id,
+                        token).ConfigureAwait(false);
+                    if (contributions.All(value => value.Id.Value != parsedContributionId))
+                    {
+                        return Results.NotFound(
+                            new ErrorResponse(
+                                "circle_files_contribution_not_found",
+                                "The requested Circle Files contribution is not known."));
+                    }
+
+                    var grants = await filesApplication.ListAccessGrantsAsync(
+                        circle.Details.Circle.Id,
+                        new CircleFilesContributionId(parsedContributionId),
+                        token).ConfigureAwait(false);
+                    return Results.Ok(
+                        new MemberAccessGrantListResponse(
+                            circle.Details.Circle.Id.ToString(),
+                            parsedContributionId.ToString("D"),
+                            grants.Select(CircleFilesResponseMapper.ToResponse).ToArray()));
+                })
+            .Produces<MemberAccessGrantListResponse>(StatusCodes.Status200OK)
+            .Produces<ErrorResponse>(StatusCodes.Status400BadRequest)
+            .Produces<ErrorResponse>(StatusCodes.Status404NotFound);
+        application.MapGet(
                 BrowserRoutes.Circles + "/{circleId}/messages",
                 async (string circleId, CancellationToken token) =>
                 {
@@ -294,6 +360,38 @@ internal static class BrowserAdapter
             .Produces<ErrorResponse>(StatusCodes.Status400BadRequest)
             .Produces<ErrorResponse>(StatusCodes.Status404NotFound);
     }
+
+    private static async Task<(CircleDetails? Details, IResult? Error)> FindCircleAsync(
+        CircleApplication application,
+        string value,
+        CancellationToken cancellationToken)
+    {
+        if (!TryParseCanonicalId(value, out var circleId))
+        {
+            return (
+                null,
+                Results.BadRequest(
+                    new ErrorResponse(
+                        "invalid_circle_id",
+                        "Circle ID must be a canonical UUID.")));
+        }
+
+        var circle = await application.GetCircleAsync(new CircleId(circleId), cancellationToken)
+            .ConfigureAwait(false);
+        return circle is null
+            ? (
+                null,
+                Results.NotFound(
+                    new ErrorResponse(
+                        "circle_not_found",
+                        "The requested Circle is not known to this Node.")))
+            : (circle, null);
+    }
+
+    private static bool TryParseCanonicalId(string value, out Guid id) =>
+        Guid.TryParseExact(value, "D", out id)
+        && id != Guid.Empty
+        && string.Equals(value, id.ToString("D"), StringComparison.Ordinal);
 
     private static bool IsLoopback(IPAddress? address)
     {

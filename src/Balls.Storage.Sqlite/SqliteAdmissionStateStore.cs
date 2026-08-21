@@ -687,7 +687,7 @@ public sealed partial class SqliteLocalStateStore
             cancellationToken).ConfigureAwait(false);
     }
 
-    private static async Task MigrateV3ToV4Async(
+    internal static async Task MigrateV3ToV4Async(
         SqliteConnection connection,
         CancellationToken cancellationToken)
     {
@@ -720,7 +720,7 @@ public sealed partial class SqliteLocalStateStore
 
         using var version = connection.CreateCommand();
         version.Transaction = transaction;
-        version.CommandText = $"PRAGMA user_version = {CurrentSchemaVersion};";
+        version.CommandText = "PRAGMA user_version = 4;";
         await version.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
         await transaction.CommitAsync(cancellationToken).ConfigureAwait(false);
     }

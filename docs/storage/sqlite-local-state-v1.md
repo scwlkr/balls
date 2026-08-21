@@ -128,9 +128,11 @@ receipt but does not gain private root/Anchor authority or redefine itself as th
 Migrations run one boundary at a time and transactionally: v1 adds protected Node/Circle authority
 (v2), v2 adds transport and invitation state (v3), v3 adds public Circle trust and admission
 state (v4), v4 adds local Member authorship plus persistent message/replay state (v5), and v5 adds
-provider-neutral Circle Files contributions and Member Access Grants (v6). A
-protection or database failure rolls back that schema version and every generated
-row; the next successful start performs one complete migration. Protected credentials and public
+provider-neutral Circle Files contributions and Member Access Grants (v6). Each step records its
+own target version, so interruption between steps resumes from the last complete schema. A
+protection or database failure rolls back that schema version and every generated row; injected
+failure after the v6 DDL leaves version 5 and both new tables absent, and the next successful start
+performs one complete migration. Protected credentials and public
 Circle trust are validated on every open and are never silently regenerated when unreadable.
 
 Future schema changes must retain explicit transactional migrations, forward-version refusal, and

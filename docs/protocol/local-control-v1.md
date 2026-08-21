@@ -266,12 +266,16 @@ Circle returns `404 Not Found`.
 ## Browser adapter
 
 The browser listener serves the bundled production application and only these `/browser/v1`
-routes: session exchange, status, Circle list/create/details, and ordered Circle message history.
-The browser control
+routes: session exchange, status, Circle list/create/details, ordered Circle message history, and
+read-only Circle Files contribution/Access Grant lists. The browser control
 plane is intentionally narrower than `/control/v1`; control routes return `404` on TCP and browser
-routes return `404` over IPC. Invitation creation/redemption and every Circle Files route are
-deliberately CLI/local-control only in this slice. The browser observes messages but does not
-author them, and it has no Circle Files mutation path.
+routes return `404` over IPC. Invitation creation/redemption and every Circle Files mutation are
+deliberately CLI/local-control only in this slice. The browser observes messages and Circle Files
+state but does not author either.
+
+Authenticated `GET /browser/v1/circles/{circleId}/files/contributions` and
+`GET /browser/v1/circles/{circleId}/files/contributions/{contributionId}/grants` return the same
+safe list representations and ordering as local control. Other methods are not mapped.
 
 `POST /browser/v1/session` exchanges the launch capability once. Success sets the
 `__Host-balls-session` cookie with `HttpOnly`, `Secure`, `SameSite=Strict`, and `Path=/`, and returns

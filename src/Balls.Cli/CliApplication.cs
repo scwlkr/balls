@@ -228,54 +228,9 @@ public static class CliApplication
                         cancellationToken).ConfigureAwait(false);
                 }
 
-                if (tokens.Count >= 3
-                    && tokens[0] == "files"
-                    && tokens[1] == "contribution"
-                    && tokens[2] == "create")
+                if (tokens.Count >= 1 && tokens[0] == "files")
                 {
-                    return await CreateFilesContributionAsync(
-                        client,
-                        tokens,
-                        parseResult.OutputFormat,
-                        standardOutput,
-                        standardError,
-                        cancellationToken).ConfigureAwait(false);
-                }
-
-                if (tokens.Count >= 3
-                    && tokens[0] == "files"
-                    && tokens[1] == "contribution"
-                    && tokens[2] == "list")
-                {
-                    return await ListFilesContributionsAsync(
-                        client,
-                        tokens,
-                        parseResult.OutputFormat,
-                        standardOutput,
-                        standardError,
-                        cancellationToken).ConfigureAwait(false);
-                }
-
-                if (tokens.Count >= 3
-                    && tokens[0] == "files"
-                    && tokens[1] == "grant"
-                    && tokens[2] == "create")
-                {
-                    return await CreateFilesGrantAsync(
-                        client,
-                        tokens,
-                        parseResult.OutputFormat,
-                        standardOutput,
-                        standardError,
-                        cancellationToken).ConfigureAwait(false);
-                }
-
-                if (tokens.Count >= 3
-                    && tokens[0] == "files"
-                    && tokens[1] == "grant"
-                    && tokens[2] == "list")
-                {
-                    return await ListFilesGrantsAsync(
+                    return await RunFilesCommandAsync(
                         client,
                         tokens,
                         parseResult.OutputFormat,
@@ -529,6 +484,28 @@ public static class CliApplication
         await WriteResultAsync(output, outputFormat, result.Value, CliOutput.RenderJoinedCircle);
         return CliExitCodes.Success;
     }
+
+    private static Task<int> RunFilesCommandAsync(
+        HttpClient client,
+        IReadOnlyList<string> tokens,
+        CliOutputFormat outputFormat,
+        TextWriter standardOutput,
+        TextWriter standardError,
+        CancellationToken cancellationToken) =>
+        tokens.Count >= 3
+            ? (tokens[1], tokens[2]) switch
+            {
+                ("contribution", "create") => CreateFilesContributionAsync(
+                    client, tokens, outputFormat, standardOutput, standardError, cancellationToken),
+                ("contribution", "list") => ListFilesContributionsAsync(
+                    client, tokens, outputFormat, standardOutput, standardError, cancellationToken),
+                ("grant", "create") => CreateFilesGrantAsync(
+                    client, tokens, outputFormat, standardOutput, standardError, cancellationToken),
+                ("grant", "list") => ListFilesGrantsAsync(
+                    client, tokens, outputFormat, standardOutput, standardError, cancellationToken),
+                _ => WriteUsageErrorAsync(standardError, outputFormat, "unknown files command."),
+            }
+            : WriteUsageErrorAsync(standardError, outputFormat, "unknown files command.");
 
     private static async Task<int> CreateFilesContributionAsync(
         HttpClient client,

@@ -79,6 +79,64 @@ public sealed class CircleFilesStateStoreTests
     }
 
     [TestMethod]
+    public async Task Version_three_step_records_four_so_an_interrupted_upgrade_can_resume()
+    {
+        using var directory = new TemporaryDirectory();
+        CircleId circleId;
+        await using (var store = await SqliteLocalStateStore.OpenAsync(
+                         directory.Path,
+                         TestPrivateMaterialProtector.Instance))
+        {
+            var circles = new CircleApplication(store, new FixedTimeProvider(Now), "Alice-PC");
+            circleId = (await circles.CreateCircleAsync(
+                new CreateCircleCommand(
+                    new CreationRequestId(
+                        Guid.Parse("0198d000-2000-7000-8000-000000000010")),
+                    "Interrupted Migration Circle",
+                    "Alice"))).Circle.Id;
+        }
+
+        var databasePath = System.IO.Path.Combine(directory.Path, "balls.db");
+        await using (var connection = new SqliteConnection($"Data Source={databasePath};Pooling=False"))
+        {
+            await connection.OpenAsync();
+            using (var downgrade = connection.CreateCommand())
+            {
+                downgrade.CommandText =
+                    """
+                    PRAGMA foreign_keys = OFF;
+                    DROP TABLE circle_files_access_grants;
+                    DROP TABLE circle_files_contributions;
+                    DROP TABLE circle_messages;
+                    DROP TABLE outgoing_circle_messages;
+                    DROP TABLE circle_member_nodes;
+                    DROP TABLE local_circle_members;
+                    DROP TABLE security_audit_events;
+                    DROP TABLE circle_admissions;
+                    DROP TABLE admission_challenges;
+                    DROP TABLE admission_attempts;
+                    DROP TABLE circle_node_credentials;
+                    DROP TABLE circle_member_credentials;
+                    DROP TABLE circle_trust;
+                    PRAGMA user_version = 3;
+                    """;
+                await downgrade.ExecuteNonQueryAsync();
+            }
+
+            await SqliteLocalStateStore.MigrateV3ToV4Async(connection, CancellationToken.None);
+            using var version = connection.CreateCommand();
+            version.CommandText = "PRAGMA user_version;";
+            Assert.AreEqual(4, Convert.ToInt32(await version.ExecuteScalarAsync()));
+        }
+
+        await using var resumed = await SqliteLocalStateStore.OpenAsync(
+            directory.Path,
+            TestPrivateMaterialProtector.Instance);
+        Assert.IsNotNull(await resumed.GetCircleAsync(circleId));
+        Assert.AreEqual(0, (await resumed.ListContributionsAsync(circleId)).Count);
+    }
+
+    [TestMethod]
     public async Task Version_five_migrates_forward_once_and_preserves_existing_Circle_state()
     {
         using var directory = new TemporaryDirectory();
@@ -133,6 +191,60 @@ public sealed class CircleFilesStateStoreTests
         Assert.AreEqual(
             SqliteLocalStateStore.CurrentSchemaVersion,
             Convert.ToInt32(await versionCommand.ExecuteScalarAsync()));
+    }
+
+    [TestMethod]
+    public async Task Version_five_migration_failure_rolls_back_and_restart_can_retry()
+    {
+        using var directory = new TemporaryDirectory();
+        await using (var store = await SqliteLocalStateStore.OpenAsync(
+                         directory.Path,
+                         TestPrivateMaterialProtector.Instance))
+        {
+        }
+
+        var databasePath = System.IO.Path.Combine(directory.Path, "balls.db");
+        await using (var connection = new SqliteConnection($"Data Source={databasePath};Pooling=False"))
+        {
+            await connection.OpenAsync();
+            using (var downgrade = connection.CreateCommand())
+            {
+                downgrade.CommandText =
+                    """
+                    DROP TABLE circle_files_access_grants;
+                    DROP TABLE circle_files_contributions;
+                    PRAGMA user_version = 5;
+                    """;
+                await downgrade.ExecuteNonQueryAsync();
+            }
+
+            await Assert.ThrowsExactlyAsync<SqliteException>(
+                () => SqliteLocalStateStore.ExecuteV5ToV6MigrationAsync(
+                    connection,
+                    SqliteLocalStateStore.CircleFilesSchemaSql
+                        + "\nSELECT value FROM missing_migration_input;",
+                    CancellationToken.None));
+
+            using var state = connection.CreateCommand();
+            state.CommandText =
+                """
+                SELECT
+                    (SELECT user_version FROM pragma_user_version),
+                    (SELECT COUNT(*) FROM sqlite_master
+                     WHERE type = 'table' AND name LIKE 'circle_files_%');
+                """;
+            await using var reader = await state.ExecuteReaderAsync();
+            Assert.IsTrue(await reader.ReadAsync());
+            Assert.AreEqual(5, reader.GetInt32(0));
+            Assert.AreEqual(0, reader.GetInt32(1));
+        }
+
+        await using var retried = await SqliteLocalStateStore.OpenAsync(
+            directory.Path,
+            TestPrivateMaterialProtector.Instance);
+        Assert.AreEqual(
+            0,
+            (await retried.ListContributionsAsync(new CircleId(Guid.NewGuid()))).Count);
     }
 
     [TestMethod]

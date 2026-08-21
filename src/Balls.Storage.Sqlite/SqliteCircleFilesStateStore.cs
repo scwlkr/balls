@@ -6,7 +6,7 @@ namespace Balls.Storage.Sqlite;
 
 public sealed partial class SqliteLocalStateStore
 {
-    private const string CircleFilesSchemaSql =
+    internal const string CircleFilesSchemaSql =
         """
         CREATE TABLE circle_files_contributions (
             contribution_id TEXT NOT NULL PRIMARY KEY,
@@ -524,12 +524,21 @@ public sealed partial class SqliteLocalStateStore
 
     private static async Task MigrateV5ToV6Async(
         SqliteConnection connection,
+        CancellationToken cancellationToken) =>
+        await ExecuteV5ToV6MigrationAsync(
+            connection,
+            CircleFilesSchemaSql,
+            cancellationToken).ConfigureAwait(false);
+
+    internal static async Task ExecuteV5ToV6MigrationAsync(
+        SqliteConnection connection,
+        string schemaSql,
         CancellationToken cancellationToken)
     {
         using var transaction = connection.BeginTransaction();
         using var command = connection.CreateCommand();
         command.Transaction = transaction;
-        command.CommandText = CircleFilesSchemaSql + " PRAGMA user_version = 6;";
+        command.CommandText = schemaSql + " PRAGMA user_version = 6;";
         await command.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
         await transaction.CommitAsync(cancellationToken).ConfigureAwait(false);
     }

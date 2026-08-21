@@ -33,36 +33,12 @@ public sealed class CircleFilesApplication(
                 "Contribution name cannot exceed 100 characters.");
         }
 
-        var context = await state.GetAuthorizationContextAsync(command.CircleId, cancellationToken)
-            .ConfigureAwait(false)
-            ?? throw new LocalStateException(
-                "circle_not_found",
-                "The requested Circle is not known to this Node.");
-        if (context.MemberRole != MemberRole.Owner)
-        {
-            throw new LocalStateException(
-                "circle_files_owner_required",
-                "Circle Files contribution changes require the local Circle Owner.");
-        }
-
-        var authority = await identities.GetCircleAuthorityAsync(command.CircleId, cancellationToken)
+        var context = await GetOwnerAuthorizationContextAsync(
+            command.CircleId,
+            cancellationToken)
             .ConfigureAwait(false);
-        if (!MatchesCurrentAuthority(context, authority))
-        {
-            throw new LocalStateException(
-                "circle_files_authority_unavailable",
-                "The current Circle authority is unavailable for this mutation.");
-        }
-
-        var now = DateTimeOffset.FromUnixTimeSeconds(
-            timeProvider.GetUtcNow().ToUnixTimeSeconds());
-        var unsignedAuthorization = new CircleFilesOwnerAuthorization(
-            context.MemberId,
-            context.AuthorityGeneration,
-            now,
-            [],
-            [],
-            []);
+        var now = GetCurrentTimestamp();
+        var unsignedAuthorization = CreateUnsignedAuthorization(context, now);
         var unsigned = new CircleFilesContribution(
             CircleFilesContributionId.New(),
             command.CircleId,
@@ -75,30 +51,14 @@ public sealed class CircleFilesApplication(
         var transcript = CircleFilesAuthorizationTranscript.EncodeContribution(
             command.RequestId,
             unsigned);
-        var memberSignature = await state.SignWithLocalMemberAsync(
-            command.CircleId,
-            transcript,
-            cancellationToken).ConfigureAwait(false);
-        var authoritySignature = await identities.SignWithCircleAuthorityAsync(
-            command.CircleId,
-            transcript,
-            cancellationToken).ConfigureAwait(false);
-        if (!IdentityCryptography.Verify(transcript, memberSignature, context.MemberCredential)
-            || !IdentityCryptography.Verify(transcript, authoritySignature, context.RootCredential))
-        {
-            throw new LocalStateException(
-                "circle_files_authorization_failed",
-                "The Circle Files mutation could not be authorized.");
-        }
-
         var contribution = unsigned with
         {
-            Authorization = unsignedAuthorization with
-            {
-                Transcript = transcript,
-                MemberSignature = memberSignature,
-                CircleAuthoritySignature = authoritySignature,
-            },
+            Authorization = await AuthorizeAsync(
+                command.CircleId,
+                context,
+                unsignedAuthorization,
+                transcript,
+                cancellationToken).ConfigureAwait(false),
         };
         return await state.CreateContributionAsync(
             command.RequestId,
@@ -132,36 +92,12 @@ public sealed class CircleFilesApplication(
                 "Member access must be Read-only or Read/write.");
         }
 
-        var context = await state.GetAuthorizationContextAsync(command.CircleId, cancellationToken)
-            .ConfigureAwait(false)
-            ?? throw new LocalStateException(
-                "circle_not_found",
-                "The requested Circle is not known to this Node.");
-        if (context.MemberRole != MemberRole.Owner)
-        {
-            throw new LocalStateException(
-                "circle_files_owner_required",
-                "Circle Files grant changes require the local Circle Owner.");
-        }
-
-        var authority = await identities.GetCircleAuthorityAsync(command.CircleId, cancellationToken)
+        var context = await GetOwnerAuthorizationContextAsync(
+            command.CircleId,
+            cancellationToken)
             .ConfigureAwait(false);
-        if (!MatchesCurrentAuthority(context, authority))
-        {
-            throw new LocalStateException(
-                "circle_files_authority_unavailable",
-                "The current Circle authority is unavailable for this mutation.");
-        }
-
-        var now = DateTimeOffset.FromUnixTimeSeconds(
-            timeProvider.GetUtcNow().ToUnixTimeSeconds());
-        var unsignedAuthorization = new CircleFilesOwnerAuthorization(
-            context.MemberId,
-            context.AuthorityGeneration,
-            now,
-            [],
-            [],
-            []);
+        var now = GetCurrentTimestamp();
+        var unsignedAuthorization = CreateUnsignedAuthorization(context, now);
         var unsigned = new MemberAccessGrant(
             MemberAccessGrantId.New(),
             command.CircleId,
@@ -173,30 +109,14 @@ public sealed class CircleFilesApplication(
             now,
             unsignedAuthorization);
         var transcript = CircleFilesAuthorizationTranscript.EncodeGrant(command.RequestId, unsigned);
-        var memberSignature = await state.SignWithLocalMemberAsync(
-            command.CircleId,
-            transcript,
-            cancellationToken).ConfigureAwait(false);
-        var authoritySignature = await identities.SignWithCircleAuthorityAsync(
-            command.CircleId,
-            transcript,
-            cancellationToken).ConfigureAwait(false);
-        if (!IdentityCryptography.Verify(transcript, memberSignature, context.MemberCredential)
-            || !IdentityCryptography.Verify(transcript, authoritySignature, context.RootCredential))
-        {
-            throw new LocalStateException(
-                "circle_files_authorization_failed",
-                "The Circle Files mutation could not be authorized.");
-        }
-
         var grant = unsigned with
         {
-            Authorization = unsignedAuthorization with
-            {
-                Transcript = transcript,
-                MemberSignature = memberSignature,
-                CircleAuthoritySignature = authoritySignature,
-            },
+            Authorization = await AuthorizeAsync(
+                command.CircleId,
+                context,
+                unsignedAuthorization,
+                transcript,
+                cancellationToken).ConfigureAwait(false),
         };
         return await state.CreateAccessGrantAsync(
             command.RequestId,
@@ -209,6 +129,79 @@ public sealed class CircleFilesApplication(
         CircleFilesContributionId contributionId,
         CancellationToken cancellationToken = default) =>
         state.ListAccessGrantsAsync(circleId, contributionId, cancellationToken);
+
+    private async Task<CircleFilesAuthorizationContext> GetOwnerAuthorizationContextAsync(
+        CircleId circleId,
+        CancellationToken cancellationToken)
+    {
+        var context = await state.GetAuthorizationContextAsync(circleId, cancellationToken)
+            .ConfigureAwait(false)
+            ?? throw new LocalStateException(
+                "circle_not_found",
+                "The requested Circle is not known to this Node.");
+        if (context.MemberRole != MemberRole.Owner)
+        {
+            throw new LocalStateException(
+                "circle_files_owner_required",
+                "Circle Files changes require the local Circle Owner.");
+        }
+
+        var authority = await identities.GetCircleAuthorityAsync(circleId, cancellationToken)
+            .ConfigureAwait(false);
+        if (!MatchesCurrentAuthority(context, authority))
+        {
+            throw new LocalStateException(
+                "circle_files_authority_unavailable",
+                "The current Circle authority is unavailable for this mutation.");
+        }
+
+        return context;
+    }
+
+    private async Task<CircleFilesOwnerAuthorization> AuthorizeAsync(
+        CircleId circleId,
+        CircleFilesAuthorizationContext context,
+        CircleFilesOwnerAuthorization unsigned,
+        byte[] transcript,
+        CancellationToken cancellationToken)
+    {
+        var memberSignature = await state.SignWithLocalMemberAsync(
+            circleId,
+            transcript,
+            cancellationToken).ConfigureAwait(false);
+        var authoritySignature = await identities.SignWithCircleAuthorityAsync(
+            circleId,
+            transcript,
+            cancellationToken).ConfigureAwait(false);
+        if (!IdentityCryptography.Verify(transcript, memberSignature, context.MemberCredential)
+            || !IdentityCryptography.Verify(transcript, authoritySignature, context.RootCredential))
+        {
+            throw new LocalStateException(
+                "circle_files_authorization_failed",
+                "The Circle Files mutation could not be authorized.");
+        }
+
+        return unsigned with
+        {
+            Transcript = transcript,
+            MemberSignature = memberSignature,
+            CircleAuthoritySignature = authoritySignature,
+        };
+    }
+
+    private DateTimeOffset GetCurrentTimestamp() =>
+        DateTimeOffset.FromUnixTimeSeconds(timeProvider.GetUtcNow().ToUnixTimeSeconds());
+
+    private static CircleFilesOwnerAuthorization CreateUnsignedAuthorization(
+        CircleFilesAuthorizationContext context,
+        DateTimeOffset now) =>
+        new(
+            context.MemberId,
+            context.AuthorityGeneration,
+            now,
+            [],
+            [],
+            []);
 
     private static bool MatchesCurrentAuthority(
         CircleFilesAuthorizationContext context,
