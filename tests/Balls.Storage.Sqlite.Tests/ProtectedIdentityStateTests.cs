@@ -257,6 +257,47 @@ public sealed class ProtectedIdentityStateTests
     }
 
     [TestMethod]
+    public async Task Version_four_migration_is_atomic_and_adds_local_Member_identity_once()
+    {
+        using var directory = new TemporaryDirectory();
+        CircleId circleId;
+        await using (var store = await SqliteLocalStateStore.OpenAsync(
+                         directory.Path,
+                         TestPrivateMaterialProtector.Instance))
+        {
+            var application = new CircleApplication(store, TimeProvider.System, "Alice-PC");
+            circleId = (await application.CreateCircleAsync(
+                new CreateCircleCommand(
+                    new CreationRequestId(Guid.CreateVersion7()),
+                    "Version Four Circle",
+                    "Alice"))).Circle.Id;
+        }
+
+        await DowngradeToVersionFourAsync(directory.Path);
+        await Assert.ThrowsExactlyAsync<CryptographicException>(
+            () => SqliteLocalStateStore.OpenAsync(
+                directory.Path,
+                new ThrowingMigrationProtector(failOnProtectionNumber: 1)));
+        await AssertVersionFourMessageTablesAbsentAsync(directory.Path);
+
+        string memberKeyId;
+        await using (var migrated = await SqliteLocalStateStore.OpenAsync(
+                         directory.Path,
+                         TestPrivateMaterialProtector.Instance))
+        {
+            memberKeyId = (await migrated.GetLocalCircleMessageAuthorAsync(circleId))!
+                .MemberCredential.KeyId;
+        }
+
+        await using var restarted = await SqliteLocalStateStore.OpenAsync(
+            directory.Path,
+            TestPrivateMaterialProtector.Instance);
+        Assert.AreEqual(
+            memberKeyId,
+            (await restarted.GetLocalCircleMessageAuthorAsync(circleId))!.MemberCredential.KeyId);
+    }
+
+    [TestMethod]
     public async Task Protection_scheme_substitution_fails_closed()
     {
         using var directory = new TemporaryDirectory();
@@ -395,6 +436,10 @@ public sealed class ProtectedIdentityStateTests
         command.CommandText =
             """
             PRAGMA foreign_keys = OFF;
+            DROP TABLE circle_messages;
+            DROP TABLE outgoing_circle_messages;
+            DROP TABLE circle_member_nodes;
+            DROP TABLE local_circle_members;
             DROP TABLE security_audit_events;
             DROP TABLE circle_admissions;
             DROP TABLE admission_challenges;
@@ -440,6 +485,10 @@ public sealed class ProtectedIdentityStateTests
         command.CommandText =
             """
             PRAGMA foreign_keys = OFF;
+            DROP TABLE circle_messages;
+            DROP TABLE outgoing_circle_messages;
+            DROP TABLE circle_member_nodes;
+            DROP TABLE local_circle_members;
             DROP TABLE security_audit_events;
             DROP TABLE circle_admissions;
             DROP TABLE admission_challenges;
@@ -476,6 +525,47 @@ public sealed class ProtectedIdentityStateTests
         await using var reader = await command.ExecuteReaderAsync();
         Assert.IsTrue(await reader.ReadAsync());
         Assert.AreEqual(2L, reader.GetInt64(0));
+        Assert.AreEqual(0L, reader.GetInt64(1));
+    }
+
+    private static async Task DowngradeToVersionFourAsync(string directory)
+    {
+        await using var connection = OpenDatabase(directory);
+        await connection.OpenAsync();
+        using var command = connection.CreateCommand();
+        command.CommandText =
+            """
+            PRAGMA foreign_keys = OFF;
+            DELETE FROM circle_member_credentials;
+            DROP TABLE circle_messages;
+            DROP TABLE outgoing_circle_messages;
+            DROP TABLE circle_member_nodes;
+            DROP TABLE local_circle_members;
+            PRAGMA user_version = 4;
+            """;
+        await command.ExecuteNonQueryAsync();
+    }
+
+    private static async Task AssertVersionFourMessageTablesAbsentAsync(string directory)
+    {
+        await using var connection = OpenDatabase(directory);
+        await connection.OpenAsync();
+        using var command = connection.CreateCommand();
+        command.CommandText =
+            """
+            SELECT
+                (SELECT user_version FROM pragma_user_version),
+                (SELECT COUNT(*) FROM sqlite_master
+                 WHERE type = 'table'
+                   AND name IN (
+                       'local_circle_members',
+                       'circle_member_nodes',
+                       'outgoing_circle_messages',
+                       'circle_messages'));
+            """;
+        await using var reader = await command.ExecuteReaderAsync();
+        Assert.IsTrue(await reader.ReadAsync());
+        Assert.AreEqual(4L, reader.GetInt64(0));
         Assert.AreEqual(0L, reader.GetInt64(1));
     }
 

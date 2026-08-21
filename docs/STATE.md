@@ -35,8 +35,8 @@ the repository toolchain, and the initial source/browser/installer smokes are pr
 [Open the active GitHub milestone](https://github.com/scwlkr/balls/milestone/3).
 
 Status: trusted identity/admission design, protected authority, bounded invitations, authenticated
-LAN transport, and restart-stable two-Node membership complete; persistent Circle messaging is
-next.
+LAN transport, restart-stable two-Node membership, and one minimal persistent Circle message are
+complete in source; exact cross-host and Canary evidence is being finalized.
 
 Exit outcome: a second Node accepts a bounded invitation, joins one Circle over authenticated
 encrypted transport, sees the same membership, restarts with stable identity, and exchanges one
@@ -152,6 +152,7 @@ Completed Trusted Circle foundation:
 - [#36 — Issue and redeem bounded single-use Circle invitations](https://github.com/scwlkr/balls/issues/36)
 - [#37 — Authenticate and encrypt LAN Node transport](https://github.com/scwlkr/balls/issues/37)
 - [#38 — Admit a second Node and persist shared Circle membership](https://github.com/scwlkr/balls/issues/38)
+- [#39 — Exchange one persistent Circle message across two Nodes](https://github.com/scwlkr/balls/issues/39)
 
 Remote v1 now has an accepted role-separated P-256 identity model, canonical dual-signed admission
 transcript, deterministic rejection vocabulary, invitation-pinned TLS 1.3 bootstrap, admitted-peer
@@ -194,9 +195,16 @@ audit retention is capped at 512 events per Circle, and CLI/local API/browser pr
 same roster after restart. Evidence is in the
 [`persisted Circle admission record`](verification/2026-08-20-persisted-circle-admission.md).
 
-Ready frontier:
+The first message slice adds an opt-in admitted-peer mTLS listener, canonical Member-and-Node
+dual signatures, persisted Member-to-Node authorization, selected-Anchor order and receipt,
+retry-stable prepared sends, and schema v5 message/replay state. `balls message send/list` and the
+local browser history read the same ordered record after retransmit and restart. Channels, direct
+messages, edits/deletes, attachments, reactions, typing, offline catch-up, and multiple-Anchor
+replication remain explicit non-goals. Evidence is in the
+[`persistent Circle message record`](verification/2026-08-21-persistent-circle-message.md).
 
-- [#39 — Exchange one persistent Circle message across two Nodes](https://github.com/scwlkr/balls/issues/39)
+Ready frontier: none until the remaining active-milestone dependency is unblocked or the owner
+accepts the milestone state.
 
 Blocked later in the active milestone:
 

@@ -1,17 +1,17 @@
 # Threat Model Starter
 
 **Status:** Windows/Linux local Node baseline, protected production Node/Circle/transport identity
-storage, bounded invitations, authenticated LAN transport, and persisted two-Node membership
-admission, 2026-08-20.
+storage, bounded invitations, authenticated LAN transport, persisted two-Node membership, and
+minimal durable Circle messaging, 2026-08-21.
 
 ## Scope
 
 This baseline covers one unelevated Windows or Linux account running `ballsd`, the same-account
 `balls` CLI, the local OS-IPC control API, the authenticated loopback browser adapter, the bundled
 browser UI, and the daemon's SQLite state directory. It also covers the remote v1 identity,
-authenticated-channel, and admission boundaries. Executable loopback, separate-process, and
-Windows-host/Ubuntu-VM tests prove the transport controls and admission/restart outcome; persistent
-Circle messaging is not implemented yet.
+authenticated-channel, admission, and minimal persistent-message boundaries. Executable loopback,
+separate-process, and Windows-host/Ubuntu-VM tests prove the transport, admission, and
+message/restart outcomes.
 
 ## Assets
 
@@ -82,6 +82,11 @@ are executable.
 | TLS chain validation silently fetches attacker-controlled AIA/CRL/OCSP | Admission uses an invitation SPKI pin; admitted peers use Circle-signed transport binding; revocation checking is local and no-fetch | X.509 is only a TLS key wrapper, so Circle revocation must remain application state |
 | Unknown, revoked, wrong-Circle, or substituted peer reaches application code | Circle-root-signed Node/transport bindings are validated before exact mTLS SPKI matching; an encrypted mutual confirmation binds Circle, sender Node, and expected peer Node before channel exposure | Offline peers can enforce only their newest accepted revocation/generation state |
 | TLS replay/early data repeats a state change | TLS 1.3 only, exact `balls-circle/1` ALPN, no early data, encrypted mutual confirmation, and duplicate operation-ID rejection within each bounded channel | Durable operations must retain operation IDs and atomic application replay checks across reconnects |
+| A Node forges a Member's message or a Member attributes it to another Node | Member and Node independently sign the same canonical Circle/message/author/time/text transcript; the mTLS peer must equal the author Node and the persisted Member-to-Node binding must authorize it | Malware controlling both local private keys or the authoring user session can create messages as that local author |
+| A valid message crosses Circles or is tampered in transit | Circle, Member, Node, timestamp, and bounded text are covered by both signatures; Circle context and TLS peer are checked before storage | Canonicalization defects remain high impact and require cross-platform contract tests |
+| Retransmit, reconnect, or restart duplicates/reorders a message | Sender durably prepares one request identity; Anchor atomically stores canonical digest, unique per-Circle sequence, and signed receipt; exact retry returns stored receipt and conflicting reuse rejects | There is one selected ordering Anchor; multi-Anchor consistency and offline catch-up are deferred |
+| A malicious peer sends malformed or oversized message data | Remote frame and `BMSG` envelopes are bounded before allocation, strict UTF-8 text is capped at 4,096 bytes, timestamps/UUIDs are canonical, and rejection is typed | The initial sequential listener has no per-source rate limit |
+| A compromised Anchor rewrites accepted history | Sender validates an Anchor-signed receipt and both Nodes retain the same ordered local record | v1 has no independent transparency log, replicated consensus, or owner-facing audit comparison |
 | Malformed, oversized, silent, or interrupted peer consumes unbounded resources | Fixed 28-byte frame headers, 64 KiB default payload cap before allocation, bounded operation count, 10-second handshake/I/O defaults, cancellation, and fail-closed interruption | The opt-in production listener is sequential; per-source rate limits and discovery policy remain later work |
 | LAN address or provider metadata becomes authority | The LAN provider accepts only numeric private/loopback unicast endpoints and returns an untrusted stream; the remote layer authorizes signed Circle/Node credentials independently | Diagnostic endpoints still reveal network relationships and private addresses |
 | Authority backup leaks or is restored ambiguously | Separate root/Anchor encrypted PKCS#8 values use the fixed PBES2 profile; the root signs exact Circle/generation/public-key/KDF/ciphertext-digest metadata; raw private keys are never logged or transmitted | Passphrase quality and custody remain operator responsibilities; import, rotation, restore UX, and secure deletion are separately gated |
@@ -104,8 +109,10 @@ are executable.
   than silently downgraded to TLS 1.2.
 - Production Node/Circle/Anchor/Member/transport keys, invitation replay, public trust, signed
   membership receipts, and bounded admission audit outcomes are durable. `ballsd` opens the
-  admission listener only for an explicit numeric private/loopback endpoint. There is no discovery,
-  owner revocation UX, credential rotation/import, remote audit replication, or message security yet.
+  admission and message listeners only for explicit numeric private/loopback endpoints. The first
+  message operation has dual-signature authorization, Anchor order, replay persistence, and bounded
+  text; there is no discovery, owner revocation UX, credential rotation/import, remote audit
+  replication, rich chat, multi-Anchor replication, or offline catch-up.
 - The state marker and ACL are safety boundaries, not proof against an administrator, LocalSystem,
   physical access, or a compromised user session.
 - Use the default LocalAppData, XDG, or macOS Application Support state root, or another dedicated
@@ -120,9 +127,10 @@ are executable.
 
 ## Required implementation for the next trust boundary
 
-Before two machines exchange durable Circle messages, implement and test message authorization,
-replay/idempotency, restart consistency, and the existing recovery/rotation boundary for lost or
-compromised devices and keys.
+Before remote Circle Files or richer messaging, implement and test capability-specific
+authorization plus the existing recovery/rotation boundary for lost or compromised devices and
+keys. Rich message content requires a new rendering/content review; multiple writers or Anchors
+require an explicit synchronization and history-integrity design.
 
 The Node-to-Node protocol must remain secure whether connectivity comes from LAN, Tailscale, or a
 future provider.

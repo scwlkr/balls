@@ -34,4 +34,9 @@ public static class ControlRoutes
     {
         return $"{Circle(circleId)}/invitations";
     }
+
+    public static string CircleMessages(string circleId)
+    {
+        return $"{Circle(circleId)}/messages";
+    }
 }

@@ -9,10 +9,11 @@ public sealed partial class SqliteLocalStateStore :
     IIdentityAuthorityStore,
     IInvitationStateStore,
     IAdmissionStateStore,
+    ICircleMessageStateStore,
     IAsyncDisposable
 {
     public const int ApplicationId = 0x42414C53;
-    public const int CurrentSchemaVersion = 4;
+    public const int CurrentSchemaVersion = 5;
 
     private readonly SqliteConnection connection;
     private readonly IPrivateMaterialProtector privateMaterialProtector;
@@ -125,6 +126,16 @@ public sealed partial class SqliteLocalStateStore :
             if (!isFreshDatabase && version is 1 or 2 or 3)
             {
                 await MigrateV3ToV4Async(connection, cancellationToken).ConfigureAwait(false);
+                await ValidateSchemaAsync(connection, 4, cancellationToken)
+                    .ConfigureAwait(false);
+            }
+
+            if (!isFreshDatabase && version is 1 or 2 or 3 or 4)
+            {
+                await MigrateV4ToV5Async(
+                    connection,
+                    privateMaterialProtector,
+                    cancellationToken).ConfigureAwait(false);
                 await ValidateSchemaAsync(connection, CurrentSchemaVersion, cancellationToken)
                     .ConfigureAwait(false);
             }
@@ -265,6 +276,12 @@ public sealed partial class SqliteLocalStateStore :
 
                 var founder = circle.Members.Single(member => member.Role == MemberRole.Owner);
                 var enrolledNode = circle.Nodes.Single();
+                await InsertCreatedLocalMessageAuthorAsync(
+                    circle.Circle.Id,
+                    founder.Id,
+                    enrolledNode.NodeId,
+                    transaction,
+                    token).ConfigureAwait(false);
                 await InsertCreationAsync(
                     requestId,
                     circle.Circle,
@@ -527,6 +544,10 @@ public sealed partial class SqliteLocalStateStore :
         {
             AddAdmissionExpectedTables(expectedTables);
         }
+        if (schemaVersion >= 5)
+        {
+            AddCircleMessageExpectedTables(expectedTables);
+        }
 
         using (var unexpectedObjectCommand = connection.CreateCommand())
         {
@@ -646,9 +667,20 @@ public sealed partial class SqliteLocalStateStore :
                         ["key_id"],
                         cancellationToken).ConfigureAwait(false)
                     || !await HasUniqueIndexAsync(
+                         connection,
+                         "invitation_redemptions",
+                         ["redemption_id"],
+                         cancellationToken).ConfigureAwait(false))
+            || schemaVersion >= 5
+                && (!await HasUniqueIndexAsync(
                         connection,
-                        "invitation_redemptions",
-                        ["redemption_id"],
+                        "local_circle_members",
+                        ["member_id"],
+                        cancellationToken).ConfigureAwait(false)
+                    || !await HasUniqueIndexAsync(
+                        connection,
+                        "circle_messages",
+                        ["circle_id", "sequence"],
                         cancellationToken).ConfigureAwait(false))
             || !await HasRequiredSingletonCheckAsync(connection, cancellationToken)
                 .ConfigureAwait(false))
@@ -828,6 +860,8 @@ public sealed partial class SqliteLocalStateStore :
             {InvitationSchemaSql}
 
             {AdmissionSchemaSql}
+
+            {CircleMessageSchemaSql}
 
             PRAGMA application_id = {ApplicationId};
             PRAGMA user_version = {CurrentSchemaVersion};

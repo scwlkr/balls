@@ -200,6 +200,8 @@ public sealed class DaemonStatusTests
         StringAssert.Contains(document, nameof(JoinCircleRequest));
         StringAssert.Contains(document, nameof(CreateInvitationRequest));
         StringAssert.Contains(document, nameof(RedeemInvitationRequest));
+        StringAssert.Contains(document, nameof(SendCircleMessageRequest));
+        StringAssert.Contains(document, nameof(CircleMessageListResponse));
         StringAssert.Contains(document, nameof(ErrorResponse));
     }
 

@@ -3,6 +3,7 @@ import { useEffect, useRef, useState, type FormEvent } from "react";
 import { browserApi, type BrowserApi } from "./api/browserApi";
 import type {
   CircleDetailsDto,
+  CircleMessageDto,
   CircleSummaryDto,
   StatusDto,
 } from "./api/localControl";
@@ -19,6 +20,7 @@ interface WorkspaceState {
   status: StatusDto;
   circles: CircleSummaryDto[];
   selected: CircleDetailsDto | null;
+  messages: CircleMessageDto[];
 }
 
 export function App({ api = browserApi }: AppProps) {
@@ -54,11 +56,19 @@ export function App({ api = browserApi }: AppProps) {
           api.getStatus(),
           api.listCircles(),
         ]);
-        const selected = circleList.circles[0]
-          ? await api.getCircle(circleList.circles[0].id)
-          : null;
+        const [selected, messageList] = circleList.circles[0]
+          ? await Promise.all([
+              api.getCircle(circleList.circles[0].id),
+              api.getMessages(circleList.circles[0].id),
+            ])
+          : [null, null];
         if (active) {
-          setWorkspace({ status, circles: circleList.circles, selected });
+          setWorkspace({
+            status,
+            circles: circleList.circles,
+            selected,
+            messages: messageList?.messages ?? [],
+          });
         }
       } catch (reason) {
         if (active) setError(toMessage(reason));
@@ -83,6 +93,7 @@ export function App({ api = browserApi }: AppProps) {
         ...workspace,
         circles: mergeCircle(workspace.circles, selected.circle),
         selected,
+        messages: [],
       });
     } catch (reason) {
       setError(toMessage(reason));
@@ -96,8 +107,11 @@ export function App({ api = browserApi }: AppProps) {
     setBusy(true);
     setError(null);
     try {
-      const selected = await api.getCircle(circleId);
-      setWorkspace({ ...workspace, selected });
+      const [selected, messageList] = await Promise.all([
+        api.getCircle(circleId),
+        api.getMessages(circleId),
+      ]);
+      setWorkspace({ ...workspace, selected, messages: messageList.messages });
     } catch (reason) {
       setError(toMessage(reason));
     } finally {
@@ -171,6 +185,7 @@ function Masthead({
           </a>
           {hasCircle ? <a href="#people">People</a> : null}
           {hasCircle ? <a href="#nodes">Nodes</a> : null}
+          {hasCircle ? <a href="#messages">Messages</a> : null}
         </nav>
       ) : null}
       <span className="local-label" data-ready={hasWorkspace}>
@@ -245,7 +260,7 @@ function Workspace({
       ) : null}
 
       {dashboard ? (
-        <CircleWorkspace dashboard={dashboard} />
+        <CircleWorkspace dashboard={dashboard} messages={workspace.messages} />
       ) : (
         <EmptyWorkspace busy={busy} onCreate={onCreate} />
       )}
@@ -253,7 +268,13 @@ function Workspace({
   );
 }
 
-function CircleWorkspace({ dashboard }: { dashboard: DashboardSnapshot }) {
+function CircleWorkspace({
+  dashboard,
+  messages,
+}: {
+  dashboard: DashboardSnapshot;
+  messages: CircleMessageDto[];
+}) {
   const { circle } = dashboard;
   return (
     <>
@@ -285,7 +306,61 @@ function CircleWorkspace({ dashboard }: { dashboard: DashboardSnapshot }) {
         </dl>
       </section>
       <CircleTopology circle={circle} />
+      <MessageHistory dashboard={dashboard} messages={messages} />
     </>
+  );
+}
+
+function MessageHistory({
+  dashboard,
+  messages,
+}: {
+  dashboard: DashboardSnapshot;
+  messages: CircleMessageDto[];
+}) {
+  const members = new Map(
+    dashboard.circle.members.map((member) => [member.id, member.name]),
+  );
+  const nodes = new Map(
+    dashboard.circle.nodes.map((node) => [node.id, node.name]),
+  );
+  return (
+    <section
+      className="message-history"
+      id="messages"
+      aria-labelledby="messages-title"
+    >
+      <div className="section-heading">
+        <div>
+          <p className="eyebrow">Durable Circle history</p>
+          <h2 id="messages-title">Messages</h2>
+        </div>
+        <p>Authored by a Member on an admitted Node.</p>
+      </div>
+      {messages.length === 0 ? (
+        <p className="message-empty">No messages yet.</p>
+      ) : (
+        <ol className="message-list">
+          {messages.map((message) => (
+            <li key={message.id}>
+              <header>
+                <strong>
+                  {members.get(message.authorMemberId) ??
+                    message.authorMemberId}
+                  {" · "}
+                  {nodes.get(message.authorNodeId) ?? message.authorNodeId}
+                </strong>
+                <span>#{message.sequence}</span>
+              </header>
+              <p>{message.text}</p>
+              <time dateTime={message.authoredAtUtc}>
+                {new Date(message.authoredAtUtc).toLocaleString()}
+              </time>
+            </li>
+          ))}
+        </ol>
+      )}
+    </section>
   );
 }
 

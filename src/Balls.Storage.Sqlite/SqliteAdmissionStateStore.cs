@@ -446,6 +446,12 @@ public sealed partial class SqliteLocalStateStore
                             commit.SignedTransportBinding),
                         transaction,
                         token).ConfigureAwait(false);
+                    await InsertMemberNodeAuthorizationAsync(
+                        commit.CircleId,
+                        commit.Member.Id,
+                        commit.Node.NodeId,
+                        transaction,
+                        token).ConfigureAwait(false);
                     using (var redemption = connection.CreateCommand())
                     {
                         redemption.Transaction = transaction;
@@ -573,6 +579,23 @@ public sealed partial class SqliteLocalStateStore
                     commit.Circle.Circle.Id,
                     localMember.Id,
                     commit.LocalMemberCredential,
+                    transaction,
+                    token).ConfigureAwait(false);
+                var localIdentity = await ReadNodeAsync(transaction, token).ConfigureAwait(false)
+                    ?? throw new LocalStateException(
+                        "node_identity_missing",
+                        "Local Node identity is missing.");
+                var localNode = commit.Circle.Nodes.Single(node => node.NodeId == localIdentity.Id);
+                await InsertLocalCircleMemberFromAdmissionAsync(
+                    commit.Circle.Circle.Id,
+                    localMember.Id,
+                    commit.InvitationId,
+                    transaction,
+                    token).ConfigureAwait(false);
+                await InsertMemberNodeAuthorizationAsync(
+                    commit.Circle.Circle.Id,
+                    localMember.Id,
+                    localNode.NodeId,
                     transaction,
                     token).ConfigureAwait(false);
                 foreach (var nodeSecurity in commit.NodeSecurity)

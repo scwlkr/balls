@@ -52,6 +52,7 @@ public static class DaemonCommand
         var localControlEndpoint = host.Defaults.LocalControlEndpoint;
         var nodeName = host.Defaults.NodeDisplayName;
         string? admissionListenEndpoint = null;
+        string? messageListenEndpoint = null;
 
         if (!TryApplyOption(tokens, "--data-directory", ref dataDirectory, out var error)
             || !TryApplyOption(tokens, "--pipe-name", ref localControlEndpoint, out error)
@@ -60,6 +61,11 @@ public static class DaemonCommand
                 tokens,
                 "--admission-listen",
                 ref admissionListenEndpoint,
+                out error)
+            || !TryApplyOptionalOption(
+                tokens,
+                "--message-listen",
+                ref messageListenEndpoint,
                 out error))
         {
             await standardError.WriteLineAsync($"ballsd: {error}");
@@ -123,6 +129,24 @@ public static class DaemonCommand
             }
         }
 
+        if (messageListenEndpoint is not null)
+        {
+            try
+            {
+                _ = LanTcpEndpoint.Parse(
+                    new RemoteTransportAddress(
+                        LanTcpEndpoint.ProviderName,
+                        messageListenEndpoint));
+            }
+            catch (ArgumentException)
+            {
+                await standardError.WriteLineAsync(
+                    "ballsd: invalid --message-listen value.");
+                await WriteUsageAsync(standardError);
+                return DaemonExitCodes.UsageError;
+            }
+        }
+
         try
         {
             await using var daemon = await DaemonHost.StartAsync(
@@ -130,7 +154,8 @@ public static class DaemonCommand
                     dataDirectory,
                     localControlEndpoint,
                     nodeName,
-                    admissionListenEndpoint),
+                    admissionListenEndpoint,
+                    messageListenEndpoint),
                 host,
                 supported.PrivateMaterialProtector,
                 cancellationToken).ConfigureAwait(false);
@@ -140,6 +165,11 @@ public static class DaemonCommand
             {
                 await standardOutput.WriteLineAsync(
                     $"ballsd admission ready on {daemon.AdmissionAddress.Value}.");
+            }
+            if (daemon.MessageAddress is not null)
+            {
+                await standardOutput.WriteLineAsync(
+                    $"ballsd messages ready on {daemon.MessageAddress.Value}.");
             }
             try
             {
@@ -220,7 +250,7 @@ public static class DaemonCommand
     private static Task WriteUsageAsync(TextWriter writer)
     {
         return writer.WriteLineAsync(
-            "usage: ballsd [--data-directory <path>] [--pipe-name <name>] [--node-name <name>] [--admission-listen <private-ip:port>]");
+            "usage: ballsd [--data-directory <path>] [--pipe-name <name>] [--node-name <name>] [--admission-listen <private-ip:port>] [--message-listen <private-ip:port>]");
     }
 
     private static string GetProductVersion()

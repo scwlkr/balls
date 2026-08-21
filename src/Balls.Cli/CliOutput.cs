@@ -79,6 +79,21 @@ internal static class CliOutput
             response.Nodes.Select(node => $"{node.Id}\t{node.DisplayName}"));
     }
 
+    internal static string RenderSentMessage(CircleMessageResponse response) =>
+        string.Join(
+            Environment.NewLine,
+            $"Sent message: {response.Id}",
+            $"Sequence: {response.Sequence}",
+            response.Text);
+
+    internal static string RenderMessages(CircleMessageListResponse response) =>
+        response.Messages.Count == 0
+            ? "No messages."
+            : string.Join(
+                Environment.NewLine,
+                response.Messages.Select(message =>
+                    $"{message.Sequence}\t{message.AuthorMemberId}\t{message.Text}"));
+
     internal static string RenderSavedInvitation(
         CreateInvitationResponse response,
         string path) =>

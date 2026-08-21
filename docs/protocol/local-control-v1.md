@@ -181,6 +181,17 @@ Conflicting local reuse returns `409`; malformed, forged, unauthorized, revoked,
 wrong-Circle/Node, expired, replayed, and downgraded exchanges return bounded typed errors. Network
 or authenticated-channel failure returns `502` without reflecting invitation or credential data.
 
+### `POST /control/v1/circles/{circleId}/messages`
+
+Authors one persistent text message through an admitted Anchor. The body contains canonical UUID
+`requestId`, explicit numeric private/loopback `endpoint`, and nonblank `text` capped at 4,096
+UTF-8 bytes. `ballsd` durably prepares the request, dual-signs it as the local Member and Node,
+sends it over admitted-peer mTLS, validates the Anchor-signed receipt, and returns `200 OK` with
+message/Circle/author IDs, text, authored and accepted UTC times, and positive Circle sequence.
+The CLI is `balls message send --circle <id> --endpoint <ip:port> --text <text>
+[--request-id <uuid>]`. Exact request-ID reuse with the same Circle and text is idempotent across
+reconnect/restart; conflicting reuse returns `409`.
+
 ### `POST /control/v1/invitations/redeem`
 
 Accepts `{ "package": "..." }`, verifies the exact canonical package against the issuing
@@ -204,6 +215,7 @@ protected local IPC; it is not reachable from the browser listener.
 | `GET /control/v1/circles/{circleId}` | `200` with Circle details |
 | `GET /control/v1/circles/{circleId}/members` | `200` with `{ "circleId": "...", "members": [Member] }` |
 | `GET /control/v1/circles/{circleId}/nodes` | `200` with `{ "circleId": "...", "nodes": [Circle Node] }` |
+| `GET /control/v1/circles/{circleId}/messages` | `200` with `{ "circleId": "...", "messages": [Circle message] }` |
 
 Lists are returned in stable creation/identifier order as defined by the local store. An unknown
 Circle returns `404 Not Found`.
@@ -211,10 +223,11 @@ Circle returns `404 Not Found`.
 ## Browser adapter
 
 The browser listener serves the bundled production application and only these `/browser/v1`
-routes: session exchange, status, Circle list/create, and Circle details. The browser control
+routes: session exchange, status, Circle list/create/details, and ordered Circle message history.
+The browser control
 plane is intentionally narrower than `/control/v1`; control routes return `404` on TCP and browser
 routes return `404` over IPC. Invitation creation/redemption is deliberately CLI/local-control
-only in this slice; no browser route or browser storage is added.
+only in this slice. The browser observes messages but does not author them.
 
 `POST /browser/v1/session` exchanges the launch capability once. Success sets the
 `__Host-balls-session` cookie with `HttpOnly`, `Secure`, `SameSite=Strict`, and `Path=/`, and returns
@@ -246,10 +259,12 @@ Handled application errors use this shape:
 | 400 | `owner_display_name_too_long` |
 | 400 | `invalid_circle_id` |
 | 400 | `invalid_invitation_validity`, `invalid_admission_endpoint`, `member_display_name`, `malformed`, `forged`, `expired`, `not_yet_valid`, `revoked`, `wrong_circle`, `wrong_node`, `downgraded`, `unsupported_version`, `unsupported_suite`, `unauthorized_issuer`, `stale_authority_state` |
+| 400 | `invalid_message_endpoint`, `invalid_message_text`, `unauthorized`, `oversized` |
 | 404 | `circle_not_found` |
 | 404 | `invitation_not_found` |
 | 409 | `creation_request_conflict` |
 | 409 | `admission_attempt_conflict` |
+| 409 | `message_request_conflict`, `conflict` |
 | 409 | `replayed` |
 | 502 | `connection_failed`, authenticated remote-channel errors |
 
@@ -258,7 +273,7 @@ is not guaranteed to use the application error shape.
 
 ## Explicit non-goals
 
-v1 does not expose invitation/join UX to the browser and does not define discovery,
-synchronization, messaging, files, AI, apps, automatic Anchor failover, or multiple-Anchor
-behavior. The browser remains read-only for joined membership through its existing Circle details
-projection.
+v1 does not expose invitation/join or message-authoring UX to the browser and does not define
+discovery, general synchronization, rich chat, files, AI, apps, automatic Anchor failover, or
+multiple-Anchor behavior. The browser remains read-only for joined membership and persistent
+message history.

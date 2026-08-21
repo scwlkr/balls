@@ -5,6 +5,7 @@ import type { BrowserApi } from "./api/browserApi";
 import type {
   CircleDetailsDto,
   CircleListDto,
+  CircleMessageListDto,
   StatusDto,
 } from "./api/localControl";
 
@@ -51,6 +52,22 @@ const secondDetails = {
     name: "Neighborhood Circle",
   },
 } satisfies CircleDetailsDto;
+
+const messages = {
+  circleId: details.circle.id,
+  messages: [
+    {
+      id: "0198f2cc-6a50-7a08-aacb-298f4ebdf640",
+      circleId: details.circle.id,
+      authorMemberId: details.members[0].id,
+      authorNodeId: details.nodes[0].id,
+      text: "Hello from Alice's Node.",
+      authoredAtUtc: "2026-08-21T18:00:00+00:00",
+      sequence: 1,
+      acceptedAtUtc: "2026-08-21T18:00:01+00:00",
+    },
+  ],
+} satisfies CircleMessageListDto;
 
 describe("Balls browser workspace", () => {
   beforeEach(() => {
@@ -175,6 +192,22 @@ describe("Balls browser workspace", () => {
     ).toHaveAttribute("aria-current", "page");
   });
 
+  it("shows durable Circle messages with Member and Node attribution", async () => {
+    const api = createApi({ circles: [details.circle] });
+    api.getMessages = async () => messages;
+
+    render(<App api={api} />);
+
+    const region = await screen.findByRole("region", { name: "Messages" });
+    expect(
+      within(region).getByText("Hello from Alice's Node."),
+    ).toBeInTheDocument();
+    expect(
+      within(region).getByText("Alice Morgan · Alice-PC"),
+    ).toBeInTheDocument();
+    expect(within(region).getByText("#1")).toBeInTheDocument();
+  });
+
   it("announces a busy Circle switch and moves selection after loading", async () => {
     let finishSwitch: ((value: CircleDetailsDto) => void) | undefined;
     const api = createApi({ circles: [details.circle, secondDetails.circle] });
@@ -233,6 +266,7 @@ function createApi(circleList: CircleListDto): BrowserApi {
     getStatus: async () => status,
     listCircles: async () => circleList,
     getCircle: async () => details,
+    getMessages: async (circleId) => ({ circleId, messages: [] }),
     createCircle: async () => details,
   };
 }

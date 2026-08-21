@@ -81,6 +81,24 @@ public static class DaemonHost
             }
         }
 
+        System.Net.IPEndPoint? messageListenEndpoint = null;
+        if (options.MessageListenEndpoint is not null)
+        {
+            try
+            {
+                messageListenEndpoint = LanTcpEndpoint.Parse(
+                    new RemoteTransportAddress(
+                        LanTcpEndpoint.ProviderName,
+                        options.MessageListenEndpoint));
+            }
+            catch (ArgumentException)
+            {
+                throw new InputValidationException(
+                    "invalid_message_listen_endpoint",
+                    "Message listening requires a numeric private or loopback IP address and non-zero port.");
+            }
+        }
+
         var securedDataDirectory = host.LocalState.Prepare(options.DataDirectory);
         var dataDirectoryLease = DataDirectoryLease.Acquire(securedDataDirectory);
         SqliteLocalStateStore? store = null;
@@ -88,6 +106,9 @@ public static class DaemonHost
         TcpLanTransportListener? admissionListener = null;
         CancellationTokenSource? admissionShutdown = null;
         Task? admissionTask = null;
+        TcpLanTransportListener? messageListener = null;
+        CancellationTokenSource? messageShutdown = null;
+        Task? messageTask = null;
         var endpointPrepared = false;
 
         try
@@ -111,6 +132,14 @@ public static class DaemonHost
                 store,
                 new TcpLanTransportConnector(),
                 TimeProvider.System);
+            var messageApplication = new TrustedCircleMessageApplication(
+                store,
+                store,
+                store,
+                store,
+                new TcpLanTransportConnector(),
+                TimeProvider.System);
+            var messageQueries = new CircleMessageQueryApplication(store);
             var browserAccess = new BrowserAccessBroker(
                 TimeProvider.System,
                 launchLifetime: TimeSpan.FromMinutes(1),
@@ -308,6 +337,109 @@ public static class DaemonHost
                 .Produces<NodeListResponse>(StatusCodes.Status200OK)
                 .Produces<ErrorResponse>(StatusCodes.Status400BadRequest)
                 .Produces<ErrorResponse>(StatusCodes.Status404NotFound);
+            application.MapGet(
+                ControlRoutes.Circles + "/{circleId}/messages",
+                async (string circleId, CancellationToken token) =>
+                {
+                    var lookup = await FindCircleAsync(circleApplication, circleId, token)
+                        .ConfigureAwait(false);
+                    if (lookup.Error is not null)
+                    {
+                        return lookup.Error;
+                    }
+
+                    return Results.Ok(
+                        await messageQueries.ListAsync(lookup.Circle!.Circle.Id, token)
+                            .ConfigureAwait(false));
+                })
+                .Produces<CircleMessageListResponse>(StatusCodes.Status200OK)
+                .Produces<ErrorResponse>(StatusCodes.Status400BadRequest)
+                .Produces<ErrorResponse>(StatusCodes.Status404NotFound);
+            application.MapPost(
+                ControlRoutes.Circles + "/{circleId}/messages",
+                async (string circleId, SendCircleMessageRequest request, CancellationToken token) =>
+                {
+                    if (!Guid.TryParseExact(circleId, "D", out var parsedCircleId)
+                        || parsedCircleId == Guid.Empty
+                        || circleId != parsedCircleId.ToString("D")
+                        || !Guid.TryParseExact(request.RequestId, "D", out var requestId)
+                        || requestId == Guid.Empty
+                        || request.RequestId != requestId.ToString("D"))
+                    {
+                        return Results.BadRequest(
+                            new ErrorResponse(
+                                "invalid_request_id",
+                                "Circle and message request IDs must be canonical UUIDs."));
+                    }
+
+                    if (!CircleMessageSecurity.IsValidText(request.Text))
+                    {
+                        return Results.BadRequest(
+                            new ErrorResponse(
+                                "invalid_message_text",
+                                "Message text must be nonblank and at most 4,096 UTF-8 bytes."));
+                    }
+
+                    try
+                    {
+                        var address = new RemoteTransportAddress(
+                            LanTcpEndpoint.ProviderName,
+                            request.Endpoint);
+                        _ = LanTcpEndpoint.Parse(address);
+                        var sent = await messageApplication.SendAsync(
+                            new CircleMessageId(requestId),
+                            new CircleId(parsedCircleId),
+                            address,
+                            request.Text,
+                            token).ConfigureAwait(false);
+                        return Results.Ok(CircleMessageQueryApplication.ToResponse(sent));
+                    }
+                    catch (ArgumentException)
+                    {
+                        return Results.BadRequest(
+                            new ErrorResponse(
+                                "invalid_message_endpoint",
+                                "Messaging requires a numeric private or loopback IP address and port."));
+                    }
+                    catch (CircleMessageRejectedException exception)
+                    {
+                        var error = new ErrorResponse(
+                            exception.Code,
+                            "The Circle message was rejected.");
+                        return exception.Code is "conflict" or "replayed"
+                            ? Results.Conflict(error)
+                            : Results.BadRequest(error);
+                    }
+                    catch (LocalStateConflictException exception)
+                    {
+                        return Results.Conflict(new ErrorResponse(exception.Code, exception.Message));
+                    }
+                    catch (LocalStateException exception)
+                    {
+                        return Results.BadRequest(new ErrorResponse(exception.Code, exception.Message));
+                    }
+                    catch (RemoteChannelException exception)
+                    {
+                        return Results.Json(
+                            new ErrorResponse(
+                                exception.Code,
+                                "The remote Anchor could not accept the message."),
+                            statusCode: StatusCodes.Status502BadGateway);
+                    }
+                    catch (Exception exception) when (exception is
+                        IOException or TimeoutException or System.Net.Sockets.SocketException)
+                    {
+                        return Results.Json(
+                            new ErrorResponse(
+                                "connection_failed",
+                                "The remote Anchor could not be reached."),
+                            statusCode: StatusCodes.Status502BadGateway);
+                    }
+                })
+                .Produces<CircleMessageResponse>(StatusCodes.Status200OK)
+                .Produces<ErrorResponse>(StatusCodes.Status400BadRequest)
+                .Produces<ErrorResponse>(StatusCodes.Status409Conflict)
+                .Produces<ErrorResponse>(StatusCodes.Status502BadGateway);
             application.MapPost(
                 ControlRoutes.Circles + "/{circleId}/invitations",
                 async (string circleId, CreateInvitationRequest request, CancellationToken token) =>
@@ -382,7 +514,11 @@ public static class DaemonHost
                 .Produces<ErrorResponse>(StatusCodes.Status404NotFound)
                 .Produces<ErrorResponse>(StatusCodes.Status409Conflict);
             application.MapOpenApi(ControlRoutes.OpenApi);
-            BrowserAdapter.MapRoutes(application, circleApplication, browserAccess);
+            BrowserAdapter.MapRoutes(
+                application,
+                circleApplication,
+                messageQueries,
+                browserAccess);
 
             await application.StartAsync(cancellationToken).ConfigureAwait(false);
             if (admissionListenEndpoint is not null)
@@ -394,6 +530,15 @@ public static class DaemonHost
                     admissionApplication,
                     admissionShutdown.Token);
             }
+            if (messageListenEndpoint is not null)
+            {
+                messageListener = new TcpLanTransportListener(messageListenEndpoint);
+                messageShutdown = new CancellationTokenSource();
+                messageTask = RunMessageListenerAsync(
+                    messageListener,
+                    messageApplication,
+                    messageShutdown.Token);
+            }
             browserEndpoint.Initialize(FindBrowserBaseUri(application));
             host.LocalControlServer.SecureEndpoint(options.LocalControlEndpoint);
             return new DaemonInstance(
@@ -404,16 +549,24 @@ public static class DaemonHost
                 options.LocalControlEndpoint,
                 admissionListener,
                 admissionShutdown,
-                admissionTask);
+                admissionTask,
+                messageListener,
+                messageShutdown,
+                messageTask);
         }
         catch
         {
             try
             {
                 admissionShutdown?.Cancel();
+                messageShutdown?.Cancel();
                 if (admissionListener is not null)
                 {
                     await admissionListener.DisposeAsync().ConfigureAwait(false);
+                }
+                if (messageListener is not null)
+                {
+                    await messageListener.DisposeAsync().ConfigureAwait(false);
                 }
 
                 if (application is not null)
@@ -466,6 +619,36 @@ public static class DaemonHost
                         .ConfigureAwait(false);
                 }
                 catch (RemoteChannelException)
+                {
+                }
+                finally
+                {
+                    await connection.DisposeAsync().ConfigureAwait(false);
+                }
+            }
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+        }
+    }
+
+    private static async Task RunMessageListenerAsync(
+        TcpLanTransportListener listener,
+        TrustedCircleMessageApplication application,
+        CancellationToken cancellationToken)
+    {
+        try
+        {
+            await foreach (var connection in listener.AcceptAsync(cancellationToken)
+                               .ConfigureAwait(false))
+            {
+                try
+                {
+                    await application.HandleAsync(connection, cancellationToken)
+                        .ConfigureAwait(false);
+                }
+                catch (Exception exception) when (exception is
+                    RemoteChannelException or LocalStateException)
                 {
                 }
                 finally
@@ -604,6 +787,9 @@ public sealed class DaemonInstance : IAsyncDisposable
     private readonly TcpLanTransportListener? admissionListener;
     private readonly CancellationTokenSource? admissionShutdown;
     private readonly Task? admissionTask;
+    private readonly TcpLanTransportListener? messageListener;
+    private readonly CancellationTokenSource? messageShutdown;
+    private readonly Task? messageTask;
     private int disposed;
 
     internal DaemonInstance(
@@ -614,7 +800,10 @@ public sealed class DaemonInstance : IAsyncDisposable
         string localControlEndpoint,
         TcpLanTransportListener? admissionListener,
         CancellationTokenSource? admissionShutdown,
-        Task? admissionTask)
+        Task? admissionTask,
+        TcpLanTransportListener? messageListener,
+        CancellationTokenSource? messageShutdown,
+        Task? messageTask)
     {
         this.application = application;
         this.store = store;
@@ -624,9 +813,14 @@ public sealed class DaemonInstance : IAsyncDisposable
         this.admissionListener = admissionListener;
         this.admissionShutdown = admissionShutdown;
         this.admissionTask = admissionTask;
+        this.messageListener = messageListener;
+        this.messageShutdown = messageShutdown;
+        this.messageTask = messageTask;
     }
 
     public RemoteTransportAddress? AdmissionAddress => admissionListener?.BoundAddress;
+
+    public RemoteTransportAddress? MessageAddress => messageListener?.BoundAddress;
 
     public async ValueTask DisposeAsync()
     {
@@ -638,9 +832,14 @@ public sealed class DaemonInstance : IAsyncDisposable
         try
         {
             admissionShutdown?.Cancel();
+            messageShutdown?.Cancel();
             if (admissionListener is not null)
             {
                 await admissionListener.DisposeAsync().ConfigureAwait(false);
+            }
+            if (messageListener is not null)
+            {
+                await messageListener.DisposeAsync().ConfigureAwait(false);
             }
 
             try
@@ -648,6 +847,10 @@ public sealed class DaemonInstance : IAsyncDisposable
                 if (admissionTask is not null)
                 {
                     await admissionTask.ConfigureAwait(false);
+                }
+                if (messageTask is not null)
+                {
+                    await messageTask.ConfigureAwait(false);
                 }
             }
             finally
@@ -671,6 +874,7 @@ public sealed class DaemonInstance : IAsyncDisposable
                 finally
                 {
                     admissionShutdown?.Dispose();
+                    messageShutdown?.Dispose();
                     dataDirectoryLease.Dispose();
                 }
             }

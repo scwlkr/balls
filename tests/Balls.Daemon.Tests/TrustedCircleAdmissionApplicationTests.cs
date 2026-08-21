@@ -27,6 +27,7 @@ public sealed class TrustedCircleAdmissionApplicationTests
         string package;
         CircleId circleId;
         CircleDetails joined;
+        CircleMessageId messageId = new(Guid.CreateVersion7());
         await using (var anchorStore = await SqliteLocalStateStore.OpenAsync(
                          anchorDirectory.Path,
                          protector))
@@ -94,6 +95,70 @@ public sealed class TrustedCircleAdmissionApplicationTests
                 timeout.Token);
             Assert.AreEqual(2, retried.Members.Count);
             Assert.AreEqual(2, retried.Nodes.Count);
+
+            await using var messageListener = new TcpLanTransportListener(
+                new IPEndPoint(IPAddress.Loopback, 0));
+            var anchorMessages = new TrustedCircleMessageApplication(
+                anchorStore,
+                anchorStore,
+                anchorStore,
+                anchorStore,
+                new TcpLanTransportConnector(),
+                time);
+            var joinerMessages = new TrustedCircleMessageApplication(
+                joinerStore,
+                joinerStore,
+                joinerStore,
+                joinerStore,
+                new TcpLanTransportConnector(),
+                time);
+            var serveForged = ServeMessageOnceAsync(
+                messageListener,
+                anchorMessages,
+                timeout.Token);
+            var rejection = await SendTamperedMessageAsync(
+                joinerStore,
+                circleId,
+                messageListener.BoundAddress,
+                now,
+                timeout.Token);
+            await serveForged;
+            Assert.AreEqual("forged", rejection);
+            Assert.AreEqual(0, (await anchorStore.ListCircleMessagesAsync(circleId)).Count);
+
+            var serveMessage = ServeMessageOnceAsync(
+                messageListener,
+                anchorMessages,
+                timeout.Token);
+            var sent = await joinerMessages.SendAsync(
+                messageId,
+                circleId,
+                messageListener.BoundAddress,
+                "Hello from Bob's Node.",
+                timeout.Token);
+            await serveMessage;
+
+            Assert.AreEqual(messageId, sent.Id);
+            Assert.AreEqual(1, sent.Sequence);
+            Assert.AreEqual("Hello from Bob's Node.", sent.Text);
+            Assert.AreEqual("Bob", joined.Members.Single(member => member.Id == sent.AuthorMemberId).DisplayName);
+            Assert.AreEqual(1, (await anchorStore.ListCircleMessagesAsync(circleId)).Count);
+            Assert.AreEqual(1, (await joinerStore.ListCircleMessagesAsync(circleId)).Count);
+
+            var serveRetry = ServeMessageOnceAsync(
+                messageListener,
+                anchorMessages,
+                timeout.Token);
+            var retriedMessage = await joinerMessages.SendAsync(
+                messageId,
+                circleId,
+                messageListener.BoundAddress,
+                "Hello from Bob's Node.",
+                timeout.Token);
+            await serveRetry;
+            Assert.AreEqual(sent, retriedMessage);
+            Assert.AreEqual(1, (await anchorStore.ListCircleMessagesAsync(circleId)).Count);
+            Assert.AreEqual(1, (await joinerStore.ListCircleMessagesAsync(circleId)).Count);
         }
 
         await using var reopenedAnchor = await SqliteLocalStateStore.OpenAsync(
@@ -115,6 +180,92 @@ public sealed class TrustedCircleAdmissionApplicationTests
             joinerRestart.Members.Select(value => value.Id.ToString())
                 .Order(StringComparer.Ordinal).ToArray());
         Assert.IsNull(await reopenedJoiner.GetCircleAuthorityAsync(circleId));
+        var anchorMessagesAfterRestart = await reopenedAnchor.ListCircleMessagesAsync(circleId);
+        var joinerMessagesAfterRestart = await reopenedJoiner.ListCircleMessagesAsync(circleId);
+        Assert.AreEqual(1, anchorMessagesAfterRestart.Count);
+        Assert.AreEqual(anchorMessagesAfterRestart.Single(), joinerMessagesAfterRestart.Single());
+    }
+
+    private static async Task<string> SendTamperedMessageAsync(
+        SqliteLocalStateStore store,
+        CircleId circleId,
+        RemoteTransportAddress address,
+        DateTimeOffset now,
+        CancellationToken cancellationToken)
+    {
+        var author = await store.GetLocalCircleMessageAuthorAsync(circleId, cancellationToken);
+        Assert.IsNotNull(author);
+        var messageId = Guid.CreateVersion7();
+        var message = new CircleMessage(
+            RemoteSecurityProtocol.Version,
+            messageId.ToString("D"),
+            circleId.ToString(),
+            author.MemberId.ToString(),
+            author.NodeId.ToString(),
+            now,
+            "Original text.");
+        var transcript = CircleMessageSecurity.EncodeMessage(message);
+        var signed = new SignedCircleMessage(
+            message,
+            RemoteSecurityProtocol.SignatureSuite,
+            await store.SignWithLocalCircleMemberAsync(circleId, transcript, cancellationToken),
+            await store.SignWithNodeAsync(transcript, cancellationToken)) with
+        {
+            Message = message with { Text = "Tampered text." },
+        };
+        var trust = await store.GetCircleTrustAsync(circleId, cancellationToken);
+        Assert.IsNotNull(trust);
+        var security = await store.ListCircleNodeSecurityAsync(circleId, cancellationToken);
+        var local = security.Single(value => value.NodeId == author.NodeId);
+        var anchor = security.Single(value => value.NodeId == trust.IssuerNodeId);
+        using var certificate = await store.CreateTransportCertificateAsync(
+            "node.balls",
+            now,
+            cancellationToken);
+        await using var connection = await new TcpLanTransportConnector().ConnectAsync(
+            address,
+            cancellationToken);
+        await using var channel = await RemoteAuthenticatedChannel.ConnectAsync(
+            connection,
+            "anchor.balls",
+            new RemoteChannelIdentity(certificate, ToExpectation(local, trust, now)),
+            ToExpectation(anchor, trust, now),
+            cancellationToken: cancellationToken);
+        await channel.WriteAsync(
+            new RemoteFrame(messageId, CircleMessageWireCodec.EncodeRequest(signed)),
+            cancellationToken);
+        var response = await channel.ReadAsync(cancellationToken);
+        Assert.AreEqual(messageId, response.OperationId);
+        Assert.IsTrue(CircleMessageWireCodec.TryDecodeRejection(response.Payload, out var rejection));
+        return rejection!;
+    }
+
+    private static RemotePeerExpectation ToExpectation(
+        CircleNodeSecurityState state,
+        CircleTrustState trust,
+        DateTimeOffset now) =>
+        new(
+            NodeTransportBindingCodec.Decode(state.SignedTransportBinding),
+            new NodeTransportVerificationContext(
+                state.CircleId.ToString(),
+                state.NodeId.ToString(),
+                IdentityProtocolMapping.ToProtocol(trust.RootCredential),
+                now,
+                trust.AuthorityGeneration,
+                RemoteSecurityProtocol.Version,
+                RemoteSecurityProtocol.Version,
+                new HashSet<string>(StringComparer.Ordinal)));
+
+    private static async Task ServeMessageOnceAsync(
+        TcpLanTransportListener listener,
+        TrustedCircleMessageApplication application,
+        CancellationToken cancellationToken)
+    {
+        await foreach (var connection in listener.AcceptAsync(cancellationToken))
+        {
+            await application.HandleAsync(connection, cancellationToken);
+            return;
+        }
     }
 
     private static async Task ServeOneAsync(

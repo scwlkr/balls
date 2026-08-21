@@ -1,6 +1,7 @@
 import type {
   CircleDetailsDto,
   CircleListDto,
+  CircleMessageListDto,
   CreateCircleDto,
   BrowserSessionDto,
   StatusDto,
@@ -16,6 +17,7 @@ export interface BrowserApi {
   getStatus(): Promise<StatusDto>;
   listCircles(): Promise<CircleListDto>;
   getCircle(circleId: string): Promise<CircleDetailsDto>;
+  getMessages(circleId: string): Promise<CircleMessageListDto>;
   createCircle(
     name: string,
     ownerDisplayName: string,
@@ -47,6 +49,12 @@ class FetchBrowserApi implements BrowserApi {
   getCircle(circleId: string) {
     return this.request<CircleDetailsDto>(
       `/browser/v1/circles/${encodeURIComponent(circleId)}`,
+    );
+  }
+
+  getMessages(circleId: string) {
+    return this.request<CircleMessageListDto>(
+      `/browser/v1/circles/${encodeURIComponent(circleId)}/messages`,
     );
   }
 
