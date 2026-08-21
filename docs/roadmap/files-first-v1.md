@@ -81,7 +81,7 @@ authorization, and the remote Circle protocol are separate from transport.
 boundaries with executable Windows/Linux-ready contracts. #35 protected production authority,
 #36 added direct canonical single-use invitations, #37 authenticated LAN transport, #38 persisted
 one signed two-Node roster through the daemon/API/CLI, and #39 added one persistent dual-signed
-message. #34 is the active release-candidate verification and explicit owner-acceptance gate.
+message. #34 accepted and published the exact verified `0.3.0-alpha.1` artifacts.
 
 **Exit evidence:** Windows host and Ubuntu VM join the same Circle, reject forged/expired/replayed
 admission, restart with stable identities, and exchange the same persisted message.
