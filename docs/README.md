@@ -56,3 +56,4 @@ Use this directory for ADRs, threat models, protocol specifications, milestone d
 - [`verification/2026-08-20-trusted-circle-security-design.md`](verification/2026-08-20-trusted-circle-security-design.md) — remote identity/admission design, deterministic rejection, TLS 1.3 spike, and issue #33 delivery evidence.
 - [`verification/2026-08-20-protected-cryptographic-state.md`](verification/2026-08-20-protected-cryptographic-state.md) — protected Node/Circle authority persistence, atomic migration, encrypted export, and native Windows/Linux evidence.
 - [`verification/2026-08-21-macos-developer-node.md`](verification/2026-08-21-macos-developer-node.md) — physical Apple-Silicon state/IPC, process, browser, fast-gate evidence, and explicit remaining gaps.
+- [`verification/2026-08-21-browser-brand-workspace.md`](verification/2026-08-21-browser-brand-workspace.md) — canonical brandmark, responsive Circle interactions, accessibility, and reviewed browser-state screenshots.

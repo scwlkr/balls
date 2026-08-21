@@ -1,4 +1,5 @@
 import type { DashboardSnapshot } from "../presentation/DashboardSnapshot";
+import { BrandMark } from "./BrandMark";
 
 interface CircleTopologyProps {
   circle: DashboardSnapshot["circle"];
@@ -26,6 +27,7 @@ export function CircleTopology({ circle }: CircleTopologyProps) {
 
       <div className="trust-thread">
         <div className="circle-hub" aria-label={`${circle.name} summary`}>
+          <BrandMark />
           <span>Circle</span>
           <strong>{circle.name}</strong>
           <small>

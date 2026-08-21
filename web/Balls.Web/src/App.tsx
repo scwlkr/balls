@@ -6,6 +6,7 @@ import type {
   CircleSummaryDto,
   StatusDto,
 } from "./api/localControl";
+import { BrandMark } from "./components/BrandMark";
 import { CircleTopology } from "./components/CircleTopology";
 import { StatusBanner } from "./components/StatusBanner";
 import type { DashboardSnapshot } from "./presentation/DashboardSnapshot";
@@ -110,10 +111,10 @@ export function App({ api = browserApi }: AppProps) {
         Skip to Circle
       </a>
       <div className="app-shell">
-        <Masthead hasCircle={workspace?.selected !== null} />
+        <Masthead hasCircle={workspace?.selected != null} />
         <main id="main-content">
           {!workspace && !error ? (
-            <section className="loading-state" aria-live="polite">
+            <section className="loading-state" role="status">
               <p className="eyebrow">Local workspace</p>
               <h1>Opening Balls…</h1>
             </section>
@@ -139,7 +140,7 @@ export function App({ api = browserApi }: AppProps) {
         </main>
 
         <footer>
-          <span>One local API. One Circle view.</span>
+          <span>Circle-first. Local by default.</span>
           {workspace ? <code>{workspace.status.node.id}</code> : null}
         </footer>
       </div>
@@ -151,14 +152,12 @@ function Masthead({ hasCircle }: { hasCircle: boolean }) {
   return (
     <header className="masthead">
       <a className="brand" href="#main-content" aria-label="Balls home">
-        <span className="brand-mark" aria-hidden="true">
-          B
-        </span>
-        <span>Balls</span>
+        <BrandMark />
+        <span>balls</span>
       </a>
       <nav aria-label="Circle navigation">
         <a href="#circle" aria-current="page">
-          Home
+          Circle
         </a>
         {hasCircle ? <a href="#people">People</a> : null}
         {hasCircle ? <a href="#nodes">Nodes</a> : null}
@@ -200,7 +199,11 @@ function Workspace({
     <>
       <StatusBanner snapshot={statusSnapshot} />
       {workspace.circles.length > 0 ? (
-        <nav className="circle-switcher" aria-label="Your Circles">
+        <nav
+          className="circle-switcher"
+          aria-label="Your Circles"
+          aria-busy={busy}
+        >
           <span>Circles</span>
           {workspace.circles.map((circle) => (
             <button
@@ -215,6 +218,11 @@ function Workspace({
               {circle.name}
             </button>
           ))}
+          {busy ? (
+            <span className="switching-label" role="status">
+              Switching Circle…
+            </span>
+          ) : null}
         </nav>
       ) : null}
       {error ? (
@@ -242,7 +250,7 @@ function CircleWorkspace({ dashboard }: { dashboard: DashboardSnapshot }) {
         aria-labelledby="circle-title"
       >
         <div>
-          <p className="eyebrow">Your Circle</p>
+          <p className="eyebrow">Circle home</p>
           <h1 id="circle-title">{circle.name}</h1>
           <p className="circle-thesis">
             A shared digital place owned by the people inside it.
@@ -277,15 +285,16 @@ function EmptyWorkspace({
 }) {
   return (
     <section className="empty-workspace" id="circle">
-      <div>
+      <div className="empty-intro">
+        <BrandMark />
         <p className="eyebrow">Your first shared place</p>
         <h1>Create your first Circle</h1>
         <p>
-          Start with a name for the place and the person who owns it. Balls
-          keeps the Circle on this Node.
+          Start a shared digital place for your people. This Node keeps the
+          Circle available on this device.
         </p>
       </div>
-      <form aria-label="Create a Circle" onSubmit={onCreate}>
+      <form aria-label="Create a Circle" aria-busy={busy} onSubmit={onCreate}>
         <label htmlFor="circle-name">Circle name</label>
         <input id="circle-name" name="circleName" maxLength={100} required />
         <label htmlFor="owner-name">Your display name</label>
