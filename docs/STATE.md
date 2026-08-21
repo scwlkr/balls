@@ -1,6 +1,6 @@
 # Current State
 
-**Updated:** 2026-08-20
+**Updated:** 2026-08-21
 
 This is the compact entry point for a coding agent. GitHub Issues are the execution authority;
 [`ROADMAP.md`](../ROADMAP.md) is the outcome index; detailed design and contract documents are
@@ -39,6 +39,23 @@ persistent text message. Transport remains replaceable and separate from Circle 
 
 The active GitHub milestone owns executable tickets. Do not start product features from a future
 milestone while a ready active-milestone ticket exists.
+
+## Parallel macOS developer lane
+
+[#48](https://github.com/scwlkr/balls/issues/48) is the owner-approved second lane. It adds an
+Apple-Silicon source-run host without a native GUI: `ballsd` owns local state and the existing
+React workspace remains the interface. The adapter uses marked owned APFS state under
+`~/Library/Application Support/Balls`, a private short Unix-domain socket, `/usr/bin/open`, and an
+explicit owned-state private-material scheme. The Mac handles macOS/portable/browser work while
+Windows keeps Windows-specific, Circle Files, and release work; GitHub Issues and pull requests
+coordinate the two machines.
+
+The exact TLS 1.3 remote contract is unchanged. .NET 10 supports its macOS `SslStream` path only
+for clients, so the Mac can develop and prove local/browser behavior and is being prepared as a
+joining client, but a macOS Anchor/listener is not yet claimed. The required `macos-26` fast lane
+tests this honest boundary. Brand/UI work remains queued in
+[#49](https://github.com/scwlkr/balls/issues/49) and must use `balls-brand.png` as the canonical
+visual source.
 
 Completed Open and Fast Foundation:
 
@@ -105,7 +122,7 @@ Protected IPC issues a short-lived one-time launch capability; the separate loop
 an HttpOnly session, antiforgery, exact Host/Origin validation, CSP, bounded requests, and no
 permissive CORS. The accessible Node, Circle list/create, Member, and Node views use the same
 application behavior as the CLI. Component tests and a real Playwright Chromium
-launch/create/list/restart journey run in focused/fast/full verification and both fixed CI lanes.
+launch/create/list/restart journey runs in focused/fast/full verification and the required CI lanes.
 The implementation and observed security evidence are recorded in the
 [browser UI record](verification/2026-08-19-browser-ui.md).
 
@@ -184,7 +201,7 @@ Blocked later in the active milestone:
 - One vertical outcome per issue and squash-merged pull request.
 - Focused check target: under 15 seconds.
 - Complete local fast-gate target: under 60 seconds.
-- Windows/Linux pull-request target: under five minutes.
+- Windows/Linux/macOS pull-request target: under five minutes.
 - Heavy VM, installer, recovery, upgrade, or full UI checks are release- or risk-triggered.
 - Every green `main` produces a Canary; coherent outcomes may become Alphas.
 - Alpha/tag publication requires a separate final owner confirmation after readiness evidence.

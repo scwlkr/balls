@@ -18,6 +18,11 @@ is accepted; protected production credentials, bounded single-use invitations, a
 transport, and persisted two-Node Circle admission are implemented. One persistent Circle message
 and milestone acceptance remain.
 
+In parallel, [#48](https://github.com/scwlkr/balls/issues/48) establishes an Apple-Silicon,
+source-run macOS developer Node and required Mac fast lane. This accelerates portable, browser,
+brand, and macOS compatibility work without expanding the supported files-first v1 platform claim
+or introducing a native Mac GUI.
+
 ## Files-first path to v1
 
 | Target | Outcome | State |

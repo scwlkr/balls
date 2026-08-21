@@ -46,6 +46,12 @@ provider/listener composed into `ballsd` only when `--admission-listen <private-
 An unknown suite, protocol major, or ALPN fails closed. Algorithm fields are descriptive and
 authenticated; implementation selection comes from the protocol version's allow-list.
 
+This contract is platform-independent, but implementation claims are not. .NET 10 supports the
+exact TLS 1.3 `SslStream` path on macOS clients through opt-in Network.framework and does not
+support a macOS TLS 1.3 server. The initial macOS developer Node keeps the constants above and is
+not an Anchor/listener; TLS 1.2 fallback is not permitted. See
+[`ADR 0007`](../decisions/0007-protected-macos-developer-node.md).
+
 ## Identifiers and credentials
 
 Circle, Member, Node, invitation, and operation IDs are lowercase UUID strings and are not

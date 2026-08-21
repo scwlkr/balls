@@ -14,6 +14,13 @@ public sealed class TrustedCircleAdmissionApplicationTests
     [TestMethod]
     public async Task Two_nodes_admit_once_and_reopen_the_same_signed_roster()
     {
+        if (OperatingSystem.IsMacOS())
+        {
+            Assert.Inconclusive(
+                ".NET 10 supports TLS 1.3 on macOS clients, but not macOS SslStream servers.");
+            return;
+        }
+
         using var anchorDirectory = new TemporaryDirectory();
         using var joinerDirectory = new TemporaryDirectory();
         var protector = new PassthroughProtector();

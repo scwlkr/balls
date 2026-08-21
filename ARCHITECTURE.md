@@ -111,7 +111,7 @@ typed API edge from the committed OpenAPI document, and keeps generated DTOs and
 `src/api`. React components receive presentation snapshots rather than owning Circle behavior or
 persistence. The accessible status, Circle list/create, Member, and Node views now consume the
 same `CircleApplication` behavior as the CLI through the narrow browser adapter. A real Chromium
-journey covers launch, creation, listing, and daemon restart on both required CI platforms.
+journey covers launch, creation, listing, and daemon restart on every required CI platform.
 
 ## Local API
 
@@ -158,6 +158,11 @@ context; TLS 1.3 binds the exact transport certificate SPKI to that signed state
 providers return untrusted byte streams and cannot assert Circle identity. See
 [`ADR 0006`](docs/decisions/0006-trusted-circle-identity-and-admission.md) and the
 [`remote Circle v1 contract`](docs/protocol/remote-circle-v1.md).
+
+.NET 10 exposes TLS 1.3 through `SslStream` on macOS clients only. The macOS developer adapter
+opts its client path into Network.framework and keeps the exact TLS 1.3 contract. It does not
+downgrade remote v1 or claim a macOS Anchor/listener until a TLS 1.3 server implementation is
+available. See [`ADR 0007`](docs/decisions/0007-protected-macos-developer-node.md).
 
 ## Identity model
 
@@ -387,22 +392,23 @@ Balls.Host selector
 HostPlatform aggregate
       │
 Balls.Platform contracts
-      ├──────────────┐
-      │              │
-Windows adapter   Linux adapter
+      ├──────────────┬──────────────┐
+      │              │              │
+Windows adapter   Linux adapter   macOS adapter
 ```
 
 `ballsd` also consumes the Core-owned `IPrivateMaterialProtector` capability selected by
-`Balls.Host`. Separate `Balls.Security.Windows` and `Balls.Security.Linux` adapters implement that
-inward-facing port: Windows uses current-user DPAPI, while Linux relies on the verified owned
-`0700` directory and `0600` database boundary. The SQLite adapter sees only the typed protection
-contract and stored scheme identifier; it contains no platform commands.
+`Balls.Host`. Separate Windows, Linux, and macOS security adapters implement that inward-facing
+port. Windows uses current-user DPAPI. Linux and the initial macOS developer adapter rely on a
+verified owned `0700` directory and `0600` database boundary; macOS additionally rejects extended
+ACL grants. The SQLite adapter sees only the typed protection contract and stored scheme
+identifier; it contains no platform commands.
 
 `HostPlatform` supplies platform defaults plus independent seams for local-state preparation,
 local-control server transport, and local-control client transport. `Balls.Host` is the only
-project that selects an OS adapter. Windows and Linux are registered; other hosts return one typed,
-fail-closed selection result. Executable entry points do not perform their own OS checks or
-construct adapter types.
+project that selects an OS adapter. Windows, Linux, and macOS are registered; other hosts return
+one typed, fail-closed selection result. Executable entry points do not perform their own OS
+checks or construct adapter types.
 
 ## Privilege model
 

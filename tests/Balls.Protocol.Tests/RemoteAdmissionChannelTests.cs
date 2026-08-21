@@ -13,6 +13,13 @@ public sealed class RemoteAdmissionChannelTests
     [TestMethod]
     public async Task Invitation_pinned_TLS_proves_the_proposed_transport_key_before_frames()
     {
+        if (OperatingSystem.IsMacOS())
+        {
+            Assert.Inconclusive(
+                ".NET 10 supports TLS 1.3 on macOS clients, but not macOS SslStream servers.");
+            return;
+        }
+
         using var serverKey = ECDsa.Create(ECCurve.NamedCurves.nistP256);
         using var clientKey = ECDsa.Create(ECCurve.NamedCurves.nistP256);
         using var serverCertificate = CreateCertificate("anchor.balls", serverKey);
@@ -99,6 +106,8 @@ public sealed class RemoteAdmissionChannelTests
             password: null,
             OperatingSystem.IsWindows()
                 ? X509KeyStorageFlags.UserKeySet | X509KeyStorageFlags.Exportable
-                : X509KeyStorageFlags.EphemeralKeySet | X509KeyStorageFlags.Exportable);
+                : OperatingSystem.IsMacOS()
+                    ? X509KeyStorageFlags.Exportable
+                    : X509KeyStorageFlags.EphemeralKeySet | X509KeyStorageFlags.Exportable);
     }
 }

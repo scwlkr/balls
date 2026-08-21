@@ -7,7 +7,7 @@ Console.CancelKeyPress += (_, eventArgs) =>
     eventArgs.Cancel = true;
     shutdown.Cancel();
 };
-using var terminateRegistration = OperatingSystem.IsLinux()
+using var terminateRegistration = OperatingSystem.IsLinux() || OperatingSystem.IsMacOS()
     ? PosixSignalRegistration.Create(
         PosixSignal.SIGTERM,
         context =>

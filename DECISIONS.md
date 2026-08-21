@@ -110,6 +110,10 @@ Run `ballsd` natively on Windows, Linux, and macOS.
 
 Do not make WSL the foundational host runtime.
 
+The initial macOS claim is Apple-Silicon source-run development through the same local browser UI,
+with dedicated protected state/IPC adapters and no native GUI. See
+[`ADR 0007`](docs/decisions/0007-protected-macos-developer-node.md).
+
 ### WSL
 
 Use WSL as an optional Windows workload runtime where useful.

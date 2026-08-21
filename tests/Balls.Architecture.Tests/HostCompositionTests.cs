@@ -9,14 +9,36 @@ public sealed class HostCompositionTests
     [TestMethod]
     public void Unsupported_hosts_share_one_typed_fail_closed_result()
     {
-        var macOS = HostPlatformSelector.Select(HostOperatingSystem.MacOS);
         var unknown = HostPlatformSelector.Select(HostOperatingSystem.Unknown);
 
-        Assert.IsInstanceOfType<UnsupportedHostPlatform>(macOS);
         Assert.IsInstanceOfType<UnsupportedHostPlatform>(unknown);
         Assert.AreEqual(
-            "the local host platform 'macos' is not supported yet.",
-            ((UnsupportedHostPlatform)macOS).Message);
+            "the local host platform 'unknown' is not supported yet.",
+            ((UnsupportedHostPlatform)unknown).Message);
+    }
+
+    [TestMethod]
+    public void MacOS_selection_composes_all_host_seams()
+    {
+        if (!OperatingSystem.IsMacOS())
+        {
+            Assert.Inconclusive("macOS host composition requires macOS.");
+            return;
+        }
+
+        var selection = HostPlatformSelector.SelectCurrent();
+        var supported = selection as SupportedHostPlatform;
+
+        Assert.IsNotNull(supported);
+        Assert.IsNotNull(supported.Platform.LocalState);
+        Assert.IsNotNull(supported.Platform.LocalControlServer);
+        Assert.IsNotNull(supported.Platform.LocalControlClient);
+        Assert.AreEqual("macos-owned-state-v1", supported.PrivateMaterialProtector.Scheme);
+        Assert.AreEqual("Unix-domain socket", supported.Platform.Defaults.LocalControlListenerDescription);
+        Assert.AreEqual("socket", supported.Platform.Defaults.LocalControlEndpointDescription);
+        StringAssert.EndsWith(
+            supported.Platform.Defaults.DataDirectory,
+            Path.Combine("Library", "Application Support", "Balls"));
     }
 
     [TestMethod]

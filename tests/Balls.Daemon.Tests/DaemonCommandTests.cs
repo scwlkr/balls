@@ -9,7 +9,7 @@ public sealed class DaemonCommandTests
     [TestMethod]
     public async Task Unsupported_host_fails_closed_through_the_typed_platform_result()
     {
-        if (OperatingSystem.IsWindows() || OperatingSystem.IsLinux())
+        if (OperatingSystem.IsWindows() || OperatingSystem.IsLinux() || OperatingSystem.IsMacOS())
         {
             Assert.Inconclusive("Supported hosts do not exercise this path.");
             return;

@@ -7,15 +7,16 @@ This is the versioned, machine-local contract between `balls` or another local i
 
 ## Transport and access
 
-- HTTP/1.1 with JSON over a Windows named pipe or Linux Unix-domain socket.
+- HTTP/1.1 with JSON over a Windows named pipe or Linux/macOS Unix-domain socket.
 - The full control plane has no TCP route. The client's `http://localhost` base address is only
   the logical HTTP authority used over the local IPC connection. `ballsd` separately binds one
   ephemeral IPv4 loopback listener for the narrow browser adapter described below.
-- Windows server and client use `CurrentUserOnly`; Linux requires an owned `0600` socket in an
-  owned `0700` runtime directory. The operating-system user is the v1 local principal.
+- Windows server and client use `CurrentUserOnly`; Linux and macOS require an owned `0600` socket
+  in an owned `0700` runtime directory. The operating-system user is the v1 local principal.
 - The Windows default pipe is `balls-control-<hash>`, where `<hash>` is the lowercase hexadecimal
   encoding of the first eight bytes of SHA-256 over the current Windows SID. Linux uses the
-  protected XDG runtime location or an effective-user fallback.
+  protected XDG runtime location or an effective-user fallback. macOS uses a short directory below
+  the current user's canonical private temporary location.
 - `--pipe-name` selects an explicit pipe for development and testing.
 - Maximum request body: 32 KiB. Default client timeout: 10 seconds.
 

@@ -14,6 +14,12 @@
           "Balls.Platform": "[0.2.0-alpha.1, )"
         }
       },
+      "balls.platform.macos": {
+        "type": "Project",
+        "dependencies": {
+          "Balls.Platform": "[0.2.0-alpha.1, )"
+        }
+      },
       "balls.platform.windows": {
         "type": "Project",
         "dependencies": {
@@ -21,6 +27,12 @@
         }
       },
       "balls.security.linux": {
+        "type": "Project",
+        "dependencies": {
+          "Balls.Core": "[0.2.0-alpha.1, )"
+        }
+      },
+      "balls.security.macos": {
         "type": "Project",
         "dependencies": {
           "Balls.Core": "[0.2.0-alpha.1, )"

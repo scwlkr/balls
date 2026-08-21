@@ -52,6 +52,7 @@ body:
         - Portable/Core
         - Windows
         - Linux
+        - macOS
         - Browser
         - GitHub/Release
     validations:

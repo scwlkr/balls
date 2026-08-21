@@ -108,7 +108,9 @@ public sealed partial class SqliteLocalStateStore
                     password: null,
                     OperatingSystem.IsWindows()
                         ? X509KeyStorageFlags.UserKeySet | X509KeyStorageFlags.Exportable
-                        : X509KeyStorageFlags.EphemeralKeySet | X509KeyStorageFlags.Exportable);
+                        : OperatingSystem.IsMacOS()
+                            ? X509KeyStorageFlags.Exportable
+                            : X509KeyStorageFlags.EphemeralKeySet | X509KeyStorageFlags.Exportable);
             },
             cancellationToken);
     }

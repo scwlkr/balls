@@ -25,10 +25,11 @@ Use this directory for ADRs, threat models, protocol specifications, milestone d
 - [`decisions/0004-local-typescript-browser-ui.md`](decisions/0004-local-typescript-browser-ui.md) — one local cross-platform browser UI and loopback boundary.
 - [`decisions/0005-files-first-v1.md`](decisions/0005-files-first-v1.md) — focused v1 Circle Files outcome and provider boundary.
 - [`decisions/0006-trusted-circle-identity-and-admission.md`](decisions/0006-trusted-circle-identity-and-admission.md) — remote v1 identity, admission, authenticated-channel, rejection, and recovery decision.
+- [`decisions/0007-protected-macos-developer-node.md`](decisions/0007-protected-macos-developer-node.md) — Apple-Silicon source-run host, protected state/IPC, required CI, and exact remote-TLS boundary.
 
 ## Contracts and state
 
-- [`protocol/local-control-v1.md`](protocol/local-control-v1.md) — implemented HTTP/JSON local-control contract over Windows named pipes and Linux Unix-domain sockets.
+- [`protocol/local-control-v1.md`](protocol/local-control-v1.md) — implemented HTTP/JSON local-control contract over Windows named pipes and Linux/macOS Unix-domain sockets.
 - [`protocol/remote-circle-v1.md`](protocol/remote-circle-v1.md) — accepted signed identity/admission core and transport-independent TLS boundary; stateful remote behavior is not implemented yet.
 - [`storage/sqlite-local-state-v1.md`](storage/sqlite-local-state-v1.md) — implemented local SQLite identity, schema, transactions, and migration policy.
 
@@ -54,3 +55,4 @@ Use this directory for ADRs, threat models, protocol specifications, milestone d
 - [`verification/2026-08-20-cross-platform-node-web-ui.md`](verification/2026-08-20-cross-platform-node-web-ui.md) — milestone budgets, exact candidate artifacts, repository/security readback, owner authorization, and Trusted Circle frontier.
 - [`verification/2026-08-20-trusted-circle-security-design.md`](verification/2026-08-20-trusted-circle-security-design.md) — remote identity/admission design, deterministic rejection, TLS 1.3 spike, and issue #33 delivery evidence.
 - [`verification/2026-08-20-protected-cryptographic-state.md`](verification/2026-08-20-protected-cryptographic-state.md) — protected Node/Circle authority persistence, atomic migration, encrypted export, and native Windows/Linux evidence.
+- [`verification/2026-08-21-macos-developer-node.md`](verification/2026-08-21-macos-developer-node.md) — physical Apple-Silicon state/IPC, process, browser, fast-gate evidence, and explicit remaining gaps.

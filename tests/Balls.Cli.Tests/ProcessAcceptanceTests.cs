@@ -283,15 +283,25 @@ public sealed class ProcessAcceptanceTests
 
     private static string GetEndpoint(string root)
     {
-        return OperatingSystem.IsWindows()
-            ? $"balls-acceptance-{Guid.NewGuid():N}"
+        if (OperatingSystem.IsWindows())
+        {
+            return $"balls-acceptance-{Guid.NewGuid():N}";
+        }
+
+        return OperatingSystem.IsMacOS()
+            ? Path.Combine(root, "r", "c.sock")
             : Path.Combine(root, "runtime", "control.sock");
     }
 
     private static string GetUnavailableEndpoint(string root)
     {
-        return OperatingSystem.IsWindows()
-            ? $"balls-tests-{Guid.NewGuid():N}"
+        if (OperatingSystem.IsWindows())
+        {
+            return $"balls-tests-{Guid.NewGuid():N}";
+        }
+
+        return OperatingSystem.IsMacOS()
+            ? Path.Combine(root, "u", "c.sock")
             : Path.Combine(root, "unavailable", "control.sock");
     }
 
@@ -310,15 +320,19 @@ public sealed class ProcessAcceptanceTests
     {
         public TemporaryDirectory()
         {
-            Path = System.IO.Path.Combine(
-                OperatingSystem.IsLinux()
-                    ? System.IO.Path.Combine(
-                        Environment.GetFolderPath(Environment.SpecialFolder.UserProfile),
-                        ".local",
-                        "state")
-                    : System.IO.Path.GetTempPath(),
-                "balls-tests",
-                Guid.NewGuid().ToString("N"));
+            Path = OperatingSystem.IsMacOS()
+                ? System.IO.Path.Combine(
+                    GetCanonicalTempPath(),
+                    $"bt-{Guid.NewGuid():N}"[..11])
+                : System.IO.Path.Combine(
+                    OperatingSystem.IsLinux()
+                        ? System.IO.Path.Combine(
+                            Environment.GetFolderPath(Environment.SpecialFolder.UserProfile),
+                            ".local",
+                            "state")
+                        : System.IO.Path.GetTempPath(),
+                    "balls-tests",
+                    Guid.NewGuid().ToString("N"));
             Directory.CreateDirectory(Path);
         }
 
@@ -338,5 +352,13 @@ public sealed class ProcessAcceptanceTests
                 }
             }
         }
+    }
+
+    private static string GetCanonicalTempPath()
+    {
+        var path = Path.GetFullPath(Path.GetTempPath());
+        return OperatingSystem.IsMacOS() && path.StartsWith("/var/", StringComparison.Ordinal)
+            ? "/private" + path
+            : path;
     }
 }

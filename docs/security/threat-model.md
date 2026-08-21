@@ -97,16 +97,20 @@ are executable.
   strict authority/origin checks, and Chromium's trustworthy-loopback handling of the Secure
   session cookie; it must not be exposed through a proxy or remote bind.
 - Ordinary local records are not encrypted by Balls. Windows private keys are DPAPI-protected;
-  Linux private keys rely on owned mode-restricted storage. Operating-system disk encryption is a
-  separate control.
+  Linux and initial macOS developer private keys rely on owned mode-restricted storage, with macOS
+  also rejecting extended ACL grants. Operating-system disk encryption is a separate control.
+- .NET 10 has macOS TLS 1.3 client support but no `SslStream` TLS 1.3 server support. The Mac
+  joining-client path opts into Network.framework; a Mac Anchor/listener is unsupported rather
+  than silently downgraded to TLS 1.2.
 - Production Node/Circle/Anchor/Member/transport keys, invitation replay, public trust, signed
   membership receipts, and bounded admission audit outcomes are durable. `ballsd` opens the
   admission listener only for an explicit numeric private/loopback endpoint. There is no discovery,
   owner revocation UX, credential rotation/import, remote audit replication, or message security yet.
 - The state marker and ACL are safety boundaries, not proof against an administrator, LocalSystem,
   physical access, or a compromised user session.
-- Use the default LocalAppData or XDG state root, or another dedicated current-user-controlled
-  parent on a supported local filesystem. Cross-user-writable and network paths are unsupported.
+- Use the default LocalAppData, XDG, or macOS Application Support state root, or another dedicated
+  current-user-controlled parent on a supported local filesystem. Cross-user-writable and network
+  paths are unsupported.
 - `CurrentUserOnly` authenticates the Windows account and elevation level, but the current pipe
   provider does not yet request Windows' remote-client rejection flag. A remote SMB session with
   the same Windows SID is inside the present account-level trust boundary.

@@ -40,7 +40,12 @@ create a Circle and list its Circles, Members, and Nodes through a versioned HTT
 same-user local IPC. SQLite state is held in a dedicated marked directory with protected platform
 permissions and fail-closed application-ID and schema validation.
 
-The files-first path now establishes public-ready delivery and fast Windows/Linux development,
+Apple-Silicon macOS now has a source-run developer adapter for the same daemon, CLI, durable state,
+local IPC, and React workspace. It is a development compatibility lane rather than a signed Mac
+release; the exact remote TLS 1.3 server boundary remains explicit in
+[`ADR 0007`](docs/decisions/0007-protected-macos-developer-node.md).
+
+The files-first path now establishes public-ready delivery and fast Windows/Linux/macOS development,
 then a cross-platform daemon/CLI/browser foundation, trusted join, LAN Circle Files, operable
 remote Files, a company Beta, and a focused v1.0. See the compact [`roadmap`](ROADMAP.md), detailed
 [`files-first program`](docs/roadmap/files-first-v1.md), and [`current state`](docs/STATE.md).
@@ -79,8 +84,8 @@ dotnet run --project src/Balls.Cli --configuration Release --no-build -- --outpu
 Use a new dedicated state directory, not a general-purpose folder. See the
 [`developer workflow`](docs/development.md) for the full verification sequence and participant
 listing commands. The [`docs index`](docs/README.md) links the local-control, storage, security,
-and decision records. Native Linux uses the same daemon and CLI behavior over a protected
-Unix-domain socket; see the developer workflow for its XDG defaults.
+and decision records. Native Linux and source-run macOS use the same daemon and CLI behavior over
+protected Unix-domain sockets; see the developer workflow for their platform defaults.
 
 ## Canary artifacts
 

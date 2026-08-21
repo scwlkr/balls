@@ -2,7 +2,8 @@
 
 ## Objective
 
-Optimize Balls for safe, extremely fast AI-assisted development from one Windows laptop while
+Optimize Balls for safe, extremely fast AI-assisted development from one Windows laptop and one
+Apple-Silicon Mac while
 keeping every green `main` promotable. Speed comes from short feedback loops, small vertical
 outcomes, deterministic automation, and rare high-cost evidence—not from skipping known
 security, data-integrity, or system-mutation risks.
@@ -56,7 +57,7 @@ fast local feedback
       ↓
 one pull request + automated review
       ↓
-required Windows/Linux gate
+required Windows/Linux/macOS gate
       ↓
 squash merge to main
       ↓
@@ -77,7 +78,7 @@ next ready issue
 | --- | ---: | --- | --- |
 | Focused | `<15s` | During edits | directly affected unit, contract, or component tests |
 | Local fast gate | `<60s` | Before push | format/analyzers, incremental build, unit/contract/process smoke |
-| Pull request | `<5m` wall time | Every PR | parallel fixed Windows/Linux build and fast suites; Chromium UI smoke when present |
+| Pull request | `<5m` wall time | Every PR | parallel fixed Windows/Linux/macOS build and fast suites; Chromium UI smoke when present |
 | Risk gate | No calendar target | Only when triggered | relevant VM, OS mutation, migration, installer, recovery, networking, or full UI scenario |
 | Release candidate | Outcome-driven | Before promotion | exact packaged bits and the minimum environment evidence for the release claim |
 
@@ -87,10 +88,10 @@ suite is normally rare.
 
 ## Pull-request merge decision
 
-The required CI path uses fixed `windows-2025` and `ubuntu-24.04` hosted images. Each platform
-runs the repository `fast` command in parallel under stable `Windows fast` and `Ubuntu fast`
-names. A final `Required` job runs with `always()`, inspects both dependency results, and fails if
-either lane failed, was cancelled, or was skipped. Only `Required` is a branch-ruleset status,
+The required CI path uses fixed `windows-2025`, `ubuntu-24.04`, and Apple-Silicon `macos-26`
+hosted images. Each platform runs the repository `fast` command in parallel under stable platform
+names. A final `Required` job runs with `always()`, inspects all three dependency results, and
+fails if any lane failed, was cancelled, or was skipped. Only `Required` is a branch-ruleset status,
 giving every pull request one fail-closed merge decision while retaining platform-specific logs.
 
 The workflow keeps read-only repository permission, SHA-pinned third-party actions, dependency
@@ -111,6 +112,27 @@ rejects unknown categories, and makes an empty focused selection fail. The brows
 the same visible orchestration for locked install, generated-client drift, format, lint, typecheck,
 component tests, and production build. Focused web verification accepts only named repository
 scripts rather than arbitrary shell input.
+
+## Two-workstation GitHub loop
+
+GitHub is the shared state; the computers never share a working directory. Keep one issue and one
+branch per outcome, and do not edit the same ticket from both machines. Windows owns Windows/Files/
+release tickets. The Mac owns macOS, portable code, browser UI, interaction, and brand tickets.
+
+At the start of work on either computer:
+
+```bash
+git fetch origin
+git switch main
+git pull --ff-only origin main
+git switch -c codex/<issue>-<short-slug>
+```
+
+Commit useful checkpoints and push the branch early with `git push -u origin HEAD`. Open one pull
+request linked to the issue. Use issue/PR comments only for handoff facts, not as a second design
+document. Let required CI and auto-merge serialize accepted work; after merge, fast-forward `main`
+before starting the next branch. If two changes overlap, finish the smaller PR first and rebase or
+merge current `main` into the other branch once—do not develop competing versions.
 
 ## Test taxonomy
 
@@ -135,7 +157,7 @@ The initial lab is intentionally one-laptop:
 - WSL2 Ubuntu: optional sub-minute Linux development executor, never the product runtime definition;
 - dedicated Ubuntu Hyper-V VM: separate Linux Node on a dedicated internal/NAT lab network;
 - optional small Windows VM: started serially for installer, upgrade, and Windows-to-Windows checks;
-- GitHub-hosted Windows and Ubuntu runners: clean pull-request evidence.
+- GitHub-hosted Windows, Ubuntu, and Apple-Silicon macOS runners: clean pull-request evidence.
 
 Create clean checkpoints before Balls persists Node identity. Never clone a VM after enrollment
 without regenerating its Node identity. Existing unrelated VMs and switches remain untouched.

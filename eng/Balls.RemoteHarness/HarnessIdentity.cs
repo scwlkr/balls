@@ -65,7 +65,9 @@ internal static class HarnessIdentity
             configuration.Pkcs12Password,
             OperatingSystem.IsWindows()
                 ? X509KeyStorageFlags.UserKeySet | X509KeyStorageFlags.Exportable
-                : X509KeyStorageFlags.EphemeralKeySet | X509KeyStorageFlags.Exportable);
+                : OperatingSystem.IsMacOS()
+                    ? X509KeyStorageFlags.Exportable
+                    : X509KeyStorageFlags.EphemeralKeySet | X509KeyStorageFlags.Exportable);
     }
 
     internal static RemoteChannelIdentity CreateLocalIdentity(

@@ -19,28 +19,32 @@ public sealed partial class RepositoryWorkflowTests
         StringAssert.Contains(Workflow, "ubuntu-fast:");
         StringAssert.Contains(Workflow, "name: Ubuntu fast");
         StringAssert.Contains(Workflow, "runs-on: ubuntu-24.04");
+        StringAssert.Contains(Workflow, "macos-fast:");
+        StringAssert.Contains(Workflow, "name: macOS fast");
+        StringAssert.Contains(Workflow, "runs-on: macos-26");
     }
 
     [TestMethod]
-    public void Aggregate_is_fail_closed_over_both_platform_lanes()
+    public void Aggregate_is_fail_closed_over_all_platform_lanes()
     {
         StringAssert.Contains(Workflow, "required:");
         StringAssert.Contains(Workflow, "name: Required");
-        StringAssert.Contains(Workflow, "needs: [windows-fast, ubuntu-fast]");
+        StringAssert.Contains(Workflow, "needs: [windows-fast, ubuntu-fast, macos-fast]");
         StringAssert.Contains(Workflow, "if: ${{ always() }}");
         StringAssert.Contains(Workflow, "WINDOWS_RESULT: ${{ needs.windows-fast.result }}");
         StringAssert.Contains(Workflow, "UBUNTU_RESULT: ${{ needs.ubuntu-fast.result }}");
+        StringAssert.Contains(Workflow, "MACOS_RESULT: ${{ needs.macos-fast.result }}");
     }
 
     [TestMethod]
     public void Build_lanes_install_the_pinned_web_toolchain_and_fast_lanes_cache_pnpm()
     {
-        Assert.AreEqual(4, Regex.Matches(Workflow, "node-version-file: .node-version").Count);
-        Assert.AreEqual(4, Regex.Matches(Workflow, "name: Enable pinned pnpm").Count);
+        Assert.AreEqual(5, Regex.Matches(Workflow, "node-version-file: .node-version").Count);
+        Assert.AreEqual(5, Regex.Matches(Workflow, "name: Enable pinned pnpm").Count);
         Assert.AreEqual(2, Regex.Matches(Workflow, "name: Install browser dependencies").Count);
         Assert.AreEqual(2, Regex.Matches(Workflow, "pnpm install --frozen-lockfile").Count);
-        Assert.AreEqual(2, Regex.Matches(Workflow, "name: Cache pnpm store").Count);
-        Assert.AreEqual(2, Regex.Matches(Workflow, "hashFiles\\('pnpm-lock.yaml'\\)").Count);
+        Assert.AreEqual(3, Regex.Matches(Workflow, "name: Cache pnpm store").Count);
+        Assert.AreEqual(3, Regex.Matches(Workflow, "hashFiles\\('pnpm-lock.yaml'\\)").Count);
         StringAssert.Contains(
             Workflow,
             "actions/setup-node@2028fbc5c25fe9cf00d9f06a71cc4710d4507903");

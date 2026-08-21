@@ -7,11 +7,14 @@ commands and safety rules implemented by the current checkpoint.
 ## Current platform boundary
 
 The projects target .NET 10. The repository pins SDK `10.0.400` in
-[`global.json`](../global.json). `ballsd` and `balls` run natively and unelevated on Windows and
-Linux through the same application, local-control v1, and SQLite v2 behavior. Windows composes
-protected ACLs, current-user DPAPI private-key protection, and same-user named pipes; Linux
-composes effective-user Unix modes, mode-restricted key storage, and a protected Unix-domain
-socket.
+[`global.json`](../global.json). `ballsd` and `balls` run natively and unelevated on Windows,
+Linux, and Apple-Silicon macOS through the same application, local-control v1, and SQLite behavior.
+Windows composes protected ACLs, current-user DPAPI private-key protection, and same-user named
+pipes; Linux composes effective-user Unix modes, mode-restricted key storage, and a protected
+Unix-domain socket. macOS composes owned local-APFS state, strict modes with no extended ACL
+grants, a short private Unix-domain socket, owned-state private material, and `/usr/bin/open` for
+the shared browser workspace. This is source-run development support, not a signed/notarized Mac
+distribution.
 
 ## Build and verify
 
@@ -34,7 +37,8 @@ dotnet run --project eng/Balls.Verify --configuration Release -- full
 ```
 
 These commands are shell-neutral .NET CLI invocations; use them unchanged in PowerShell or Bash.
-The required Ubuntu and Windows pull-request lanes both run `fast`; use `full` locally and for
+The required Ubuntu, Windows, and Apple-Silicon macOS pull-request lanes run `fast`; use `full`
+locally and for
 release/risk gates that require every OS-integration test. WSL may be used as a Linux development
 executor, but it is not the Balls product runtime.
 
@@ -62,11 +66,35 @@ dotnet test Balls.slnx --configuration Release --no-build --no-restore
 
 The repository pins Node through [`.node-version`](../.node-version), pnpm through the root
 `packageManager`, and dependency resolution in `pnpm-lock.yaml`. CI enables Corepack and caches the
-pnpm store independently on both fixed platform lanes. Run commands from the repository root so
+pnpm store independently on all fixed platform lanes. Run commands from the repository root so
 the workspace and lockfile remain authoritative.
 
 Package lock files are committed per project. Change dependencies deliberately, regenerate the
 affected lock files, and then rerun the full sequence.
+
+## Run the local slice on macOS
+
+Use the pinned .NET, Node, and pnpm versions. After a locked restore/build, run the daemon with its
+defaults in one terminal:
+
+```bash
+dotnet run --project src/Balls.Daemon --configuration Release --no-build
+```
+
+In another terminal, inspect it and open the same React workspace used on Windows and Linux:
+
+```bash
+dotnet run --project src/Balls.Cli --configuration Release --no-build -- status
+dotnet run --project src/Balls.Cli --configuration Release --no-build -- ui
+```
+
+Default state is `~/Library/Application Support/Balls`; the control socket stays below the user's
+canonical private macOS temporary directory. Stop with Ctrl+C and restart the same command to
+confirm stable identity and Circle state. Do not run the daemon with `sudo`.
+
+.NET 10 provides TLS 1.3 on macOS `SslStream` clients through Network.framework but not on servers.
+Balls opts in for the joining-client path and keeps remote v1 at exact TLS 1.3. A Mac Anchor/
+listener is therefore unverified and unsupported in this checkpoint; no TLS downgrade is allowed.
 
 ## Run the browser workspace
 
@@ -103,8 +131,8 @@ The generated client is committed at `web/Balls.Web/src/api/generated`. Update i
 
 ## Download and run a Windows Canary
 
-The CI workflow starts its Canary jobs only after the required Windows and Ubuntu lanes succeed for
-a `main` push or an explicit branch `workflow_dispatch`. It checks out that exact commit, builds
+The CI workflow starts its Canary jobs only after the required Windows, Ubuntu, and macOS lanes
+succeed for a `main` push or an explicit branch `workflow_dispatch`. It checks out that exact commit, builds
 each platform package once, and retains the results for 14 days. Ordinary pull-request runs skip
 Canaries. Artifact names have this deterministic shape:
 
@@ -205,11 +233,12 @@ dotnet run --project src/Balls.Cli --configuration Release --no-build -- --outpu
 dotnet run --project src/Balls.Cli --configuration Release --no-build -- --output json --pipe-name balls-dev circle list
 ```
 
-The same order and envelope apply on Windows and Linux. Global `--output` and `--pipe-name` options
-must precede the command; command-specific `--owner`, `--request-id`, and `--circle` options follow
-their command operands. JSON success is written to standard output and JSON errors to standard
-error. See the [CLI compatibility contract](protocol/local-control-v1.md#cli-output-compatibility)
-for the exact envelope, error codes, ordering, and additive-field rules.
+The same order and envelope apply on Windows, Linux, and macOS. Global `--output` and `--pipe-name`
+options must precede the command; command-specific `--owner`, `--request-id`, and `--circle`
+options follow their command operands. JSON success is written to standard output and JSON errors
+to standard error. See the
+[CLI compatibility contract](protocol/local-control-v1.md#cli-output-compatibility) for the exact
+envelope, error codes, ordering, and additive-field rules.
 
 ## Run the local slice on Linux
 
