@@ -23,6 +23,11 @@ hardened local React workspace on Windows and Linux. The annotated tag targets e
 commit `3935b6ac275b24c8ed2389862b012da747099f34`; seven public assets, checksums, installers, and
 the SPDX 2.3 SBOM passed unauthenticated readback.
 
+The dedicated `Balls.Dev.Windows11` Hyper-V guest is ready for unsigned source builds, real Chrome
+UI journeys, installer checks, and Windows-specific acceptance. PowerShell Direct, GitHub access,
+the repository toolchain, and the initial source/browser/installer smokes are proven. Read the
+[Windows development lab runbook](windows-development-lab.md) before using or recovering it.
+
 ## Active milestone
 
 **`0.3.0-alpha.1` — Trusted Circle**

@@ -8,6 +8,7 @@ Use this directory for ADRs, threat models, protocol specifications, milestone d
 - [`development.md`](development.md) — locked build/test commands, local run instructions, state-directory safety, and exit codes.
 - [`development-process.md`](development-process.md) — ticket flow, feedback loops, virtual lab, release channels, and public-source gate.
 - [`cross-platform-lab.md`](cross-platform-lab.md) — namespaced Hyper-V/WSL lab creation, clean identity checkpoint, reset, package proof, and cleanup.
+- [`windows-development-lab.md`](windows-development-lab.md) — dedicated Windows 11 guest, secure automation entry points, unsigned build/UI/installer workflow, and recovery boundaries.
 
 ## Roadmap
 
