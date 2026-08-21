@@ -33,7 +33,8 @@ Balls should first feel exceptional for **2–10 trusted, somewhat technical peo
 ## Current status
 
 **[`0.2.0-alpha.1`](https://github.com/scwlkr/balls/releases/tag/0.2.0-alpha.1)
-Cross-platform Node and Web UI is published. Trusted Circle is the active milestone.**
+Cross-platform Node and Web UI is published. `0.3.0-alpha.1` Trusted Circle is a release candidate
+awaiting exact protected-main artifact verification and explicit owner acceptance.**
 
 On Windows and Linux, `ballsd` now owns persistent local Node and Circle state, and `balls` can
 create a Circle and list its Circles, Members, and Nodes through a versioned HTTP/JSON API over
@@ -126,6 +127,10 @@ The accepted `0.2.0-alpha.1` archives, checksum files, installers, and SPDX SBOM
 the [public prerelease](https://github.com/scwlkr/balls/releases/tag/0.2.0-alpha.1). These Alpha
 binaries are unsigned; managed Windows Application Control may require an administrator-approved
 signing or allow policy.
+
+The `0.3.0-alpha.1` candidate is not tagged or published. Its exact-artifact and owner decision
+status is recorded in the
+[`Trusted Circle milestone evidence`](docs/verification/2026-08-21-trusted-circle.md).
 
 ## Contributing and security
 

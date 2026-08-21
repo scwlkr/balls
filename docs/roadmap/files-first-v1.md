@@ -79,9 +79,9 @@ authorization, and the remote Circle protocol are separate from transport.
 
 #33 selected the remote v1 identity, signed-admission, TLS, provider, recovery, and revocation
 boundaries with executable Windows/Linux-ready contracts. #35 protected production authority,
-#36 added direct canonical single-use invitations, #37 authenticated LAN transport, and #38
-persisted one signed two-Node roster through the daemon/API/CLI. #39 is the next implementation
-frontier; #34 remains blocked by its explicit issue dependency.
+#36 added direct canonical single-use invitations, #37 authenticated LAN transport, #38 persisted
+one signed two-Node roster through the daemon/API/CLI, and #39 added one persistent dual-signed
+message. #34 is the active release-candidate verification and explicit owner-acceptance gate.
 
 **Exit evidence:** Windows host and Ubuntu VM join the same Circle, reject forged/expired/replayed
 admission, restart with stable identities, and exchange the same persisted message.
@@ -98,18 +98,18 @@ Explorer-mapped folder over a private LAN.
 **Architectural proof:** Circle contribution and authorization drive a provider without making SMB
 the Circle Files product model.
 
-**Candidate tickets:**
+**Executable issues:**
 
-1. define Circle Files contribution, provider, and access-grant contracts;
-2. implement typed fail-closed Windows SMB 3.1.1 readiness;
-3. create a new dedicated contributed folder through one narrowly scoped UAC-approved, recoverable
-   helper operation;
-4. issue one limited provider credential per Member access grant;
-5. save the credential and map the exact Circle drive unelevated using a user-selected available
-   drive letter and friendly Circle name;
-6. revoke grants and remove only Balls-owned infrastructure;
-7. certify Explorer, ordinary PDF/image viewing, current Word/Excel/PowerPoint locking, and the
-   full LAN outcome.
+1. [#56 define Circle Files contributions and Member access grants](https://github.com/scwlkr/balls/issues/56);
+2. [#57 add typed fail-closed Windows SMB 3.1.1 readiness](https://github.com/scwlkr/balls/issues/57);
+3. [#58 create a dedicated Circle folder through a narrow Windows helper](https://github.com/scwlkr/balls/issues/58);
+4. [#59 issue one limited SMB credential per Member access grant](https://github.com/scwlkr/balls/issues/59);
+5. [#60 map the exact Circle folder unelevated in Windows Explorer](https://github.com/scwlkr/balls/issues/60);
+6. [#61 revoke grants and remove only Balls-owned infrastructure](https://github.com/scwlkr/balls/issues/61);
+7. [#62 verify and accept the LAN Circle Files milestone](https://github.com/scwlkr/balls/issues/62).
+
+#56 is the single ready frontier. #57–#62 remain dependency-blocked until their recorded
+predecessors land.
 
 **Provider contract:** SMB1 and guest access are disabled; signing and encryption are required;
 TCP 445 is never public. Access begins with `Read/write` or `Read-only` at the whole-folder level.
