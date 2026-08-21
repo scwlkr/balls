@@ -51,7 +51,7 @@ The release-version change was developed against the public daemon status bounda
 
 The historical gitleaks match for the literal metadata pair
 `privateKeyEncoding` / `encrypted-pkcs8` is not a credential. Its exact fingerprint is ignored;
-the final tracked-history scan covered 46 commits and found no leaks.
+the final tracked-history scan found no leaks.
 
 ## Proven headline outcome
 
