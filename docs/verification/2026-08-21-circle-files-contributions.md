@@ -28,8 +28,8 @@ Observed on the Windows development host from the issue branch:
 | SQLite contract | 5 focused tests passed: idempotent restart-stable state, v3-step interruption resume, v5-to-v6 migration with preserved Circle state, injected v6 migration rollback/retry, and failed-grant rollback with restart absence |
 | Local API/browser boundary | 3 focused tests passed: safe control create/list projections, OpenAPI contract, and authenticated read-only browser lists with mutation absence |
 | Structured CLI | 1 focused separate-process test passed for contribution/grant create/list text and JSON output |
-| Local fast gate | Passed after review fixes in 54.4 seconds; Release build had 0 warnings/errors, 210 .NET tests passed, 9 browser-component tests passed, and the installed-browser journey passed |
-| Full local gate | Not yet run; scheduled once after independent code review |
+| Local fast gate | Passed after the final review fixes in 59.8 seconds; Release build had 0 warnings/errors, 210 .NET tests passed, 9 browser-component tests passed, and the installed-browser journey passed |
+| Full local gate | Passed in 51.6 seconds: 215 .NET tests, 9 browser-component tests, and the installed-browser journey passed; 20 host-inapplicable tests skipped honestly |
 
 Existing storage contract coverage also refuses a database whose `user_version` is newer than the
 supported schema. No VM,
