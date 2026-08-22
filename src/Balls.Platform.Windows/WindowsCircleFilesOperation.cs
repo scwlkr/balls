@@ -13,6 +13,7 @@ internal enum WindowsCircleFilesOperationStep
 internal enum WindowsCircleFilesOwnedState
 {
     Missing,
+    Recoverable,
     Owned,
     Collision,
 }

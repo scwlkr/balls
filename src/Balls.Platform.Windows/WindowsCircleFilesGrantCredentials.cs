@@ -233,7 +233,8 @@ internal sealed class WindowsCircleFilesGrantOperation(IWindowsCircleFilesGrantO
         {
             return CircleFilesGrantCredentialApplyStatus.AlreadyApplied;
         }
-        if (states.Any(value => value.Value == WindowsCircleFilesOwnedState.Owned))
+        if (states.Any(value => value.Value is WindowsCircleFilesOwnedState.Owned
+                or WindowsCircleFilesOwnedState.Recoverable))
         {
             await RollbackAsync(plan, states, cancellationToken).ConfigureAwait(false);
         }
@@ -307,7 +308,8 @@ internal sealed class WindowsCircleFilesGrantOperation(IWindowsCircleFilesGrantO
     {
         foreach (var step in Steps.Reverse())
         {
-            if (states[step] == WindowsCircleFilesOwnedState.Owned)
+            if (states[step] is WindowsCircleFilesOwnedState.Owned
+                or WindowsCircleFilesOwnedState.Recoverable)
             {
                 await operations.RollbackAsync(plan, step, cancellationToken).ConfigureAwait(false);
             }

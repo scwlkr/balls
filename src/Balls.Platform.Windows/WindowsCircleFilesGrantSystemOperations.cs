@@ -154,7 +154,7 @@ internal sealed class WindowsCircleFilesGrantSystemOperations : IWindowsCircleFi
     private static WindowsCircleFilesOwnedState InspectFolderAcl(WindowsCircleFilesGrantHelperPlan plan)
     {
         var markerState = InspectMarker(plan);
-        if (HasUnsafeFolderAccess(plan, includeGrantAccount: markerState == WindowsCircleFilesOwnedState.Missing))
+        if (HasUnsafeFolderAccess(plan, allowGrantAccount: markerState == WindowsCircleFilesOwnedState.Owned))
         {
             return WindowsCircleFilesOwnedState.Collision;
         }
@@ -175,31 +175,34 @@ internal sealed class WindowsCircleFilesGrantSystemOperations : IWindowsCircleFi
 
     internal static bool HasUnsafeFolderAccess(
         WindowsCircleFilesGrantHelperPlan plan,
-        bool includeGrantAccount)
+        bool allowGrantAccount)
     {
-        SecurityIdentifier? grantSid = null;
-        if (includeGrantAccount)
+        var allowed = new HashSet<string>(StringComparer.Ordinal)
+        {
+            plan.OwnerSid,
+            new SecurityIdentifier(WellKnownSidType.LocalSystemSid, null).Value,
+        };
+        if (allowGrantAccount)
         {
             try
             {
                 var account = plan.PublicPlan.AccountName.Contains('\\', StringComparison.Ordinal)
                     ? new NTAccount(plan.PublicPlan.AccountName)
                     : new NTAccount(Environment.MachineName, plan.PublicPlan.AccountName);
-                grantSid = (SecurityIdentifier)account.Translate(typeof(SecurityIdentifier));
+                allowed.Add(((SecurityIdentifier)account.Translate(typeof(SecurityIdentifier))).Value);
             }
             catch (IdentityNotMappedException)
             {
+                return true;
             }
         }
 
-        var world = new SecurityIdentifier(WellKnownSidType.WorldSid, null);
-        var authenticatedUsers = new SecurityIdentifier(WellKnownSidType.AuthenticatedUserSid, null);
         var rules = new DirectoryInfo(plan.PublicPlan.FolderPath).GetAccessControl()
             .GetAccessRules(includeExplicit: true, includeInherited: true, typeof(SecurityIdentifier));
         return rules.Cast<FileSystemAccessRule>().Any(rule =>
             rule.AccessControlType == AccessControlType.Allow
             && rule.IdentityReference is SecurityIdentifier sid
-            && (sid == world || sid == authenticatedUsers || sid == grantSid));
+            && !allowed.Contains(sid.Value));
     }
 
     private static void ApplyFolderAcl(WindowsCircleFilesGrantHelperPlan plan)
@@ -350,6 +353,7 @@ internal sealed class WindowsCircleFilesGrantPowerShell
         return document.RootElement.GetProperty("State").GetString() switch
         {
             "Missing" => WindowsCircleFilesOwnedState.Missing,
+            "Recoverable" => WindowsCircleFilesOwnedState.Recoverable,
             "Owned" => WindowsCircleFilesOwnedState.Owned,
             "Collision" => WindowsCircleFilesOwnedState.Collision,
             _ => throw new InvalidDataException("The grant helper returned an invalid state."),
@@ -383,9 +387,12 @@ internal sealed class WindowsCircleFilesGrantPowerShell
         startInfo.ArgumentList.Add("-EncodedCommand");
         startInfo.ArgumentList.Add(Convert.ToBase64String(Encoding.Unicode.GetBytes(Script)));
         var injectAccountFailure = false;
+        string? injectAccountTerminationStep = null;
 #if DEBUG
         injectAccountFailure = Environment.GetEnvironmentVariable(
             "BALLS_TEST_WINDOWS_GRANT_ACCOUNT_FAILURE") == "1";
+        injectAccountTerminationStep = Environment.GetEnvironmentVariable(
+            "BALLS_TEST_WINDOWS_GRANT_ACCOUNT_TERMINATION_STEP");
 #endif
         var input = JsonSerializer.Serialize(new
         {
@@ -393,9 +400,11 @@ internal sealed class WindowsCircleFilesGrantPowerShell
             AccountName = plan.PublicPlan.AccountName,
             Password = Encoding.UTF8.GetString(plan.Secret),
             Description = AccountDescription(plan),
+            OwnerSid = plan.OwnerSid,
             ShareName = plan.PublicPlan.ShareName,
             AccessRight = plan.Request.Access == "read-only" ? "Read" : "Change",
             InjectAccountFailure = injectAccountFailure,
+            InjectAccountTerminationStep = injectAccountTerminationStep,
         });
         try
         {
@@ -433,10 +442,15 @@ internal sealed class WindowsCircleFilesGrantPowerShell
           static LSA_UNICODE_STRING Make(string value) { var p=Marshal.StringToHGlobalUni(value); return new LSA_UNICODE_STRING { Buffer=p, Length=(ushort)(value.Length*2), MaximumLength=(ushort)((value.Length+1)*2) }; }
           static IntPtr Open() { var a=new LSA_OBJECT_ATTRIBUTES { Length=Marshal.SizeOf(typeof(LSA_OBJECT_ATTRIBUTES)) }; IntPtr p; uint s=LsaOpenPolicy(IntPtr.Zero, ref a, 0x810, out p); if(s!=0) throw new Win32Exception((int)s); return p; }
           public static bool PasswordWorks(string user,string password) { IntPtr t; if(!LogonUser(user,".",password,3,0,out t)) return false; CloseHandle(t); return true; }
-          public static void Add(string sidText) { var sid=new System.Security.Principal.SecurityIdentifier(sidText); var b=new byte[sid.BinaryLength]; sid.GetBinaryForm(b,0); IntPtr p=Open(); var values=new LSA_UNICODE_STRING[Expected.Length]; try { for(int i=0;i<values.Length;i++) values[i]=Make(Expected[i]); uint s=LsaAddAccountRights(p,b,values,(uint)values.Length); if(s!=0) throw new Win32Exception((int)s); } finally { foreach(var v in values) if(v.Buffer!=IntPtr.Zero) Marshal.FreeHGlobal(v.Buffer); LsaClose(p); } }
-          public static bool None(string sidText) { var sid=new System.Security.Principal.SecurityIdentifier(sidText); var b=new byte[sid.BinaryLength]; sid.GetBinaryForm(b,0); IntPtr p=Open(), values=IntPtr.Zero; try { uint count; uint s=LsaEnumerateAccountRights(p,b,out values,out count); return s==0xC0000034 || (s==0 && count==0); } finally { if(values!=IntPtr.Zero)LsaFreeMemory(values); LsaClose(p); } }
-          public static void Remove(string sidText) { if(!Exact(sidText)) throw new InvalidOperationException("account rights changed"); var sid=new System.Security.Principal.SecurityIdentifier(sidText); var b=new byte[sid.BinaryLength]; sid.GetBinaryForm(b,0); IntPtr p=Open(); try { uint s=LsaRemoveAccountRights(p,b,true,IntPtr.Zero,0); if(s!=0) throw new Win32Exception((int)s); } finally { LsaClose(p); } }
-          public static bool Exact(string sidText) { var sid=new System.Security.Principal.SecurityIdentifier(sidText); var b=new byte[sid.BinaryLength]; sid.GetBinaryForm(b,0); IntPtr p=Open(), values=IntPtr.Zero; try { uint count; uint s=LsaEnumerateAccountRights(p,b,out values,out count); if(s!=0) return false; var found=new HashSet<string>(StringComparer.Ordinal); int size=Marshal.SizeOf(typeof(LSA_UNICODE_STRING)); for(int i=0;i<count;i++){ var v=(LSA_UNICODE_STRING)Marshal.PtrToStructure(IntPtr.Add(values,i*size),typeof(LSA_UNICODE_STRING)); found.Add(Marshal.PtrToStringUni(v.Buffer,v.Length/2)); } return found.SetEquals(Expected); } finally { if(values!=IntPtr.Zero)LsaFreeMemory(values); LsaClose(p); } }
+          public static string[] TokenGroups(string user,string password) { IntPtr t; if(!LogonUser(user,".",password,3,0,out t))throw new Win32Exception(Marshal.GetLastWin32Error()); try { var found=new List<string>(); using(var identity=new System.Security.Principal.WindowsIdentity(t)){ foreach(System.Security.Principal.IdentityReference group in identity.Groups)found.Add(((System.Security.Principal.SecurityIdentifier)group).Value); } return found.ToArray(); } finally { CloseHandle(t); } }
+          static string[] Read(string sidText) { var sid=new System.Security.Principal.SecurityIdentifier(sidText); var b=new byte[sid.BinaryLength]; sid.GetBinaryForm(b,0); IntPtr p=Open(), values=IntPtr.Zero; try { uint count; uint s=LsaEnumerateAccountRights(p,b,out values,out count); if(s==0xC0000034)return new string[0]; if(s!=0)throw new Win32Exception((int)s); var found=new List<string>(); int size=Marshal.SizeOf(typeof(LSA_UNICODE_STRING)); for(int i=0;i<count;i++){ var v=(LSA_UNICODE_STRING)Marshal.PtrToStructure(IntPtr.Add(values,i*size),typeof(LSA_UNICODE_STRING)); found.Add(Marshal.PtrToStringUni(v.Buffer,v.Length/2)); } return found.ToArray(); } finally { if(values!=IntPtr.Zero)LsaFreeMemory(values); LsaClose(p); } }
+          static void AddRights(string sidText,string[] rights) { if(rights.Length==0)return; var sid=new System.Security.Principal.SecurityIdentifier(sidText); var b=new byte[sid.BinaryLength]; sid.GetBinaryForm(b,0); IntPtr p=Open(); var values=new LSA_UNICODE_STRING[rights.Length]; try { for(int i=0;i<values.Length;i++) values[i]=Make(rights[i]); uint s=LsaAddAccountRights(p,b,values,(uint)values.Length); if(s!=0) throw new Win32Exception((int)s); } finally { foreach(var v in values) if(v.Buffer!=IntPtr.Zero) Marshal.FreeHGlobal(v.Buffer); LsaClose(p); } }
+          static void RemoveAll(string sidText) { var sid=new System.Security.Principal.SecurityIdentifier(sidText); var b=new byte[sid.BinaryLength]; sid.GetBinaryForm(b,0); IntPtr p=Open(); try { uint s=LsaRemoveAccountRights(p,b,true,IntPtr.Zero,0); if(s!=0) throw new Win32Exception((int)s); } finally { LsaClose(p); } }
+          public static void Add(string sidText) { AddRights(sidText,Expected); }
+          public static bool Exact(string sidText) { return new HashSet<string>(Read(sidText),StringComparer.Ordinal).SetEquals(Expected); }
+          public static bool OwnedSubset(string sidText) { var expected=new HashSet<string>(Expected,StringComparer.Ordinal); foreach(var value in Read(sidText))if(!expected.Contains(value))return false; return true; }
+          public static string[] RemoveOwnedSubset(string sidText) { var actual=Read(sidText); var expected=new HashSet<string>(Expected,StringComparer.Ordinal); foreach(var value in actual)if(!expected.Contains(value))throw new InvalidOperationException("account rights changed"); if(actual.Length!=0)RemoveAll(sidText); return actual; }
+          public static void Restore(string sidText,string[] rights) { AddRights(sidText,rights); }
         }
         '@
         function Get-AccountState {
@@ -445,36 +459,45 @@ internal sealed class WindowsCircleFilesGrantPowerShell
           $groups = @(Microsoft.PowerShell.LocalAccounts\Get-LocalGroup | Where-Object { @((Microsoft.PowerShell.LocalAccounts\Get-LocalGroupMember -Name $_.Name -ErrorAction SilentlyContinue).SID.Value) -contains [string]$user.SID.Value })
           $sam = [ADSI]('WinNT://./' + [string]$request.AccountName + ',user')
           $passwordDoesNotExpire = ([int]$sam.UserFlags.Value -band 0x10000) -ne 0
-          $owned = [string]$user.Description -eq [string]$request.Description -and [bool]$user.Enabled -and $passwordDoesNotExpire -and -not [bool]$user.UserMayChangePassword -and $groups.Count -eq 0 -and [BallsGrantRights]::PasswordWorks([string]$request.AccountName,[string]$request.Password) -and [BallsGrantRights]::Exact([string]$user.SID.Value)
+          $baseOwned = [string]$user.Description -eq [string]$request.Description -and $groups.Count -eq 0 -and [BallsGrantRights]::PasswordWorks([string]$request.AccountName,[string]$request.Password)
+          if (-not $baseOwned -or -not [BallsGrantRights]::OwnedSubset([string]$user.SID.Value)) { return 'Collision' }
+          $owned = [bool]$user.Enabled -and $passwordDoesNotExpire -and -not [bool]$user.UserMayChangePassword -and [BallsGrantRights]::Exact([string]$user.SID.Value)
           if ($owned) { return 'Owned' }
+          if ($baseOwned) { return 'Recoverable' }
           return 'Collision'
         }
         function Get-ShareState {
           $share = SmbShare\Get-SmbShare -Name ([string]$request.ShareName) -ErrorAction SilentlyContinue
           if ($null -eq $share -or -not [bool]$share.EncryptData) { return 'Collision' }
-          $genericSids = @('S-1-1-0','S-1-5-11')
-          $targetGeneric = @(SmbShare\Get-SmbShareAccess -Name ([string]$request.ShareName) -ErrorAction Stop | Where-Object { if ([string]$_.AccessControlType -ne 'Allow') { return $false }; try { $genericSids -contains ([System.Security.Principal.NTAccount]$_.AccountName).Translate([System.Security.Principal.SecurityIdentifier]).Value } catch { $false } })
-          if ($targetGeneric.Count -ne 0) { return 'Collision' }
-          $otherAccess = @(SmbShare\Get-SmbShare | Where-Object { -not [bool]$_.Special -and [string]$_.Name -ne [string]$request.ShareName } | ForEach-Object { SmbShare\Get-SmbShareAccess -Name $_.Name -ErrorAction SilentlyContinue })
-          $genericForeign = @($otherAccess | Where-Object { try { [string]$_.AccessControlType -eq 'Allow' -and $genericSids -contains ([System.Security.Principal.NTAccount]$_.AccountName).Translate([System.Security.Principal.SecurityIdentifier]).Value } catch { $false } })
-          if ($genericForeign.Count -ne 0) { return 'Collision' }
+          $genericSids = @('S-1-1-0','S-1-5-2','S-1-5-11','S-1-5-15','S-1-5-32-545','S-1-5-113')
           $user = Microsoft.PowerShell.LocalAccounts\Get-LocalUser -Name ([string]$request.AccountName) -ErrorAction SilentlyContinue
+          $effectiveSids = $genericSids
+          if ($null -ne $user) { $effectiveSids = @([BallsGrantRights]::TokenGroups([string]$request.AccountName,[string]$request.Password)) }
+          $allowedTarget = @([string]$request.OwnerSid)
+          if ($null -ne $user) { $allowedTarget += [string]$user.SID.Value }
+          $targetAccess = @(SmbShare\Get-SmbShareAccess -Name ([string]$request.ShareName) -ErrorAction Stop)
+          foreach ($entry in $targetAccess) {
+            try { $sid = ([System.Security.Principal.NTAccount]$entry.AccountName).Translate([System.Security.Principal.SecurityIdentifier]).Value } catch { return 'Collision' }
+            if ([string]$entry.AccessControlType -ne 'Allow' -or $allowedTarget -notcontains [string]$sid) { return 'Collision' }
+          }
+          $otherAccess = @(SmbShare\Get-SmbShare | Where-Object { -not [bool]$_.Special -and [string]$_.Name -ne [string]$request.ShareName } | ForEach-Object { SmbShare\Get-SmbShareAccess -Name $_.Name -ErrorAction SilentlyContinue })
+          $genericForeign = @($otherAccess | Where-Object { try { [string]$_.AccessControlType -eq 'Allow' -and $effectiveSids -contains ([System.Security.Principal.NTAccount]$_.AccountName).Translate([System.Security.Principal.SecurityIdentifier]).Value } catch { $false } })
+          if ($genericForeign.Count -ne 0) { return 'Collision' }
           if ($null -eq $user) { return 'Missing' }
           $foreign = @($otherAccess | Where-Object { try { ([System.Security.Principal.NTAccount]$_.AccountName).Translate([System.Security.Principal.SecurityIdentifier]).Value -eq [string]$user.SID.Value } catch { $false } })
           if ($foreign.Count -ne 0) { return 'Collision' }
-          $matches = @(SmbShare\Get-SmbShareAccess -Name ([string]$request.ShareName) -ErrorAction Stop | Where-Object { try { ([System.Security.Principal.NTAccount]$_.AccountName).Translate([System.Security.Principal.SecurityIdentifier]).Value -eq [string]$user.SID.Value } catch { $false } })
+          $matches = @($targetAccess | Where-Object { try { ([System.Security.Principal.NTAccount]$_.AccountName).Translate([System.Security.Principal.SecurityIdentifier]).Value -eq [string]$user.SID.Value } catch { $false } })
           if ($matches.Count -eq 0) { return 'Missing' }
           if ($matches.Count -eq 1 -and [string]$matches[0].AccessControlType -eq 'Allow' -and [string]$matches[0].AccessRight -eq [string]$request.AccessRight) { return 'Owned' }
           return 'Collision'
         }
         function Remove-OwnedAccount([object]$user) {
-          if ([string]$user.Description -ne [string]$request.Description -or -not [BallsGrantRights]::PasswordWorks([string]$request.AccountName,[string]$request.Password)) { throw 'account ownership changed' }
+          $groups = @(Microsoft.PowerShell.LocalAccounts\Get-LocalGroup | Where-Object { @((Microsoft.PowerShell.LocalAccounts\Get-LocalGroupMember -Name $_.Name -ErrorAction SilentlyContinue).SID.Value) -contains [string]$user.SID.Value })
+          if ([string]$user.Description -ne [string]$request.Description -or $groups.Count -ne 0 -or -not [BallsGrantRights]::PasswordWorks([string]$request.AccountName,[string]$request.Password)) { throw 'account ownership changed' }
           $sid = [string]$user.SID.Value
-          $hadRights = [BallsGrantRights]::Exact($sid)
-          if ($hadRights) { [BallsGrantRights]::Remove($sid) }
-          elseif (-not [BallsGrantRights]::None($sid)) { throw 'account rights changed' }
+          [string[]]$rights = @([BallsGrantRights]::RemoveOwnedSubset($sid))
           try { Microsoft.PowerShell.LocalAccounts\Remove-LocalUser -Name ([string]$request.AccountName) -ErrorAction Stop }
-          catch { if ($hadRights) { [BallsGrantRights]::Add($sid) }; throw }
+          catch { [BallsGrantRights]::Restore($sid,$rights); throw }
         }
         switch ([string]$request.Command) {
           'InspectAccount' { $state = Get-AccountState }
@@ -483,12 +506,14 @@ internal sealed class WindowsCircleFilesGrantPowerShell
             $secure = Microsoft.PowerShell.Security\ConvertTo-SecureString ([string]$request.Password) -AsPlainText -Force
             try {
               $user = Microsoft.PowerShell.LocalAccounts\New-LocalUser -Name ([string]$request.AccountName) -Password $secure -Description ([string]$request.Description) -AccountNeverExpires -PasswordNeverExpires -UserMayNotChangePassword -ErrorAction Stop
+              if ([string]$request.InjectAccountTerminationStep -eq 'AccountCreated') { [Environment]::Exit(97) }
               Microsoft.PowerShell.LocalAccounts\Set-LocalUser -Name ([string]$request.AccountName) -PasswordNeverExpires $true -UserMayChangePassword $false -ErrorAction Stop
               $sam = [ADSI]('WinNT://./' + [string]$request.AccountName + ',user')
               $sam.Put('UserFlags', ([int]$sam.UserFlags.Value -bor 0x10000 -bor 0x40))
               $sam.SetInfo()
               Microsoft.PowerShell.LocalAccounts\Get-LocalGroup | Where-Object { @((Microsoft.PowerShell.LocalAccounts\Get-LocalGroupMember -Name $_.Name -ErrorAction SilentlyContinue).SID.Value) -contains [string]$user.SID.Value } | ForEach-Object { Microsoft.PowerShell.LocalAccounts\Remove-LocalGroupMember -Name $_.Name -Member $user.Name -ErrorAction Stop }
               [BallsGrantRights]::Add([string]$user.SID.Value)
+              if ([string]$request.InjectAccountTerminationStep -eq 'RightsAdded') { [Environment]::Exit(97) }
               if ([bool]$request.InjectAccountFailure) { throw 'bounded debug-only account failure' }
               $state = Get-AccountState
             } catch {
@@ -497,7 +522,7 @@ internal sealed class WindowsCircleFilesGrantPowerShell
               throw
             }
           }
-          'RemoveAccount' { if ((Get-AccountState) -ne 'Owned') { throw 'account ownership changed' }; $user=Microsoft.PowerShell.LocalAccounts\Get-LocalUser -Name ([string]$request.AccountName) -ErrorAction Stop; Remove-OwnedAccount $user; $state='Missing' }
+          'RemoveAccount' { if ((Get-AccountState) -notin @('Owned','Recoverable')) { throw 'account ownership changed' }; $user=Microsoft.PowerShell.LocalAccounts\Get-LocalUser -Name ([string]$request.AccountName) -ErrorAction Stop; Remove-OwnedAccount $user; $state='Missing' }
           'InspectShareAccess' { $state = Get-ShareState }
           'GrantShareAccess' { if ((Get-ShareState) -ne 'Missing') { throw 'share access collision' }; $user=Microsoft.PowerShell.LocalAccounts\Get-LocalUser -Name ([string]$request.AccountName) -ErrorAction Stop; $account=$user.SID.Translate([System.Security.Principal.NTAccount]).Value; SmbShare\Grant-SmbShareAccess -Name ([string]$request.ShareName) -AccountName $account -AccessRight ([string]$request.AccessRight) -Force -ErrorAction Stop | Out-Null; $state=Get-ShareState }
           'RevokeShareAccess' { if ((Get-ShareState) -ne 'Owned') { throw 'share access ownership changed' }; $user=Microsoft.PowerShell.LocalAccounts\Get-LocalUser -Name ([string]$request.AccountName) -ErrorAction Stop; $account=$user.SID.Translate([System.Security.Principal.NTAccount]).Value; SmbShare\Revoke-SmbShareAccess -Name ([string]$request.ShareName) -AccountName $account -Force -ErrorAction Stop | Out-Null; $state=Get-ShareState }

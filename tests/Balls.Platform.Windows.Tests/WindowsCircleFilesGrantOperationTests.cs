@@ -39,6 +39,16 @@ public sealed class WindowsCircleFilesGrantOperationTests
         Assert.AreEqual("grant_resource_collision", collisionError.Code);
         Assert.AreEqual(0, collision.Applied.Count);
 
+        var recoverable = new StubOperations();
+        recoverable.States[WindowsCircleFilesGrantOperationStep.LocalAccount] =
+            WindowsCircleFilesOwnedState.Recoverable;
+        var recovered = await new WindowsCircleFilesGrantOperation(recoverable)
+            .ExecuteAsync(Plan, CancellationToken.None);
+        Assert.AreEqual(CircleFilesGrantCredentialApplyStatus.Applied, recovered);
+        CollectionAssert.AreEqual(
+            new[] { WindowsCircleFilesGrantOperationStep.LocalAccount },
+            recoverable.RolledBack.ToArray());
+
         var failure = new StubOperations
         {
             FailOn = WindowsCircleFilesGrantOperationStep.ShareAccess,
@@ -72,9 +82,14 @@ public sealed class WindowsCircleFilesGrantOperationTests
         StringAssert.Contains(script, "SeDenyInteractiveLogonRight");
         StringAssert.Contains(script, "SeDenyRemoteInteractiveLogonRight");
         StringAssert.Contains(script, "LsaRemoveAccountRights");
-        StringAssert.Contains(script, "[BallsGrantRights]::Remove");
-        StringAssert.Contains(script, "[BallsGrantRights]::None");
+        StringAssert.Contains(script, "[BallsGrantRights]::RemoveOwnedSubset");
+        StringAssert.Contains(script, "[BallsGrantRights]::OwnedSubset");
+        StringAssert.Contains(script, "[BallsGrantRights]::TokenGroups");
         StringAssert.Contains(script, "S-1-5-11");
+        StringAssert.Contains(script, "S-1-5-2");
+        StringAssert.Contains(script, "S-1-5-32-545");
+        StringAssert.Contains(script, "S-1-5-113");
+        StringAssert.Contains(script, "InjectAccountTerminationStep");
         StringAssert.Contains(script, "InjectAccountFailure");
         StringAssert.Contains(script, "Grant-SmbShareAccess");
         StringAssert.Contains(script, "$user.SID.Translate([System.Security.Principal.NTAccount]).Value");
@@ -124,37 +139,36 @@ public sealed class WindowsCircleFilesGrantOperationTests
                 FileSystemRights.FullControl,
                 AccessControlType.Allow));
             new DirectoryInfo(directory).SetAccessControl(security);
+            var folderPlan = Plan with
+            {
+                PublicPlan = Plan.PublicPlan with { FolderPath = directory },
+                OwnerSid = currentSid.Value,
+            };
             Assert.IsFalse(WindowsCircleFilesGrantSystemOperations.HasUnsafeFolderAccess(
-                Plan with { PublicPlan = Plan.PublicPlan with { FolderPath = directory } },
-                includeGrantAccount: false));
+                folderPlan,
+                allowGrantAccount: false));
             security.AddAccessRule(new FileSystemAccessRule(
                 new SecurityIdentifier(WellKnownSidType.WorldSid, null),
                 FileSystemRights.ReadAndExecute,
                 AccessControlType.Allow));
             new DirectoryInfo(directory).SetAccessControl(security);
-            var genericPlan = Plan with
-            {
-                PublicPlan = Plan.PublicPlan with { FolderPath = directory },
-            };
             Assert.IsTrue(WindowsCircleFilesGrantSystemOperations.HasUnsafeFolderAccess(
-                genericPlan,
-                includeGrantAccount: false));
+                folderPlan,
+                allowGrantAccount: false));
 
             security.RemoveAccessRuleAll(new FileSystemAccessRule(
                 new SecurityIdentifier(WellKnownSidType.WorldSid, null),
                 FileSystemRights.ReadAndExecute,
                 AccessControlType.Allow));
             new DirectoryInfo(directory).SetAccessControl(security);
-            var grantPlan = genericPlan with
-            {
-                PublicPlan = genericPlan.PublicPlan with
-                {
-                    AccountName = WindowsIdentity.GetCurrent().Name,
-                },
-            };
+            security.AddAccessRule(new FileSystemAccessRule(
+                new SecurityIdentifier("S-1-5-21-111111111-222222222-333333333-4444"),
+                FileSystemRights.ReadAndExecute,
+                AccessControlType.Allow));
+            new DirectoryInfo(directory).SetAccessControl(security);
             Assert.IsTrue(WindowsCircleFilesGrantSystemOperations.HasUnsafeFolderAccess(
-                grantPlan,
-                includeGrantAccount: true));
+                folderPlan,
+                allowGrantAccount: false));
         }
         finally
         {
@@ -171,6 +185,20 @@ public sealed class WindowsCircleFilesGrantOperationTests
 
         Assert.IsNotNull(roundTrip?.Grant);
         Assert.IsTrue(WindowsCircleFilesHelperCommand.GrantPlansEqual(roundTrip.Grant, Plan));
+    }
+
+    [TestMethod]
+    public void Mixed_helper_envelope_still_zeroes_deserialized_grant_secret()
+    {
+        var secret = Plan.Secret.ToArray();
+        var envelope = new WindowsCircleFilesHelperEnvelope(
+            "host",
+            Plan.HostPlan,
+            Plan with { Secret = secret });
+
+        WindowsCircleFilesHelperCommand.ZeroGrantSecret(envelope);
+
+        Assert.IsTrue(secret.All(value => value == 0));
     }
 
     private static WindowsCircleFilesGrantHelperPlan CreatePlan()
