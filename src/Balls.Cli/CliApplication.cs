@@ -106,7 +106,13 @@ public static class CliApplication
         HttpClient client;
         try
         {
-            client = host.LocalControlClient.CreateClient(localControlEndpoint);
+            var timeout = tokens.Count >= 3
+                && tokens[0] == "files"
+                && tokens[1] == "host"
+                && tokens[2] == "apply"
+                ? TimeSpan.FromMinutes(2.5)
+                : null;
+            client = host.LocalControlClient.CreateClient(localControlEndpoint, timeout);
         }
         catch (ArgumentException)
         {

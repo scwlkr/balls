@@ -404,7 +404,7 @@ internal sealed class WindowsElevatedCircleFilesHelperClient : IWindowsCircleFil
             PipeDirection.InOut,
             1,
             PipeTransmissionMode.Byte,
-            PipeOptions.Asynchronous | PipeOptions.CurrentUserOnly);
+            PipeOptions.Asynchronous);
         var startInfo = new ProcessStartInfo
         {
             FileName = helperPath,
