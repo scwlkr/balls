@@ -16,8 +16,9 @@
 - The helper creates one deterministic `BallsG-*` local account with no group membership, no
   expiry, and exactly four deny rights: interactive, remote interactive, batch, and service logon.
   It grants only whole-folder `ReadAndExecute`/share `Read` or folder `Modify`/share `Change`; it
-  never grants `FullControl` or access to another share. Preflight rejects generic Everyone or
-  Authenticated Users access on the folder, target share, or another non-special share.
+  never grants `FullControl` or access to another share. Target folder/share principals are exact-
+  allowlisted; known broad principals fail before mutation, and actual network token groups catch
+  custom/nested group access on another non-special share before share access is granted.
 - A protected grant marker records the full binding and the folder's pre-mutation SDDL. Account,
   marker, folder ACL, and share ACL must all match exact owned state. Foreign or changed state fails
   closed. Pending protected state survives daemon restart, so an exact retry uses the same password.
@@ -42,7 +43,7 @@ checks are recorded on the pull request and issue after they complete.
 ## Dedicated Windows VM evidence
 
 The owned `Balls.Dev.Windows11` Hyper-V guest ran Debug and Release source builds from exact clean
-commit `9e9e2f50ad1b79bf654589ca16a9afa028fbd56b`. No checkpoint was restored. The test temporarily
+commit `8946e9b7e404c34eec3d396298763bb63527cb14`. No checkpoint was restored. The test temporarily
 changed only the guest's connected profile and the exact 17 event-identified Public/Any inbound
 allow rules used by the readiness fixture; the physical host was not changed.
 
@@ -50,7 +51,10 @@ Observed structured result:
 
 | Check | Observation |
 | --- | --- |
-| Broad-access fixture | unrelated non-special Everyone-full share rejected as `grant_resource_collision` before account creation |
+| Broad-access fixture | unrelated non-special Builtin Users/Network-full share rejected as `grant_resource_collision` before account creation |
+| Nested group fixture | custom local group containing Authenticated Users detected from the created account's actual network token; `grant_apply_failed`; exact owned prefix rolled back |
+| Child termination after account creation | `grant_apply_failed`; exact account with zero rights recovered and removed |
+| Child termination after LSA rights | `grant_apply_failed`; exact account and four rights recovered and removed |
 | Debug account failure | failure immediately after LSA rights returned `grant_apply_failed`; `AccountFailureRollbackClean: true` |
 | Debug injected failure | later share-access failure returned `grant_apply_failed`; `FailureRollbackClean: true` |
 | Release clean apply | `applied` |
@@ -69,9 +73,11 @@ Observed structured result:
 The VM campaign found and fixed Windows-specific defects before final acceptance: local-user
 descriptions are capped at 48 characters, so the account uses a deterministic 47-character short
 ownership marker while full ownership remains in SQLite and the protected folder marker; LSA deny
-rights require explicit removal before deleting an owned account; a partial failure immediately
-after rights assignment needs the same exact owned cleanup; and generic Windows principals would
-otherwise give the limited account inherited access. The issued-credential diagnostic read the
+rights require explicit removal before deleting an owned account; an externally terminated child
+requires recoverable partial-account state; nested Windows principals can otherwise give the limited
+account inherited access; and the fixed encoded command exceeded Windows' command-line limit after
+hardening, so it now passes the same fixed 13 KiB script directly under an asserted 32,767-character
+budget while caller data remains structured JSON on stdin. The issued-credential diagnostic read the
 DPAPI-protected row only inside the disposable guest process and emitted booleans, never the generated
 password. Its managed password string existed only for that short process lifetime.
 

@@ -283,8 +283,10 @@ public plan. The random password is DPAPI-protected before elevation, reused on 
 and is never returned by this route, the CLI, browser, history/list projections, or errors. Exact
 applies are serialized through protected preparation, helper execution, and lifecycle completion;
 concurrent retries therefore resolve to one `applied` and one `already-applied`, rather than racing
-rollback. Generic Everyone/Authenticated Users access on the folder, target share, or any other
-non-special share fails closed before account creation. The CLI is:
+rollback. Unexpected target-folder/share entries and known broad Windows token principals fail
+closed before account creation. The helper then checks the created account's actual network-logon
+token groups; custom or nested group access on another non-special share blocks the grant and rolls
+the exact owned prefix back. The CLI is:
 
 ```text
 balls files grant credential-apply --circle <circle-id> --contribution <contribution-id> \

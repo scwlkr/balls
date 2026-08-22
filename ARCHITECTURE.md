@@ -522,7 +522,8 @@ verifies both P-256 Contribution authorization signatures and their exact Circle
 provider, Node, display-name, lifecycle, and generation transcript. This preserves the daemon
 Owner even when UAC uses a different administrator credential. The elevated helper recomputes
 readiness, path safety, identity, and the complete plan rather than trusting the preview. Its only
-system mutation path is a fixed encoded PowerShell command enum; it accepts structured JSON over
+system mutation path is a fixed PowerShell command enum (encoded for hosting; a direct fixed script
+kept under Windows' command-line budget for grant credentials); it accepts structured JSON over
 standard input and uses a 20-second timeout plus one combined 16,384-character streaming output
 budget. The elevated helper stops forward operation after two minutes even if the daemon stalls;
 cancellation then enters reverse recovery, whose individual system commands retain the same
@@ -559,12 +560,14 @@ The helper creates one grant-owned local account with no group membership, no ex
 four deny-logon rights (interactive, remote interactive, batch, and service). It adds one inherited
 whole-folder ACL (`ReadAndExecute` or `Modify`, never `FullControl`) and one matching encrypted-share
 allow entry (`Read` or `Change`). A protected grant marker records the full ownership binding and
-pre-mutation folder SDDL. Preflight rejects generic Everyone/Authenticated Users allow access on
-the target folder, target share, or any other non-special share, and rejects a surviving grant-SID
-folder ACE when its marker is missing. Exact retry reuses the same protected credential across
+pre-mutation folder SDDL. Preflight permits only the exact host Owner/System ACL on the target folder
+and exact host Owner share entry before granting, rejects orphan or generic target entries, and
+rejects known broad Windows token principals on every other non-special share. After account
+creation it derives the actual network-logon token groups, so custom/nested group access blocks the
+grant and rolls the exact owned prefix back. Exact retry reuses the same protected credential across
 process restart; foreign account, marker, folder ACL, or share ACL state fails closed. Failure rolls
-back the owned prefix in reverse order, including partial account creation after LSA rights were
-added and removal of the four account rights before deleting the account.
+back the owned prefix in reverse order, including externally terminated account creation with zero
+or all four LSA rights, and removes only an expected-rights subset before deleting the exact account.
 
 For the files-first v1, the Windows provider uses SMB 3.1.1 with SMB1 and guest access disabled,
 signing and encryption required, and one limited provider credential per Member Access Grant. A
