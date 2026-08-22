@@ -765,6 +765,146 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  "/control/v1/circles/{circleId}/files/contributions/{contributionId}/grants/{grantId}/credential/preview": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    post: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path: {
+          circleId: string;
+          contributionId: string;
+          grantId: string;
+        };
+        cookie?: never;
+      };
+      requestBody: {
+        content: {
+          "application/json": components["schemas"]["PreviewCircleFilesGrantCredentialRequest"];
+        };
+      };
+      responses: {
+        /** @description OK */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["CircleFilesGrantCredentialPlanResponse"];
+          };
+        };
+        /** @description Bad Request */
+        400: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["ErrorResponse"];
+          };
+        };
+        /** @description Not Found */
+        404: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["ErrorResponse"];
+          };
+        };
+        /** @description Conflict */
+        409: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["ErrorResponse"];
+          };
+        };
+      };
+    };
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/control/v1/circles/{circleId}/files/contributions/{contributionId}/grants/{grantId}/credential/apply": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    post: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path: {
+          circleId: string;
+          contributionId: string;
+          grantId: string;
+        };
+        cookie?: never;
+      };
+      requestBody: {
+        content: {
+          "application/json": components["schemas"]["ApplyCircleFilesGrantCredentialRequest"];
+        };
+      };
+      responses: {
+        /** @description OK */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["CircleFilesGrantCredentialApplyResponse"];
+          };
+        };
+        /** @description Bad Request */
+        400: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["ErrorResponse"];
+          };
+        };
+        /** @description Not Found */
+        404: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["ErrorResponse"];
+          };
+        };
+        /** @description Conflict */
+        409: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["ErrorResponse"];
+          };
+        };
+      };
+    };
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   "/control/v1/circles/{circleId}/messages": {
     parameters: {
       query?: never;
@@ -1381,6 +1521,10 @@ export interface paths {
 export type webhooks = Record<string, never>;
 export interface components {
   schemas: {
+    ApplyCircleFilesGrantCredentialRequest: {
+      folderPath: string;
+      planId: string;
+    };
     ApplyCircleFilesHostRequest: {
       folderPath: string;
       planId: string;
@@ -1414,6 +1558,24 @@ export interface components {
       authorityGeneration: number | string;
       /** Format: date-time */
       authorizedAtUtc: string;
+    };
+    CircleFilesGrantCredentialApplyResponse: {
+      status: string;
+      plan: components["schemas"]["CircleFilesGrantCredentialPlanResponse"];
+    };
+    CircleFilesGrantCredentialPlanResponse: {
+      /** Format: int32 */
+      contractVersion: number | string;
+      planId: string;
+      provider: string;
+      folderPath: string;
+      shareName: string;
+      accountName: string;
+      ownershipId: string;
+      access: string;
+      /** Format: int64 */
+      generation: number | string;
+      actions: string[];
     };
     CircleFilesHostApplyResponse: {
       status: string;
@@ -1566,6 +1728,9 @@ export interface components {
       displayName: string;
       /** Format: date-time */
       createdAtUtc: string;
+    };
+    PreviewCircleFilesGrantCredentialRequest: {
+      folderPath: string;
     };
     PreviewCircleFilesHostRequest: {
       folderPath: string;

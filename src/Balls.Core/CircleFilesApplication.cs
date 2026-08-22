@@ -174,6 +174,54 @@ public sealed class CircleFilesApplication(
         CancellationToken cancellationToken = default) =>
         state.ListAccessGrantsAsync(circleId, contributionId, cancellationToken);
 
+    public async Task<AuthorizedMemberAccessGrant> GetAuthorizedLocalAccessGrantAsync(
+        CircleId circleId,
+        CircleFilesContributionId contributionId,
+        MemberAccessGrantId grantId,
+        CancellationToken cancellationToken = default)
+    {
+        var contribution = await GetAuthorizedLocalContributionAsync(
+            circleId,
+            contributionId,
+            cancellationToken).ConfigureAwait(false);
+        var grant = (await state.ListAccessGrantsAsync(
+                circleId,
+                contributionId,
+                cancellationToken).ConfigureAwait(false))
+            .SingleOrDefault(value => value.Id == grantId)
+            ?? throw new LocalStateException(
+                "circle_files_grant_not_found",
+                "The requested Circle Files Access Grant was not found.");
+        var authorization = grant.Authorization;
+        if (grant.CircleId != circleId
+            || grant.ContributionId != contributionId
+            || grant.Lifecycle != MemberAccessGrantLifecycle.Defined
+            || grant.Generation <= 0
+            || authorization.OwnerMemberId != contribution.Contribution.Authorization.OwnerMemberId
+            || authorization.AuthorityGeneration
+                != contribution.Contribution.Authorization.AuthorityGeneration
+            || authorization.Transcript.Length == 0
+            || !IdentityCryptography.Verify(
+                authorization.Transcript,
+                authorization.MemberSignature,
+                contribution.MemberCredential)
+            || !IdentityCryptography.Verify(
+                authorization.Transcript,
+                authorization.CircleAuthoritySignature,
+                contribution.CircleAuthorityCredential))
+        {
+            throw new LocalStateException(
+                "circle_files_grant_authorization_failed",
+                "The Circle Files Access Grant authorization is invalid or stale.");
+        }
+
+        return new AuthorizedMemberAccessGrant(
+            grant,
+            contribution.Contribution,
+            contribution.MemberCredential,
+            contribution.CircleAuthorityCredential);
+    }
+
     private async Task<CircleFilesAuthorizationContext> GetOwnerAuthorizationContextAsync(
         CircleId circleId,
         CancellationToken cancellationToken)

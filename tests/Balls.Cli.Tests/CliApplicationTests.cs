@@ -104,7 +104,7 @@ public sealed class CliApplicationTests
         Assert.AreEqual(string.Empty, misplacedOutput.ToString());
         Assert.AreEqual(
             "balls: --output must be either 'text' or 'json'." + Environment.NewLine
-                + "commands: ui | status | circle create | circle join | circle list | member list | node list | invitation create | invitation redeem | message send | message list | files readiness | files contribution create/list | files grant create/list | files host preview/apply"
+                + "commands: ui | status | circle create | circle join | circle list | member list | node list | invitation create | invitation redeem | message send | message list | files readiness | files contribution create/list | files grant create/list/credential-preview/credential-apply | files host preview/apply"
                 + Environment.NewLine,
             unsupportedError.ToString());
         StringAssert.StartsWith(misplacedError.ToString(), "balls: unknown command.");
@@ -161,6 +161,30 @@ public sealed class CliApplicationTests
         StringAssert.Contains(preview, new string('a', 64));
         StringAssert.Contains(applied, "Created the dedicated Circle Files host.");
         Assert.IsFalse(preview.Contains(new string('b', 64), StringComparison.Ordinal));
+    }
+
+    [TestMethod]
+    public void Circle_Files_grant_credential_output_never_contains_secret_material()
+    {
+        var plan = new CircleFilesGrantCredentialPlanResponse(
+            1,
+            new string('a', 64),
+            "windows-smb-3.1.1",
+            @"C:\BallsShares\Example",
+            "balls-example",
+            "BallsG-abcdef0123456",
+            new string('b', 64),
+            "read-only",
+            1,
+            ["Create one limited account."]);
+        var preview = CliOutput.RenderFilesGrantCredentialPlan(plan);
+        var applied = CliOutput.RenderAppliedFilesGrantCredential(
+            new CircleFilesGrantCredentialApplyResponse("applied", plan));
+
+        StringAssert.Contains(preview, "BallsG-abcdef0123456");
+        StringAssert.Contains(applied, "password remains protected");
+        Assert.IsFalse(preview.Contains("secret", StringComparison.OrdinalIgnoreCase));
+        Assert.IsFalse(applied.Contains(new string('b', 64), StringComparison.Ordinal));
     }
 
     [TestMethod]

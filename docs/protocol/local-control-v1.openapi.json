@@ -741,6 +741,176 @@
         }
       }
     },
+    "/control/v1/circles/{circleId}/files/contributions/{contributionId}/grants/{grantId}/credential/preview": {
+      "post": {
+        "tags": [
+          "ballsd"
+        ],
+        "parameters": [
+          {
+            "name": "circleId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "contributionId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "grantId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PreviewCircleFilesGrantCredentialRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CircleFilesGrantCredentialPlanResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/control/v1/circles/{circleId}/files/contributions/{contributionId}/grants/{grantId}/credential/apply": {
+      "post": {
+        "tags": [
+          "ballsd"
+        ],
+        "parameters": [
+          {
+            "name": "circleId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "contributionId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "grantId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ApplyCircleFilesGrantCredentialRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CircleFilesGrantCredentialApplyResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/control/v1/circles/{circleId}/messages": {
       "get": {
         "tags": [
@@ -1306,6 +1476,21 @@
   },
   "components": {
     "schemas": {
+      "ApplyCircleFilesGrantCredentialRequest": {
+        "required": [
+          "folderPath",
+          "planId"
+        ],
+        "type": "object",
+        "properties": {
+          "folderPath": {
+            "type": "string"
+          },
+          "planId": {
+            "type": "string"
+          }
+        }
+      },
       "ApplyCircleFilesHostRequest": {
         "required": [
           "folderPath",
@@ -1436,6 +1621,81 @@
           "authorizedAtUtc": {
             "type": "string",
             "format": "date-time"
+          }
+        }
+      },
+      "CircleFilesGrantCredentialApplyResponse": {
+        "required": [
+          "status",
+          "plan"
+        ],
+        "type": "object",
+        "properties": {
+          "status": {
+            "type": "string"
+          },
+          "plan": {
+            "$ref": "#/components/schemas/CircleFilesGrantCredentialPlanResponse"
+          }
+        }
+      },
+      "CircleFilesGrantCredentialPlanResponse": {
+        "required": [
+          "contractVersion",
+          "planId",
+          "provider",
+          "folderPath",
+          "shareName",
+          "accountName",
+          "ownershipId",
+          "access",
+          "generation",
+          "actions"
+        ],
+        "type": "object",
+        "properties": {
+          "contractVersion": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "planId": {
+            "type": "string"
+          },
+          "provider": {
+            "type": "string"
+          },
+          "folderPath": {
+            "type": "string"
+          },
+          "shareName": {
+            "type": "string"
+          },
+          "accountName": {
+            "type": "string"
+          },
+          "ownershipId": {
+            "type": "string"
+          },
+          "access": {
+            "type": "string"
+          },
+          "generation": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int64"
+          },
+          "actions": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
           }
         }
       },
@@ -2017,6 +2277,17 @@
           "createdAtUtc": {
             "type": "string",
             "format": "date-time"
+          }
+        }
+      },
+      "PreviewCircleFilesGrantCredentialRequest": {
+        "required": [
+          "folderPath"
+        ],
+        "type": "object",
+        "properties": {
+          "folderPath": {
+            "type": "string"
           }
         }
       },

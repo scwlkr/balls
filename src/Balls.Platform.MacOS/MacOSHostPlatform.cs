@@ -23,7 +23,8 @@ public static class MacOSHostPlatform
             transport,
             new MacOSSystemBrowserLauncher(),
             new UnsupportedCircleFilesReadinessInspector(),
-            new UnsupportedCircleFilesHostProvisioner());
+            new UnsupportedCircleFilesHostProvisioner(),
+            new UnsupportedCircleFilesGrantCredentialProvisioner());
     }
 
     public static string GetDefaultStateDirectory()

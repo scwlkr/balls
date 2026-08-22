@@ -482,7 +482,7 @@ internal sealed class WindowsElevatedCircleFilesHelperClient : IWindowsCircleFil
 
             await WindowsCircleFilesHelperProtocol.WriteAsync(
                 pipe,
-                plan,
+                new WindowsCircleFilesHelperEnvelope("host", plan, null),
                 MaximumMessageBytes,
                 timeout.Token).ConfigureAwait(false);
             var response = await WindowsCircleFilesHelperProtocol.ReadAsync<WindowsCircleFilesHelperResponse>(
@@ -522,6 +522,11 @@ internal sealed record WindowsCircleFilesHelperResponse(
     string? Status,
     string? ErrorCode,
     string Message);
+
+internal sealed record WindowsCircleFilesHelperEnvelope(
+    string Operation,
+    WindowsCircleFilesHelperPlan? Host,
+    WindowsCircleFilesGrantHelperPlan? Grant);
 
 internal static class WindowsCircleFilesHelperProtocol
 {
@@ -648,42 +653,77 @@ public static class WindowsCircleFilesHelperCommand
 
             try
             {
-                var received = await WindowsCircleFilesHelperProtocol.ReadAsync<WindowsCircleFilesHelperPlan>(
+                var envelope = await WindowsCircleFilesHelperProtocol.ReadAsync<WindowsCircleFilesHelperEnvelope>(
                     pipe,
                     MaximumMessageBytes,
                     helperToken).ConfigureAwait(false);
-                if (received.OwnerSid != daemonUserSid)
+                if (envelope.Operation == "host" && envelope.Host is { } received)
                 {
-                    await WriteErrorAsync(pipe, "hosting_helper_authentication_failed", helperToken)
+                    if (received.OwnerSid != daemonUserSid)
+                    {
+                        await WriteErrorAsync(pipe, "hosting_helper_authentication_failed", helperToken)
+                            .ConfigureAwait(false);
+                        return 4;
+                    }
+
+                    WindowsCircleFilesHostAuthorizationVerifier.Validate(received.Request);
+                    var verifier = CreateHostVerifier(daemonUserSid);
+                    var recomputed = await verifier.PrepareForHelperAsync(received.Request, helperToken)
                         .ConfigureAwait(false);
-                    return 4;
+                    if (!PlansEqual(received, recomputed))
+                    {
+                        await WriteErrorAsync(pipe, "hosting_helper_authentication_failed", helperToken)
+                            .ConfigureAwait(false);
+                        return 4;
+                    }
+
+                    var status = await new WindowsCircleFilesOperation(new WindowsCircleFilesSystemOperations())
+                        .ExecuteAsync(recomputed, helperToken).ConfigureAwait(false);
+                    await WriteSuccessAsync(
+                        pipe,
+                        status == CircleFilesHostApplyStatus.Applied,
+                        "The dedicated Circle Files host is ready.",
+                        helperToken).ConfigureAwait(false);
+                    return 0;
                 }
 
-                WindowsCircleFilesHostAuthorizationVerifier.Validate(received.Request);
-                var verifier = new WindowsCircleFilesHostProvisioner(
-                    new WindowsSmbReadinessInspector(),
-                    new WindowsCircleFilesPathEnvironment(daemonUserSid),
-                    new RejectNestedHelper());
-                var recomputed = await verifier.PrepareForHelperAsync(received.Request, helperToken)
+                if (envelope.Operation == "grant" && envelope.Grant is { } grant)
+                {
+                    if (grant.OwnerSid != daemonUserSid || grant.Secret.Length is < 24 or > 128)
+                    {
+                        await WriteErrorAsync(pipe, "hosting_helper_authentication_failed", helperToken)
+                            .ConfigureAwait(false);
+                        return 4;
+                    }
+                    WindowsCircleFilesGrantAuthorizationVerifier.Validate(grant.Request);
+                    var verifier = new WindowsCircleFilesGrantCredentialProvisioner(
+                        CreateHostVerifier(daemonUserSid),
+                        new RejectNestedGrantHelper());
+                    var recomputed = await verifier.PrepareForHelperAsync(
+                        grant.Request,
+                        grant.Secret,
+                        helperToken).ConfigureAwait(false);
+                    if (!GrantPlansEqual(grant, recomputed))
+                    {
+                        await WriteErrorAsync(pipe, "hosting_helper_authentication_failed", helperToken)
+                            .ConfigureAwait(false);
+                        return 4;
+                    }
+
+                    var status = await new WindowsCircleFilesGrantOperation(
+                            new WindowsCircleFilesGrantSystemOperations())
+                        .ExecuteAsync(recomputed, helperToken).ConfigureAwait(false);
+                    await WriteSuccessAsync(
+                        pipe,
+                        status == CircleFilesGrantCredentialApplyStatus.Applied,
+                        "The limited Windows Member credential is ready.",
+                        helperToken).ConfigureAwait(false);
+                    return 0;
+                }
+
+                await WriteErrorAsync(pipe, "hosting_helper_authentication_failed", helperToken)
                     .ConfigureAwait(false);
-                if (!PlansEqual(received, recomputed))
-                {
-                    await WriteErrorAsync(pipe, "hosting_helper_authentication_failed", helperToken)
-                        .ConfigureAwait(false);
-                    return 4;
-                }
-
-                var status = await new WindowsCircleFilesOperation(new WindowsCircleFilesSystemOperations())
-                    .ExecuteAsync(recomputed, helperToken).ConfigureAwait(false);
-                await WindowsCircleFilesHelperProtocol.WriteAsync(
-                    pipe,
-                    new WindowsCircleFilesHelperResponse(
-                        status == CircleFilesHostApplyStatus.Applied ? "applied" : "already-applied",
-                        null,
-                        "The dedicated Circle Files host is ready."),
-                    MaximumMessageBytes,
-                    helperToken).ConfigureAwait(false);
-                return 0;
+                return 4;
             }
             catch (CircleFilesHostingException exception)
             {
@@ -716,6 +756,44 @@ public static class WindowsCircleFilesHelperCommand
         && received.PublicPlan.TargetExists == recomputed.PublicPlan.TargetExists
         && received.PublicPlan.Actions.SequenceEqual(recomputed.PublicPlan.Actions, StringComparer.Ordinal);
 
+    private static bool GrantPlansEqual(
+        WindowsCircleFilesGrantHelperPlan received,
+        WindowsCircleFilesGrantHelperPlan recomputed) =>
+        received.OwnerSid == recomputed.OwnerSid
+        && received.Request == recomputed.Request
+        && PlansEqual(received.HostPlan, recomputed.HostPlan)
+        && received.PublicPlan.ContractVersion == recomputed.PublicPlan.ContractVersion
+        && received.PublicPlan.PlanId == recomputed.PublicPlan.PlanId
+        && received.PublicPlan.Provider == recomputed.PublicPlan.Provider
+        && received.PublicPlan.FolderPath.Equals(recomputed.PublicPlan.FolderPath, StringComparison.OrdinalIgnoreCase)
+        && received.PublicPlan.ShareName == recomputed.PublicPlan.ShareName
+        && received.PublicPlan.AccountName == recomputed.PublicPlan.AccountName
+        && received.PublicPlan.OwnershipId == recomputed.PublicPlan.OwnershipId
+        && received.PublicPlan.Access == recomputed.PublicPlan.Access
+        && received.PublicPlan.Generation == recomputed.PublicPlan.Generation
+        && received.PublicPlan.Actions.SequenceEqual(recomputed.PublicPlan.Actions, StringComparer.Ordinal)
+        && CryptographicOperations.FixedTimeEquals(received.Secret, recomputed.Secret);
+
+    private static WindowsCircleFilesHostProvisioner CreateHostVerifier(string daemonUserSid) =>
+        new(
+            new WindowsSmbReadinessInspector(),
+            new WindowsCircleFilesPathEnvironment(daemonUserSid),
+            new RejectNestedHelper());
+
+    private static async Task WriteSuccessAsync(
+        Stream pipe,
+        bool applied,
+        string message,
+        CancellationToken cancellationToken) =>
+        await WindowsCircleFilesHelperProtocol.WriteAsync(
+            pipe,
+            new WindowsCircleFilesHelperResponse(
+                applied ? "applied" : "already-applied",
+                null,
+                message),
+            MaximumMessageBytes,
+            cancellationToken).ConfigureAwait(false);
+
     private static async Task WriteErrorAsync(
         Stream pipe,
         string code,
@@ -735,5 +813,13 @@ public static class WindowsCircleFilesHelperCommand
             WindowsCircleFilesHelperPlan plan,
             CancellationToken cancellationToken) =>
             ValueTask.FromException<CircleFilesHostApplyStatus>(new InvalidOperationException());
+    }
+
+    private sealed class RejectNestedGrantHelper : IWindowsCircleFilesGrantHelperClient
+    {
+        public ValueTask<CircleFilesGrantCredentialApplyStatus> ApplyAsync(
+            WindowsCircleFilesGrantHelperPlan plan,
+            CancellationToken cancellationToken) =>
+            ValueTask.FromException<CircleFilesGrantCredentialApplyStatus>(new InvalidOperationException());
     }
 }

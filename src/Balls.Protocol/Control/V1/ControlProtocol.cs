@@ -65,4 +65,24 @@ public static class ControlRoutes
     {
         return CircleFilesHost(circleId, contributionId) + "/apply";
     }
+
+    public static string CircleFilesGrantCredential(
+        string circleId,
+        string contributionId,
+        string grantId)
+    {
+        return $"{CircleFilesAccessGrants(circleId, contributionId)}/{Uri.EscapeDataString(grantId)}/credential";
+    }
+
+    public static string CircleFilesGrantCredentialPreview(
+        string circleId,
+        string contributionId,
+        string grantId) =>
+        CircleFilesGrantCredential(circleId, contributionId, grantId) + "/preview";
+
+    public static string CircleFilesGrantCredentialApply(
+        string circleId,
+        string contributionId,
+        string grantId) =>
+        CircleFilesGrantCredential(circleId, contributionId, grantId) + "/apply";
 }

@@ -162,6 +162,90 @@ public sealed class CircleFilesEndpointsTests
         Assert.AreEqual(grant.Id, grants.Grants.Single().Id);
     }
 
+    [TestMethod]
+    public async Task Owner_issues_a_grant_credential_without_returning_secret_or_authorization_material()
+    {
+        if (!OperatingSystem.IsWindows())
+        {
+            Assert.Inconclusive("The local-control transport contract is Windows-only in this test.");
+            return;
+        }
+
+        using var directory = new TemporaryDirectory();
+        var pipeName = $"balls-tests-{Guid.NewGuid():N}";
+        var grantProvisioner = new StubGrantCredentialProvisioner();
+        var host = WindowsHostPlatform.Create() with
+        {
+            CircleFilesGrantCredentials = grantProvisioner,
+        };
+        await using var daemon = await DaemonHost.StartAsync(
+            new DaemonOptions(directory.Path, pipeName, "Alice-PC"),
+            host,
+            new WindowsCurrentUserPrivateMaterialProtector());
+        using var client = WindowsNamedPipeHttpClient.Create(pipeName);
+        var circle = await (await client.PostAsJsonAsync(
+                ControlRoutes.Circles,
+                new CreateCircleRequest(
+                    "0198d000-3000-7000-8000-000000000091",
+                    "Credential Studio",
+                    "Alice"),
+                ControlJson.Options))
+            .Content.ReadFromJsonAsync<CircleDetailsResponse>(ControlJson.Options);
+        Assert.IsNotNull(circle);
+        var contribution = await (await client.PostAsJsonAsync(
+                ControlRoutes.CircleFilesContributions(circle.Circle.Id),
+                new CreateCircleFilesContributionRequest(
+                    "0198d000-3000-7000-8000-000000000092",
+                    "Credential Files"),
+                ControlJson.Options))
+            .Content.ReadFromJsonAsync<CircleFilesContributionResponse>(ControlJson.Options);
+        Assert.IsNotNull(contribution);
+        var grant = await (await client.PostAsJsonAsync(
+                ControlRoutes.CircleFilesAccessGrants(circle.Circle.Id, contribution.Id),
+                new CreateMemberAccessGrantRequest(
+                    "0198d000-3000-7000-8000-000000000093",
+                    circle.Members.Single().Id,
+                    "read-write"),
+                ControlJson.Options))
+            .Content.ReadFromJsonAsync<MemberAccessGrantResponse>(ControlJson.Options);
+        Assert.IsNotNull(grant);
+        const string folder = @"C:\BallsShares\Credential";
+
+        using var previewResponse = await client.PostAsJsonAsync(
+            ControlRoutes.CircleFilesGrantCredentialPreview(
+                circle.Circle.Id, contribution.Id, grant.Id),
+            new PreviewCircleFilesGrantCredentialRequest(folder),
+            ControlJson.Options);
+        var previewJson = await previewResponse.Content.ReadAsStringAsync();
+        var preview = System.Text.Json.JsonSerializer.Deserialize<CircleFilesGrantCredentialPlanResponse>(
+            previewJson,
+            ControlJson.Options);
+        Assert.IsNotNull(preview);
+        using var applyResponse = await client.PostAsJsonAsync(
+            ControlRoutes.CircleFilesGrantCredentialApply(
+                circle.Circle.Id, contribution.Id, grant.Id),
+            new ApplyCircleFilesGrantCredentialRequest(folder, preview.PlanId),
+            ControlJson.Options);
+        var applyJson = await applyResponse.Content.ReadAsStringAsync();
+        var applied = System.Text.Json.JsonSerializer.Deserialize<CircleFilesGrantCredentialApplyResponse>(
+            applyJson,
+            ControlJson.Options);
+
+        Assert.AreEqual(HttpStatusCode.OK, previewResponse.StatusCode);
+        Assert.AreEqual(HttpStatusCode.OK, applyResponse.StatusCode);
+        Assert.IsNotNull(applied);
+        Assert.AreEqual("applied", applied.Status);
+        Assert.AreEqual(1, grantProvisioner.SecretUseCount);
+        Assert.IsTrue(grantProvisioner.SecretLength >= 24);
+        foreach (var json in new[] { previewJson, applyJson })
+        {
+            foreach (var forbidden in new[] { "password", "secret", "signature", "transcript", "authorization" })
+            {
+                Assert.IsFalse(json.Contains(forbidden, StringComparison.OrdinalIgnoreCase), forbidden);
+            }
+        }
+    }
+
     private static void AssertSafeProjection(string json)
     {
         foreach (var forbidden in new[] { "signature", "transcript", "credential", "private", "secret" })
@@ -207,6 +291,50 @@ public sealed class CircleFilesEndpointsTests
                 new string('b', 64),
                 false,
                 ["Create exact owned resources."]);
+    }
+
+    private sealed class StubGrantCredentialProvisioner : ICircleFilesGrantCredentialProvisioner
+    {
+        internal int SecretUseCount { get; private set; }
+        internal int SecretLength { get; private set; }
+
+        public ValueTask<CircleFilesGrantCredentialPlan> PreviewAsync(
+            CircleFilesGrantCredentialRequest request,
+            CancellationToken cancellationToken)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            return ValueTask.FromResult(CreatePlan(request));
+        }
+
+        public ValueTask<CircleFilesGrantCredentialApplyResult> ApplyAsync(
+            CircleFilesGrantCredentialRequest request,
+            string expectedPlanId,
+            ReadOnlyMemory<byte> secret,
+            CancellationToken cancellationToken)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            var plan = CreatePlan(request);
+            Assert.AreEqual(expectedPlanId, plan.PlanId);
+            SecretUseCount++;
+            SecretLength = secret.Length;
+            return ValueTask.FromResult(new CircleFilesGrantCredentialApplyResult(
+                CircleFilesGrantCredentialApplyStatus.Applied,
+                plan));
+        }
+
+        private static CircleFilesGrantCredentialPlan CreatePlan(
+            CircleFilesGrantCredentialRequest request) =>
+            new(
+                1,
+                new string('c', 64),
+                CircleFilesReadinessProviders.WindowsSmb311,
+                request.Host.FolderPath,
+                "balls-test",
+                "BallsG-abcdef0123456",
+                new string('d', 64),
+                request.Access,
+                request.Generation,
+                ["Create one exact limited account."]);
     }
 
     private sealed class TemporaryDirectory : IDisposable
