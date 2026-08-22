@@ -101,6 +101,9 @@
         "resolved": "4.3.3",
         "contentHash": "cTcdSPIZ8WvchbC5DFmfHxrvVNZCtops+2W94le+Q+mx110Y9L9mqNVVc9flF35lFeL5GsY+rxGBylsjDk4+zg=="
       },
+      "balls.core": {
+        "type": "Project"
+      },
       "balls.platform": {
         "type": "Project"
       },
