@@ -397,8 +397,7 @@ internal sealed class WindowsCircleFilesGrantPowerShell
           $user = Microsoft.PowerShell.LocalAccounts\Get-LocalUser -Name ([string]$request.AccountName) -ErrorAction SilentlyContinue
           if ($null -eq $user) { return 'Missing' }
           $groups = @(Microsoft.PowerShell.LocalAccounts\Get-LocalGroup | Where-Object { @((Microsoft.PowerShell.LocalAccounts\Get-LocalGroupMember -Name $_.Name -ErrorAction SilentlyContinue).SID.Value) -contains [string]$user.SID.Value })
-          $foreignShareAccess = @(SmbShare\Get-SmbShare | Where-Object Name -ne ([string]$request.ShareName) | ForEach-Object { SmbShare\Get-SmbShareAccess -Name $_.Name -ErrorAction SilentlyContinue } | Where-Object { try { ([System.Security.Principal.NTAccount]$_.AccountName).Translate([System.Security.Principal.SecurityIdentifier]).Value -eq [string]$user.SID.Value } catch { $false } })
-          $owned = [string]$user.Description -eq [string]$request.Description -and [bool]$user.Enabled -and [bool]$user.PasswordNeverExpires -and -not [bool]$user.UserMayChangePassword -and $groups.Count -eq 0 -and $foreignShareAccess.Count -eq 0 -and [BallsGrantRights]::PasswordWorks([string]$request.AccountName,[string]$request.Password) -and [BallsGrantRights]::Exact([string]$user.SID.Value)
+          $owned = [string]$user.Description -eq [string]$request.Description -and [bool]$user.Enabled -and [bool]$user.PasswordNeverExpires -and -not [bool]$user.UserMayChangePassword -and $groups.Count -eq 0 -and [BallsGrantRights]::PasswordWorks([string]$request.AccountName,[string]$request.Password) -and [BallsGrantRights]::Exact([string]$user.SID.Value)
           if ($owned) { return 'Owned' }
           return 'Collision'
         }
@@ -407,6 +406,8 @@ internal sealed class WindowsCircleFilesGrantPowerShell
           if ($null -eq $share -or -not [bool]$share.EncryptData) { return 'Collision' }
           $user = Microsoft.PowerShell.LocalAccounts\Get-LocalUser -Name ([string]$request.AccountName) -ErrorAction SilentlyContinue
           if ($null -eq $user) { return 'Missing' }
+          $foreign = @(SmbShare\Get-SmbShare | Where-Object { [string]$_.Name -ne [string]$request.ShareName } | ForEach-Object { SmbShare\Get-SmbShareAccess -Name $_.Name -ErrorAction SilentlyContinue } | Where-Object { try { ([System.Security.Principal.NTAccount]$_.AccountName).Translate([System.Security.Principal.SecurityIdentifier]).Value -eq [string]$user.SID.Value } catch { $false } })
+          if ($foreign.Count -ne 0) { return 'Collision' }
           $matches = @(SmbShare\Get-SmbShareAccess -Name ([string]$request.ShareName) -ErrorAction Stop | Where-Object { try { ([System.Security.Principal.NTAccount]$_.AccountName).Translate([System.Security.Principal.SecurityIdentifier]).Value -eq [string]$user.SID.Value } catch { $false } })
           if ($matches.Count -eq 0) { return 'Missing' }
           if ($matches.Count -eq 1 -and [string]$matches[0].AccessControlType -eq 'Allow' -and [string]$matches[0].AccessRight -eq [string]$request.AccessRight) { return 'Owned' }
