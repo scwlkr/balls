@@ -102,7 +102,7 @@ internal sealed class WindowsCircleFilesSystemOperations : IWindowsCircleFilesOp
         }
 
         var currentSddl = GetCurrentSddl(folder);
-        return string.Equals(currentSddl, GetDesiredSddl(plan.OwnerSid), StringComparison.Ordinal)
+        return HasDesiredSecurity(folder, plan.OwnerSid)
             || string.Equals(currentSddl, journal.PreMutationSddl, StringComparison.Ordinal)
             ? WindowsCircleFilesOwnedState.Owned
             : WindowsCircleFilesOwnedState.Collision;
@@ -202,7 +202,7 @@ internal sealed class WindowsCircleFilesSystemOperations : IWindowsCircleFilesOp
                 "The folder operation journal changed and was left untouched.");
         var folder = plan.PublicPlan.FolderPath;
         var currentSddl = GetCurrentSddl(folder);
-        if (!string.Equals(currentSddl, GetDesiredSddl(plan.OwnerSid), StringComparison.Ordinal)
+        if (!HasDesiredSecurity(folder, plan.OwnerSid)
             && !string.Equals(currentSddl, journal.PreMutationSddl, StringComparison.Ordinal))
         {
             throw new CircleFilesHostingException(
@@ -247,15 +247,45 @@ internal sealed class WindowsCircleFilesSystemOperations : IWindowsCircleFilesOp
         return security;
     }
 
-    private static string GetDesiredSddl(string ownerSid) =>
-        CreateDesiredSecurity(ownerSid).GetSecurityDescriptorSddlForm(
-            AccessControlSections.Owner | AccessControlSections.Group | AccessControlSections.Access);
-
     private static string GetCurrentSddl(string folder) =>
         new DirectoryInfo(folder).GetAccessControl(
                 AccessControlSections.Owner | AccessControlSections.Group | AccessControlSections.Access)
             .GetSecurityDescriptorSddlForm(
                 AccessControlSections.Owner | AccessControlSections.Group | AccessControlSections.Access);
+
+    private static bool HasDesiredSecurity(string folder, string ownerSid)
+    {
+        var owner = new SecurityIdentifier(ownerSid);
+        var system = new SecurityIdentifier(WellKnownSidType.LocalSystemSid, null);
+        var security = new DirectoryInfo(folder).GetAccessControl(
+            AccessControlSections.Owner | AccessControlSections.Access);
+        if (!security.AreAccessRulesProtected
+            || !owner.Equals(security.GetOwner(typeof(SecurityIdentifier))))
+        {
+            return false;
+        }
+
+        var rules = security.GetAccessRules(
+                includeExplicit: true,
+                includeInherited: true,
+                typeof(SecurityIdentifier))
+            .Cast<FileSystemAccessRule>()
+            .ToArray();
+        if (rules.Length != 2)
+        {
+            return false;
+        }
+
+        return rules.All(rule =>
+            !rule.IsInherited
+            && rule.AccessControlType == AccessControlType.Allow
+            && rule.FileSystemRights == FileSystemRights.FullControl
+            && rule.InheritanceFlags == (InheritanceFlags.ContainerInherit | InheritanceFlags.ObjectInherit)
+            && rule.PropagationFlags == PropagationFlags.None
+            && (owner.Equals(rule.IdentityReference) || system.Equals(rule.IdentityReference)))
+            && rules.Any(rule => owner.Equals(rule.IdentityReference))
+            && rules.Any(rule => system.Equals(rule.IdentityReference));
+    }
 
     private static void ApplyFileSecurity(string path, string ownerSid)
     {
