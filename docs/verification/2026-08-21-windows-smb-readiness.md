@@ -21,7 +21,8 @@
 
 ## Automated evidence
 
-Observed on the Windows development host after the fixed-point review hardening:
+Observed on the Windows development host from reviewed commit
+`ce6d27b9b0657274cd0f14227fad92664d440bea`:
 
 | Gate | Observation |
 | --- | --- |
@@ -38,7 +39,7 @@ evidence.
 ## Dedicated Windows VM evidence
 
 The owned `Balls.Dev.Windows11` Hyper-V guest ran the focused adapter contracts, the real
-OS-integration adapter, and the structured CLI from the exact detached implementation commit above.
+OS-integration adapter, and the structured CLI from that exact detached reviewed commit.
 The guest was Windows 11 Enterprise Evaluation `10.0.26200`; no checkpoint was restored and no
 security policy was changed.
 
@@ -46,18 +47,20 @@ The durable guest result at `C:\BallsLab\smb-readiness\latest-result.json` recor
 
 | Field | Observed value |
 | --- | --- |
-| UTC | `2026-08-22T00:05:12.9208231+00:00` |
-| Focused Contract | passed |
-| Focused OSIntegration | passed |
+| UTC | `2026-08-22T00:28:10.0502189+00:00` |
+| Focused Contract | 6 passed |
+| Focused OSIntegration | 4 passed |
 | Structured CLI | passed |
 | Aggregate | `not-ready` |
-| Only unsafe check | `private-network` / `private_network_unavailable` |
+| Unsafe checks | `private-network` / `private_network_unavailable`; `firewall-scope` / `public_smb_inbound_allowed` |
 | No mutation | true |
 
 The result is the intended fail-closed behavior. Independent readback showed the guest's connected
-Ethernet profile was Public, so the adapter refused readiness even though the other eight checks
-were ready. Before/after snapshots of the inspected SMB server/client, services, network profiles,
-firewall profiles, Windows feature state, and relevant registry values were identical.
+Ethernet profile was Public; the tightened inspection also observed enabled Public/Any inbound
+allow-rule scope that can include TCP 445. The adapter therefore refused readiness while the first
+seven checks were ready. Before/after snapshots of the inspected SMB server/client, services,
+network profiles, firewall profiles/rule count, Windows feature state, and relevant registry values
+were identical.
 
 ## Security boundary and non-goals
 
