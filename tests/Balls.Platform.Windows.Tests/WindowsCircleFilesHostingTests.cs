@@ -1,4 +1,7 @@
+using System.Net;
 using System.Runtime.Versioning;
+using System.Security.Cryptography;
+using Balls.Core;
 using Balls.Platform;
 using Balls.Platform.Windows;
 
@@ -9,14 +12,7 @@ namespace Balls.Platform.Windows.Tests;
 [SupportedOSPlatform("windows")]
 public sealed class WindowsCircleFilesHostingTests
 {
-    private static readonly CircleFilesHostRequest Request = new(
-        "019d2a6b-1b66-7d38-9c35-8d64ca8f8901",
-        "019d2a6b-1b66-7d38-9c35-8d64ca8f8902",
-        "019d2a6b-1b66-7d38-9c35-8d64ca8f8903",
-        "019d2a6b-1b66-7d38-9c35-8d64ca8f8904",
-        "Company files",
-        @"C:\BallsShares\Company",
-        new string('a', 64));
+    private static readonly CircleFilesHostRequest Request = CreateAuthorizedRequest();
 
     [TestMethod]
     public async Task Preview_is_deterministic_bounded_and_requires_no_elevation()
@@ -145,6 +141,47 @@ public sealed class WindowsCircleFilesHostingTests
     }
 
     [TestMethod]
+    public void Fixed_mutation_command_selector_is_a_closed_typed_allow_list()
+    {
+        CollectionAssert.AreEqual(
+            new[]
+            {
+                WindowsCircleFilesPowerShellCommand.InspectShare,
+                WindowsCircleFilesPowerShellCommand.CreateShare,
+                WindowsCircleFilesPowerShellCommand.RemoveShare,
+                WindowsCircleFilesPowerShellCommand.InspectFirewall,
+                WindowsCircleFilesPowerShellCommand.CreateFirewall,
+                WindowsCircleFilesPowerShellCommand.RemoveFirewall,
+            },
+            Enum.GetValues<WindowsCircleFilesPowerShellCommand>());
+    }
+
+    [TestMethod]
+    public void Elevated_helper_authorization_verifies_both_signatures_and_exact_contribution_fields()
+    {
+        WindowsCircleFilesHostAuthorizationVerifier.Validate(Request);
+
+        var tampered = Request with
+        {
+            ContributionId = "019d2a6b-1b66-7d38-9c35-8d64ca8f8999",
+        };
+        var error = Assert.ThrowsExactly<CircleFilesHostingException>(
+            () => WindowsCircleFilesHostAuthorizationVerifier.Validate(tampered));
+
+        Assert.AreEqual("hosting_authorization_invalid", error.Code);
+    }
+
+    [TestMethod]
+    public void Elevated_path_revalidation_keeps_the_authenticated_daemon_owner_sid()
+    {
+        const string daemonOwnerSid = "S-1-5-21-1000";
+
+        Assert.AreEqual(
+            daemonOwnerSid,
+            new WindowsCircleFilesPathEnvironment(daemonOwnerSid).CurrentUserSid);
+    }
+
+    [TestMethod]
     public async Task Helper_protocol_rejects_oversized_messages_before_deserialization()
     {
         await using var stream = new MemoryStream();
@@ -193,6 +230,42 @@ public sealed class WindowsCircleFilesHostingTests
         Assert.IsTrue(recovered.TargetExists);
     }
 
+    [TestMethod]
+    public async Task Journal_cannot_claim_or_delete_an_ancestor_directory()
+    {
+        var initial = await CreateProvisioner(new StubEnvironment(), new StubHelper())
+            .PreviewAsync(Request, CancellationToken.None);
+        var journalPath = Path.Combine(
+            Request.FolderPath,
+            WindowsCircleFilesSystemOperations.JournalFileName);
+        var journal = System.Text.Json.JsonSerializer.Serialize(new
+        {
+            ContractVersion = 1,
+            initial.OwnershipId,
+            initial.PlanId,
+            FolderPath = Request.FolderPath,
+            OwnerSid = "S-1-5-21-1000",
+            TargetExisted = false,
+            PreMutationSddl = "O:S-1-5-21-1000D:",
+            CreatedDirectories = new[] { @"C:\BallsShares" },
+        }) + "\n";
+        var environment = new StubEnvironment
+        {
+            ExistingDirectory = true,
+            Entries = [journalPath],
+            Files = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+            {
+                [journalPath] = journal,
+            },
+        };
+
+        var error = await Assert.ThrowsExactlyAsync<CircleFilesHostingException>(
+            () => CreateProvisioner(environment, new StubHelper())
+                .PreviewAsync(Request, CancellationToken.None).AsTask());
+
+        Assert.AreEqual("hosting_folder_not_empty", error.Code);
+    }
+
     private static WindowsCircleFilesHostProvisioner CreateProvisioner(
         StubEnvironment environment,
         StubHelper helper) =>
@@ -227,6 +300,76 @@ public sealed class WindowsCircleFilesHostingTests
             LastPlan = plan;
             return ValueTask.FromResult(CircleFilesHostApplyStatus.Applied);
         }
+    }
+
+    private static CircleFilesHostRequest CreateAuthorizedRequest()
+    {
+        var circleId = new CircleId(Guid.Parse("019d2a6b-1b66-7d38-9c35-8d64ca8f8901"));
+        var contributionId = new CircleFilesContributionId(
+            Guid.Parse("019d2a6b-1b66-7d38-9c35-8d64ca8f8902"));
+        var providerId = new CircleFilesProviderId(
+            Guid.Parse("019d2a6b-1b66-7d38-9c35-8d64ca8f8903"));
+        var nodeId = new NodeId(Guid.Parse("019d2a6b-1b66-7d38-9c35-8d64ca8f8904"));
+        var authorizedAt = DateTimeOffset.FromUnixTimeSeconds(1_700_000_000);
+        var unsignedAuthorization = new CircleFilesOwnerAuthorization(
+            new MemberId(Guid.Parse("019d2a6b-1b66-7d38-9c35-8d64ca8f8905")),
+            1,
+            authorizedAt,
+            [],
+            [],
+            []);
+        var contribution = new CircleFilesContribution(
+            contributionId,
+            circleId,
+            new CircleFilesProviderIdentity(providerId, nodeId),
+            "Company files",
+            CircleFilesContributionLifecycle.Defined,
+            1,
+            authorizedAt,
+            unsignedAuthorization);
+        var transcript = CircleFilesAuthorizationTranscript.EncodeContribution(
+            new CircleFilesContributionRequestId(
+                Guid.Parse("019d2a6b-1b66-7d38-9c35-8d64ca8f8906")),
+            contribution);
+        using var memberKey = ECDsa.Create(ECCurve.NamedCurves.nistP256);
+        using var rootKey = ECDsa.Create(ECCurve.NamedCurves.nistP256);
+        var memberSignature = IdentityCryptography.Sign(transcript, memberKey);
+        var rootSignature = IdentityCryptography.Sign(transcript, rootKey);
+        var proof = new CircleFilesHostAuthorizationProof(
+            transcript,
+            memberSignature,
+            rootSignature,
+            ToHostCredential(IdentityCryptography.CreateCredential(IdentityKeyRole.Member, memberKey)),
+            ToHostCredential(IdentityCryptography.CreateCredential(
+                IdentityKeyRole.CircleAuthority,
+                rootKey)));
+        using var hash = IncrementalHash.CreateHash(HashAlgorithmName.SHA256);
+        Append(hash, transcript);
+        Append(hash, memberSignature);
+        Append(hash, rootSignature);
+        return new CircleFilesHostRequest(
+            circleId.ToString(),
+            contributionId.ToString(),
+            providerId.ToString(),
+            nodeId.ToString(),
+            contribution.DisplayName,
+            @"C:\BallsShares\Company",
+            Convert.ToHexStringLower(hash.GetHashAndReset()),
+            proof);
+    }
+
+    private static CircleFilesHostPublicCredential ToHostCredential(
+        PublicIdentityCredential credential) =>
+        new(
+            credential.Role == IdentityKeyRole.Member ? "member" : "circle-authority",
+            credential.Algorithm,
+            credential.KeyId,
+            credential.SubjectPublicKeyInfo);
+
+    private static void Append(IncrementalHash hash, byte[] value)
+    {
+        hash.AppendData(BitConverter.GetBytes(IPAddress.HostToNetworkOrder(value.Length)));
+        hash.AppendData(value);
     }
 
     private sealed class StubEnvironment : IWindowsCircleFilesPathEnvironment

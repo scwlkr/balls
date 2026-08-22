@@ -55,6 +55,20 @@ public sealed class WindowsPowerShellInspectionTests
 public sealed class WindowsPowerShellProcessTests
 {
     [TestMethod]
+    public void Elevated_helper_rejects_a_pipe_server_that_is_not_the_adjacent_daemon()
+    {
+        if (!OperatingSystem.IsWindows())
+        {
+            Assert.Inconclusive("The Windows process identity test requires Windows.");
+            return;
+        }
+
+        Assert.IsFalse(WindowsProcessIdentity.TryGetExpectedDaemonUserSid(
+            Environment.ProcessId,
+            out _));
+    }
+
+    [TestMethod]
     public async Task Bounded_runner_writes_redirected_input_without_weakening_output_bounds()
     {
         if (!OperatingSystem.IsWindows())

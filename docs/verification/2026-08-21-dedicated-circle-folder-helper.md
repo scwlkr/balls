@@ -11,7 +11,10 @@
   Member/root authorization proofs, readiness, and path on both calls.
 - `ballsd` remains unelevated. Apply launches the adjacent `balls-windows-helper.exe` through UAC
   with only a random one-time pipe name and daemon PID. The daemon and helper verify each other's
-  exact pipe process IDs before a bounded plan crosses the elevation boundary.
+  exact pipe process IDs before a bounded plan crosses the elevation boundary. The helper also
+  requires the adjacent `ballsd.exe`, binds the Owner SID to its process token, and independently
+  verifies the two P-256 signatures and exact signed Contribution fields. A separate administrator
+  credential can elevate the helper without replacing the original Owner SID.
 - The helper recomputes the whole plan under elevation and can perform only the typed folder ACL,
   marker/journal, SMB-share, and firewall operations. Its fixed PowerShell adapter accepts JSON on
   standard input, inherits no `PSModulePath`, has a 20-second timeout, and enforces a combined
@@ -25,7 +28,8 @@
   to `Private`, TCP 445, `LocalSubnet`, and `LanmanServer`.
 - Retry succeeds only for the complete exact state. Failure and partial recovery inspect every
   resource, roll back in reverse, remove only proven-owned state, restore an originally empty
-  folder's prior ACL, and delete newly created directories only while empty.
+  folder's prior ACL, and delete only the exact newly created target while it remains empty. A
+  journal cannot claim a parent or ancestor directory.
 
 The Contribution deliberately stays `defined`. Member accounts/credentials and grant ACLs are
 #59; Explorer mapping is #60; lifecycle cleanup and revocation are #61.

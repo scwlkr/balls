@@ -102,10 +102,21 @@ internal sealed class WindowsCircleFilesSystemOperations : IWindowsCircleFilesOp
         }
 
         var currentSddl = GetCurrentSddl(folder);
-        return HasDesiredSecurity(folder, plan.OwnerSid)
-            || string.Equals(currentSddl, journal.PreMutationSddl, StringComparison.Ordinal)
-            ? WindowsCircleFilesOwnedState.Owned
-            : WindowsCircleFilesOwnedState.Collision;
+        if (HasDesiredSecurity(folder, plan.OwnerSid)
+            && HasDesiredFileSecurity(
+                Path.Combine(folder, JournalFileName),
+                plan.OwnerSid))
+        {
+            return WindowsCircleFilesOwnedState.Owned;
+        }
+
+        return string.Equals(currentSddl, journal.PreMutationSddl, StringComparison.Ordinal)
+            && Directory.EnumerateFileSystemEntries(folder).All(path =>
+                path.Equals(
+                    Path.Combine(folder, JournalFileName),
+                    StringComparison.OrdinalIgnoreCase))
+                ? WindowsCircleFilesOwnedState.Missing
+                : WindowsCircleFilesOwnedState.Collision;
     }
 
     private static WindowsCircleFilesOwnedState InspectMarker(WindowsCircleFilesHelperPlan plan)
@@ -136,14 +147,38 @@ internal sealed class WindowsCircleFilesSystemOperations : IWindowsCircleFilesOp
             throw new InvalidOperationException("The hosting path is a file.");
         }
 
-        var createdDirectories = new List<string>();
-        for (var current = folder; !Directory.Exists(current); current = Path.GetDirectoryName(current)
-            ?? throw new InvalidOperationException("The hosting folder has no existing ancestor."))
+        var existingJournal = Directory.Exists(folder) ? ReadJournal(plan) : null;
+        if (existingJournal is not null)
         {
-            createdDirectories.Add(current);
+            var currentSddl = GetCurrentSddl(folder);
+            if (!string.Equals(currentSddl, existingJournal.PreMutationSddl, StringComparison.Ordinal)
+                || Directory.EnumerateFileSystemEntries(folder).Any(path =>
+                    !path.Equals(
+                        Path.Combine(folder, JournalFileName),
+                        StringComparison.OrdinalIgnoreCase)))
+            {
+                throw new InvalidOperationException("The prior folder operation cannot be resumed safely.");
+            }
+
+            ApplyFileSecurity(Path.Combine(folder, JournalFileName), plan.OwnerSid);
+            new DirectoryInfo(folder).SetAccessControl(CreateDesiredSecurity(plan.OwnerSid));
+            return;
         }
 
         var existed = Directory.Exists(folder);
+        var createdDirectories = new List<string>();
+        if (!existed)
+        {
+            var parent = Path.GetDirectoryName(folder);
+            if (parent is null || !Directory.Exists(parent))
+            {
+                throw new InvalidOperationException(
+                    "The dedicated hosting folder requires an existing parent directory.");
+            }
+
+            createdDirectories.Add(folder);
+        }
+
         Directory.CreateDirectory(folder);
         var entries = Directory.EnumerateFileSystemEntries(folder).ToArray();
         if (entries.Length != 0)
@@ -161,10 +196,10 @@ internal sealed class WindowsCircleFilesSystemOperations : IWindowsCircleFilesOp
             existed,
             preMutationSddl,
             createdDirectories);
-        WriteCreateNew(Path.Combine(folder, JournalFileName), SerializeJournal(journal));
-        var security = CreateDesiredSecurity(plan.OwnerSid);
-        new DirectoryInfo(folder).SetAccessControl(security);
-        ApplyFileSecurity(Path.Combine(folder, JournalFileName), plan.OwnerSid);
+        var journalPath = Path.Combine(folder, JournalFileName);
+        WriteCreateNew(journalPath, SerializeJournal(journal));
+        ApplyFileSecurity(journalPath, plan.OwnerSid);
+        new DirectoryInfo(folder).SetAccessControl(CreateDesiredSecurity(plan.OwnerSid));
     }
 
     private static void ApplyMarker(WindowsCircleFilesHelperPlan plan)
@@ -299,6 +334,41 @@ internal sealed class WindowsCircleFilesSystemOperations : IWindowsCircleFilesOp
         new FileInfo(path).SetAccessControl(security);
     }
 
+    private static bool HasDesiredFileSecurity(string path, string ownerSid)
+    {
+        if (!File.Exists(path))
+        {
+            return false;
+        }
+
+        var owner = new SecurityIdentifier(ownerSid);
+        var system = new SecurityIdentifier(WellKnownSidType.LocalSystemSid, null);
+        var security = new FileInfo(path).GetAccessControl(
+            AccessControlSections.Owner | AccessControlSections.Access);
+        if (!security.AreAccessRulesProtected
+            || !owner.Equals(security.GetOwner(typeof(SecurityIdentifier))))
+        {
+            return false;
+        }
+
+        var rules = security.GetAccessRules(
+                includeExplicit: true,
+                includeInherited: true,
+                typeof(SecurityIdentifier))
+            .Cast<FileSystemAccessRule>()
+            .ToArray();
+        return rules.Length == 2
+            && rules.All(rule =>
+                !rule.IsInherited
+                && rule.AccessControlType == AccessControlType.Allow
+                && rule.FileSystemRights == FileSystemRights.FullControl
+                && rule.InheritanceFlags == InheritanceFlags.None
+                && rule.PropagationFlags == PropagationFlags.None
+                && (owner.Equals(rule.IdentityReference) || system.Equals(rule.IdentityReference)))
+            && rules.Any(rule => owner.Equals(rule.IdentityReference))
+            && rules.Any(rule => system.Equals(rule.IdentityReference));
+    }
+
     private static WindowsCircleFilesJournal? ReadJournal(WindowsCircleFilesHelperPlan plan)
     {
         var path = Path.Combine(plan.PublicPlan.FolderPath, JournalFileName);
@@ -307,27 +377,12 @@ internal sealed class WindowsCircleFilesSystemOperations : IWindowsCircleFilesOp
             return null;
         }
 
-        try
-        {
-            var journal = JsonSerializer.Deserialize<WindowsCircleFilesJournal>(File.ReadAllText(path));
-            return journal is not null
-                && journal.ContractVersion == CircleFilesHostingContract.Version
-                && journal.OwnershipId == plan.PublicPlan.OwnershipId
-                && journal.PlanId == plan.PublicPlan.PlanId
-                && journal.FolderPath.Equals(plan.PublicPlan.FolderPath, StringComparison.OrdinalIgnoreCase)
-                && journal.OwnerSid == plan.OwnerSid
-                && !string.IsNullOrWhiteSpace(journal.PreMutationSddl)
-                && journal.CreatedDirectories is not null
-                && journal.CreatedDirectories.All(directory =>
-                    directory.Equals(plan.PublicPlan.FolderPath, StringComparison.OrdinalIgnoreCase)
-                    || IsParentOf(directory, plan.PublicPlan.FolderPath))
-                    ? journal
-                    : null;
-        }
-        catch (JsonException)
-        {
-            return null;
-        }
+        return ParseOwnedJournal(
+            File.ReadAllText(path),
+            plan.PublicPlan.OwnershipId,
+            plan.PublicPlan.PlanId,
+            plan.PublicPlan.FolderPath,
+            plan.OwnerSid);
     }
 
     internal static bool IsOwnedJournalContent(
@@ -342,6 +397,16 @@ internal sealed class WindowsCircleFilesSystemOperations : IWindowsCircleFilesOp
             return false;
         }
 
+        return ParseOwnedJournal(content, ownershipId, planId, folderPath, ownerSid) is not null;
+    }
+
+    private static WindowsCircleFilesJournal? ParseOwnedJournal(
+        string content,
+        string ownershipId,
+        string planId,
+        string folderPath,
+        string ownerSid)
+    {
         try
         {
             var journal = JsonSerializer.Deserialize<WindowsCircleFilesJournal>(content);
@@ -352,18 +417,21 @@ internal sealed class WindowsCircleFilesSystemOperations : IWindowsCircleFilesOp
                 && journal.FolderPath.Equals(folderPath, StringComparison.OrdinalIgnoreCase)
                 && journal.OwnerSid == ownerSid
                 && !string.IsNullOrWhiteSpace(journal.PreMutationSddl)
-                && journal.CreatedDirectories is not null;
+                && journal.CreatedDirectories is not null
+                && (journal.TargetExisted
+                    ? journal.CreatedDirectories.Count == 0
+                    : journal.CreatedDirectories.Count == 1
+                        && journal.CreatedDirectories[0].Equals(
+                            folderPath,
+                            StringComparison.OrdinalIgnoreCase))
+                    ? journal
+                    : null;
         }
         catch (JsonException)
         {
-            return false;
+            return null;
         }
     }
-
-    private static bool IsParentOf(string possibleParent, string path) =>
-        path.StartsWith(
-            possibleParent.TrimEnd(Path.DirectorySeparatorChar) + Path.DirectorySeparatorChar,
-            StringComparison.OrdinalIgnoreCase);
 
     private static string SerializeJournal(WindowsCircleFilesJournal journal) =>
         JsonSerializer.Serialize(journal) + "\n";
@@ -395,32 +463,50 @@ internal sealed class WindowsCircleFilesPowerShell
     internal async ValueTask<WindowsCircleFilesOwnedState> InspectShareAsync(
         WindowsCircleFilesHelperPlan plan,
         CancellationToken cancellationToken) =>
-        ParseState(await InvokeAsync("InspectShare", plan, cancellationToken).ConfigureAwait(false));
+        ParseState(await InvokeAsync(
+            WindowsCircleFilesPowerShellCommand.InspectShare,
+            plan,
+            cancellationToken).ConfigureAwait(false));
 
     internal async ValueTask CreateShareAsync(
         WindowsCircleFilesHelperPlan plan,
         CancellationToken cancellationToken) =>
-        _ = await InvokeAsync("CreateShare", plan, cancellationToken).ConfigureAwait(false);
+        _ = await InvokeAsync(
+            WindowsCircleFilesPowerShellCommand.CreateShare,
+            plan,
+            cancellationToken).ConfigureAwait(false);
 
     internal async ValueTask RemoveShareAsync(
         WindowsCircleFilesHelperPlan plan,
         CancellationToken cancellationToken) =>
-        _ = await InvokeAsync("RemoveShare", plan, cancellationToken).ConfigureAwait(false);
+        _ = await InvokeAsync(
+            WindowsCircleFilesPowerShellCommand.RemoveShare,
+            plan,
+            cancellationToken).ConfigureAwait(false);
 
     internal async ValueTask<WindowsCircleFilesOwnedState> InspectFirewallAsync(
         WindowsCircleFilesHelperPlan plan,
         CancellationToken cancellationToken) =>
-        ParseState(await InvokeAsync("InspectFirewall", plan, cancellationToken).ConfigureAwait(false));
+        ParseState(await InvokeAsync(
+            WindowsCircleFilesPowerShellCommand.InspectFirewall,
+            plan,
+            cancellationToken).ConfigureAwait(false));
 
     internal async ValueTask CreateFirewallAsync(
         WindowsCircleFilesHelperPlan plan,
         CancellationToken cancellationToken) =>
-        _ = await InvokeAsync("CreateFirewall", plan, cancellationToken).ConfigureAwait(false);
+        _ = await InvokeAsync(
+            WindowsCircleFilesPowerShellCommand.CreateFirewall,
+            plan,
+            cancellationToken).ConfigureAwait(false);
 
     internal async ValueTask RemoveFirewallAsync(
         WindowsCircleFilesHelperPlan plan,
         CancellationToken cancellationToken) =>
-        _ = await InvokeAsync("RemoveFirewall", plan, cancellationToken).ConfigureAwait(false);
+        _ = await InvokeAsync(
+            WindowsCircleFilesPowerShellCommand.RemoveFirewall,
+            plan,
+            cancellationToken).ConfigureAwait(false);
 
     private static WindowsCircleFilesOwnedState ParseState(string json)
     {
@@ -436,7 +522,7 @@ internal sealed class WindowsCircleFilesPowerShell
     }
 
     private static async Task<string> InvokeAsync(
-        string command,
+        WindowsCircleFilesPowerShellCommand command,
         WindowsCircleFilesHelperPlan plan,
         CancellationToken cancellationToken)
     {
@@ -465,7 +551,16 @@ internal sealed class WindowsCircleFilesPowerShell
         startInfo.ArgumentList.Add(Convert.ToBase64String(Encoding.Unicode.GetBytes(Script)));
         var input = JsonSerializer.Serialize(new
         {
-            Command = command,
+            Command = command switch
+            {
+                WindowsCircleFilesPowerShellCommand.InspectShare => "InspectShare",
+                WindowsCircleFilesPowerShellCommand.CreateShare => "CreateShare",
+                WindowsCircleFilesPowerShellCommand.RemoveShare => "RemoveShare",
+                WindowsCircleFilesPowerShellCommand.InspectFirewall => "InspectFirewall",
+                WindowsCircleFilesPowerShellCommand.CreateFirewall => "CreateFirewall",
+                WindowsCircleFilesPowerShellCommand.RemoveFirewall => "RemoveFirewall",
+                _ => throw new ArgumentOutOfRangeException(nameof(command)),
+            },
             Path = plan.PublicPlan.FolderPath,
             plan.PublicPlan.ShareName,
             plan.PublicPlan.FirewallRuleName,
@@ -554,4 +649,14 @@ internal sealed class WindowsCircleFilesPowerShell
         }
         [PSCustomObject]@{ State = $state } | Microsoft.PowerShell.Utility\ConvertTo-Json -Compress
         """;
+}
+
+internal enum WindowsCircleFilesPowerShellCommand
+{
+    InspectShare,
+    CreateShare,
+    RemoveShare,
+    InspectFirewall,
+    CreateFirewall,
+    RemoveFirewall,
 }

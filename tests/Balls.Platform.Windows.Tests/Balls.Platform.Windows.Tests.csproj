@@ -4,6 +4,7 @@
     <IsTestProject>true</IsTestProject>
   </PropertyGroup>
   <ItemGroup>
+    <ProjectReference Include="..\..\src\Balls.Core\Balls.Core.csproj" />
     <ProjectReference Include="..\..\src\Balls.Platform.Windows\Balls.Platform.Windows.csproj" />
   </ItemGroup>
   <ItemGroup>

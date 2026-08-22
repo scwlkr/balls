@@ -74,6 +74,15 @@ public sealed class CircleFilesApplication(
     public async Task<CircleFilesContribution> GetAuthorizedLocalContributionAsync(
         CircleId circleId,
         CircleFilesContributionId contributionId,
+        CancellationToken cancellationToken = default) =>
+        (await GetAuthorizedLocalContributionForHostingAsync(
+            circleId,
+            contributionId,
+            cancellationToken).ConfigureAwait(false)).Contribution;
+
+    public async Task<AuthorizedCircleFilesContribution> GetAuthorizedLocalContributionForHostingAsync(
+        CircleId circleId,
+        CircleFilesContributionId contributionId,
         CancellationToken cancellationToken = default)
     {
         var context = await GetOwnerAuthorizationContextAsync(circleId, cancellationToken)
@@ -109,7 +118,10 @@ public sealed class CircleFilesApplication(
                 "The Circle Files contribution authorization is invalid or stale.");
         }
 
-        return contribution;
+        return new AuthorizedCircleFilesContribution(
+            contribution,
+            context.MemberCredential,
+            context.RootCredential);
     }
 
     public async Task<MemberAccessGrant> CreateAccessGrantAsync(

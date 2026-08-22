@@ -4,6 +4,7 @@ using System.Globalization;
 using System.IO.Pipes;
 using System.Runtime.InteropServices;
 using System.Runtime.Versioning;
+using System.Security.AccessControl;
 using System.Security.Cryptography;
 using System.Security.Principal;
 using System.Text;
@@ -323,7 +324,15 @@ internal static class WindowsCircleFilesOwnershipMarker
 [SupportedOSPlatform("windows")]
 internal sealed class WindowsCircleFilesPathEnvironment : IWindowsCircleFilesPathEnvironment
 {
-    public string CurrentUserSid => WindowsIdentity.GetCurrent().User?.Value
+    private readonly string? authenticatedUserSid;
+
+    internal WindowsCircleFilesPathEnvironment(string? authenticatedUserSid = null)
+    {
+        this.authenticatedUserSid = authenticatedUserSid;
+    }
+
+    public string CurrentUserSid => authenticatedUserSid
+        ?? WindowsIdentity.GetCurrent().User?.Value
         ?? throw new CircleFilesHostingException(
             "hosting_identity_unavailable",
             "The current Windows account identity is unavailable.");
@@ -380,6 +389,7 @@ internal sealed class WindowsCircleFilesPathEnvironment : IWindowsCircleFilesPat
     }
 }
 
+[SupportedOSPlatform("windows")]
 internal sealed class WindowsElevatedCircleFilesHelperClient : IWindowsCircleFilesHelperClient
 {
     private static readonly TimeSpan ApprovalTimeout = TimeSpan.FromMinutes(2);
@@ -399,12 +409,27 @@ internal sealed class WindowsElevatedCircleFilesHelperClient : IWindowsCircleFil
         }
 
         var pipeName = $"balls-host-{Convert.ToHexStringLower(RandomNumberGenerator.GetBytes(32))}";
-        await using var pipe = new NamedPipeServerStream(
+        var pipeSecurity = new PipeSecurity();
+        pipeSecurity.SetAccessRuleProtection(isProtected: true, preserveInheritance: false);
+        var ownerSid = new SecurityIdentifier(plan.OwnerSid);
+        pipeSecurity.SetOwner(ownerSid);
+        pipeSecurity.AddAccessRule(new PipeAccessRule(
+            ownerSid,
+            PipeAccessRights.FullControl,
+            AccessControlType.Allow));
+        pipeSecurity.AddAccessRule(new PipeAccessRule(
+            new SecurityIdentifier(WellKnownSidType.BuiltinAdministratorsSid, null),
+            PipeAccessRights.ReadWrite,
+            AccessControlType.Allow));
+        await using var pipe = NamedPipeServerStreamAcl.Create(
             pipeName,
             PipeDirection.InOut,
             1,
             PipeTransmissionMode.Byte,
-            PipeOptions.Asynchronous);
+            PipeOptions.Asynchronous,
+            inBufferSize: 0,
+            outBufferSize: 0,
+            pipeSecurity);
         var startInfo = new ProcessStartInfo
         {
             FileName = helperPath,
@@ -595,6 +620,11 @@ public static class WindowsCircleFilesHelperCommand
             return 2;
         }
 
+        if (!WindowsProcessIdentity.TryGetExpectedDaemonUserSid(serverPid, out var daemonUserSid))
+        {
+            return 3;
+        }
+
         try
         {
             await using var pipe = new NamedPipeClientStream(
@@ -616,9 +646,17 @@ public static class WindowsCircleFilesHelperCommand
                     pipe,
                     MaximumMessageBytes,
                     cancellationToken).ConfigureAwait(false);
+                if (received.OwnerSid != daemonUserSid)
+                {
+                    await WriteErrorAsync(pipe, "hosting_helper_authentication_failed", cancellationToken)
+                        .ConfigureAwait(false);
+                    return 4;
+                }
+
+                WindowsCircleFilesHostAuthorizationVerifier.Validate(received.Request);
                 var verifier = new WindowsCircleFilesHostProvisioner(
                     new WindowsSmbReadinessInspector(),
-                    new WindowsCircleFilesPathEnvironment(),
+                    new WindowsCircleFilesPathEnvironment(daemonUserSid),
                     new RejectNestedHelper());
                 var recomputed = await verifier.PrepareForHelperAsync(received.Request, cancellationToken)
                     .ConfigureAwait(false);

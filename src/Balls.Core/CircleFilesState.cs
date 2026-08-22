@@ -76,6 +76,11 @@ public sealed record CircleFilesContribution(
     DateTimeOffset CreatedAtUtc,
     CircleFilesOwnerAuthorization Authorization);
 
+public sealed record AuthorizedCircleFilesContribution(
+    CircleFilesContribution Contribution,
+    PublicIdentityCredential MemberCredential,
+    PublicIdentityCredential CircleAuthorityCredential);
+
 public sealed record MemberAccessGrant(
     MemberAccessGrantId Id,
     CircleId CircleId,

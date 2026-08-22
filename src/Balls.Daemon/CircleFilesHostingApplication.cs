@@ -50,10 +50,11 @@ internal sealed class CircleFilesHostingApplication(
         string folderPath,
         CancellationToken cancellationToken)
     {
-        var contribution = await files.GetAuthorizedLocalContributionAsync(
+        var authorized = await files.GetAuthorizedLocalContributionForHostingAsync(
             circleId,
             contributionId,
             cancellationToken).ConfigureAwait(false);
+        var contribution = authorized.Contribution;
         return new CircleFilesHostRequest(
             contribution.CircleId.ToString(),
             contribution.Id.ToString(),
@@ -61,8 +62,27 @@ internal sealed class CircleFilesHostingApplication(
             contribution.Provider.NodeId.ToString(),
             contribution.DisplayName,
             folderPath,
-            AuthorizationDigest(contribution.Authorization));
+            AuthorizationDigest(contribution.Authorization),
+            new CircleFilesHostAuthorizationProof(
+                contribution.Authorization.Transcript,
+                contribution.Authorization.MemberSignature,
+                contribution.Authorization.CircleAuthoritySignature,
+                ToHostCredential(authorized.MemberCredential),
+                ToHostCredential(authorized.CircleAuthorityCredential)));
     }
+
+    private static CircleFilesHostPublicCredential ToHostCredential(
+        PublicIdentityCredential credential) =>
+        new(
+            credential.Role switch
+            {
+                IdentityKeyRole.Member => "member",
+                IdentityKeyRole.CircleAuthority => "circle-authority",
+                _ => throw new InvalidOperationException("The Circle Files hosting credential role is invalid."),
+            },
+            credential.Algorithm,
+            credential.KeyId,
+            credential.SubjectPublicKeyInfo);
 
     private static string AuthorizationDigest(CircleFilesOwnerAuthorization authorization)
     {

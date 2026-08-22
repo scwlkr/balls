@@ -12,7 +12,21 @@ public sealed record CircleFilesHostRequest(
     string NodeId,
     string DisplayName,
     string FolderPath,
-    string AuthorizationDigest);
+    string AuthorizationDigest,
+    CircleFilesHostAuthorizationProof? Authorization = null);
+
+public sealed record CircleFilesHostPublicCredential(
+    string Role,
+    string Algorithm,
+    string KeyId,
+    byte[] SubjectPublicKeyInfo);
+
+public sealed record CircleFilesHostAuthorizationProof(
+    byte[] Transcript,
+    byte[] MemberSignature,
+    byte[] CircleAuthoritySignature,
+    CircleFilesHostPublicCredential MemberCredential,
+    CircleFilesHostPublicCredential CircleAuthorityCredential);
 
 public sealed record CircleFilesHostPlan(
     int ContractVersion,
