@@ -229,6 +229,11 @@ internal sealed class WindowsCircleFilesGrantOperation(IWindowsCircleFilesGrantO
         {
             throw Collision();
         }
+        if (states.Any(value => value.Value == WindowsCircleFilesOwnedState.Blocked))
+        {
+            await RollbackAsync(plan, states, cancellationToken).ConfigureAwait(false);
+            throw Collision();
+        }
         if (states.All(value => value.Value == WindowsCircleFilesOwnedState.Owned))
         {
             return CircleFilesGrantCredentialApplyStatus.AlreadyApplied;

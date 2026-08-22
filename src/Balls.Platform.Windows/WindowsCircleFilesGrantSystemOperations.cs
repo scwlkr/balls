@@ -353,6 +353,7 @@ internal sealed class WindowsCircleFilesGrantPowerShell
         return document.RootElement.GetProperty("State").GetString() switch
         {
             "Missing" => WindowsCircleFilesOwnedState.Missing,
+            "Blocked" => WindowsCircleFilesOwnedState.Blocked,
             "Recoverable" => WindowsCircleFilesOwnedState.Recoverable,
             "Owned" => WindowsCircleFilesOwnedState.Owned,
             "Collision" => WindowsCircleFilesOwnedState.Collision,
@@ -482,7 +483,7 @@ internal sealed class WindowsCircleFilesGrantPowerShell
           }
           $otherAccess = @(SmbShare\Get-SmbShare | Where-Object { -not [bool]$_.Special -and [string]$_.Name -ne [string]$request.ShareName } | ForEach-Object { SmbShare\Get-SmbShareAccess -Name $_.Name -ErrorAction SilentlyContinue })
           $genericForeign = @($otherAccess | Where-Object { try { [string]$_.AccessControlType -eq 'Allow' -and $effectiveSids -contains ([System.Security.Principal.NTAccount]$_.AccountName).Translate([System.Security.Principal.SecurityIdentifier]).Value } catch { $false } })
-          if ($genericForeign.Count -ne 0) { return 'Collision' }
+          if ($genericForeign.Count -ne 0) { return 'Blocked' }
           if ($null -eq $user) { return 'Missing' }
           $foreign = @($otherAccess | Where-Object { try { ([System.Security.Principal.NTAccount]$_.AccountName).Translate([System.Security.Principal.SecurityIdentifier]).Value -eq [string]$user.SID.Value } catch { $false } })
           if ($foreign.Count -ne 0) { return 'Collision' }

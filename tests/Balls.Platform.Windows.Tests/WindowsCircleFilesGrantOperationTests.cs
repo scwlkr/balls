@@ -39,6 +39,19 @@ public sealed class WindowsCircleFilesGrantOperationTests
         Assert.AreEqual("grant_resource_collision", collisionError.Code);
         Assert.AreEqual(0, collision.Applied.Count);
 
+        var blocked = new StubOperations();
+        blocked.States[WindowsCircleFilesGrantOperationStep.LocalAccount] =
+            WindowsCircleFilesOwnedState.Owned;
+        blocked.States[WindowsCircleFilesGrantOperationStep.ShareAccess] =
+            WindowsCircleFilesOwnedState.Blocked;
+        var blockedError = await Assert.ThrowsExactlyAsync<CircleFilesHostingException>(
+            () => new WindowsCircleFilesGrantOperation(blocked)
+                .ExecuteAsync(Plan, CancellationToken.None).AsTask());
+        Assert.AreEqual("grant_resource_collision", blockedError.Code);
+        CollectionAssert.AreEqual(
+            new[] { WindowsCircleFilesGrantOperationStep.LocalAccount },
+            blocked.RolledBack.ToArray());
+
         var recoverable = new StubOperations();
         recoverable.States[WindowsCircleFilesGrantOperationStep.LocalAccount] =
             WindowsCircleFilesOwnedState.Recoverable;
