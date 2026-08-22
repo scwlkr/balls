@@ -163,15 +163,17 @@ internal sealed class WindowsCircleFilesGrantSystemOperations : IWindowsCircleFi
         var created = false;
         try
         {
-            using var stream = new FileStream(path, FileMode.CreateNew, FileAccess.Write, FileShare.None);
-            created = true;
-            stream.Write(Encoding.UTF8.GetBytes(content));
-            stream.Flush(flushToDisk: true);
+            using (var stream = new FileStream(path, FileMode.CreateNew, FileAccess.Write, FileShare.None))
+            {
+                created = true;
+                stream.Write(Encoding.UTF8.GetBytes(content));
+                stream.Flush(flushToDisk: true);
+            }
             if (injectAclFailure)
             {
                 throw new IOException("A bounded marker ACL failure was injected.");
             }
-            ApplyOwnerSystemFileAcl(stream, ownerSid);
+            ApplyOwnerSystemFileAcl(path, ownerSid);
         }
         catch
         {
@@ -474,7 +476,7 @@ internal sealed class WindowsCircleFilesGrantSystemOperations : IWindowsCircleFi
             .GetSecurityDescriptorSddlForm(
                 AccessControlSections.Owner | AccessControlSections.Group | AccessControlSections.Access);
 
-    private static void ApplyOwnerSystemFileAcl(FileStream stream, string ownerSid)
+    private static void ApplyOwnerSystemFileAcl(string path, string ownerSid)
     {
         var owner = new SecurityIdentifier(ownerSid);
         var system = new SecurityIdentifier(WellKnownSidType.LocalSystemSid, null);
@@ -483,7 +485,7 @@ internal sealed class WindowsCircleFilesGrantSystemOperations : IWindowsCircleFi
         security.SetOwner(owner);
         security.AddAccessRule(new FileSystemAccessRule(owner, FileSystemRights.FullControl, AccessControlType.Allow));
         security.AddAccessRule(new FileSystemAccessRule(system, FileSystemRights.FullControl, AccessControlType.Allow));
-        stream.SetAccessControl(security);
+        new FileInfo(path).SetAccessControl(security);
     }
 
     private static bool HasProtectedOwnerSystemFileAcl(string path, string ownerSid)

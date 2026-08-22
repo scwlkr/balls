@@ -255,6 +255,13 @@ public sealed class WindowsCircleFilesGrantOperationTests
                     WindowsIdentity.GetCurrent().User!.Value,
                     injectAclFailure: true));
             Assert.IsFalse(File.Exists(markerPath));
+
+            WindowsCircleFilesGrantSystemOperations.WriteProtectedMarkerFile(
+                markerPath,
+                "{\"ownershipId\":\"test\"}\n",
+                WindowsIdentity.GetCurrent().User!.Value,
+                injectAclFailure: false);
+            Assert.IsTrue(File.Exists(markerPath));
         }
         finally
         {
