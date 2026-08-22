@@ -74,6 +74,9 @@ public sealed class WindowsCircleFilesGrantOperationTests
         Assert.IsFalse(script.Contains("-AccountName ('.\\'", StringComparison.Ordinal));
         Assert.IsFalse(script.Contains("Invoke-Expression", StringComparison.OrdinalIgnoreCase));
         Assert.IsFalse(script.Contains("ScriptBlock", StringComparison.OrdinalIgnoreCase));
+        var description = WindowsCircleFilesGrantPowerShell.AccountDescription(Plan);
+        Assert.AreEqual("Balls grant v1 " + new string('f', 32), description);
+        Assert.IsTrue(description.Length <= 48);
     }
 
     [TestMethod]

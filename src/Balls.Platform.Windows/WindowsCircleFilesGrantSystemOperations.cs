@@ -284,6 +284,9 @@ internal sealed class WindowsCircleFilesGrantPowerShell
     private static readonly TimeSpan Timeout = TimeSpan.FromSeconds(20);
     private const int MaximumOutputCharacters = 16 * 1024;
 
+    internal static string AccountDescription(WindowsCircleFilesGrantHelperPlan plan) =>
+        $"Balls grant v1 {plan.PublicPlan.OwnershipId[..32]}";
+
     internal ValueTask<WindowsCircleFilesOwnedState> InspectAccountAsync(
         WindowsCircleFilesGrantHelperPlan plan,
         CancellationToken cancellationToken) => InvokeStateAsync("InspectAccount", plan, cancellationToken);
@@ -350,7 +353,7 @@ internal sealed class WindowsCircleFilesGrantPowerShell
             Command = command,
             AccountName = plan.PublicPlan.AccountName,
             Password = Encoding.UTF8.GetString(plan.Secret),
-            Description = $"Balls grant v1 {plan.PublicPlan.OwnershipId}",
+            Description = AccountDescription(plan),
             ShareName = plan.PublicPlan.ShareName,
             AccessRight = plan.Request.Access == "read-only" ? "Read" : "Change",
         });
