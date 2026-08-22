@@ -241,6 +241,28 @@ public sealed class WindowsCircleFilesGrantOperationTests
     }
 
     [TestMethod]
+    public void Marker_acl_failure_removes_the_exact_file_created_by_the_attempt()
+    {
+        var directory = Path.Combine(Path.GetTempPath(), "balls-grant-marker", Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(directory);
+        var markerPath = Path.Combine(directory, ".balls-grant-test-v1.json");
+        try
+        {
+            Assert.ThrowsExactly<IOException>(() =>
+                WindowsCircleFilesGrantSystemOperations.WriteProtectedMarkerFile(
+                    markerPath,
+                    "{\"ownershipId\":\"test\"}\n",
+                    WindowsIdentity.GetCurrent().User!.Value,
+                    injectAclFailure: true));
+            Assert.IsFalse(File.Exists(markerPath));
+        }
+        finally
+        {
+            Directory.Delete(directory, recursive: true);
+        }
+    }
+
+    [TestMethod]
     public void Helper_plan_comparison_is_structural_after_json_round_trip()
     {
         var bytes = System.Text.Json.JsonSerializer.SerializeToUtf8Bytes(

@@ -145,13 +145,57 @@ internal sealed class WindowsCircleFilesGrantSystemOperations : IWindowsCircleFi
             plan.PublicPlan.FolderPath,
             RemoveGrantAccessFromSddl(currentSddl, existingMarkers));
         var path = MarkerPath(plan);
-        using (var stream = new FileStream(path, FileMode.CreateNew, FileAccess.Write, FileShare.None))
+        var content = JsonSerializer.Serialize(marker) + "\n";
+        var injectAclFailure = false;
+#if DEBUG
+        injectAclFailure = Environment.GetEnvironmentVariable(
+            "BALLS_TEST_WINDOWS_GRANT_MARKER_ACL_FAILURE") == "1";
+#endif
+        WriteProtectedMarkerFile(path, content, plan.OwnerSid, injectAclFailure);
+    }
+
+    internal static void WriteProtectedMarkerFile(
+        string path,
+        string content,
+        string ownerSid,
+        bool injectAclFailure)
+    {
+        var created = false;
+        try
         {
-            JsonSerializer.Serialize(stream, marker);
-            stream.WriteByte((byte)'\n');
+            using var stream = new FileStream(path, FileMode.CreateNew, FileAccess.Write, FileShare.None);
+            created = true;
+            stream.Write(Encoding.UTF8.GetBytes(content));
             stream.Flush(flushToDisk: true);
+            if (injectAclFailure)
+            {
+                throw new IOException("A bounded marker ACL failure was injected.");
+            }
+            ApplyOwnerSystemFileAcl(stream, ownerSid);
         }
-        ApplyOwnerSystemFileAcl(path, plan.OwnerSid);
+        catch
+        {
+            if (created)
+            {
+                TryRemoveCreatedMarker(path, content);
+            }
+            throw;
+        }
+    }
+
+    private static void TryRemoveCreatedMarker(string path, string expectedContent)
+    {
+        try
+        {
+            if (File.Exists(path)
+                && string.Equals(File.ReadAllText(path), expectedContent, StringComparison.Ordinal))
+            {
+                File.Delete(path);
+            }
+        }
+        catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
+        {
+        }
     }
 
     private static void RemoveMarker(WindowsCircleFilesGrantHelperPlan plan)
@@ -430,7 +474,7 @@ internal sealed class WindowsCircleFilesGrantSystemOperations : IWindowsCircleFi
             .GetSecurityDescriptorSddlForm(
                 AccessControlSections.Owner | AccessControlSections.Group | AccessControlSections.Access);
 
-    private static void ApplyOwnerSystemFileAcl(string path, string ownerSid)
+    private static void ApplyOwnerSystemFileAcl(FileStream stream, string ownerSid)
     {
         var owner = new SecurityIdentifier(ownerSid);
         var system = new SecurityIdentifier(WellKnownSidType.LocalSystemSid, null);
@@ -439,7 +483,7 @@ internal sealed class WindowsCircleFilesGrantSystemOperations : IWindowsCircleFi
         security.SetOwner(owner);
         security.AddAccessRule(new FileSystemAccessRule(owner, FileSystemRights.FullControl, AccessControlType.Allow));
         security.AddAccessRule(new FileSystemAccessRule(system, FileSystemRights.FullControl, AccessControlType.Allow));
-        new FileInfo(path).SetAccessControl(security);
+        stream.SetAccessControl(security);
     }
 
     private static bool HasProtectedOwnerSystemFileAcl(string path, string ownerSid)
