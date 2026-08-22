@@ -227,7 +227,7 @@ public sealed class WindowsSmbReadinessInspector : ICircleFilesReadinessInspecto
 
         if (firewall?.PublicSmbInboundAllowRules > 0)
         {
-            return NotReady(CheckIds.FirewallScope, "public_smb_inbound_allowed", "An enabled public-profile inbound rule allows SMB traffic.");
+            return NotReady(CheckIds.FirewallScope, "public_smb_inbound_allowed", "An enabled Public/Any-profile inbound allow rule can include TCP 445.");
         }
 
         if (firewall?.PublicSmbInboundAllowRules < 0)

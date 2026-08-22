@@ -12,7 +12,8 @@
   10-second timeout, a 64 KiB output cap, strict typed parsing, and deterministic redacted failures.
 - Nine stable checks cover the supported Windows generation, SMB server/SMB 2+ availability, SMB
   3.1.1, SMB1, insecure guest access, signing, encryption, connected Private network scope, and
-  Private/Public firewall enforceability. Unsafe observations take precedence over unknown ones.
+  Private/Public firewall enforceability including Public/Any inbound allow rules whose port scope
+  can include TCP 445. Unsafe observations take precedence over unknown ones.
 - `GET /control/v1/files/readiness` and `balls files readiness` expose the same ordered result;
   structured output uses the existing version-1 CLI envelope.
 - Linux and macOS explicitly return `unknown` for this Windows provider. The browser has no
@@ -20,8 +21,7 @@
 
 ## Automated evidence
 
-Observed on the Windows development host from implementation commit
-`2f0f81709558f1704b4a361614f74228709fd2b1`:
+Observed on the Windows development host after the fixed-point review hardening:
 
 | Gate | Observation |
 | --- | --- |
@@ -29,7 +29,7 @@ Observed on the Windows development host from implementation commit
 | Structured CLI | One separate-process `files readiness` acceptance passed with the version-1 JSON envelope and nine ordered checks |
 | Local-control/OpenAPI | The endpoint contract passed and the checked-in OpenAPI/TypeScript client generation had no drift |
 | Host composition | Windows selected the real inspector; unsupported hosts selected the explicit unknown inspector |
-| Development host observation | `ready`; all nine checks reported their safe codes |
+| Development host observation | `not-ready`; the first eight checks were ready and `firewall-scope` returned `public_smb_inbound_allowed` because enabled Public/Any inbound allow rules can include TCP 445 |
 
 The final repository fast/full gates and protected pull-request results are recorded on the issue
 and pull request so their exact commit and platform checks remain linked to GitHub's durable run

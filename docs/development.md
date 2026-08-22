@@ -226,8 +226,8 @@ The result is `ready`, `not-ready`, or `unknown` for provider `windows-smb-3.1.1
 nine stable checks. `not-ready` means an observed requirement is unsafe; `unknown` means the host
 or inspection could not prove safety. The command is inspection only: it does not enable SMB,
 change policy, start services, alter firewall or network profiles, or create folders, shares,
-accounts, ACLs, credentials, or mappings. Windows 11 24H2 and Windows Server 2025 are the currently
-recognized generations for the controls this provider requires.
+accounts, ACLs, credentials, or mappings. Windows 11 build 26100 or newer and Windows Server 2025
+are the currently recognized generations for the controls this provider requires.
 
 For focused adapter feedback:
 
