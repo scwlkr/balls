@@ -52,6 +52,21 @@ public sealed class WindowsCircleFilesGrantOperationTests
             new[] { WindowsCircleFilesGrantOperationStep.LocalAccount },
             blocked.RolledBack.ToArray());
 
+        var blockedOwned = new StubOperations();
+        foreach (var step in Enum.GetValues<WindowsCircleFilesGrantOperationStep>())
+        {
+            blockedOwned.States[step] = WindowsCircleFilesOwnedState.Owned;
+        }
+        blockedOwned.States[WindowsCircleFilesGrantOperationStep.ShareAccess] =
+            WindowsCircleFilesOwnedState.BlockedOwned;
+        var blockedOwnedError = await Assert.ThrowsExactlyAsync<CircleFilesHostingException>(
+            () => new WindowsCircleFilesGrantOperation(blockedOwned)
+                .ExecuteAsync(Plan, CancellationToken.None).AsTask());
+        Assert.AreEqual("grant_resource_collision", blockedOwnedError.Code);
+        CollectionAssert.AreEqual(
+            Enum.GetValues<WindowsCircleFilesGrantOperationStep>().Reverse().ToArray(),
+            blockedOwned.RolledBack.ToArray());
+
         var recoverable = new StubOperations();
         recoverable.States[WindowsCircleFilesGrantOperationStep.LocalAccount] =
             WindowsCircleFilesOwnedState.Recoverable;
@@ -106,6 +121,9 @@ public sealed class WindowsCircleFilesGrantOperationTests
         StringAssert.Contains(script, "InjectAccountTerminationStep");
         StringAssert.Contains(script, "InjectAccountFailure");
         StringAssert.Contains(script, "Grant-SmbShareAccess");
+        StringAssert.Contains(script, "GrantMarkersValid");
+        StringAssert.Contains(script, "BlockedOwned");
+        StringAssert.Contains(script, "$expectedTarget");
         StringAssert.Contains(script, "$user.SID.Translate([System.Security.Principal.NTAccount]).Value");
         Assert.IsFalse(script.Contains("-AccountName ('.\\'", StringComparison.Ordinal));
         Assert.IsFalse(script.Contains("Invoke-Expression", StringComparison.OrdinalIgnoreCase));
@@ -138,7 +156,7 @@ public sealed class WindowsCircleFilesGrantOperationTests
     }
 
     [TestMethod]
-    public void Missing_marker_or_generic_folder_access_fails_closed()
+    public void Host_folder_acl_requires_exact_protected_owner_system_baseline()
     {
         var directory = Path.Combine(Path.GetTempPath(), "balls-grant-acl", Guid.NewGuid().ToString("N"));
         Directory.CreateDirectory(directory);
@@ -151,38 +169,70 @@ public sealed class WindowsCircleFilesGrantOperationTests
             security.AddAccessRule(new FileSystemAccessRule(
                 currentSid,
                 FileSystemRights.FullControl,
+                InheritanceFlags.ContainerInherit | InheritanceFlags.ObjectInherit,
+                PropagationFlags.None,
+                AccessControlType.Allow));
+            security.AddAccessRule(new FileSystemAccessRule(
+                new SecurityIdentifier(WellKnownSidType.LocalSystemSid, null),
+                FileSystemRights.FullControl,
+                InheritanceFlags.ContainerInherit | InheritanceFlags.ObjectInherit,
+                PropagationFlags.None,
                 AccessControlType.Allow));
             new DirectoryInfo(directory).SetAccessControl(security);
-            var folderPlan = Plan with
-            {
-                PublicPlan = Plan.PublicPlan with { FolderPath = directory },
-                OwnerSid = currentSid.Value,
-            };
-            Assert.IsFalse(WindowsCircleFilesGrantSystemOperations.HasUnsafeFolderAccess(
-                folderPlan,
-                allowGrantAccount: false));
+            Assert.IsTrue(WindowsCircleFilesGrantSystemOperations.HasExactHostFolderSecurity(
+                directory,
+                currentSid.Value));
+
             security.AddAccessRule(new FileSystemAccessRule(
                 new SecurityIdentifier(WellKnownSidType.WorldSid, null),
                 FileSystemRights.ReadAndExecute,
-                AccessControlType.Allow));
+                InheritanceFlags.ContainerInherit | InheritanceFlags.ObjectInherit,
+                PropagationFlags.None,
+                AccessControlType.Deny));
             new DirectoryInfo(directory).SetAccessControl(security);
-            Assert.IsTrue(WindowsCircleFilesGrantSystemOperations.HasUnsafeFolderAccess(
-                folderPlan,
-                allowGrantAccount: false));
+            Assert.IsFalse(WindowsCircleFilesGrantSystemOperations.HasExactHostFolderSecurity(
+                directory,
+                currentSid.Value));
 
             security.RemoveAccessRuleAll(new FileSystemAccessRule(
                 new SecurityIdentifier(WellKnownSidType.WorldSid, null),
                 FileSystemRights.ReadAndExecute,
+                AccessControlType.Deny));
+            security.RemoveAccessRuleAll(new FileSystemAccessRule(
+                currentSid,
+                FileSystemRights.FullControl,
+                AccessControlType.Allow));
+            security.AddAccessRule(new FileSystemAccessRule(
+                currentSid,
+                FileSystemRights.ReadAndExecute,
+                InheritanceFlags.ContainerInherit | InheritanceFlags.ObjectInherit,
+                PropagationFlags.None,
                 AccessControlType.Allow));
             new DirectoryInfo(directory).SetAccessControl(security);
+            Assert.IsFalse(WindowsCircleFilesGrantSystemOperations.HasExactHostFolderSecurity(
+                directory,
+                currentSid.Value));
+
+            security.RemoveAccessRuleAll(new FileSystemAccessRule(
+                currentSid,
+                FileSystemRights.ReadAndExecute,
+                AccessControlType.Allow));
+            security.AddAccessRule(new FileSystemAccessRule(
+                currentSid,
+                FileSystemRights.FullControl,
+                InheritanceFlags.ContainerInherit | InheritanceFlags.ObjectInherit,
+                PropagationFlags.None,
+                AccessControlType.Allow));
             security.AddAccessRule(new FileSystemAccessRule(
                 new SecurityIdentifier("S-1-5-21-111111111-222222222-333333333-4444"),
                 FileSystemRights.ReadAndExecute,
+                InheritanceFlags.ContainerInherit | InheritanceFlags.ObjectInherit,
+                PropagationFlags.None,
                 AccessControlType.Allow));
             new DirectoryInfo(directory).SetAccessControl(security);
-            Assert.IsTrue(WindowsCircleFilesGrantSystemOperations.HasUnsafeFolderAccess(
-                folderPlan,
-                allowGrantAccount: false));
+            Assert.IsFalse(WindowsCircleFilesGrantSystemOperations.HasExactHostFolderSecurity(
+                directory,
+                currentSid.Value));
         }
         finally
         {

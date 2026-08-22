@@ -8,6 +8,8 @@ using Balls.Platform;
 
 namespace Balls.Platform.Windows;
 
+internal sealed record WindowsCircleFilesGrantShareBinding(string AccountSid, string AccessRight);
+
 [SupportedOSPlatform("windows")]
 internal sealed class WindowsCircleFilesGrantSystemOperations : IWindowsCircleFilesGrantOperations
 {
@@ -102,7 +104,7 @@ internal sealed class WindowsCircleFilesGrantSystemOperations : IWindowsCircleFi
                 && marker.Generation == plan.Request.Generation
                 && marker.AccountName == plan.PublicPlan.AccountName
                 && marker.FolderPath.Equals(plan.PublicPlan.FolderPath, StringComparison.OrdinalIgnoreCase)
-                && marker.PreMutationSddl.Length is > 0 and <= 8192
+                && marker.HostBaselineSddl.Length is > 0 and <= 8192
                 && HasProtectedOwnerSystemFileAcl(path, plan.OwnerSid)
                     ? WindowsCircleFilesOwnedState.Owned
                     : WindowsCircleFilesOwnedState.Collision;
@@ -119,6 +121,16 @@ internal sealed class WindowsCircleFilesGrantSystemOperations : IWindowsCircleFi
         {
             throw new InvalidOperationException("The grant marker already exists.");
         }
+        var currentSddl = GetDirectorySddl(plan.PublicPlan.FolderPath);
+        if (!TryReadValidatedMarkers(plan, out var existingMarkers)
+            || !HasExactFolderSecurity(
+                currentSddl,
+                plan.OwnerSid,
+                existingMarkers,
+                requireAllGrants: true))
+        {
+            throw Collision("The contributed folder ACL is not the exact Balls-owned grant baseline.");
+        }
         var marker = new WindowsCircleFilesGrantMarker(
             CircleFilesGrantCredentialContract.Version,
             plan.PublicPlan.OwnershipId,
@@ -131,7 +143,7 @@ internal sealed class WindowsCircleFilesGrantSystemOperations : IWindowsCircleFi
             plan.Request.Generation,
             plan.PublicPlan.AccountName,
             plan.PublicPlan.FolderPath,
-            GetDirectorySddl(plan.PublicPlan.FolderPath));
+            RemoveGrantAccessFromSddl(currentSddl, existingMarkers));
         var path = MarkerPath(plan);
         using (var stream = new FileStream(path, FileMode.CreateNew, FileAccess.Write, FileShare.None))
         {
@@ -154,93 +166,237 @@ internal sealed class WindowsCircleFilesGrantSystemOperations : IWindowsCircleFi
     private static WindowsCircleFilesOwnedState InspectFolderAcl(WindowsCircleFilesGrantHelperPlan plan)
     {
         var markerState = InspectMarker(plan);
-        if (HasUnsafeFolderAccess(plan, allowGrantAccount: markerState == WindowsCircleFilesOwnedState.Owned))
+        if (markerState == WindowsCircleFilesOwnedState.Collision
+            || !TryReadValidatedMarkers(plan, out var markers)
+            || markers.Any(marker => !HasExactFolderSecurity(
+                marker.Marker.HostBaselineSddl,
+                plan.OwnerSid,
+                [],
+                requireAllGrants: true)))
         {
             return WindowsCircleFilesOwnedState.Collision;
         }
+
+        var current = GetDirectorySddl(plan.PublicPlan.FolderPath);
+        if (markerState == WindowsCircleFilesOwnedState.Missing)
+        {
+            return HasExactFolderSecurity(current, plan.OwnerSid, markers, requireAllGrants: true)
+                ? WindowsCircleFilesOwnedState.Missing
+                : WindowsCircleFilesOwnedState.Collision;
+        }
+
         if (markerState != WindowsCircleFilesOwnedState.Owned)
         {
-            return WindowsCircleFilesOwnedState.Missing;
+            return WindowsCircleFilesOwnedState.Collision;
         }
-        var marker = ReadMarker(plan);
-        var current = GetDirectorySddl(plan.PublicPlan.FolderPath);
-        if (string.Equals(current, GetDesiredDirectorySddl(marker, plan), StringComparison.Ordinal))
+
+        if (HasExactFolderSecurity(current, plan.OwnerSid, markers, requireAllGrants: true))
         {
             return WindowsCircleFilesOwnedState.Owned;
         }
-        return string.Equals(current, marker.PreMutationSddl, StringComparison.Ordinal)
+
+        var priorMarkers = markers.Where(
+            candidate => candidate.Marker.OwnershipId != plan.PublicPlan.OwnershipId);
+        return HasExactFolderSecurity(current, plan.OwnerSid, priorMarkers, requireAllGrants: true)
             ? WindowsCircleFilesOwnedState.Missing
             : WindowsCircleFilesOwnedState.Collision;
     }
 
-    internal static bool HasUnsafeFolderAccess(
-        WindowsCircleFilesGrantHelperPlan plan,
-        bool allowGrantAccount)
+    internal static bool HasExactHostFolderSecurity(string path, string ownerSid) =>
+        HasExactFolderSecurity(
+            GetDirectorySddl(path),
+            ownerSid,
+            [],
+            requireAllGrants: true);
+
+    private static bool HasExactFolderSecurity(
+        string sddl,
+        string ownerSid,
+        IEnumerable<ValidatedGrantMarker> allowedMarkers,
+        bool requireAllGrants)
     {
-        var allowed = new HashSet<string>(StringComparer.Ordinal)
+        var expected = new Dictionary<string, FileSystemRights>(StringComparer.Ordinal)
         {
-            plan.OwnerSid,
-            new SecurityIdentifier(WellKnownSidType.LocalSystemSid, null).Value,
+            [ownerSid] = FileSystemRights.FullControl,
+            [new SecurityIdentifier(WellKnownSidType.LocalSystemSid, null).Value] = FileSystemRights.FullControl,
         };
-        if (allowGrantAccount)
+        foreach (var marker in allowedMarkers)
         {
-            try
+            if (!expected.TryAdd(marker.AccountSid, marker.Rights))
             {
-                var account = plan.PublicPlan.AccountName.Contains('\\', StringComparison.Ordinal)
-                    ? new NTAccount(plan.PublicPlan.AccountName)
-                    : new NTAccount(Environment.MachineName, plan.PublicPlan.AccountName);
-                allowed.Add(((SecurityIdentifier)account.Translate(typeof(SecurityIdentifier))).Value);
-            }
-            catch (IdentityNotMappedException)
-            {
-                return true;
+                return false;
             }
         }
 
-        var rules = new DirectoryInfo(plan.PublicPlan.FolderPath).GetAccessControl()
-            .GetAccessRules(includeExplicit: true, includeInherited: true, typeof(SecurityIdentifier));
-        return rules.Cast<FileSystemAccessRule>().Any(rule =>
-            rule.AccessControlType == AccessControlType.Allow
-            && rule.IdentityReference is SecurityIdentifier sid
-            && !allowed.Contains(sid.Value));
+        try
+        {
+            var security = new DirectorySecurity();
+            security.SetSecurityDescriptorSddlForm(sddl);
+            if (!security.AreAccessRulesProtected
+                || security.GetOwner(typeof(SecurityIdentifier)) is not SecurityIdentifier owner
+                || owner.Value != ownerSid)
+            {
+                return false;
+            }
+
+            var observed = new HashSet<string>(StringComparer.Ordinal);
+            var rules = security.GetAccessRules(true, true, typeof(SecurityIdentifier))
+                .Cast<FileSystemAccessRule>().ToArray();
+            if (rules.Length < 2 || (requireAllGrants && rules.Length != expected.Count))
+            {
+                return false;
+            }
+
+            return rules.All(rule =>
+                    !rule.IsInherited
+                    && rule.AccessControlType == AccessControlType.Allow
+                    && rule.IdentityReference is SecurityIdentifier sid
+                    && expected.TryGetValue(sid.Value, out var rights)
+                    && rule.FileSystemRights == rights
+                    && rule.InheritanceFlags == (InheritanceFlags.ContainerInherit | InheritanceFlags.ObjectInherit)
+                    && rule.PropagationFlags == PropagationFlags.None
+                    && observed.Add(sid.Value))
+                && observed.Contains(ownerSid)
+                && observed.Contains(new SecurityIdentifier(WellKnownSidType.LocalSystemSid, null).Value)
+                && (!requireAllGrants || observed.Count == expected.Count);
+        }
+        catch (Exception exception) when (exception is ArgumentException or InvalidOperationException)
+        {
+            return false;
+        }
     }
+
+    private static bool TryReadValidatedMarkers(
+        WindowsCircleFilesGrantHelperPlan plan,
+        out ValidatedGrantMarker[] markers)
+    {
+        var found = new List<ValidatedGrantMarker>();
+        markers = [];
+        try
+        {
+            var paths = Directory.EnumerateFiles(
+                plan.PublicPlan.FolderPath,
+                ".balls-grant-*-v1.json",
+                SearchOption.TopDirectoryOnly).Take(257).ToArray();
+            if (paths.Length > 256)
+            {
+                return false;
+            }
+
+            var ownershipIds = new HashSet<string>(StringComparer.Ordinal);
+            var accountSids = new HashSet<string>(StringComparer.Ordinal);
+            foreach (var path in paths)
+            {
+                var marker = JsonSerializer.Deserialize<WindowsCircleFilesGrantMarker>(File.ReadAllText(path));
+                if (marker is null
+                    || marker.ContractVersion != CircleFilesGrantCredentialContract.Version
+                    || marker.CircleId != plan.Request.Host.CircleId
+                    || marker.ContributionId != plan.Request.Host.ContributionId
+                    || !Guid.TryParseExact(marker.GrantId, "D", out var grantId)
+                    || grantId == Guid.Empty
+                    || grantId.ToString("D") != marker.GrantId
+                    || !Guid.TryParseExact(marker.MemberId, "D", out var memberId)
+                    || memberId == Guid.Empty
+                    || memberId.ToString("D") != marker.MemberId
+                    || marker.Access is not ("read-only" or "read-write")
+                    || marker.Generation <= 0
+                    || !IsLowerHex(marker.OwnershipId, 64)
+                    || !IsLowerHex(marker.PlanId, 64)
+                    || marker.AccountName != "BallsG-" + marker.OwnershipId[..13]
+                    || !marker.FolderPath.Equals(plan.PublicPlan.FolderPath, StringComparison.OrdinalIgnoreCase)
+                    || Path.GetFileName(path) != $".balls-grant-{marker.GrantId}-g{marker.Generation}-v1.json"
+                    || marker.HostBaselineSddl.Length is <= 0 or > 8192
+                    || !HasProtectedOwnerSystemFileAcl(path, plan.OwnerSid)
+                    || !ownershipIds.Add(marker.OwnershipId))
+                {
+                    return false;
+                }
+
+                var account = new NTAccount(Environment.MachineName, marker.AccountName);
+                var sid = ((SecurityIdentifier)account.Translate(typeof(SecurityIdentifier))).Value;
+                if (!accountSids.Add(sid))
+                {
+                    return false;
+                }
+
+                found.Add(new ValidatedGrantMarker(
+                    marker,
+                    sid,
+                    marker.Access == "read-only"
+                        ? FileSystemRights.ReadAndExecute | FileSystemRights.Synchronize
+                        : FileSystemRights.Modify | FileSystemRights.Synchronize));
+            }
+
+            markers = [.. found];
+            return true;
+        }
+        catch (Exception exception) when (exception is JsonException
+            or IOException
+            or UnauthorizedAccessException
+            or ArgumentException
+            or IdentityNotMappedException)
+        {
+            return false;
+        }
+    }
+
+    internal static bool TryGetValidatedShareBindings(
+        WindowsCircleFilesGrantHelperPlan plan,
+        out WindowsCircleFilesGrantShareBinding[] bindings)
+    {
+        bindings = [];
+        if (!TryReadValidatedMarkers(plan, out var markers))
+        {
+            return false;
+        }
+
+        bindings = markers.Select(marker => new WindowsCircleFilesGrantShareBinding(
+            marker.AccountSid,
+            marker.Marker.Access == "read-only" ? "Read" : "Change")).ToArray();
+        return true;
+    }
+
+    private static bool IsLowerHex(string? value, int length) =>
+        value is not null
+        && value.Length == length
+        && value.All(character => Uri.IsHexDigit(character) && !char.IsUpper(character));
 
     private static void ApplyFolderAcl(WindowsCircleFilesGrantHelperPlan plan)
     {
-        var marker = ReadMarker(plan);
-        if (!string.Equals(
-                GetDirectorySddl(plan.PublicPlan.FolderPath),
-                marker.PreMutationSddl,
-                StringComparison.Ordinal))
+        if (!TryReadValidatedMarkers(plan, out var markers))
+        {
+            throw Collision("The grant ownership markers changed and were left untouched.");
+        }
+        var priorMarkers = markers.Where(
+            candidate => candidate.Marker.OwnershipId != plan.PublicPlan.OwnershipId).ToArray();
+        var currentSddl = GetDirectorySddl(plan.PublicPlan.FolderPath);
+        if (!HasExactFolderSecurity(currentSddl, plan.OwnerSid, priorMarkers, requireAllGrants: true))
         {
             throw new InvalidOperationException("The contributed folder ACL changed.");
         }
-        var security = CreateDesiredDirectorySecurity(marker, plan);
+        var security = CreateDesiredDirectorySecurity(currentSddl, plan);
         new DirectoryInfo(plan.PublicPlan.FolderPath).SetAccessControl(security);
     }
 
     private static void RollbackFolderAcl(WindowsCircleFilesGrantHelperPlan plan)
     {
-        var marker = ReadMarker(plan);
         if (InspectFolderAcl(plan) != WindowsCircleFilesOwnedState.Owned)
         {
             throw Collision("The contributed folder ACL changed and was left untouched.");
         }
         var security = new DirectorySecurity();
-        security.SetSecurityDescriptorSddlForm(marker.PreMutationSddl);
+        security.SetSecurityDescriptorSddlForm(GetDirectorySddl(plan.PublicPlan.FolderPath));
+        var account = new NTAccount(Environment.MachineName, plan.PublicPlan.AccountName);
+        security.PurgeAccessRules(account);
         new DirectoryInfo(plan.PublicPlan.FolderPath).SetAccessControl(security);
     }
 
-    private static WindowsCircleFilesGrantMarker ReadMarker(WindowsCircleFilesGrantHelperPlan plan) =>
-        JsonSerializer.Deserialize<WindowsCircleFilesGrantMarker>(File.ReadAllText(MarkerPath(plan)))
-        ?? throw new InvalidDataException("The grant marker is invalid.");
-
     private static DirectorySecurity CreateDesiredDirectorySecurity(
-        WindowsCircleFilesGrantMarker marker,
+        string currentSddl,
         WindowsCircleFilesGrantHelperPlan plan)
     {
         var security = new DirectorySecurity();
-        security.SetSecurityDescriptorSddlForm(marker.PreMutationSddl);
+        security.SetSecurityDescriptorSddlForm(currentSddl);
         var account = new NTAccount(Environment.MachineName, plan.PublicPlan.AccountName);
         var rights = plan.Request.Access == "read-only"
             ? FileSystemRights.ReadAndExecute | FileSystemRights.Synchronize
@@ -254,15 +410,25 @@ internal sealed class WindowsCircleFilesGrantSystemOperations : IWindowsCircleFi
         return security;
     }
 
-    private static string GetDesiredDirectorySddl(
-        WindowsCircleFilesGrantMarker marker,
-        WindowsCircleFilesGrantHelperPlan plan) =>
-        CreateDesiredDirectorySecurity(marker, plan)
-            .GetSecurityDescriptorSddlForm(AccessControlSections.All);
+    private static string RemoveGrantAccessFromSddl(
+        string currentSddl,
+        IEnumerable<ValidatedGrantMarker> markers)
+    {
+        var security = new DirectorySecurity();
+        security.SetSecurityDescriptorSddlForm(currentSddl);
+        foreach (var marker in markers)
+        {
+            security.PurgeAccessRules(new SecurityIdentifier(marker.AccountSid));
+        }
+        return security.GetSecurityDescriptorSddlForm(
+            AccessControlSections.Owner | AccessControlSections.Group | AccessControlSections.Access);
+    }
 
     private static string GetDirectorySddl(string path) =>
-        new DirectoryInfo(path).GetAccessControl(AccessControlSections.All)
-            .GetSecurityDescriptorSddlForm(AccessControlSections.All);
+        new DirectoryInfo(path).GetAccessControl(
+                AccessControlSections.Owner | AccessControlSections.Group | AccessControlSections.Access)
+            .GetSecurityDescriptorSddlForm(
+                AccessControlSections.Owner | AccessControlSections.Group | AccessControlSections.Access);
 
     private static void ApplyOwnerSystemFileAcl(string path, string ownerSid)
     {
@@ -312,7 +478,12 @@ internal sealed class WindowsCircleFilesGrantSystemOperations : IWindowsCircleFi
         long Generation,
         string AccountName,
         string FolderPath,
-        string PreMutationSddl);
+        string HostBaselineSddl);
+
+    private sealed record ValidatedGrantMarker(
+        WindowsCircleFilesGrantMarker Marker,
+        string AccountSid,
+        FileSystemRights Rights);
 }
 
 [SupportedOSPlatform("windows")]
@@ -354,6 +525,7 @@ internal sealed class WindowsCircleFilesGrantPowerShell
         {
             "Missing" => WindowsCircleFilesOwnedState.Missing,
             "Blocked" => WindowsCircleFilesOwnedState.Blocked,
+            "BlockedOwned" => WindowsCircleFilesOwnedState.BlockedOwned,
             "Recoverable" => WindowsCircleFilesOwnedState.Recoverable,
             "Owned" => WindowsCircleFilesOwnedState.Owned,
             "Collision" => WindowsCircleFilesOwnedState.Collision,
@@ -404,6 +576,10 @@ internal sealed class WindowsCircleFilesGrantPowerShell
             OwnerSid = plan.OwnerSid,
             ShareName = plan.PublicPlan.ShareName,
             AccessRight = plan.Request.Access == "read-only" ? "Read" : "Change",
+            GrantMarkersValid = WindowsCircleFilesGrantSystemOperations.TryGetValidatedShareBindings(
+                plan,
+                out var grantBindings),
+            GrantBindings = grantBindings,
             InjectAccountFailure = injectAccountFailure,
             InjectAccountTerminationStep = injectAccountTerminationStep,
         });
@@ -469,28 +645,37 @@ internal sealed class WindowsCircleFilesGrantPowerShell
         }
         function Get-ShareState {
           $share = SmbShare\Get-SmbShare -Name ([string]$request.ShareName) -ErrorAction SilentlyContinue
-          if ($null -eq $share -or -not [bool]$share.EncryptData) { return 'Collision' }
+          if ($null -eq $share -or -not [bool]$share.EncryptData -or -not [bool]$request.GrantMarkersValid) { return 'Collision' }
           $genericSids = @('S-1-1-0','S-1-5-2','S-1-5-11','S-1-5-15','S-1-5-32-545','S-1-5-113')
           $user = Microsoft.PowerShell.LocalAccounts\Get-LocalUser -Name ([string]$request.AccountName) -ErrorAction SilentlyContinue
           $effectiveSids = $genericSids
           if ($null -ne $user) { $effectiveSids = @([BallsGrantRights]::TokenGroups([string]$request.AccountName,[string]$request.Password)) }
-          $allowedTarget = @([string]$request.OwnerSid)
-          if ($null -ne $user) { $allowedTarget += [string]$user.SID.Value }
+          $expectedTarget = @{ ([string]$request.OwnerSid) = 'Full' }
+          foreach ($binding in @($request.GrantBindings)) {
+            $sid = [string]$binding.AccountSid
+            if ($expectedTarget.ContainsKey($sid)) { return 'Collision' }
+            $expectedTarget[$sid] = [string]$binding.AccessRight
+          }
           $targetAccess = @(SmbShare\Get-SmbShareAccess -Name ([string]$request.ShareName) -ErrorAction Stop)
+          $observedTarget = @{}
           foreach ($entry in $targetAccess) {
             try { $sid = ([System.Security.Principal.NTAccount]$entry.AccountName).Translate([System.Security.Principal.SecurityIdentifier]).Value } catch { return 'Collision' }
-            if ([string]$entry.AccessControlType -ne 'Allow' -or $allowedTarget -notcontains [string]$sid) { return 'Collision' }
+            if ([string]$entry.AccessControlType -ne 'Allow' -or -not $expectedTarget.ContainsKey([string]$sid) -or [string]$entry.AccessRight -ne [string]$expectedTarget[[string]$sid] -or $observedTarget.ContainsKey([string]$sid)) { return 'Collision' }
+            $observedTarget[[string]$sid] = $true
           }
+          $currentSid = if ($null -eq $user) { $null } else { [string]$user.SID.Value }
+          foreach ($sid in $expectedTarget.Keys) {
+            if (-not $observedTarget.ContainsKey([string]$sid) -and [string]$sid -ne [string]$currentSid) { return 'Collision' }
+          }
+          $targetOwned = $null -ne $currentSid -and $observedTarget.ContainsKey([string]$currentSid)
           $otherAccess = @(SmbShare\Get-SmbShare | Where-Object { -not [bool]$_.Special -and [string]$_.Name -ne [string]$request.ShareName } | ForEach-Object { SmbShare\Get-SmbShareAccess -Name $_.Name -ErrorAction SilentlyContinue })
           $genericForeign = @($otherAccess | Where-Object { try { [string]$_.AccessControlType -eq 'Allow' -and $effectiveSids -contains ([System.Security.Principal.NTAccount]$_.AccountName).Translate([System.Security.Principal.SecurityIdentifier]).Value } catch { $false } })
-          if ($genericForeign.Count -ne 0) { return 'Blocked' }
+          if ($genericForeign.Count -ne 0) { return $(if ($targetOwned) { 'BlockedOwned' } else { 'Blocked' }) }
           if ($null -eq $user) { return 'Missing' }
           $foreign = @($otherAccess | Where-Object { try { ([System.Security.Principal.NTAccount]$_.AccountName).Translate([System.Security.Principal.SecurityIdentifier]).Value -eq [string]$user.SID.Value } catch { $false } })
           if ($foreign.Count -ne 0) { return 'Collision' }
-          $matches = @($targetAccess | Where-Object { try { ([System.Security.Principal.NTAccount]$_.AccountName).Translate([System.Security.Principal.SecurityIdentifier]).Value -eq [string]$user.SID.Value } catch { $false } })
-          if ($matches.Count -eq 0) { return 'Missing' }
-          if ($matches.Count -eq 1 -and [string]$matches[0].AccessControlType -eq 'Allow' -and [string]$matches[0].AccessRight -eq [string]$request.AccessRight) { return 'Owned' }
-          return 'Collision'
+          if (-not $targetOwned) { return 'Missing' }
+          return 'Owned'
         }
         function Remove-OwnedAccount([object]$user) {
           $groups = @(Microsoft.PowerShell.LocalAccounts\Get-LocalGroup | Where-Object { @((Microsoft.PowerShell.LocalAccounts\Get-LocalGroupMember -Name $_.Name -ErrorAction SilentlyContinue).SID.Value) -contains [string]$user.SID.Value })
@@ -526,7 +711,7 @@ internal sealed class WindowsCircleFilesGrantPowerShell
           'RemoveAccount' { if ((Get-AccountState) -notin @('Owned','Recoverable')) { throw 'account ownership changed' }; $user=Microsoft.PowerShell.LocalAccounts\Get-LocalUser -Name ([string]$request.AccountName) -ErrorAction Stop; Remove-OwnedAccount $user; $state='Missing' }
           'InspectShareAccess' { $state = Get-ShareState }
           'GrantShareAccess' { if ((Get-ShareState) -ne 'Missing') { throw 'share access collision' }; $user=Microsoft.PowerShell.LocalAccounts\Get-LocalUser -Name ([string]$request.AccountName) -ErrorAction Stop; $account=$user.SID.Translate([System.Security.Principal.NTAccount]).Value; SmbShare\Grant-SmbShareAccess -Name ([string]$request.ShareName) -AccountName $account -AccessRight ([string]$request.AccessRight) -Force -ErrorAction Stop | Out-Null; $state=Get-ShareState }
-          'RevokeShareAccess' { if ((Get-ShareState) -ne 'Owned') { throw 'share access ownership changed' }; $user=Microsoft.PowerShell.LocalAccounts\Get-LocalUser -Name ([string]$request.AccountName) -ErrorAction Stop; $account=$user.SID.Translate([System.Security.Principal.NTAccount]).Value; SmbShare\Revoke-SmbShareAccess -Name ([string]$request.ShareName) -AccountName $account -Force -ErrorAction Stop | Out-Null; $state=Get-ShareState }
+          'RevokeShareAccess' { if ((Get-ShareState) -notin @('Owned','BlockedOwned')) { throw 'share access ownership changed' }; $user=Microsoft.PowerShell.LocalAccounts\Get-LocalUser -Name ([string]$request.AccountName) -ErrorAction Stop; $account=$user.SID.Translate([System.Security.Principal.NTAccount]).Value; SmbShare\Revoke-SmbShareAccess -Name ([string]$request.ShareName) -AccountName $account -Force -ErrorAction Stop | Out-Null; $state=Get-ShareState }
           default { throw 'unsupported command' }
         }
         [PSCustomObject]@{ State=$state } | Microsoft.PowerShell.Utility\ConvertTo-Json -Compress

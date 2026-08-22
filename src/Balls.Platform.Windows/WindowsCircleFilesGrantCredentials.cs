@@ -229,7 +229,8 @@ internal sealed class WindowsCircleFilesGrantOperation(IWindowsCircleFilesGrantO
         {
             throw Collision();
         }
-        if (states.Any(value => value.Value == WindowsCircleFilesOwnedState.Blocked))
+        if (states.Any(value => value.Value is WindowsCircleFilesOwnedState.Blocked
+                or WindowsCircleFilesOwnedState.BlockedOwned))
         {
             await RollbackAsync(plan, states, cancellationToken).ConfigureAwait(false);
             throw Collision();
@@ -314,6 +315,7 @@ internal sealed class WindowsCircleFilesGrantOperation(IWindowsCircleFilesGrantO
         foreach (var step in Steps.Reverse())
         {
             if (states[step] is WindowsCircleFilesOwnedState.Owned
+                or WindowsCircleFilesOwnedState.BlockedOwned
                 or WindowsCircleFilesOwnedState.Recoverable)
             {
                 await operations.RollbackAsync(plan, step, cancellationToken).ConfigureAwait(false);
