@@ -12,6 +12,9 @@ namespace Balls.Platform.Windows.Tests;
 [SupportedOSPlatform("windows")]
 public sealed class WindowsCircleFilesHostingTests
 {
+    private static readonly string TestFolderPath = OperatingSystem.IsWindows()
+        ? @"C:\BallsShares\Company"
+        : "/BallsShares/Company";
     private static readonly CircleFilesHostRequest Request = CreateAuthorizedRequest();
 
     [TestMethod]
@@ -372,7 +375,7 @@ public sealed class WindowsCircleFilesHostingTests
             providerId.ToString(),
             nodeId.ToString(),
             contribution.DisplayName,
-            @"C:\BallsShares\Company",
+            TestFolderPath,
             Convert.ToHexStringLower(hash.GetHashAndReset()),
             proof);
     }
@@ -416,7 +419,7 @@ public sealed class WindowsCircleFilesHostingTests
 
         public string GetFullPath(string path) => path;
 
-        public string GetPathRoot(string path) => path[..3];
+        public string GetPathRoot(string path) => Path.GetPathRoot(path) ?? path[..1];
 
         public bool IsFixedLocalDrive(string root) => FixedDrive;
 
