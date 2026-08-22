@@ -476,13 +476,14 @@ with the protected Member and Circle-root keys, verifies both public credentials
 state and exact proof atomically. A stale root, substituted key, joined non-Owner, wrong-Circle
 Member, or conflicting retry fails before partial state. Local-control and CLI projections expose
 only public object, lifecycle, and authorizing-Member metadata; signatures, transcripts, private
-authority, and future provider credentials stay behind the Core-owned persistence seam.
+authority, and provider credential material stay behind the Core-owned persistence seam.
 
 The browser adapter reuses the same application queries for read-only contribution and Access
 Grant lists and has no Circle Files mutation route in this slice. Protected local control and the
-CLI can now preview and apply one dedicated Windows hosting operation. Provider credentials,
-drive mapping, provider lifecycle transitions, and revocation remain separate adapters and
-tickets built on these IDs and grants.
+CLI can preview/apply both the dedicated Windows host operation and one exact limited credential
+operation for a persisted Member Access Grant. Credential delivery/mapping, provider lifecycle
+transitions, rotation, and revocation remain separate adapters and tickets built on these IDs and
+grants.
 
 Windows SMB readiness is an implemented read-only host capability behind
 `ICircleFilesReadinessInspector` in `Balls.Platform`. `Balls.Platform.Windows` supplies the SMB
@@ -543,6 +544,21 @@ or failed work rolls back in reverse order and removes only
 resources whose complete identity and properties prove Balls ownership. Existing content is never
 adopted or deleted, an originally empty folder has its prior ACL restored, and the journal can
 claim at most the exact target directory rather than any ancestor.
+
+The Windows grant-credential adapter revalidates the Contribution and Access Grant through Core,
+including both current Owner/root signatures, and deterministically binds Circle, Contribution,
+Member, grant, access, generation, host plan, account name, and ownership ID. Apply generates one
+32-character cryptographically random complex password, stores only its DPAPI CurrentUser-
+protected form in SQLite, and passes the plaintext only through the authenticated bounded helper
+pipe. Public local-control, CLI, OpenAPI, and browser projections never contain that material.
+
+The helper creates one grant-owned local account with no group membership, no expiry, and exactly
+four deny-logon rights (interactive, remote interactive, batch, and service). It adds one inherited
+whole-folder ACL (`ReadAndExecute` or `Modify`, never `FullControl`) and one matching encrypted-share
+allow entry (`Read` or `Change`). A protected grant marker records the full ownership binding and
+pre-mutation folder SDDL. Exact retry reuses the same protected credential across process restart;
+foreign account, marker, folder ACL, or share ACL state fails closed. Failure rolls back the owned
+prefix in reverse order, including removal of the four account rights before deleting the account.
 
 For the files-first v1, the Windows provider uses SMB 3.1.1 with SMB1 and guest access disabled,
 signing and encryption required, and one limited provider credential per Member Access Grant. A

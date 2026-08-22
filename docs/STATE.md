@@ -37,8 +37,9 @@ the repository toolchain, and the initial source/browser/installer smokes are pr
 Status: implementation. Trusted Circle is owner-accepted and published as
 [`0.3.0-alpha.1`](https://github.com/scwlkr/balls/releases/tag/0.3.0-alpha.1). #56 establishes the
 provider-neutral contribution and Access Grant foundation. #57 adds the read-only Windows SMB
-readiness gate. #58 adds the dedicated owned-folder hosting helper; #59 is the next frontier after
-#58 lands, while #60–#62 remain dependency-blocked.
+readiness gate. #58 adds the dedicated owned-folder hosting helper. #59 adds one protected limited
+Windows credential and exact ACL per Access Grant; #60 is the next frontier, while #61–#62 remain
+dependency-blocked.
 
 Exit outcome: two Windows Members can add, remove, rename, and edit files in the same persistent
 Explorer-mapped folder over a private LAN. Circle contribution and authorization drive a
@@ -232,9 +233,13 @@ Active frontier:
   Private/LocalSubnet firewall rule. VM apply/retry, injected rollback, hostile path, collision,
   and cleanup evidence is in the
   [dedicated helper record](verification/2026-08-21-dedicated-circle-folder-helper.md).
-- [#59](https://github.com/scwlkr/balls/issues/59) is the next frontier after #58 lands.
-- [#60](https://github.com/scwlkr/balls/issues/60),
-  [#61](https://github.com/scwlkr/balls/issues/61), and
+- [#59 — Issue one limited SMB credential per Member access grant](https://github.com/scwlkr/balls/issues/59)
+  adds DPAPI-protected random credential state, deterministic preview/apply, one no-group local
+  account with four deny-logon rights, exact read-only/read-write folder and encrypted-share ACLs,
+  restart-safe retry, and ownership-proven reverse rollback. VM evidence is in the
+  [limited credential record](verification/2026-08-21-limited-smb-member-credential.md).
+- [#60](https://github.com/scwlkr/balls/issues/60) is the next frontier after #59 lands.
+- [#61](https://github.com/scwlkr/balls/issues/61) and
   [#62](https://github.com/scwlkr/balls/issues/62) remain dependency-blocked.
 
 ## Working rules
