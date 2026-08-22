@@ -47,7 +47,7 @@ checks are recorded on the pull request and issue after they complete.
 ## Dedicated Windows VM evidence
 
 The owned `Balls.Dev.Windows11` Hyper-V guest ran Debug and Release source builds from exact clean
-commit `995ebb5cb07076ad7986a715d8171afeb18af621`. No checkpoint was restored. The test temporarily
+commit `d38c31cf10189ef705439de6378470a3906c4c23`. No checkpoint was restored. The test temporarily
 changed only the guest's connected profile and the exact 17 event-identified Public/Any inbound
 allow rules used by the readiness fixture; the physical host was not changed.
 
@@ -63,6 +63,7 @@ Observed structured result:
 | Child termination after LSA rights | `grant_apply_failed`; exact account and four rights recovered and removed |
 | Debug account failure | failure immediately after LSA rights returned `grant_apply_failed`; `AccountFailureRollbackClean: true` |
 | Marker ACL failure | failure after exact marker flush and before ACL protection returned `grant_apply_failed`; partial marker and account removed |
+| Partial marker write failure | failure after a durable partial write returned `grant_apply_failed`; protected-handle deletion removed the partial marker and rollback removed the account |
 | Debug injected failure | later share-access failure returned `grant_apply_failed`; `FailureRollbackClean: true` |
 | Release clean apply | `applied` |
 | Release restart retry | `already-applied` with the unchanged plan/protected credential |
@@ -90,7 +91,9 @@ hardening, so it now passes the same fixed script directly under an asserted 32,
 budget while caller data remains structured JSON on stdin. Final review also found that exact
 Owner/System baselines must validate deny ACEs and rights, a blocked-but-owned target share entry
 must still be revoked, and independent protected grant markers must derive the combined ACL so a
-second Member grant neither collides nor makes rollback order-dependent. The issued-credential diagnostic read the
+second Member grant neither collides nor makes rollback order-dependent. A partial marker write
+must also be deleted by the still-exclusive file handle before inspection, so malformed content
+cannot block rollback of the already-created account. The issued-credential diagnostic read the
 DPAPI-protected row only inside the disposable guest process and emitted booleans, never the generated
 password. Its managed password string existed only for that short process lifetime.
 
