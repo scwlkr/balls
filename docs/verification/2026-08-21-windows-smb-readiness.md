@@ -1,0 +1,68 @@
+# Windows SMB readiness verification
+
+**Date:** 2026-08-21  
+**Issue:** [#57](https://github.com/scwlkr/balls/issues/57)  
+**Scope:** typed read-only Windows SMB 3.1.1 readiness before any host mutation
+
+## Implemented outcome
+
+- `Balls.Platform` owns a provider-neutral readiness contract. The Windows adapter stays in
+  `Balls.Platform.Windows`; Core has no Windows command, SMB, registry, network, or firewall type.
+- The adapter executes one exact encoded PowerShell inspection with no caller-controlled input, a
+  10-second timeout, a 64 KiB output cap, strict typed parsing, and deterministic redacted failures.
+- Nine stable checks cover the supported Windows generation, SMB server/SMB 2+ availability, SMB
+  3.1.1, SMB1, insecure guest access, signing, encryption, connected Private network scope, and
+  Private/Public firewall enforceability. Unsafe observations take precedence over unknown ones.
+- `GET /control/v1/files/readiness` and `balls files readiness` expose the same ordered result;
+  structured output uses the existing version-1 CLI envelope.
+- Linux and macOS explicitly return `unknown` for this Windows provider. The browser has no
+  readiness or mutation route.
+
+## Automated evidence
+
+Observed on the Windows development host from implementation commit
+`2f0f81709558f1704b4a361614f74228709fd2b1`:
+
+| Gate | Observation |
+| --- | --- |
+| Windows adapter contracts and OS integration | Passed the focused Contract/OSIntegration selection, including safe/unsafe/unknown matrices, strict malformed/forward-unknown handling, redacted command failure, allowlist and no-mutation assertions, timeout behavior, and the real host adapter |
+| Structured CLI | One separate-process `files readiness` acceptance passed with the version-1 JSON envelope and nine ordered checks |
+| Local-control/OpenAPI | The endpoint contract passed and the checked-in OpenAPI/TypeScript client generation had no drift |
+| Host composition | Windows selected the real inspector; unsupported hosts selected the explicit unknown inspector |
+| Development host observation | `ready`; all nine checks reported their safe codes |
+
+The final repository fast/full gates and protected pull-request results are recorded on the issue
+and pull request so their exact commit and platform checks remain linked to GitHub's durable run
+evidence.
+
+## Dedicated Windows VM evidence
+
+The owned `Balls.Dev.Windows11` Hyper-V guest ran the focused adapter contracts, the real
+OS-integration adapter, and the structured CLI from the exact detached implementation commit above.
+The guest was Windows 11 Enterprise Evaluation `10.0.26200`; no checkpoint was restored and no
+security policy was changed.
+
+The durable guest result at `C:\BallsLab\smb-readiness\latest-result.json` recorded:
+
+| Field | Observed value |
+| --- | --- |
+| UTC | `2026-08-22T00:05:12.9208231+00:00` |
+| Focused Contract | passed |
+| Focused OSIntegration | passed |
+| Structured CLI | passed |
+| Aggregate | `not-ready` |
+| Only unsafe check | `private-network` / `private_network_unavailable` |
+| No mutation | true |
+
+The result is the intended fail-closed behavior. Independent readback showed the guest's connected
+Ethernet profile was Public, so the adapter refused readiness even though the other eight checks
+were ready. Before/after snapshots of the inspected SMB server/client, services, network profiles,
+firewall profiles, Windows feature state, and relevant registry values were identical.
+
+## Security boundary and non-goals
+
+This slice never enables Windows features or SMB policy, starts services, changes a network or
+firewall profile, creates firewall rules, folders, shares, accounts, ACLs, or provider credentials,
+or maps Explorer. It does not prove physical two-machine access, actual share connectivity, or file
+behavior. Those mutation and end-to-end outcomes belong to later milestone issues; this issue only
+provides the typed prerequisite that must be ready before they run.
