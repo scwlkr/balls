@@ -102,6 +102,16 @@ internal static class CliOutput
             $"Contribution ID: {response.Id}",
             $"Provider ID: {response.Provider.Id}");
 
+    internal static string RenderFilesReadiness(CircleFilesReadinessResponse response) =>
+        string.Join(
+            Environment.NewLine,
+            new[]
+            {
+                $"Circle Files readiness: {FormatReadinessStatus(response.Status)}",
+                $"Provider: {response.Provider}",
+            }.Concat(response.Checks.Select(check =>
+                $"[{FormatReadinessStatus(check.Status)}] {check.Summary} ({check.Code})")));
+
     internal static string RenderFilesContributions(
         CircleFilesContributionListResponse response) =>
         response.Contributions.Count == 0
@@ -147,4 +157,12 @@ internal static class CliOutput
     private sealed record CliErrorEnvelope(int OutputVersion, CliError Error);
 
     private sealed record CliError(string Code, string Message);
+
+    private static string FormatReadinessStatus(string status) => status switch
+    {
+        "ready" => "Ready",
+        "not-ready" => "Not ready",
+        "unknown" => "Unknown",
+        _ => "Unknown",
+    };
 }

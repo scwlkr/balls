@@ -10,8 +10,10 @@ The projects target .NET 10. The repository pins SDK `10.0.400` in
 [`global.json`](../global.json). `ballsd` and `balls` run natively and unelevated on Windows,
 Linux, and Apple-Silicon macOS through the same application, local-control v1, and SQLite behavior.
 Windows composes protected ACLs, current-user DPAPI private-key protection, and same-user named
-pipes; Linux composes effective-user Unix modes, mode-restricted key storage, and a protected
-Unix-domain socket. macOS composes owned local-APFS state, strict modes with no extended ACL
+pipes. It also composes a read-only SMB 3.1.1 readiness inspector behind the provider-neutral
+platform contract; Linux and macOS report that Windows provider as `unknown`. Linux composes
+effective-user Unix modes, mode-restricted key storage, and a protected Unix-domain socket. macOS
+composes owned local-APFS state, strict modes with no extended ACL
 grants, a short private Unix-domain socket, owned-state private material, and `/usr/bin/open` for
 the shared browser workspace. This is source-run development support, not a signed/notarized Mac
 distribution.
@@ -210,6 +212,27 @@ In another PowerShell window:
 dotnet run --project src/Balls.Cli --configuration Release --no-build -- --pipe-name balls-dev status
 dotnet run --project src/Balls.Cli --configuration Release --no-build -- --pipe-name balls-dev circle create "My Circle" --owner $env:USERNAME
 dotnet run --project src/Balls.Cli --configuration Release --no-build -- --pipe-name balls-dev circle list
+```
+
+Inspect whether this Windows Node can safely host the first Circle Files provider without changing
+the machine:
+
+```powershell
+dotnet run --project src/Balls.Cli --configuration Release --no-build -- --pipe-name balls-dev files readiness
+dotnet run --project src/Balls.Cli --configuration Release --no-build -- --output json --pipe-name balls-dev files readiness
+```
+
+The result is `ready`, `not-ready`, or `unknown` for provider `windows-smb-3.1.1-v1`, followed by
+nine stable checks. `not-ready` means an observed requirement is unsafe; `unknown` means the host
+or inspection could not prove safety. The command is inspection only: it does not enable SMB,
+change policy, start services, alter firewall or network profiles, or create folders, shares,
+accounts, ACLs, credentials, or mappings. Windows 11 build 26100 or newer and Windows Server 2025
+are the currently recognized generations for the controls this provider requires.
+
+For focused adapter feedback:
+
+```powershell
+dotnet run --project eng/Balls.Verify --configuration Release -- focused --project tests/Balls.Platform.Windows.Tests/Balls.Platform.Windows.Tests.csproj --filter "(TestCategory=Contract|TestCategory=OSIntegration)"
 ```
 
 Copy the returned Circle ID to inspect its participants:

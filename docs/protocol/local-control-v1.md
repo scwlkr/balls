@@ -1,7 +1,7 @@
 # Local Control API v1
 
 **Status:** implemented through provider-neutral Circle Files contribution and Access Grant
-definition.
+definition plus read-only Windows SMB readiness.
 
 This is the versioned, machine-local contract between `balls` or another local integration and
 `ballsd`. It is not a Node-to-Node or Circle replication protocol.
@@ -120,6 +120,7 @@ material. Selecting JSON output for this interactive command is a usage error.
 | Circle Files provider | `id`, `nodeId`; provider implementation and credentials are absent |
 | File Contribution | `id`, `circleId`, provider, `displayName`, lifecycle, generation, created time, authorizing Member/generation/time |
 | Member Access Grant | `id`, `circleId`, `contributionId`, `memberId`, access, lifecycle, generation, created time, authorizing Member/generation/time |
+| Circle Files readiness | `provider`, aggregate `status`, ordered checks with `id`, `status`, stable `code`, and bounded safe `summary` |
 | Error | `code`, `message` |
 
 The v1 Member roles are `owner` and `member`. Contribution lifecycles are `defined`, `active`, and
@@ -143,6 +144,26 @@ Returns `200 OK` with the daemon version, protocol version, and persistent local
   }
 }
 ```
+
+### `GET /control/v1/files/readiness`
+
+Runs the host's read-only Circle Files provider inspection and returns `200 OK`. The implemented
+Windows provider ID is `windows-smb-3.1.1-v1`; unsupported hosts use the same provider ID and an
+explicit `unknown` result. The aggregate and every ordered check use `ready`, `not-ready`, or
+`unknown`. Stable codes and bounded summaries are safe for structured automation; raw registry,
+PowerShell, SMB, network, firewall, and process error output is never returned.
+
+The Windows check order is `windows-platform`, `smb-server`, `smb-dialect`, `smb1`, `guest-access`,
+`signing`, `encryption`, `private-network`, and `firewall-scope`. One `not-ready` check makes the
+aggregate `not-ready`; otherwise any `unknown` check makes it `unknown`. Inspection failure is
+represented as a deterministic `unknown` report. The equivalent CLI is:
+
+```text
+balls files readiness
+```
+
+This route has no Circle identifier because it reports the local Node's host capability before any
+Contribution/provider mutation.
 
 ### `POST /control/v1/circles`
 
@@ -257,6 +278,7 @@ protected local IPC; it is not reachable from the browser listener.
 | `GET /control/v1/circles/{circleId}/members` | `200` with `{ "circleId": "...", "members": [Member] }` |
 | `GET /control/v1/circles/{circleId}/nodes` | `200` with `{ "circleId": "...", "nodes": [Circle Node] }` |
 | `GET /control/v1/circles/{circleId}/messages` | `200` with `{ "circleId": "...", "messages": [Circle message] }` |
+| `GET /control/v1/files/readiness` | `200` with the local Node's ordered Circle Files readiness report |
 | `GET /control/v1/circles/{circleId}/files/contributions` | `200` with stable ordered Contribution projections |
 | `GET /control/v1/circles/{circleId}/files/contributions/{contributionId}/grants` | `200` with stable ordered Access Grant projections |
 
@@ -324,8 +346,9 @@ is not guaranteed to use the application error shape.
 
 ## Explicit non-goals
 
-v1 does not expose invitation/join, message-authoring, or Circle Files mutation UX to the browser.
-This slice defines Circle Files metadata and authorization only: it does not inspect or mutate SMB,
-create folders/shares/accounts, store provider credentials, map drives, adopt existing folders,
-delete files, revoke access, synchronize or replicate content, add version history/trash, discover
-peers, or add automatic/multiple-Anchor behavior.
+v1 does not expose invitation/join, message-authoring, Circle Files readiness, or Circle Files
+mutation UX to the browser. The local API and CLI inspect Windows SMB readiness but do not mutate
+SMB features or policy, start services, change network/firewall state, create folders/shares/accounts
+or ACLs, store provider credentials, map drives, adopt existing folders, delete files, revoke
+access, synchronize or replicate content, add version history/trash, discover peers, or add
+automatic/multiple-Anchor behavior.

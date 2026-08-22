@@ -474,9 +474,31 @@ only public object, lifecycle, and authorizing-Member metadata; signatures, tran
 authority, and future provider credentials stay behind the Core-owned persistence seam.
 
 The browser adapter reuses the same application queries for read-only contribution and Access
-Grant lists and has no Circle Files mutation route in this slice. Windows readiness, folder/share
-creation, provider credentials, drive mapping, provider lifecycle transitions, and revocation are
-separate adapters and tickets built on these IDs and grants.
+Grant lists and has no Circle Files mutation route in this slice. Folder/share creation, provider
+credentials, drive mapping, provider lifecycle transitions, and revocation are separate adapters
+and tickets built on these IDs and grants.
+
+Windows SMB readiness is an implemented read-only host capability behind
+`ICircleFilesReadinessInspector` in `Balls.Platform`. `Balls.Platform.Windows` supplies the SMB
+adapter; Linux and macOS return the same provider-neutral report with explicit `unknown` status.
+No Windows command, registry type, SMB type, or firewall type crosses into Core.
+
+The Windows adapter runs one fixed, encoded PowerShell inspection with no caller-controlled input.
+Its exact command allowlist reads Windows version, SMB server/client configuration, required
+command metadata, connected network profiles, firewall profiles, and active inbound firewall
+rule/port filters. The child process has a 10-second timeout and one combined 65,536-character
+decoded-output budget for both redirected streams. Missing, malformed, forward-unknown, timed-out,
+or failed observations become deterministic redacted `unknown` checks rather than raw command
+output.
+
+The report evaluates the supported Windows generation, running SMB server with SMB 2/3 enabled,
+SMB 3.1.1 availability, SMB1 disabled, insecure guest logons disabled, server signing required,
+share encryption enforceability with an approved SMB 3.1.1 cipher, a connected Private network,
+and enabled Private/Public firewall profiles whose default inbound action is Block. It
+conservatively rejects an enabled Public/Any-profile inbound allow rule whose protocol/port filter
+can include TCP 445. Any unsafe observation makes the aggregate `not-ready`; otherwise an unknown
+observation makes it `unknown`. Inspection never changes a feature, policy, service, profile,
+folder, share, account, ACL, rule, or mapping.
 
 For the files-first v1, the Windows provider uses SMB 3.1.1 with SMB1 and guest access disabled,
 signing and encryption required, and one limited provider credential per Member Access Grant. A

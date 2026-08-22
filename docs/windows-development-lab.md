@@ -104,6 +104,7 @@ Invoke each applicable script through `Invoke-BallsDevGuestScript.ps1`:
 | --- | --- | --- |
 | Restore, format, Release build, unsigned execution, Circle create/list, restart persistence | `Test-BallsVmSourceBuild.Guest.ps1` | `C:\BallsLab\source-smoke\latest-result.json` |
 | Generated client, component tests, real Playwright Chromium journey | `Test-BallsVmBrowser.Guest.ps1` | `C:\BallsLab\browser-smoke\latest-result.json` |
+| Read-only Windows SMB readiness contracts, real adapter, structured CLI, and no-mutation snapshot | `Test-BallsVmSmbReadiness.Guest.ps1` | `C:\BallsLab\smb-readiness\latest-result.json` |
 | Launch the unsigned Balls browser UI for interactive review | `Launch-BallsVmUi.Guest.ps1` | `Get-BallsVmUiLaunchStatus.Guest.ps1` reports daemon and Chrome state |
 | Historical `0.2.0-alpha.1` release download and installer proof | `Test-BallsVmReleaseInstaller.Guest.ps1` | `C:\BallsLab\release-installer\0.2.0-alpha.1\installer-result.json` |
 

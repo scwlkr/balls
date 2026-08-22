@@ -341,6 +341,14 @@ public static class DaemonHost
                 .Produces<NodeListResponse>(StatusCodes.Status200OK)
                 .Produces<ErrorResponse>(StatusCodes.Status400BadRequest)
                 .Produces<ErrorResponse>(StatusCodes.Status404NotFound);
+            application.MapGet(
+                ControlRoutes.CircleFilesReadiness,
+                async (CancellationToken token) =>
+                    CircleFilesResponseMapper.ToResponse(
+                        await host.CircleFilesReadiness
+                            .InspectAsync(token)
+                            .ConfigureAwait(false)))
+                .Produces<CircleFilesReadinessResponse>(StatusCodes.Status200OK);
             application.MapPost(
                 ControlRoutes.Circles + "/{circleId}/files/contributions",
                 async (

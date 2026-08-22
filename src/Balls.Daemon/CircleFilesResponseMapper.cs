@@ -1,10 +1,22 @@
 using Balls.Core;
+using Balls.Platform;
 using Balls.Protocol.Control.V1;
 
 namespace Balls.Daemon;
 
 internal static class CircleFilesResponseMapper
 {
+    public static CircleFilesReadinessResponse ToResponse(
+        CircleFilesReadinessReport report) =>
+        new(
+            report.Provider,
+            ToResponse(report.Status),
+            report.Checks.Select(check => new CircleFilesReadinessCheckResponse(
+                check.Id,
+                ToResponse(check.Status),
+                check.Code,
+                check.Summary)).ToArray());
+
     public static CircleFilesContributionResponse ToResponse(
         CircleFilesContribution contribution) =>
         new(
@@ -51,4 +63,12 @@ internal static class CircleFilesResponseMapper
             grant.Authorization.OwnerMemberId.ToString(),
             grant.Authorization.AuthorityGeneration,
             grant.Authorization.AuthorizedAtUtc);
+
+    private static string ToResponse(CircleFilesReadinessStatus status) => status switch
+    {
+        CircleFilesReadinessStatus.Ready => "ready",
+        CircleFilesReadinessStatus.NotReady => "not-ready",
+        CircleFilesReadinessStatus.Unknown => "unknown",
+        _ => throw new InvalidOperationException("Unknown Circle Files readiness status."),
+    };
 }

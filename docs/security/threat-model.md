@@ -2,7 +2,8 @@
 
 **Status:** Windows/Linux local Node baseline, protected production Node/Circle/transport identity
 storage, bounded invitations, authenticated LAN transport, persisted two-Node membership,
-minimal durable Circle messaging, and provider-neutral Circle Files authorization, 2026-08-21.
+minimal durable Circle messaging, provider-neutral Circle Files authorization, and read-only
+Windows SMB readiness, 2026-08-21.
 
 ## Scope
 
@@ -12,8 +13,9 @@ browser UI, and the daemon's SQLite state directory. It also covers the remote v
 authenticated-channel, admission, and minimal persistent-message boundaries. Executable loopback,
 separate-process, and Windows-host/Ubuntu-VM tests prove the transport, admission, and
 message/restart outcomes. It now also covers local definition of File Contributions and Member
-Access Grants; no provider credential, SMB, folder, share, account, ACL, or mapping operation is in
-scope yet.
+Access Grants plus bounded inspection of Windows SMB, network-profile, and firewall readiness. No
+provider credential, SMB/policy/service/firewall mutation, folder, share, account, ACL, or mapping
+operation is in scope yet.
 
 ## Assets
 
@@ -39,6 +41,8 @@ scope yet.
 6. Admission bootstrap from a signed invitation and pinned Anchor transport key to not-yet-trusted
    Member/Node credentials.
 7. The selected Anchor's live authority state to explicit offline authority export/restore.
+8. The Windows adapter to a bounded child PowerShell process reading fixed SMB, registry, network,
+   service, command-metadata, and firewall observations.
 
 The same OS account is the current local-control principal. Local IPC does not distinguish between
 processes running as that account.
@@ -66,6 +70,10 @@ processes running as that account.
 | A stale or substituted Circle authority authorizes a contribution/grant | The persisted current generation/root credential must exactly match the protected live Circle authority; the same transcript is independently root-signed and verified before commit | Root rotation/recovery and replicated authorization convergence remain separate work |
 | Retry creates duplicate or conflicting contribution/grant state | Caller request UUID plus normalized input is transactional and idempotent; conflicting reuse and duplicate Contribution/Member grants fail closed | Request IDs are replay identities, not bearer authentication |
 | Circle Files metadata leaks future provider secrets or private authority | Core records contain no provider credentials; local-control, CLI, and read-only browser projections omit transcripts, signatures, credentials, and private material; browser mutation routes are absent | Object IDs, lifecycle, Member/Node relationships, and authorization times are intentionally inspectable to the same OS account |
+| Caller input changes the Windows readiness command | The platform boundary exposes no command or argument input; one exact enum allowlist selects a static encoded script and an exact system PowerShell executable, without a shell | Same-user compromise can replace the running process or machine tools and is outside this inspection boundary |
+| Windows inspection hangs, floods output, or returns malformed/forward-unknown data | The child process has a 10-second timeout, one combined 65,536-character decoded-output budget for both streams, strict JSON parsing, exact recognized values, and deterministic redacted `unknown` results | Inspection can be unavailable or conservatively unknown; this endpoint is not a general diagnostic console |
+| SMB would be exposed on an unsafe network scope | Readiness is `not-ready` unless a connected Private profile exists, Private/Public firewall profiles are enabled with default inbound Block, and no enabled Public/Any-profile inbound allow rule has a protocol/port scope that can include TCP 445 | Readiness proves enforceable preconditions, not that a later helper creates a correct narrowly scoped rule; ambiguous broad Public rules are rejected conservatively |
+| Readiness inspection mutates the host | The static allowlist uses only read operations and command-metadata inspection; contract tests reject mutation verbs and VM before/after snapshots proved no observed setting change | A later privileged mutation helper requires a separate threat model, authorization, rollback, and ownership boundary |
 
 ## Trusted Circle remote design threats
 
@@ -132,9 +140,11 @@ are executable.
 - Circle and Node UUIDs remain non-secret object references. Durable role-scoped public
   credentials and the authenticated channel bind them to signing authority; only the persisted
   Anchor-signed receipt grants the joined relationship.
-- Circle Files currently stops at `defined` metadata. No readiness result, folder/share/account,
-  provider credential, mapping, activation, revocation, or remote replication is claimed. The
-  selected authority-holding Node performs Owner mutations; recovery/rotation and remote Owner
+- Circle Files state currently stops at `defined` metadata. Windows readiness reports only whether
+  the local host can enforce the planned SMB 3.1.1 boundary; it does not enable features or policy,
+  start services, create a folder/share/account/ACL, issue provider credentials, map Explorer,
+  activate or revoke a Contribution, or prove remote/physical-machine access. The selected
+  authority-holding Node performs Owner mutations; recovery/rotation and remote Owner
   administration remain later trust boundaries.
 
 ## Required implementation for the next trust boundary

@@ -45,4 +45,5 @@ public sealed record HostPlatform(
     ILocalStatePreparer LocalState,
     ILocalControlServerTransport LocalControlServer,
     ILocalControlClientTransport LocalControlClient,
-    ISystemBrowserLauncher SystemBrowser);
+    ISystemBrowserLauncher SystemBrowser,
+    ICircleFilesReadinessInspector CircleFilesReadiness);
