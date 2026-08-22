@@ -100,6 +100,13 @@ public sealed class WindowsCircleFilesMemberMapper : ICircleFilesMemberMapper
                 "The exact Explorer share label is already in use.");
         }
 
+        if (drive is not null && credential is null && label is null)
+        {
+            throw Collision(
+                "mapping_drive_collision",
+                "The selected drive letter is already in use without exact Balls ownership.");
+        }
+
         if (drive is null
             && !plan.AvailableDriveLetters.Contains(plan.DriveLetter, StringComparer.Ordinal))
         {
@@ -300,14 +307,13 @@ public sealed class WindowsCircleFilesMemberMapper : ICircleFilesMemberMapper
         CircleFilesMemberMappingRequest request,
         CircleFilesMemberMappingPlan plan)
     {
-        var owned = 0;
         var mapping = operations.GetMappedUnc(plan.DriveLetter);
         if (mapping is not null)
         {
             if (!Same(mapping, plan.UncPath)) throw ResourceCollision();
-            owned++;
         }
 
+        var credentialOwned = false;
         using (var credential = operations.GetCredential(plan.CredentialTarget))
         {
             if (credential is not null)
@@ -318,7 +324,7 @@ public sealed class WindowsCircleFilesMemberMapper : ICircleFilesMemberMapper
                 {
                     throw ResourceCollision();
                 }
-                owned++;
+                credentialOwned = true;
             }
         }
 
@@ -329,9 +335,16 @@ public sealed class WindowsCircleFilesMemberMapper : ICircleFilesMemberMapper
             {
                 throw ResourceCollision();
             }
-            owned++;
         }
 
+        if (mapping is not null && !credentialOwned && label is null)
+        {
+            throw Collision(
+                "mapping_drive_collision",
+                "The selected drive letter is already in use without exact Balls ownership.");
+        }
+
+        var owned = (mapping is null ? 0 : 1) + (credentialOwned ? 1 : 0) + (label is null ? 0 : 1);
         return owned switch
         {
             0 => "unmapped",

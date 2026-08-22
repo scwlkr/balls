@@ -152,6 +152,32 @@ public sealed class WindowsCircleFilesMemberMapperTests
             operations.Events.ToArray());
     }
 
+    [TestMethod]
+    public async Task Map_and_unmap_refuse_a_foreign_drive_even_when_its_unc_matches()
+    {
+        var operations = new StubOperations { AvailableLetters = ["M"] };
+        var mapper = new WindowsCircleFilesMemberMapper(operations);
+        var plan = await mapper.PreviewAsync(Request, CancellationToken.None);
+        operations.Mapping = plan.UncPath;
+        operations.DriveAccessible = true;
+
+        var previewError = await Assert.ThrowsExactlyAsync<CircleFilesHostingException>(
+            () => mapper.PreviewAsync(Request, CancellationToken.None).AsTask());
+        Assert.AreEqual("mapping_drive_collision", previewError.Code);
+
+        var mapError = await Assert.ThrowsExactlyAsync<CircleFilesHostingException>(
+            () => mapper.MapAsync(Request, plan.PlanId, Secret, CancellationToken.None).AsTask());
+        Assert.AreEqual("mapping_drive_collision", mapError.Code);
+
+        var unmapError = await Assert.ThrowsExactlyAsync<CircleFilesHostingException>(
+            () => mapper.UnmapAsync(Request, Secret, CancellationToken.None).AsTask());
+        Assert.AreEqual("mapping_drive_collision", unmapError.Code);
+        Assert.AreEqual(plan.UncPath, operations.Mapping);
+        Assert.IsNull(operations.Credential);
+        Assert.IsNull(operations.Label);
+        Assert.AreEqual(0, operations.Events.Count);
+    }
+
     private sealed class StubOperations : IWindowsCircleFilesMappingOperations
     {
         public IReadOnlyList<string> AvailableLetters { get; set; } = [];

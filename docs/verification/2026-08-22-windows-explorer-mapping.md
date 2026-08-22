@@ -24,11 +24,11 @@
 
 | Gate | Observation |
 | --- | --- |
-| Windows mapping contract | 5 focused tests passed for discovery, collision refusal, bounded offline preflight, exact map/retry/reconnect, wrong-share rollback, redaction, repurposed-resource refusal, and exact unmap |
+| Windows mapping contract | 6 focused tests passed for discovery, different-UNC and same-UNC foreign collision refusal, bounded offline preflight, exact map/retry/reconnect, wrong-share rollback, redaction, repurposed-resource refusal, and exact unmap |
 | Protected storage | 7 Circle Files state-store tests passed, including active credential readback through the configured current-user protector and restart stability |
 | Daemon/local-control | 4 focused endpoint/OpenAPI tests passed; preview/map/inspect/unmap used the shared application and returned no secret/password fields |
 | Browser | 10 component tests passed, including discovery before explicit selection and map through the browser API; TypeScript and ESLint passed |
-| Full repository verifier | Passed formatting, generated-client drift, lint, typecheck, zero-warning Release build, 281 automated tests, 10 browser component tests, and the real Playwright restart journey; 20 host-inapplicable tests skipped |
+| Full repository verifier | Passed formatting, generated-client drift, lint, typecheck, zero-warning Release build, 282 automated tests, 10 browser component tests, and the real Playwright restart journey; 20 host-inapplicable tests skipped |
 
 ## Windows VM evidence
 
@@ -41,7 +41,7 @@ network profile and firewall were not changed.
 | Scenario | Observed result |
 | --- | --- |
 | Explicit mapping | Selected `M:` mapped `\\127.0.0.1\balls-01a02a041c6f` as `Issue 60 Circle`; plan `5ef08d262139e71decd86646eed0ce31cff6083a6a9992dad7b714e93aa89866` and ownership `cb0ae0627cccca2522b21cfa682838f1b23a1491227910104503e0ea2ec8f75a` remained stable |
-| Collision | A temporary foreign `HKCU\Network\M` fixture returned `mapping_drive_collision` and was preserved until the test removed that exact fixture |
+| Collision | A temporary foreign `HKCU\Network\M` fixture pointing to the exact planned UNC returned `mapping_drive_collision` and was preserved until the test removed that exact fixture |
 | Offline endpoint | `192.168.254.254` returned bounded `mapping_endpoint_unreachable` before mapping or credential mutation |
 | Wrong share | Temporarily hiding the exact protected grant marker returned `mapping_share_identity_mismatch`; restoring the same marker allowed mapping |
 | Authenticated I/O | The limited grant credential wrote, read, and deleted a probe through `M:`; the Explorer label and exact mapping ownership value were present |
