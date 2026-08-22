@@ -261,6 +261,12 @@ public sealed class CircleFilesEndpointsTests
         var mappingPreview = System.Text.Json.JsonSerializer
             .Deserialize<CircleFilesMemberMappingPlanResponse>(mappingPreviewJson, ControlJson.Options);
         Assert.IsNotNull(mappingPreview);
+        using var invalidMapResponse = await client.PostAsJsonAsync(
+            ControlRoutes.CircleFilesMemberMappingMap(circle.Circle.Id, contribution.Id, grant.Id),
+            new { endpoint = "192.168.50.10", driveLetter = (string?)null, planId = mappingPreview.PlanId },
+            ControlJson.Options);
+        Assert.AreEqual(HttpStatusCode.BadRequest, invalidMapResponse.StatusCode);
+        Assert.AreEqual(0, memberMapper.SecretUseCount);
         using var mapResponse = await client.PostAsJsonAsync(
             ControlRoutes.CircleFilesMemberMappingMap(circle.Circle.Id, contribution.Id, grant.Id),
             new ApplyCircleFilesMemberMappingRequest(
@@ -279,7 +285,7 @@ public sealed class CircleFilesEndpointsTests
         Assert.AreEqual(HttpStatusCode.OK, mapResponse.StatusCode);
         Assert.AreEqual(HttpStatusCode.OK, inspectResponse.StatusCode);
         Assert.AreEqual(HttpStatusCode.OK, unmapResponse.StatusCode);
-        Assert.AreEqual(3, memberMapper.SecretUseCount);
+        Assert.AreEqual(1, memberMapper.SecretUseCount);
         Assert.IsTrue(memberMapper.Requests.All(request =>
             request.Endpoint == "192.168.50.10"
             && request.DriveLetter == "M"
@@ -412,10 +418,10 @@ public sealed class CircleFilesEndpointsTests
 
         public ValueTask<CircleFilesMemberMappingInspection> InspectAsync(
             CircleFilesMemberMappingRequest request,
-            ReadOnlyMemory<byte> secret,
             CancellationToken cancellationToken)
         {
-            CountSecret(request, secret, cancellationToken);
+            cancellationToken.ThrowIfCancellationRequested();
+            Requests.Add(request);
             return ValueTask.FromResult(new CircleFilesMemberMappingInspection("mapped", Plan(request)));
         }
 
@@ -432,10 +438,10 @@ public sealed class CircleFilesEndpointsTests
 
         public ValueTask<CircleFilesMemberMappingResult> UnmapAsync(
             CircleFilesMemberMappingRequest request,
-            ReadOnlyMemory<byte> secret,
             CancellationToken cancellationToken)
         {
-            CountSecret(request, secret, cancellationToken);
+            cancellationToken.ThrowIfCancellationRequested();
+            Requests.Add(request);
             return ValueTask.FromResult(new CircleFilesMemberMappingResult("unmapped", Plan(request)));
         }
 

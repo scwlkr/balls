@@ -342,6 +342,12 @@ function FilesMappingPanel({
   const [plan, setPlan] = useState<CircleFilesMemberMappingPlanDto | null>(
     null,
   );
+  const [planContext, setPlanContext] = useState<{
+    contributionId: string;
+    grantId: string;
+    endpoint: string;
+    driveLetter: string;
+  } | null>(null);
   const [mappingStatus, setMappingStatus] = useState<string | null>(null);
   const [panelError, setPanelError] = useState<string | null>(null);
   const [panelBusy, setPanelBusy] = useState(false);
@@ -375,6 +381,7 @@ function FilesMappingPanel({
     setContributionId(value);
     setGrantId("");
     setPlan(null);
+    setPlanContext(null);
     setPanelError(null);
     if (!value) return;
     try {
@@ -391,17 +398,18 @@ function FilesMappingPanel({
     setPanelBusy(true);
     setPanelError(null);
     setPlan(null);
+    setPlanContext(null);
     setDriveLetter("");
     try {
-      setPlan(
-        await api.previewFilesMapping(
-          circleId,
-          contributionId,
-          grantId,
-          endpoint,
-          "",
-        ),
+      const result = await api.previewFilesMapping(
+        circleId,
+        contributionId,
+        grantId,
+        endpoint,
+        "",
       );
+      setPlan(result);
+      setPlanContext({ contributionId, grantId, endpoint, driveLetter: "" });
     } catch (reason) {
       setPanelError(toMessage(reason));
     } finally {
@@ -414,15 +422,15 @@ function FilesMappingPanel({
     setPanelBusy(true);
     setPanelError(null);
     try {
-      setPlan(
-        await api.previewFilesMapping(
-          circleId,
-          contributionId,
-          grantId,
-          endpoint,
-          driveLetter,
-        ),
+      const result = await api.previewFilesMapping(
+        circleId,
+        contributionId,
+        grantId,
+        endpoint,
+        driveLetter,
       );
+      setPlan(result);
+      setPlanContext({ contributionId, grantId, endpoint, driveLetter });
       setMappingStatus("ready to map");
     } catch (reason) {
       setPanelError(toMessage(reason));
@@ -432,7 +440,17 @@ function FilesMappingPanel({
   }
 
   async function mutate(operation: "map" | "inspect" | "unmap") {
-    if (!plan || !driveLetter || panelBusy) return;
+    if (
+      !plan ||
+      !driveLetter ||
+      panelBusy ||
+      plan.driveLetter !== driveLetter ||
+      planContext?.contributionId !== contributionId ||
+      planContext.grantId !== grantId ||
+      planContext.endpoint !== endpoint ||
+      planContext.driveLetter !== driveLetter
+    )
+      return;
     setPanelBusy(true);
     setPanelError(null);
     try {
@@ -495,6 +513,7 @@ function FilesMappingPanel({
           <label htmlFor="files-contribution">Folder</label>
           <select
             id="files-contribution"
+            disabled={panelBusy}
             value={contributionId}
             onChange={(event) => void chooseContribution(event.target.value)}
           >
@@ -507,8 +526,14 @@ function FilesMappingPanel({
           <label htmlFor="files-grant">Grant</label>
           <select
             id="files-grant"
+            disabled={panelBusy}
             value={grantId}
-            onChange={(event) => setGrantId(event.target.value)}
+            onChange={(event) => {
+              setGrantId(event.target.value);
+              setPlan(null);
+              setPlanContext(null);
+              setMappingStatus(null);
+            }}
           >
             {grants.map((value) => (
               <option key={value.id} value={value.id}>
@@ -522,9 +547,12 @@ function FilesMappingPanel({
             value={endpoint}
             placeholder="192.168.1.20"
             required
+            disabled={panelBusy}
             onChange={(event) => {
               setEndpoint(event.target.value);
               setPlan(null);
+              setPlanContext(null);
+              setMappingStatus(null);
             }}
           />
           <button
@@ -540,9 +568,14 @@ function FilesMappingPanel({
               <select
                 id="files-drive"
                 required
+                disabled={panelBusy}
                 value={driveLetter}
                 onChange={(event) => {
                   setDriveLetter(event.target.value);
+                  setPlan((current) =>
+                    current ? { ...current, driveLetter: "" } : current,
+                  );
+                  setPlanContext(null);
                   setMappingStatus(null);
                 }}
               >
@@ -560,7 +593,12 @@ function FilesMappingPanel({
               >
                 Preview exact mapping
               </button>
-              {plan.driveLetter ? (
+              {plan.driveLetter &&
+              plan.driveLetter === driveLetter &&
+              planContext?.contributionId === contributionId &&
+              planContext.grantId === grantId &&
+              planContext.endpoint === endpoint &&
+              planContext.driveLetter === driveLetter ? (
                 <div>
                   <p>
                     <strong>

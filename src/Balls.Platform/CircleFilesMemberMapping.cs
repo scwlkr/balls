@@ -47,7 +47,6 @@ public interface ICircleFilesMemberMapper
 
     ValueTask<CircleFilesMemberMappingInspection> InspectAsync(
         CircleFilesMemberMappingRequest request,
-        ReadOnlyMemory<byte> secret,
         CancellationToken cancellationToken);
 
     ValueTask<CircleFilesMemberMappingResult> MapAsync(
@@ -58,7 +57,6 @@ public interface ICircleFilesMemberMapper
 
     ValueTask<CircleFilesMemberMappingResult> UnmapAsync(
         CircleFilesMemberMappingRequest request,
-        ReadOnlyMemory<byte> secret,
         CancellationToken cancellationToken);
 }
 
@@ -71,7 +69,6 @@ public sealed class UnsupportedCircleFilesMemberMapper : ICircleFilesMemberMappe
 
     public ValueTask<CircleFilesMemberMappingInspection> InspectAsync(
         CircleFilesMemberMappingRequest request,
-        ReadOnlyMemory<byte> secret,
         CancellationToken cancellationToken) =>
         ValueTask.FromException<CircleFilesMemberMappingInspection>(Unsupported(cancellationToken));
 
@@ -84,7 +81,6 @@ public sealed class UnsupportedCircleFilesMemberMapper : ICircleFilesMemberMappe
 
     public ValueTask<CircleFilesMemberMappingResult> UnmapAsync(
         CircleFilesMemberMappingRequest request,
-        ReadOnlyMemory<byte> secret,
         CancellationToken cancellationToken) =>
         ValueTask.FromException<CircleFilesMemberMappingResult>(Unsupported(cancellationToken));
 

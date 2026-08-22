@@ -29,7 +29,10 @@ internal sealed class WindowsCircleFilesStoredCredential(
     public override string ToString() => "Windows Circle Files credential (redacted)";
 }
 
-internal sealed record WindowsCircleFilesStoredLabel(string FriendlyName, string OwnershipId);
+internal sealed record WindowsCircleFilesStoredLabel(
+    string FriendlyName,
+    string OwnershipId,
+    string KeyOwnershipId = "");
 
 internal interface IWindowsCircleFilesMappingOperations
 {
@@ -92,15 +95,9 @@ public sealed class WindowsCircleFilesMemberMapper : ICircleFilesMemberMapper
         }
 
         var label = operations.GetLabel(plan.UncPath);
-        if (label is not null
-            && (label.FriendlyName != plan.FriendlyName || label.OwnershipId != plan.OwnershipId))
-        {
-            throw Collision(
-                "mapping_label_collision",
-                "The exact Explorer share label is already in use.");
-        }
+        var labelOwned = ValidateLabel(label, plan);
 
-        if (drive is not null && credential is null && label is null)
+        if (drive is not null && credential is null && !labelOwned)
         {
             throw Collision(
                 "mapping_drive_collision",
@@ -118,7 +115,6 @@ public sealed class WindowsCircleFilesMemberMapper : ICircleFilesMemberMapper
 
     public ValueTask<CircleFilesMemberMappingInspection> InspectAsync(
         CircleFilesMemberMappingRequest request,
-        ReadOnlyMemory<byte> secret,
         CancellationToken cancellationToken)
     {
         cancellationToken.ThrowIfCancellationRequested();
@@ -159,8 +155,13 @@ public sealed class WindowsCircleFilesMemberMapper : ICircleFilesMemberMapper
                 }
                 catch
                 {
-                    TryRollback(() => operations.DisconnectDriveSession(
-                        plan.DriveLetter, plan.UncPath));
+                    if (!TryRollback(() => operations.DisconnectDriveSession(
+                            plan.DriveLetter, plan.UncPath)))
+                    {
+                        throw new CircleFilesHostingException(
+                            "mapping_recovery_incomplete",
+                            "Reconnect failed and its exact session rollback could not complete; inspect and retry it.");
+                    }
                     throw;
                 }
                 return new CircleFilesMemberMappingResult("already-mapped", plan);
@@ -204,7 +205,8 @@ public sealed class WindowsCircleFilesMemberMapper : ICircleFilesMemberMapper
             }
 
             ValidateShare(request, plan);
-            if (operations.GetLabel(plan.UncPath) is null)
+            var label = operations.GetLabel(plan.UncPath);
+            if (!IsCompleteLabel(label, plan))
             {
                 operations.SaveLabel(plan.UncPath, plan.FriendlyName, plan.OwnershipId);
                 labelCreated = true;
@@ -214,21 +216,27 @@ public sealed class WindowsCircleFilesMemberMapper : ICircleFilesMemberMapper
         }
         catch
         {
+            var rollbackComplete = true;
             if (labelCreated)
             {
-                TryRollback(() => operations.DeleteLabel(
+                rollbackComplete &= TryRollback(() => operations.DeleteLabel(
                     plan.UncPath, plan.FriendlyName, plan.OwnershipId));
             }
             if (driveCreated)
             {
-                TryRollback(() => operations.UnmapDrive(plan.DriveLetter, plan.UncPath));
+                rollbackComplete &= TryRollback(
+                    () => operations.UnmapDrive(plan.DriveLetter, plan.UncPath));
             }
-            if (credentialCreated)
+            if (credentialCreated && rollbackComplete)
             {
-                TryRollback(() => operations.DeleteCredential(
-                    plan.CredentialTarget,
-                    request.AccountName,
-                    plan.OwnershipId));
+                rollbackComplete &= TryRollback(() => operations.DeleteCredential(
+                    plan.CredentialTarget, request.AccountName, plan.OwnershipId));
+            }
+            if (!rollbackComplete)
+            {
+                throw new CircleFilesHostingException(
+                    "mapping_recovery_incomplete",
+                    "Mapping failed and exact rollback could not complete; inspect and retry it.");
             }
             throw;
         }
@@ -236,7 +244,6 @@ public sealed class WindowsCircleFilesMemberMapper : ICircleFilesMemberMapper
 
     public ValueTask<CircleFilesMemberMappingResult> UnmapAsync(
         CircleFilesMemberMappingRequest request,
-        ReadOnlyMemory<byte> secret,
         CancellationToken cancellationToken)
     {
         cancellationToken.ThrowIfCancellationRequested();
@@ -329,29 +336,47 @@ public sealed class WindowsCircleFilesMemberMapper : ICircleFilesMemberMapper
         }
 
         var label = operations.GetLabel(plan.UncPath);
-        if (label is not null)
-        {
-            if (label.FriendlyName != plan.FriendlyName || label.OwnershipId != plan.OwnershipId)
-            {
-                throw ResourceCollision();
-            }
-        }
+        var labelOwned = ValidateLabel(label, plan);
 
-        if (mapping is not null && !credentialOwned && label is null)
+        if (mapping is not null && !credentialOwned && !labelOwned)
         {
             throw Collision(
                 "mapping_drive_collision",
                 "The selected drive letter is already in use without exact Balls ownership.");
         }
 
-        var owned = (mapping is null ? 0 : 1) + (credentialOwned ? 1 : 0) + (label is null ? 0 : 1);
+        var owned = (mapping is null ? 0 : 1) + (credentialOwned ? 1 : 0) + (labelOwned ? 1 : 0);
         return owned switch
         {
             0 => "unmapped",
-            3 => "mapped",
+            3 when IsCompleteLabel(label, plan) => "mapped",
             _ => "partial",
         };
     }
+
+    private static bool ValidateLabel(
+        WindowsCircleFilesStoredLabel? label,
+        CircleFilesMemberMappingPlan plan)
+    {
+        if (label is null) return false;
+        if (label.OwnershipId.Length > 0 && label.OwnershipId != plan.OwnershipId
+            || label.KeyOwnershipId.Length > 0 && label.KeyOwnershipId != plan.OwnershipId
+            || label.FriendlyName.Length > 0 && label.FriendlyName != plan.FriendlyName
+            || label.FriendlyName.Length > 0 && label.OwnershipId != plan.OwnershipId
+            || label.OwnershipId.Length == 0 && label.KeyOwnershipId.Length == 0)
+        {
+            throw Collision(
+                "mapping_label_collision",
+                "The exact Explorer share label is already in use.");
+        }
+        return true;
+    }
+
+    private static bool IsCompleteLabel(
+        WindowsCircleFilesStoredLabel? label,
+        CircleFilesMemberMappingPlan plan) => label is not null
+            && label.FriendlyName == plan.FriendlyName
+            && label.OwnershipId == plan.OwnershipId;
 
     private void ValidateShare(
         CircleFilesMemberMappingRequest request,
@@ -468,10 +493,17 @@ public sealed class WindowsCircleFilesMemberMapper : ICircleFilesMemberMapper
     private static bool Same(string left, string right) =>
         string.Equals(left.TrimEnd('\\'), right.TrimEnd('\\'), StringComparison.OrdinalIgnoreCase);
 
-    private static void TryRollback(Action action)
+    private static bool TryRollback(Action action)
     {
-        try { action(); }
-        catch (Exception exception) when (exception is IOException or UnauthorizedAccessException) { }
+        try
+        {
+            action();
+            return true;
+        }
+        catch (Exception exception) when (exception is not OutOfMemoryException)
+        {
+            return false;
+        }
     }
 
     private static CircleFilesHostingException Collision(string code, string message) => new(code, message);
@@ -550,22 +582,28 @@ internal sealed class WindowsCircleFilesMappingOperations : IWindowsCircleFilesM
             var native = Marshal.PtrToStructure<NativeCredential>(pointer);
             var unicode = new byte[native.CredentialBlobSize];
             byte[]? utf8 = null;
+            var transferred = false;
             try
             {
                 if (unicode.Length > 0) Marshal.Copy(native.CredentialBlob, unicode, 0, unicode.Length);
                 var chars = Encoding.Unicode.GetChars(unicode);
                 try { utf8 = Encoding.UTF8.GetBytes(chars); }
                 finally { Array.Clear(chars); }
-                return new WindowsCircleFilesStoredCredential(
+                var stored = new WindowsCircleFilesStoredCredential(
                     native.TargetName ?? string.Empty,
                     native.UserName ?? string.Empty,
                     native.Comment ?? string.Empty,
                     utf8);
+                transferred = true;
+                return stored;
             }
             finally
             {
                 CryptographicOperations.ZeroMemory(unicode);
-                if (utf8 is null) { }
+                if (utf8 is not null && !transferred)
+                {
+                    CryptographicOperations.ZeroMemory(utf8);
+                }
             }
         }
         finally { CredFree(pointer); }
@@ -578,9 +616,10 @@ internal sealed class WindowsCircleFilesMappingOperations : IWindowsCircleFilesM
         ReadOnlySpan<byte> secret)
     {
         var unicode = ToUnicode(secret);
-        var blob = Marshal.AllocHGlobal(unicode.Length);
+        var blob = IntPtr.Zero;
         try
         {
+            blob = Marshal.AllocHGlobal(unicode.Length);
             Marshal.Copy(unicode, 0, blob, unicode.Length);
             var credential = new NativeCredential
             {
@@ -597,7 +636,7 @@ internal sealed class WindowsCircleFilesMappingOperations : IWindowsCircleFilesM
         finally
         {
             CryptographicOperations.ZeroMemory(unicode);
-            ZeroAndFree(blob, unicode.Length);
+            if (blob != IntPtr.Zero) ZeroAndFree(blob, unicode.Length);
         }
     }
 
@@ -607,8 +646,7 @@ internal sealed class WindowsCircleFilesMappingOperations : IWindowsCircleFilesM
         string accountName,
         ReadOnlySpan<byte> secret)
     {
-        var encoded = secret.ToArray();
-        var chars = Encoding.UTF8.GetChars(encoded);
+        var chars = ToNullTerminatedPassword(secret);
         try
         {
             var resource = new NativeNetResource
@@ -626,6 +664,20 @@ internal sealed class WindowsCircleFilesMappingOperations : IWindowsCircleFilesM
         finally
         {
             Array.Clear(chars);
+        }
+    }
+
+    internal static char[] ToNullTerminatedPassword(ReadOnlySpan<byte> secret)
+    {
+        var encoded = secret.ToArray();
+        try
+        {
+            var chars = new char[Encoding.UTF8.GetCharCount(encoded) + 1];
+            _ = Encoding.UTF8.GetChars(encoded, chars);
+            return chars;
+        }
+        finally
+        {
             CryptographicOperations.ZeroMemory(encoded);
         }
     }
@@ -667,23 +719,44 @@ internal sealed class WindowsCircleFilesMappingOperations : IWindowsCircleFilesM
         using var key = Registry.CurrentUser.OpenSubKey(LabelKey(uncPath));
         var name = key?.GetValue("_LabelFromReg") as string;
         var ownership = key?.GetValue("BallsOwnershipId") as string;
-        return name is null && ownership is null
+        var keyOwnership = key?.GetValue("BallsKeyOwnershipId") as string;
+        return name is null && ownership is null && keyOwnership is null
             ? null
-            : new WindowsCircleFilesStoredLabel(name ?? string.Empty, ownership ?? string.Empty);
+            : new WindowsCircleFilesStoredLabel(
+                name ?? string.Empty,
+                ownership ?? string.Empty,
+                keyOwnership ?? string.Empty);
     }
 
     public void SaveLabel(string uncPath, string friendlyName, string ownershipId)
     {
+        using var existing = Registry.CurrentUser.OpenSubKey(LabelKey(uncPath));
+        var keyExisted = existing is not null;
         using var key = Registry.CurrentUser.CreateSubKey(LabelKey(uncPath), writable: true)
             ?? throw new IOException("Windows did not create the Explorer label key.");
-        if (key.GetValue("_LabelFromReg") is not null || key.GetValue("BallsOwnershipId") is not null)
+        var name = key.GetValue("_LabelFromReg") as string;
+        var ownership = key.GetValue("BallsOwnershipId") as string;
+        var keyOwnership = key.GetValue("BallsKeyOwnershipId") as string;
+        if (ownership is not null && ownership != ownershipId
+            || keyOwnership is not null && keyOwnership != ownershipId
+            || name is not null && (name != friendlyName || ownership != ownershipId))
         {
             throw new CircleFilesHostingException(
                 "mapping_label_collision",
                 "The exact Explorer share label is already in use.");
         }
-        key.SetValue("_LabelFromReg", friendlyName, RegistryValueKind.String);
-        key.SetValue("BallsOwnershipId", ownershipId, RegistryValueKind.String);
+        if (!keyExisted && keyOwnership is null)
+        {
+            key.SetValue("BallsKeyOwnershipId", ownershipId, RegistryValueKind.String);
+        }
+        if (ownership is null)
+        {
+            key.SetValue("BallsOwnershipId", ownershipId, RegistryValueKind.String);
+        }
+        if (name is null)
+        {
+            key.SetValue("_LabelFromReg", friendlyName, RegistryValueKind.String);
+        }
     }
 
     public void UnmapDrive(string driveLetter, string expectedUncPath)
@@ -703,19 +776,33 @@ internal sealed class WindowsCircleFilesMappingOperations : IWindowsCircleFilesM
     public void DeleteLabel(string uncPath, string friendlyName, string ownershipId)
     {
         var path = LabelKey(uncPath);
+        var deleteOwnedKey = false;
+        var keyIsEmpty = false;
         using (var key = Registry.CurrentUser.OpenSubKey(path, writable: true))
         {
             if (key is null) return;
-            if (key.GetValue("_LabelFromReg") as string != friendlyName
-                || key.GetValue("BallsOwnershipId") as string != ownershipId)
+            var name = key.GetValue("_LabelFromReg") as string;
+            var ownership = key.GetValue("BallsOwnershipId") as string;
+            var keyOwnership = key.GetValue("BallsKeyOwnershipId") as string;
+            if (ownership is not null && ownership != ownershipId
+                || keyOwnership is not null && keyOwnership != ownershipId
+                || name is not null && (name != friendlyName || ownership != ownershipId)
+                || ownership is null && keyOwnership != ownershipId)
             {
                 throw new CircleFilesHostingException(
                     "mapping_resource_collision",
                     "The Explorer label is not the exact Balls-owned value and was preserved.");
             }
-            key.DeleteValue("_LabelFromReg", throwOnMissingValue: true);
-            key.DeleteValue("BallsOwnershipId", throwOnMissingValue: true);
+            if (name is not null) key.DeleteValue("_LabelFromReg", throwOnMissingValue: true);
+            if (ownership is not null) key.DeleteValue("BallsOwnershipId", throwOnMissingValue: true);
+            if (keyOwnership is not null)
+            {
+                deleteOwnedKey = true;
+                key.DeleteValue("BallsKeyOwnershipId", throwOnMissingValue: true);
+            }
+            keyIsEmpty = key.GetValueNames().Length == 0 && key.GetSubKeyNames().Length == 0;
         }
+        if (!deleteOwnedKey || !keyIsEmpty) return;
         try { Registry.CurrentUser.DeleteSubKey(path, throwOnMissingSubKey: false); }
         catch (InvalidOperationException) { }
     }
@@ -741,11 +828,14 @@ internal sealed class WindowsCircleFilesMappingOperations : IWindowsCircleFilesM
     private static byte[] ToUnicode(ReadOnlySpan<byte> secret)
     {
         var encoded = secret.ToArray();
-        var chars = Encoding.UTF8.GetChars(encoded);
-        try { return Encoding.Unicode.GetBytes(chars); }
+        try
+        {
+            var chars = Encoding.UTF8.GetChars(encoded);
+            try { return Encoding.Unicode.GetBytes(chars); }
+            finally { Array.Clear(chars); }
+        }
         finally
         {
-            Array.Clear(chars);
             CryptographicOperations.ZeroMemory(encoded);
         }
     }

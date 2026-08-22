@@ -184,6 +184,19 @@ describe("Balls browser workspace", () => {
           authorityGeneration: 1,
           authorizedAtUtc: "2026-08-22T12:00:00Z",
         },
+        {
+          id: "0198f2cc-6a50-7a08-aacb-298f4ebdf653",
+          circleId,
+          contributionId,
+          memberId: "0198f2cc-6a50-7a08-aacb-298f4ebdf654",
+          access: "read-only",
+          lifecycle: "defined",
+          generation: 1,
+          createdAtUtc: "2026-08-22T12:00:00Z",
+          authorizedByMemberId: details.members[0].id,
+          authorityGeneration: 1,
+          authorizedAtUtc: "2026-08-22T12:00:00Z",
+        },
       ],
     });
     const mappingPlan = (driveLetter: string) => ({
@@ -235,10 +248,24 @@ describe("Balls browser workspace", () => {
       within(form).getByRole("button", { name: "Preview exact mapping" }),
     );
     expect(await within(form).findByText(/M: →/)).toBeInTheDocument();
+    fireEvent.change(drive, { target: { value: "N" } });
+    expect(
+      within(form).queryByRole("button", { name: "Unmap" }),
+    ).not.toBeInTheDocument();
+    fireEvent.click(
+      within(form).getByRole("button", { name: "Preview exact mapping" }),
+    );
+    expect(await within(form).findByText(/N: →/)).toBeInTheDocument();
     fireEvent.click(
       within(form).getByRole("button", { name: "Map in Explorer" }),
     );
     expect(await within(form).findByRole("status")).toHaveTextContent("mapped");
+    fireEvent.change(within(form).getByLabelText("Grant"), {
+      target: { value: "0198f2cc-6a50-7a08-aacb-298f4ebdf653" },
+    });
+    expect(
+      within(form).queryByRole("button", { name: "Unmap" }),
+    ).not.toBeInTheDocument();
   });
 
   it("announces when Circle creation is busy", async () => {

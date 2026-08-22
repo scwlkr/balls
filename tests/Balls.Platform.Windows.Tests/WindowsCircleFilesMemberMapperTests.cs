@@ -73,7 +73,7 @@ public sealed class WindowsCircleFilesMemberMapperTests
 
         operations.DriveAccessible = false;
         operations.Events.Clear();
-        var disconnected = await mapper.InspectAsync(Request, Secret, CancellationToken.None);
+        var disconnected = await mapper.InspectAsync(Request, CancellationToken.None);
         Assert.AreEqual("partial", disconnected.Status);
         var reconnect = await mapper.MapAsync(Request, plan.PlanId, Secret, CancellationToken.None);
         Assert.AreEqual("already-mapped", reconnect.Status);
@@ -104,6 +104,54 @@ public sealed class WindowsCircleFilesMemberMapperTests
             operations.Events.ToArray());
         Assert.IsNull(operations.Mapping);
         Assert.IsNull(operations.Credential);
+    }
+
+    [TestMethod]
+    public async Task Failed_exact_rollback_is_typed_and_preserves_the_ownership_witness()
+    {
+        var operations = new StubOperations
+        {
+            AvailableLetters = ["M"],
+            DriveDeleteFailure = new IOException("Injected exact cleanup failure."),
+        };
+        operations.ShareEntries.Remove($".balls-grant-{Request.GrantId}-g1-v1.json");
+        var mapper = new WindowsCircleFilesMemberMapper(operations);
+        var plan = await mapper.PreviewAsync(Request, CancellationToken.None);
+
+        var error = await Assert.ThrowsExactlyAsync<CircleFilesHostingException>(
+            () => mapper.MapAsync(Request, plan.PlanId, Secret, CancellationToken.None).AsTask());
+
+        Assert.AreEqual("mapping_recovery_incomplete", error.Code);
+        Assert.AreEqual(plan.UncPath, operations.Mapping);
+        Assert.IsNotNull(operations.Credential);
+        CollectionAssert.AreEqual(
+            new[]
+            {
+                "endpoint:probe", "credential:save", "drive:map", "share:validate",
+                "drive:delete",
+            },
+            operations.Events.ToArray());
+    }
+
+    [TestMethod]
+    public async Task Failed_reconnect_rollback_is_typed()
+    {
+        var operations = new StubOperations { AvailableLetters = ["M"] };
+        var mapper = new WindowsCircleFilesMemberMapper(operations);
+        var plan = await mapper.PreviewAsync(Request, CancellationToken.None);
+        _ = await mapper.MapAsync(Request, plan.PlanId, Secret, CancellationToken.None);
+        operations.DriveAccessible = false;
+        operations.ShareEntries.Remove($".balls-grant-{Request.GrantId}-g1-v1.json");
+        operations.DisconnectFailure = new IOException("Injected session cleanup failure.");
+        operations.Events.Clear();
+
+        var error = await Assert.ThrowsExactlyAsync<CircleFilesHostingException>(
+            () => mapper.MapAsync(Request, plan.PlanId, Secret, CancellationToken.None).AsTask());
+
+        Assert.AreEqual("mapping_recovery_incomplete", error.Code);
+        CollectionAssert.AreEqual(
+            new[] { "endpoint:probe", "drive:reconnect", "share:validate", "drive:disconnect" },
+            operations.Events.ToArray());
     }
 
     [TestMethod]
@@ -140,12 +188,12 @@ public sealed class WindowsCircleFilesMemberMapperTests
 
         operations.Mapping = @"\\192.168.50.10\someone-elses-share";
         var collision = await Assert.ThrowsExactlyAsync<CircleFilesHostingException>(
-            () => mapper.UnmapAsync(Request, Secret, CancellationToken.None).AsTask());
+            () => mapper.UnmapAsync(Request, CancellationToken.None).AsTask());
         Assert.AreEqual("mapping_resource_collision", collision.Code);
 
         operations.Mapping = plan.UncPath;
         operations.Events.Clear();
-        var result = await mapper.UnmapAsync(Request, Secret, CancellationToken.None);
+        var result = await mapper.UnmapAsync(Request, CancellationToken.None);
         Assert.AreEqual("unmapped", result.Status);
         CollectionAssert.AreEqual(
             new[] { "drive:delete", "label:delete", "credential:delete" },
@@ -170,12 +218,52 @@ public sealed class WindowsCircleFilesMemberMapperTests
         Assert.AreEqual("mapping_drive_collision", mapError.Code);
 
         var unmapError = await Assert.ThrowsExactlyAsync<CircleFilesHostingException>(
-            () => mapper.UnmapAsync(Request, Secret, CancellationToken.None).AsTask());
+            () => mapper.UnmapAsync(Request, CancellationToken.None).AsTask());
         Assert.AreEqual("mapping_drive_collision", unmapError.Code);
         Assert.AreEqual(plan.UncPath, operations.Mapping);
         Assert.IsNull(operations.Credential);
         Assert.IsNull(operations.Label);
         Assert.AreEqual(0, operations.Events.Count);
+    }
+
+    [TestMethod]
+    public async Task Exact_partial_label_is_completed_and_can_be_removed_after_restart()
+    {
+        var operations = new StubOperations { AvailableLetters = ["M"] };
+        var mapper = new WindowsCircleFilesMemberMapper(operations);
+        var plan = await mapper.PreviewAsync(Request, CancellationToken.None);
+        operations.Credential = new(
+            plan.CredentialTarget, Request.AccountName, plan.OwnershipId, Secret.ToArray());
+        operations.Mapping = plan.UncPath;
+        operations.DriveAccessible = true;
+        operations.Label = new("", plan.OwnershipId, plan.OwnershipId);
+
+        var inspection = await mapper.InspectAsync(Request, CancellationToken.None);
+        Assert.AreEqual("partial", inspection.Status);
+
+        var result = await mapper.MapAsync(Request, plan.PlanId, Secret, CancellationToken.None);
+        Assert.AreEqual("mapped", result.Status);
+        Assert.AreEqual(plan.FriendlyName, operations.Label.FriendlyName);
+        Assert.AreEqual(plan.OwnershipId, operations.Label.OwnershipId);
+
+        var unmap = await mapper.UnmapAsync(Request, CancellationToken.None);
+        Assert.AreEqual("unmapped", unmap.Status);
+        Assert.IsNull(operations.Label);
+    }
+
+    [TestMethod]
+    public void Native_password_buffer_is_explicitly_null_terminated()
+    {
+        var chars = WindowsCircleFilesMappingOperations.ToNullTerminatedPassword(Secret);
+        try
+        {
+            Assert.AreEqual('\0', chars[^1]);
+            Assert.AreEqual(Encoding.UTF8.GetString(Secret), new string(chars, 0, chars.Length - 1));
+        }
+        finally
+        {
+            Array.Clear(chars);
+        }
     }
 
     private sealed class StubOperations : IWindowsCircleFilesMappingOperations
@@ -187,6 +275,8 @@ public sealed class WindowsCircleFilesMemberMapperTests
         public HashSet<string> ShareEntries { get; } =
             [".balls-owned-v1.json", $".balls-grant-{Request.GrantId}-g1-v1.json"];
         public IOException? EndpointFailure { get; set; }
+        public IOException? DriveDeleteFailure { get; set; }
+        public IOException? DisconnectFailure { get; set; }
         public bool DriveAccessible { get; set; }
         public List<string> Events { get; } = [];
 
@@ -225,6 +315,7 @@ public sealed class WindowsCircleFilesMemberMapperTests
         public void DisconnectDriveSession(string driveLetter, string expectedUncPath)
         {
             Events.Add("drive:disconnect");
+            if (DisconnectFailure is not null) throw DisconnectFailure;
             DriveAccessible = false;
         }
 
@@ -246,6 +337,7 @@ public sealed class WindowsCircleFilesMemberMapperTests
         public void UnmapDrive(string driveLetter, string expectedUncPath)
         {
             Events.Add("drive:delete");
+            if (DriveDeleteFailure is not null) throw DriveDeleteFailure;
             Mapping = null;
             DriveAccessible = false;
         }

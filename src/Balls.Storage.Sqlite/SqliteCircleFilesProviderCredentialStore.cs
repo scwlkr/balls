@@ -29,6 +29,34 @@ public sealed partial class SqliteLocalStateStore : ICircleFilesProviderCredenti
         );
         """;
 
+    public Task<CircleFilesProviderCredentialBinding?> GetActiveCircleFilesProviderCredentialBindingAsync(
+        string grantId,
+        CancellationToken cancellationToken = default) =>
+        ExecuteLockedAsync(
+            async token =>
+            {
+                if (!Guid.TryParseExact(grantId, "D", out _))
+                {
+                    throw new ArgumentException("Grant ID must be a canonical UUID.", nameof(grantId));
+                }
+                using var command = connection.CreateCommand();
+                command.CommandText =
+                    """
+                    SELECT grant_id, circle_id, contribution_id, member_id, provider,
+                           account_name, ownership_id, access, generation
+                    FROM circle_files_provider_credentials
+                    WHERE grant_id = $grant_id AND lifecycle = 2;
+                    """;
+                command.Parameters.AddWithValue("$grant_id", grantId);
+                await using var reader = await command.ExecuteReaderAsync(token).ConfigureAwait(false);
+                if (!await reader.ReadAsync(token).ConfigureAwait(false)) return null;
+                return new CircleFilesProviderCredentialBinding(
+                    reader.GetString(0), reader.GetString(1), reader.GetString(2),
+                    reader.GetString(3), reader.GetString(4), reader.GetString(5),
+                    reader.GetString(6), reader.GetString(7), reader.GetInt64(8));
+            },
+            cancellationToken);
+
     public Task<CircleFilesProviderCredentialMaterial?> GetActiveCircleFilesProviderCredentialAsync(
         string grantId,
         CancellationToken cancellationToken = default) =>
