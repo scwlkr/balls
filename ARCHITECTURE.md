@@ -486,9 +486,10 @@ No Windows command, registry type, SMB type, or firewall type crosses into Core.
 The Windows adapter runs one fixed, encoded PowerShell inspection with no caller-controlled input.
 Its exact command allowlist reads Windows version, SMB server/client configuration, required
 command metadata, connected network profiles, firewall profiles, and active inbound firewall
-rule/port filters. The child process has a 10-second timeout and one combined 64 KiB output budget
-for both redirected streams. Missing, malformed, forward-unknown, timed-out, or failed observations
-become deterministic redacted `unknown` checks rather than raw command output.
+rule/port filters. The child process has a 10-second timeout and one combined 65,536-character
+decoded-output budget for both redirected streams. Missing, malformed, forward-unknown, timed-out,
+or failed observations become deterministic redacted `unknown` checks rather than raw command
+output.
 
 The report evaluates the supported Windows generation, running SMB server with SMB 2/3 enabled,
 SMB 3.1.1 availability, SMB1 disabled, insecure guest logons disabled, server signing required,

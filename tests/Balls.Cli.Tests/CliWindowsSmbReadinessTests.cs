@@ -3,6 +3,7 @@ using Balls.Cli;
 using Balls.Daemon;
 using Balls.Platform;
 using Balls.Protocol.Control.V1;
+using static Balls.Cli.Tests.CliTestSupport;
 
 namespace Balls.Cli.Tests;
 
@@ -42,44 +43,4 @@ public sealed class CliWindowsSmbReadinessTests
         Assert.AreEqual(string.Empty, text.StandardError);
     }
 
-    private static async Task<CliResult> RunAsync(string pipeName, params string[] command)
-    {
-        var output = new StringWriter();
-        var error = new StringWriter();
-        var arguments = new[] { "--pipe-name", pipeName }.Concat(command).ToArray();
-        var exitCode = await CliApplication.RunAsync(arguments, output, error);
-        return new CliResult(exitCode, output.ToString().Trim(), error.ToString().Trim());
-    }
-
-    private static T DeserializeResult<T>(string json)
-    {
-        using var document = JsonDocument.Parse(json);
-        Assert.AreEqual(1, document.RootElement.GetProperty("outputVersion").GetInt32());
-        return document.RootElement.GetProperty("result").Deserialize<T>(ControlJson.Options)
-            ?? throw new AssertFailedException("CLI result was null.");
-    }
-
-    private sealed record CliResult(int ExitCode, string StandardOutput, string StandardError);
-
-    private sealed class TemporaryDirectory : IDisposable
-    {
-        public TemporaryDirectory()
-        {
-            Path = System.IO.Path.Combine(
-                System.IO.Path.GetTempPath(),
-                "balls-tests",
-                Guid.NewGuid().ToString("N"));
-            Directory.CreateDirectory(Path);
-        }
-
-        public string Path { get; }
-
-        public void Dispose()
-        {
-            if (Directory.Exists(Path))
-            {
-                Directory.Delete(Path, recursive: true);
-            }
-        }
-    }
 }

@@ -63,26 +63,8 @@ public sealed class WindowsPowerShellProcessTests
             return;
         }
 
-        var executable = Path.Combine(
-            Environment.GetFolderPath(Environment.SpecialFolder.System),
-            "WindowsPowerShell",
-            "v1.0",
-            "powershell.exe");
-        var startInfo = new ProcessStartInfo
-        {
-            FileName = executable,
-            CreateNoWindow = true,
-            UseShellExecute = false,
-            RedirectStandardOutput = true,
-            RedirectStandardError = true,
-            StandardOutputEncoding = Encoding.UTF8,
-            StandardErrorEncoding = Encoding.UTF8,
-        };
-        startInfo.ArgumentList.Add("-NoLogo");
-        startInfo.ArgumentList.Add("-NoProfile");
-        startInfo.ArgumentList.Add("-NonInteractive");
-        startInfo.ArgumentList.Add("-Command");
-        startInfo.ArgumentList.Add("Start-Sleep -Seconds 30; 'unexpected'");
+        var startInfo = CreatePowerShellStartInfo(
+            "Start-Sleep -Seconds 30; 'unexpected'");
 
         var error = await Assert.ThrowsExactlyAsync<WindowsInspectionException>(
             () => BoundedWindowsInspectionProcessRunner.RunAsync(
@@ -106,26 +88,7 @@ public sealed class WindowsPowerShellProcessTests
             return;
         }
 
-        var executable = Path.Combine(
-            Environment.GetFolderPath(Environment.SpecialFolder.System),
-            "WindowsPowerShell",
-            "v1.0",
-            "powershell.exe");
-        var startInfo = new ProcessStartInfo
-        {
-            FileName = executable,
-            CreateNoWindow = true,
-            UseShellExecute = false,
-            RedirectStandardOutput = true,
-            RedirectStandardError = true,
-            StandardOutputEncoding = Encoding.UTF8,
-            StandardErrorEncoding = Encoding.UTF8,
-        };
-        startInfo.ArgumentList.Add("-NoLogo");
-        startInfo.ArgumentList.Add("-NoProfile");
-        startInfo.ArgumentList.Add("-NonInteractive");
-        startInfo.ArgumentList.Add("-Command");
-        startInfo.ArgumentList.Add(standardError
+        var startInfo = CreatePowerShellStartInfo(standardError
             ? "[Console]::Error.Write(('x' * 4096)); Start-Sleep -Seconds 30"
             : "[Console]::Out.Write(('x' * 4096)); Start-Sleep -Seconds 30");
         var stopwatch = Stopwatch.StartNew();
@@ -157,5 +120,29 @@ public sealed class WindowsPowerShellProcessTests
         Assert.AreEqual(CircleFilesReadinessProviders.WindowsSmb311, report.Provider);
         Assert.HasCount(9, report.Checks);
         Assert.IsTrue(Enum.IsDefined(report.Status));
+    }
+
+    private static ProcessStartInfo CreatePowerShellStartInfo(string command)
+    {
+        var startInfo = new ProcessStartInfo
+        {
+            FileName = Path.Combine(
+                Environment.GetFolderPath(Environment.SpecialFolder.System),
+                "WindowsPowerShell",
+                "v1.0",
+                "powershell.exe"),
+            CreateNoWindow = true,
+            UseShellExecute = false,
+            RedirectStandardOutput = true,
+            RedirectStandardError = true,
+            StandardOutputEncoding = Encoding.UTF8,
+            StandardErrorEncoding = Encoding.UTF8,
+        };
+        startInfo.ArgumentList.Add("-NoLogo");
+        startInfo.ArgumentList.Add("-NoProfile");
+        startInfo.ArgumentList.Add("-NonInteractive");
+        startInfo.ArgumentList.Add("-Command");
+        startInfo.ArgumentList.Add(command);
+        return startInfo;
     }
 }

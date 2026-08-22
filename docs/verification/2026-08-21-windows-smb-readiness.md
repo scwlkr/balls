@@ -9,7 +9,8 @@
 - `Balls.Platform` owns a provider-neutral readiness contract. The Windows adapter stays in
   `Balls.Platform.Windows`; Core has no Windows command, SMB, registry, network, or firewall type.
 - The adapter executes one exact encoded PowerShell inspection with no caller-controlled input, a
-  10-second timeout, a 64 KiB output cap, strict typed parsing, and deterministic redacted failures.
+  10-second timeout, one combined 65,536-character decoded-output budget for both streams, strict
+  typed parsing, and deterministic redacted failures.
 - Nine stable checks cover the supported Windows generation, SMB server/SMB 2+ availability, SMB
   3.1.1, SMB1, insecure guest access, signing, encryption, connected Private network scope, and
   Private/Public firewall enforceability including Public/Any inbound allow rules whose port scope
