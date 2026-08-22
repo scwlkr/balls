@@ -57,8 +57,6 @@ public sealed class WindowsCircleFilesMemberMapperTests
         var operations = new StubOperations { AvailableLetters = ["M", "N"] };
         var mapper = new WindowsCircleFilesMemberMapper(operations);
         var plan = await mapper.PreviewAsync(Request, CancellationToken.None);
-        operations.HostMarker = HostMarker();
-        operations.GrantMarker = GrantMarker(plan);
 
         var result = await mapper.MapAsync(Request, plan.PlanId, Secret, CancellationToken.None);
 
@@ -80,11 +78,7 @@ public sealed class WindowsCircleFilesMemberMapperTests
         var operations = new StubOperations { AvailableLetters = ["M"] };
         var mapper = new WindowsCircleFilesMemberMapper(operations);
         var plan = await mapper.PreviewAsync(Request, CancellationToken.None);
-        operations.HostMarker = HostMarker();
-        operations.GrantMarker = GrantMarker(plan).Replace(
-            Request.GrantOwnershipId,
-            new string('b', 64),
-            StringComparison.Ordinal);
+        operations.ShareEntries = [".balls-owned-v1.json", ".balls-grant-wrong-g1-v1.json"];
 
         var error = await Assert.ThrowsExactlyAsync<CircleFilesHostingException>(
             () => mapper.MapAsync(Request, plan.PlanId, Secret, CancellationToken.None).AsTask());
@@ -131,8 +125,6 @@ public sealed class WindowsCircleFilesMemberMapperTests
         var operations = new StubOperations { AvailableLetters = ["M"] };
         var mapper = new WindowsCircleFilesMemberMapper(operations);
         var plan = await mapper.PreviewAsync(Request, CancellationToken.None);
-        operations.HostMarker = HostMarker();
-        operations.GrantMarker = GrantMarker(plan);
         _ = await mapper.MapAsync(Request, plan.PlanId, Secret, CancellationToken.None);
 
         operations.Mapping = @"\\192.168.50.10\someone-elses-share";
@@ -149,25 +141,14 @@ public sealed class WindowsCircleFilesMemberMapperTests
             operations.Events.ToArray());
     }
 
-    private static string HostMarker() =>
-        $$"""
-        {"circleId":"{{Request.CircleId}}","contractVersion":1,"contributionId":"{{Request.ContributionId}}","ownershipId":"host","providerId":"{{Request.ProviderId}}"}
-        """;
-
-    private static string GrantMarker(CircleFilesMemberMappingPlan plan) =>
-        $$"""
-        {"ContractVersion":1,"OwnershipId":"{{Request.GrantOwnershipId}}","CircleId":"{{Request.CircleId}}","ContributionId":"{{Request.ContributionId}}","GrantId":"{{Request.GrantId}}","MemberId":"{{Request.MemberId}}","Access":"{{Request.Access}}","Generation":{{Request.Generation}},"AccountName":"{{Request.AccountName}}"}
-        """;
-
     private sealed class StubOperations : IWindowsCircleFilesMappingOperations
     {
         public IReadOnlyList<string> AvailableLetters { get; set; } = [];
         public string? Mapping { get; set; }
         public WindowsCircleFilesStoredCredential? Credential { get; set; }
         public WindowsCircleFilesStoredLabel? Label { get; set; }
-        public string HostMarker { get; set; } = "{}";
-        public string GrantMarker { get; set; } = "{}";
-        public IOException? ShareReadFailure { get; set; }
+        public IReadOnlyList<string> ShareEntries { get; set; } =
+            [".balls-owned-v1.json", $".balls-grant-{Request.GrantId}-g1-v1.json"];
         public IOException? EndpointFailure { get; set; }
         public List<string> Events { get; } = [];
 
@@ -194,12 +175,10 @@ public sealed class WindowsCircleFilesMemberMapperTests
             Mapping = uncPath;
         }
 
-        public string ReadShareFile(string uncPath, string fileName)
+        public IReadOnlyList<string> ListShareEntries(string uncPath)
         {
-            if (ShareReadFailure is not null) throw ShareReadFailure;
-            if (fileName == ".balls-owned-v1.json") return HostMarker;
             Events.Add("share:validate");
-            return GrantMarker;
+            return ShareEntries;
         }
 
         public void SaveLabel(string uncPath, string friendlyName, string ownershipId)

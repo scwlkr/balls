@@ -4,7 +4,6 @@ using System.Runtime.InteropServices;
 using System.Runtime.Versioning;
 using System.Security.Cryptography;
 using System.Text;
-using System.Text.Json;
 using Balls.Platform;
 using Microsoft.Win32;
 
@@ -41,7 +40,7 @@ internal interface IWindowsCircleFilesMappingOperations
     void ProbeEndpoint(string endpoint);
     void SaveCredential(string target, string accountName, string ownershipId, ReadOnlySpan<byte> secret);
     void MapDrive(string driveLetter, string uncPath, string accountName, ReadOnlySpan<byte> secret);
-    string ReadShareFile(string uncPath, string fileName);
+    IReadOnlyList<string> ListShareEntries(string uncPath);
     void SaveLabel(string uncPath, string friendlyName, string ownershipId);
     void UnmapDrive(string driveLetter, string expectedUncPath);
     void DeleteLabel(string uncPath, string friendlyName, string ownershipId);
@@ -328,27 +327,11 @@ public sealed class WindowsCircleFilesMemberMapper : ICircleFilesMemberMapper
     {
         try
         {
-            using var host = JsonDocument.Parse(
-                operations.ReadShareFile(plan.UncPath, ".balls-owned-v1.json"));
-            using var grant = JsonDocument.Parse(
-                operations.ReadShareFile(
-                    plan.UncPath,
-                    $".balls-grant-{request.GrantId}-g{request.Generation}-v1.json"));
-            var hostRoot = host.RootElement;
-            var grantRoot = grant.RootElement;
-            if (!JsonEquals(hostRoot, "circleId", request.CircleId)
-                || !JsonEquals(hostRoot, "contributionId", request.ContributionId)
-                || !JsonEquals(hostRoot, "providerId", request.ProviderId)
-                || !JsonNumberEquals(hostRoot, "contractVersion", 1)
-                || !JsonEquals(grantRoot, "OwnershipId", request.GrantOwnershipId)
-                || !JsonEquals(grantRoot, "CircleId", request.CircleId)
-                || !JsonEquals(grantRoot, "ContributionId", request.ContributionId)
-                || !JsonEquals(grantRoot, "GrantId", request.GrantId)
-                || !JsonEquals(grantRoot, "MemberId", request.MemberId)
-                || !JsonEquals(grantRoot, "AccountName", request.AccountName)
-                || !JsonEquals(grantRoot, "Access", request.Access)
-                || !JsonNumberEquals(grantRoot, "Generation", request.Generation)
-                || !JsonNumberEquals(grantRoot, "ContractVersion", 1))
+            var entries = operations.ListShareEntries(plan.UncPath);
+            if (!entries.Contains(".balls-owned-v1.json", StringComparer.Ordinal)
+                || !entries.Contains(
+                    $".balls-grant-{request.GrantId}-g{request.Generation}-v1.json",
+                    StringComparer.Ordinal))
             {
                 throw ShareMismatch();
             }
@@ -357,11 +340,11 @@ public sealed class WindowsCircleFilesMemberMapper : ICircleFilesMemberMapper
         {
             throw;
         }
-        catch (JsonException)
+        catch (UnauthorizedAccessException)
         {
             throw ShareMismatch();
         }
-        catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
+        catch (IOException)
         {
             throw new CircleFilesHostingException(
                 "mapping_endpoint_unreachable",
@@ -411,16 +394,6 @@ public sealed class WindowsCircleFilesMemberMapper : ICircleFilesMemberMapper
             || bytes[0] == 192 && bytes[1] == 168
             || bytes[0] == 172 && bytes[1] is >= 16 and <= 31;
     }
-
-    private static bool JsonEquals(JsonElement root, string name, string expected) =>
-        root.TryGetProperty(name, out var value)
-        && value.ValueKind == JsonValueKind.String
-        && value.GetString() == expected;
-
-    private static bool JsonNumberEquals(JsonElement root, string name, long expected) =>
-        root.TryGetProperty(name, out var value)
-        && value.TryGetInt64(out var actual)
-        && actual == expected;
 
     private static void ValidatePlanId(string expected, string actual)
     {
@@ -610,8 +583,12 @@ internal sealed class WindowsCircleFilesMappingOperations : IWindowsCircleFilesM
         }
     }
 
-    public string ReadShareFile(string uncPath, string fileName) =>
-        File.ReadAllText(Path.Combine(uncPath, fileName), Encoding.UTF8);
+    public IReadOnlyList<string> ListShareEntries(string uncPath) =>
+        Directory.EnumerateFileSystemEntries(uncPath)
+            .Select(Path.GetFileName)
+            .Where(name => name is not null)
+            .Cast<string>()
+            .ToArray();
 
     public WindowsCircleFilesStoredLabel? GetLabel(string uncPath)
     {

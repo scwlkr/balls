@@ -313,7 +313,8 @@ The endpoint is a canonical numeric private/loopback IPv4 address. The daemon de
 share, account, credential target, marker names, and friendly Circle name from current authorized
 state and the active DPAPI-protected grant credential. Map stores that credential in the current
 user's Credential Manager, creates a persistent `CONNECT_UPDATE_PROFILE` drive without elevation,
-then verifies both ownership markers through the mapped share before setting the Explorer label.
+then verifies authenticated directory access and the two exact protected marker names through the
+mapped share before setting the Explorer label. Marker contents remain unreadable to the grant.
 Unmap uses non-forced persistent removal and deletes the label and credential only when all exact
 ownership fields still match. The CLI commands are `balls files mapping
 preview|map|inspect|unmap`; only `map` accepts `--plan`.

@@ -12,8 +12,9 @@
   active DPAPI-protected per-grant secret. Password bytes do not enter local-control, CLI, browser
   bodies, browser storage, process arguments, logs, or evidence.
 - Windows saves one domain-password credential for the exact numeric private endpoint, maps the
-  exact UNC persistently with `CONNECT_UPDATE_PROFILE`, validates host and grant markers through
-  SMB, and writes a friendly Circle label with an exact ownership value.
+  exact UNC persistently with `CONNECT_UPDATE_PROFILE`, verifies authenticated directory access
+  and both exact protected marker names through SMB, and writes a friendly Circle label with an
+  exact ownership value. Marker contents remain hidden from the limited account.
 - Inspect and unmap compare exact drive/UNC, account, credential ownership comment, label, and
   ownership ID. Unmap uses `force=false`; mismatched or open resources are preserved.
 
