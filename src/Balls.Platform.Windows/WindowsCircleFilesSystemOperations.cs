@@ -517,6 +517,7 @@ internal sealed class WindowsCircleFilesPowerShell
         $ProgressPreference = 'SilentlyContinue'
         $request = [Console]::In.ReadToEnd() | Microsoft.PowerShell.Utility\ConvertFrom-Json
         $description = [string]$request.Description
+        $ownerAccount = ([System.Security.Principal.SecurityIdentifier]([string]$request.OwnerSid)).Translate([System.Security.Principal.NTAccount]).Value
 
         function Get-ShareState {
             $share = SmbShare\Get-SmbShare -Name ([string]$request.ShareName) -ErrorAction SilentlyContinue
@@ -546,7 +547,7 @@ internal sealed class WindowsCircleFilesPowerShell
             'InspectShare' { $state = Get-ShareState }
             'CreateShare' {
                 if ((Get-ShareState) -ne 'Missing') { throw 'share collision' }
-                SmbShare\New-SmbShare -Name ([string]$request.ShareName) -Path ([string]$request.Path) -Description $description -FullAccess ([string]$request.OwnerSid) -EncryptData $true -FolderEnumerationMode AccessBased -CachingMode None -ErrorAction Stop | Out-Null
+                SmbShare\New-SmbShare -Name ([string]$request.ShareName) -Path ([string]$request.Path) -Description $description -FullAccess $ownerAccount -EncryptData $true -FolderEnumerationMode AccessBased -CachingMode None -ErrorAction Stop | Out-Null
                 $state = Get-ShareState
             }
             'RemoveShare' {

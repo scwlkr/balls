@@ -138,6 +138,7 @@ public sealed class WindowsCircleFilesHostingTests
         StringAssert.Contains(script, "-Profile Private");
         StringAssert.Contains(script, "-RemoteAddress LocalSubnet");
         StringAssert.Contains(script, "-Service LanmanServer");
+        StringAssert.Contains(script, "Translate([System.Security.Principal.NTAccount])");
         Assert.IsFalse(script.Contains("Invoke-Expression", StringComparison.OrdinalIgnoreCase));
         Assert.IsFalse(script.Contains("ScriptBlock", StringComparison.OrdinalIgnoreCase));
         Assert.IsFalse(script.Contains("-Profile Public", StringComparison.OrdinalIgnoreCase));
