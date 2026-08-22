@@ -1,6 +1,6 @@
+using System.Runtime.Versioning;
 using Balls.Platform;
 using Balls.Platform.Windows;
-using System.Runtime.Versioning;
 
 namespace Balls.Platform.Windows.Tests;
 
