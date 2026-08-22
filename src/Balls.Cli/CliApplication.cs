@@ -516,6 +516,14 @@ public static class CliApplication
                     client, tokens, outputFormat, standardOutput, standardError, cancellationToken),
                 ("grant", "credential-apply") => ApplyFilesGrantCredentialAsync(
                     client, tokens, outputFormat, standardOutput, standardError, cancellationToken),
+                ("mapping", "preview") => PreviewFilesMappingAsync(
+                    client, tokens, outputFormat, standardOutput, standardError, cancellationToken),
+                ("mapping", "map") => MapFilesMappingAsync(
+                    client, tokens, outputFormat, standardOutput, standardError, cancellationToken),
+                ("mapping", "inspect") => InspectFilesMappingAsync(
+                    client, tokens, outputFormat, standardOutput, standardError, cancellationToken),
+                ("mapping", "unmap") => UnmapFilesMappingAsync(
+                    client, tokens, outputFormat, standardOutput, standardError, cancellationToken),
                 ("host", "preview") => PreviewFilesHostAsync(
                     client, tokens, outputFormat, standardOutput, standardError, cancellationToken),
                 ("host", "apply") => ApplyFilesHostAsync(
@@ -860,6 +868,145 @@ public static class CliApplication
             output, outputFormat, result.Value, CliOutput.RenderAppliedFilesGrantCredential);
         return CliExitCodes.Success;
     }
+
+    private static async Task<int> PreviewFilesMappingAsync(
+        HttpClient client,
+        IReadOnlyList<string> tokens,
+        CliOutputFormat outputFormat,
+        TextWriter output,
+        TextWriter error,
+        CancellationToken cancellationToken)
+    {
+        if (!TryParseFilesMappingOptions(tokens, includePlan: false, out var values, out var parseError))
+        {
+            return await WriteUsageErrorAsync(error, outputFormat, parseError!);
+        }
+        using var response = await client.PostAsJsonAsync(
+            ControlRoutes.CircleFilesMemberMappingPreview(
+                values.CircleId, values.ContributionId, values.GrantId),
+            new PreviewCircleFilesMemberMappingRequest(values.Endpoint, values.DriveLetter),
+            ControlJson.Options,
+            cancellationToken).ConfigureAwait(false);
+        var result = await ReadResponseAsync<CircleFilesMemberMappingPlanResponse>(
+            response, outputFormat, error, cancellationToken).ConfigureAwait(false);
+        if (result.Value is null) return result.ExitCode;
+        await WriteResultAsync(output, outputFormat, result.Value, CliOutput.RenderFilesMappingPlan);
+        return CliExitCodes.Success;
+    }
+
+    private static async Task<int> MapFilesMappingAsync(
+        HttpClient client,
+        IReadOnlyList<string> tokens,
+        CliOutputFormat outputFormat,
+        TextWriter output,
+        TextWriter error,
+        CancellationToken cancellationToken)
+    {
+        if (!TryParseFilesMappingOptions(tokens, includePlan: true, out var values, out var parseError))
+        {
+            return await WriteUsageErrorAsync(error, outputFormat, parseError!);
+        }
+        using var response = await client.PostAsJsonAsync(
+            ControlRoutes.CircleFilesMemberMappingMap(
+                values.CircleId, values.ContributionId, values.GrantId),
+            new ApplyCircleFilesMemberMappingRequest(
+                values.Endpoint, values.DriveLetter, values.PlanId!),
+            ControlJson.Options,
+            cancellationToken).ConfigureAwait(false);
+        var result = await ReadResponseAsync<CircleFilesMemberMappingResultResponse>(
+            response, outputFormat, error, cancellationToken).ConfigureAwait(false);
+        if (result.Value is null) return result.ExitCode;
+        await WriteResultAsync(output, outputFormat, result.Value, CliOutput.RenderFilesMappingResult);
+        return CliExitCodes.Success;
+    }
+
+    private static async Task<int> InspectFilesMappingAsync(
+        HttpClient client,
+        IReadOnlyList<string> tokens,
+        CliOutputFormat outputFormat,
+        TextWriter output,
+        TextWriter error,
+        CancellationToken cancellationToken)
+    {
+        if (!TryParseFilesMappingOptions(tokens, includePlan: false, out var values, out var parseError))
+        {
+            return await WriteUsageErrorAsync(error, outputFormat, parseError!);
+        }
+        using var response = await client.PostAsJsonAsync(
+            ControlRoutes.CircleFilesMemberMappingInspect(
+                values.CircleId, values.ContributionId, values.GrantId),
+            new InspectCircleFilesMemberMappingRequest(values.Endpoint, values.DriveLetter),
+            ControlJson.Options,
+            cancellationToken).ConfigureAwait(false);
+        var result = await ReadResponseAsync<CircleFilesMemberMappingInspectionResponse>(
+            response, outputFormat, error, cancellationToken).ConfigureAwait(false);
+        if (result.Value is null) return result.ExitCode;
+        await WriteResultAsync(output, outputFormat, result.Value, CliOutput.RenderFilesMappingInspection);
+        return CliExitCodes.Success;
+    }
+
+    private static async Task<int> UnmapFilesMappingAsync(
+        HttpClient client,
+        IReadOnlyList<string> tokens,
+        CliOutputFormat outputFormat,
+        TextWriter output,
+        TextWriter error,
+        CancellationToken cancellationToken)
+    {
+        if (!TryParseFilesMappingOptions(tokens, includePlan: false, out var values, out var parseError))
+        {
+            return await WriteUsageErrorAsync(error, outputFormat, parseError!);
+        }
+        using var response = await client.PostAsJsonAsync(
+            ControlRoutes.CircleFilesMemberMappingUnmap(
+                values.CircleId, values.ContributionId, values.GrantId),
+            new UnmapCircleFilesMemberMappingRequest(values.Endpoint, values.DriveLetter),
+            ControlJson.Options,
+            cancellationToken).ConfigureAwait(false);
+        var result = await ReadResponseAsync<CircleFilesMemberMappingResultResponse>(
+            response, outputFormat, error, cancellationToken).ConfigureAwait(false);
+        if (result.Value is null) return result.ExitCode;
+        await WriteResultAsync(output, outputFormat, result.Value, CliOutput.RenderFilesMappingResult);
+        return CliExitCodes.Success;
+    }
+
+    private static bool TryParseFilesMappingOptions(
+        IReadOnlyList<string> tokens,
+        bool includePlan,
+        out FilesMappingOptions values,
+        out string? parseError)
+    {
+        var allowed = includePlan
+            ? new[] { "--circle", "--contribution", "--grant", "--endpoint", "--drive", "--plan" }
+            : new[] { "--circle", "--contribution", "--grant", "--endpoint", "--drive" };
+        if (TryParseNamedOptions(tokens, 3, allowed, out var options, out parseError)
+            && options.TryGetValue("--circle", out var circleId)
+            && options.TryGetValue("--contribution", out var contributionId)
+            && options.TryGetValue("--grant", out var grantId)
+            && options.TryGetValue("--endpoint", out var endpoint)
+            && options.TryGetValue("--drive", out var driveLetter)
+            && (!includePlan || options.TryGetValue("--plan", out _)))
+        {
+            values = new FilesMappingOptions(
+                circleId, contributionId, grantId, endpoint, driveLetter,
+                options.GetValueOrDefault("--plan"));
+            return true;
+        }
+
+        values = new FilesMappingOptions("", "", "", "", "", null);
+        parseError ??=
+            "usage: balls files mapping <preview|map|inspect|unmap> --circle <circle-id> --contribution <contribution-id> --grant <grant-id> --endpoint <private-ipv4> --drive <D-Z>"
+            + (includePlan ? " --plan <plan-id>." : ".");
+        return false;
+    }
+
+    private sealed record FilesMappingOptions(
+        string CircleId,
+        string ContributionId,
+        string GrantId,
+        string Endpoint,
+        string DriveLetter,
+        string? PlanId);
 
     private static async Task<int> ApplyFilesHostAsync(
         HttpClient client,
@@ -1621,7 +1768,7 @@ public static class CliApplication
         if (outputFormat == CliOutputFormat.Text)
         {
             await error.WriteLineAsync(
-                "commands: ui | status | circle create | circle join | circle list | member list | node list | invitation create | invitation redeem | message send | message list | files readiness | files contribution create/list | files grant create/list/credential-preview/credential-apply | files host preview/apply");
+                "commands: ui | status | circle create | circle join | circle list | member list | node list | invitation create | invitation redeem | message send | message list | files readiness | files contribution create/list | files grant create/list/credential-preview/credential-apply | files host preview/apply | files mapping preview/map/inspect/unmap");
         }
 
         return CliExitCodes.UsageError;

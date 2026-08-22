@@ -48,4 +48,5 @@ public sealed record HostPlatform(
     ISystemBrowserLauncher SystemBrowser,
     ICircleFilesReadinessInspector CircleFilesReadiness,
     ICircleFilesHostProvisioner CircleFilesHosting,
-    ICircleFilesGrantCredentialProvisioner CircleFilesGrantCredentials);
+    ICircleFilesGrantCredentialProvisioner CircleFilesGrantCredentials,
+    ICircleFilesMemberMapper CircleFilesMemberMapping);

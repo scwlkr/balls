@@ -85,4 +85,26 @@ public static class ControlRoutes
         string contributionId,
         string grantId) =>
         CircleFilesGrantCredential(circleId, contributionId, grantId) + "/apply";
+
+    public static string CircleFilesMemberMapping(
+        string circleId,
+        string contributionId,
+        string grantId) =>
+        $"{CircleFilesAccessGrants(circleId, contributionId)}/{Uri.EscapeDataString(grantId)}/mapping";
+
+    public static string CircleFilesMemberMappingPreview(
+        string circleId, string contributionId, string grantId) =>
+        CircleFilesMemberMapping(circleId, contributionId, grantId) + "/preview";
+
+    public static string CircleFilesMemberMappingMap(
+        string circleId, string contributionId, string grantId) =>
+        CircleFilesMemberMapping(circleId, contributionId, grantId) + "/map";
+
+    public static string CircleFilesMemberMappingInspect(
+        string circleId, string contributionId, string grantId) =>
+        CircleFilesMemberMapping(circleId, contributionId, grantId) + "/inspect";
+
+    public static string CircleFilesMemberMappingUnmap(
+        string circleId, string contributionId, string grantId) =>
+        CircleFilesMemberMapping(circleId, contributionId, grantId) + "/unmap";
 }

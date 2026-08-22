@@ -2,6 +2,7 @@ import { useEffect, useRef, useState, type FormEvent } from "react";
 
 import { browserApi, type BrowserApi } from "./api/browserApi";
 import type {
+  CircleFilesMemberMappingPlanDto,
   CircleDetailsDto,
   CircleMessageDto,
   CircleSummaryDto,
@@ -147,6 +148,7 @@ export function App({ api = browserApi }: AppProps) {
 
           {workspace ? (
             <Workspace
+              api={api}
               workspace={workspace}
               error={error}
               busy={busy}
@@ -196,6 +198,7 @@ function Masthead({
 }
 
 interface WorkspaceProps {
+  api: BrowserApi;
   workspace: WorkspaceState;
   error: string | null;
   busy: boolean;
@@ -204,6 +207,7 @@ interface WorkspaceProps {
 }
 
 function Workspace({
+  api,
   workspace,
   error,
   busy,
@@ -260,7 +264,11 @@ function Workspace({
       ) : null}
 
       {dashboard ? (
-        <CircleWorkspace dashboard={dashboard} messages={workspace.messages} />
+        <CircleWorkspace
+          api={api}
+          dashboard={dashboard}
+          messages={workspace.messages}
+        />
       ) : (
         <EmptyWorkspace busy={busy} onCreate={onCreate} />
       )}
@@ -271,9 +279,11 @@ function Workspace({
 function CircleWorkspace({
   dashboard,
   messages,
+  api,
 }: {
   dashboard: DashboardSnapshot;
   messages: CircleMessageDto[];
+  api: BrowserApi;
 }) {
   const { circle } = dashboard;
   return (
@@ -306,8 +316,331 @@ function CircleWorkspace({
         </dl>
       </section>
       <CircleTopology circle={circle} />
+      <FilesMappingPanel api={api} circleId={circle.id} />
       <MessageHistory dashboard={dashboard} messages={messages} />
     </>
+  );
+}
+
+function FilesMappingPanel({
+  api,
+  circleId,
+}: {
+  api: BrowserApi;
+  circleId: string;
+}) {
+  const [contributions, setContributions] = useState<
+    Awaited<ReturnType<BrowserApi["listFilesContributions"]>>["contributions"]
+  >([]);
+  const [grants, setGrants] = useState<
+    Awaited<ReturnType<BrowserApi["listFilesGrants"]>>["grants"]
+  >([]);
+  const [contributionId, setContributionId] = useState("");
+  const [grantId, setGrantId] = useState("");
+  const [endpoint, setEndpoint] = useState("");
+  const [driveLetter, setDriveLetter] = useState("");
+  const [plan, setPlan] = useState<CircleFilesMemberMappingPlanDto | null>(
+    null,
+  );
+  const [planContext, setPlanContext] = useState<{
+    contributionId: string;
+    grantId: string;
+    endpoint: string;
+    driveLetter: string;
+  } | null>(null);
+  const [mappingStatus, setMappingStatus] = useState<string | null>(null);
+  const [panelError, setPanelError] = useState<string | null>(null);
+  const [panelBusy, setPanelBusy] = useState(false);
+
+  useEffect(() => {
+    let active = true;
+    void api
+      .listFilesContributions(circleId)
+      .then(async (result) => {
+        if (!active) return;
+        setContributions(result.contributions);
+        const first = result.contributions[0];
+        setContributionId(first?.id ?? "");
+        if (first) {
+          const grantList = await api.listFilesGrants(circleId, first.id);
+          if (active) {
+            setGrants(grantList.grants);
+            setGrantId(grantList.grants[0]?.id ?? "");
+          }
+        }
+      })
+      .catch((reason) => {
+        if (active) setPanelError(toMessage(reason));
+      });
+    return () => {
+      active = false;
+    };
+  }, [api, circleId]);
+
+  async function chooseContribution(value: string) {
+    setContributionId(value);
+    setGrantId("");
+    setPlan(null);
+    setPlanContext(null);
+    setPanelError(null);
+    if (!value) return;
+    try {
+      const result = await api.listFilesGrants(circleId, value);
+      setGrants(result.grants);
+      setGrantId(result.grants[0]?.id ?? "");
+    } catch (reason) {
+      setPanelError(toMessage(reason));
+    }
+  }
+
+  async function discover() {
+    if (!contributionId || !grantId || !endpoint || panelBusy) return;
+    setPanelBusy(true);
+    setPanelError(null);
+    setPlan(null);
+    setPlanContext(null);
+    setDriveLetter("");
+    try {
+      const result = await api.previewFilesMapping(
+        circleId,
+        contributionId,
+        grantId,
+        endpoint,
+        "",
+      );
+      setPlan(result);
+      setPlanContext({ contributionId, grantId, endpoint, driveLetter: "" });
+    } catch (reason) {
+      setPanelError(toMessage(reason));
+    } finally {
+      setPanelBusy(false);
+    }
+  }
+
+  async function previewSelected() {
+    if (!driveLetter || panelBusy) return;
+    setPanelBusy(true);
+    setPanelError(null);
+    try {
+      const result = await api.previewFilesMapping(
+        circleId,
+        contributionId,
+        grantId,
+        endpoint,
+        driveLetter,
+      );
+      setPlan(result);
+      setPlanContext({ contributionId, grantId, endpoint, driveLetter });
+      setMappingStatus("ready to map");
+    } catch (reason) {
+      setPanelError(toMessage(reason));
+    } finally {
+      setPanelBusy(false);
+    }
+  }
+
+  async function mutate(operation: "map" | "inspect" | "unmap") {
+    if (
+      !plan ||
+      !driveLetter ||
+      panelBusy ||
+      plan.driveLetter !== driveLetter ||
+      planContext?.contributionId !== contributionId ||
+      planContext.grantId !== grantId ||
+      planContext.endpoint !== endpoint ||
+      planContext.driveLetter !== driveLetter
+    )
+      return;
+    setPanelBusy(true);
+    setPanelError(null);
+    try {
+      const result =
+        operation === "map"
+          ? await api.mapFiles(
+              circleId,
+              contributionId,
+              grantId,
+              endpoint,
+              driveLetter,
+              plan.planId,
+            )
+          : operation === "inspect"
+            ? await api.inspectFilesMapping(
+                circleId,
+                contributionId,
+                grantId,
+                endpoint,
+                driveLetter,
+              )
+            : await api.unmapFiles(
+                circleId,
+                contributionId,
+                grantId,
+                endpoint,
+                driveLetter,
+              );
+      setMappingStatus(result.status);
+    } catch (reason) {
+      setPanelError(toMessage(reason));
+    } finally {
+      setPanelBusy(false);
+    }
+  }
+
+  return (
+    <section
+      className="message-history"
+      id="files"
+      aria-labelledby="files-title"
+    >
+      <div className="section-heading">
+        <div>
+          <p className="eyebrow">Circle Files</p>
+          <h2 id="files-title">Open in Explorer</h2>
+        </div>
+        <p>The limited password stays inside this device.</p>
+      </div>
+      {contributions.length === 0 ? (
+        <p className="message-empty">
+          No contributed folders are available yet.
+        </p>
+      ) : (
+        <form
+          aria-label="Map Circle Files"
+          aria-busy={panelBusy}
+          onSubmit={(event) => event.preventDefault()}
+        >
+          <label htmlFor="files-contribution">Folder</label>
+          <select
+            id="files-contribution"
+            disabled={panelBusy}
+            value={contributionId}
+            onChange={(event) => void chooseContribution(event.target.value)}
+          >
+            {contributions.map((value) => (
+              <option key={value.id} value={value.id}>
+                {value.displayName}
+              </option>
+            ))}
+          </select>
+          <label htmlFor="files-grant">Grant</label>
+          <select
+            id="files-grant"
+            disabled={panelBusy}
+            value={grantId}
+            onChange={(event) => {
+              setGrantId(event.target.value);
+              setPlan(null);
+              setPlanContext(null);
+              setMappingStatus(null);
+            }}
+          >
+            {grants.map((value) => (
+              <option key={value.id} value={value.id}>
+                {value.access} · {value.memberId}
+              </option>
+            ))}
+          </select>
+          <label htmlFor="files-endpoint">Private host IPv4 address</label>
+          <input
+            id="files-endpoint"
+            value={endpoint}
+            placeholder="192.168.1.20"
+            required
+            disabled={panelBusy}
+            onChange={(event) => {
+              setEndpoint(event.target.value);
+              setPlan(null);
+              setPlanContext(null);
+              setMappingStatus(null);
+            }}
+          />
+          <button
+            type="button"
+            disabled={panelBusy || !grantId || !endpoint}
+            onClick={() => void discover()}
+          >
+            Find available drive letters
+          </button>
+          {plan ? (
+            <>
+              <label htmlFor="files-drive">Drive letter</label>
+              <select
+                id="files-drive"
+                required
+                disabled={panelBusy}
+                value={driveLetter}
+                onChange={(event) => {
+                  setDriveLetter(event.target.value);
+                  setPlan((current) =>
+                    current ? { ...current, driveLetter: "" } : current,
+                  );
+                  setPlanContext(null);
+                  setMappingStatus(null);
+                }}
+              >
+                <option value="">Choose a drive letter</option>
+                {plan.availableDriveLetters.map((value) => (
+                  <option key={value} value={value}>
+                    {value}:
+                  </option>
+                ))}
+              </select>
+              <button
+                type="button"
+                disabled={panelBusy || !driveLetter}
+                onClick={() => void previewSelected()}
+              >
+                Preview exact mapping
+              </button>
+              {plan.driveLetter &&
+              plan.driveLetter === driveLetter &&
+              planContext?.contributionId === contributionId &&
+              planContext.grantId === grantId &&
+              planContext.endpoint === endpoint &&
+              planContext.driveLetter === driveLetter ? (
+                <div>
+                  <p>
+                    <strong>
+                      {plan.driveLetter}: → {plan.uncPath}
+                    </strong>
+                  </p>
+                  <button
+                    type="button"
+                    disabled={panelBusy}
+                    onClick={() => void mutate("map")}
+                  >
+                    Map in Explorer
+                  </button>{" "}
+                  <button
+                    type="button"
+                    disabled={panelBusy}
+                    onClick={() => void mutate("inspect")}
+                  >
+                    Inspect
+                  </button>{" "}
+                  <button
+                    type="button"
+                    disabled={panelBusy}
+                    onClick={() => void mutate("unmap")}
+                  >
+                    Unmap
+                  </button>
+                </div>
+              ) : null}
+            </>
+          ) : null}
+          {mappingStatus ? (
+            <p role="status">Mapping status: {mappingStatus}</p>
+          ) : null}
+          {panelError ? (
+            <p className="inline-error" role="alert">
+              {panelError}
+            </p>
+          ) : null}
+        </form>
+      )}
+    </section>
   );
 }
 

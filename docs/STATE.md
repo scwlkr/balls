@@ -1,6 +1,6 @@
 # Current State
 
-**Updated:** 2026-08-21
+**Updated:** 2026-08-22
 
 This is the compact entry point for a coding agent. GitHub Issues are the execution authority;
 [`ROADMAP.md`](../ROADMAP.md) is the outcome index; detailed design and contract documents are
@@ -38,8 +38,8 @@ Status: implementation. Trusted Circle is owner-accepted and published as
 [`0.3.0-alpha.1`](https://github.com/scwlkr/balls/releases/tag/0.3.0-alpha.1). #56 establishes the
 provider-neutral contribution and Access Grant foundation. #57 adds the read-only Windows SMB
 readiness gate. #58 adds the dedicated owned-folder hosting helper. #59 adds one protected limited
-Windows credential and exact ACL per Access Grant; #60 is the next frontier, while #61–#62 remain
-dependency-blocked.
+Windows credential and exact ACL per Access Grant; #60 adds explicit persistent Explorer mapping.
+#61 is the next frontier, while #62 remains dependency-blocked.
 
 Exit outcome: two Windows Members can add, remove, rename, and edit files in the same persistent
 Explorer-mapped folder over a private LAN. Circle contribution and authorization drive a
@@ -240,9 +240,14 @@ Active frontier:
   ownership-proven per-grant rollback. Exact-commit VM evidence includes two admitted Members with
   simultaneous read/write and read-only credentials, issued-credential SMB I/O, and logon denial in the
   [limited credential record](verification/2026-08-21-limited-smb-member-credential.md).
-- [#60](https://github.com/scwlkr/balls/issues/60) is the next frontier after #59 lands.
-- [#61](https://github.com/scwlkr/balls/issues/61) and
-  [#62](https://github.com/scwlkr/balls/issues/62) remain dependency-blocked.
+- [#60 — Map an authorized Circle Files share into Windows Explorer](https://github.com/scwlkr/balls/issues/60)
+  adds explicit available-letter selection, current-user Credential Manager persistence, exact
+  private-endpoint/UNC/ownership validation, restart reconnect, friendly Circle labeling, and
+  exact unmap through the shared application/API/CLI/browser path. Collision, bounded offline,
+  wrong-share, real reboot, authenticated SMB I/O, redaction, and zero-residual cleanup evidence
+  is in the [Windows Explorer mapping record](verification/2026-08-22-windows-explorer-mapping.md).
+- [#61](https://github.com/scwlkr/balls/issues/61) is the next frontier after #60 lands.
+- [#62](https://github.com/scwlkr/balls/issues/62) remains dependency-blocked.
 
 ## Working rules
 

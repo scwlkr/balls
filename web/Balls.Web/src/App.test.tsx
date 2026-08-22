@@ -145,6 +145,129 @@ describe("Balls browser workspace", () => {
     expect(within(nodes).getByText("This device")).toBeInTheDocument();
   });
 
+  it("discovers drive letters before mapping through the shared browser application", async () => {
+    const api = createApi({ circles: [details.circle] });
+    api.listFilesContributions = async () => ({
+      circleId: details.circle.id,
+      contributions: [
+        {
+          id: "0198f2cc-6a50-7a08-aacb-298f4ebdf650",
+          circleId: details.circle.id,
+          provider: {
+            id: "0198f2cc-6a50-7a08-aacb-298f4ebdf651",
+            nodeId: details.nodes[0].id,
+          },
+          displayName: "Project Files",
+          lifecycle: "defined",
+          generation: 1,
+          createdAtUtc: "2026-08-22T12:00:00Z",
+          authorizedByMemberId: details.members[0].id,
+          authorityGeneration: 1,
+          authorizedAtUtc: "2026-08-22T12:00:00Z",
+        },
+      ],
+    });
+    api.listFilesGrants = async (circleId, contributionId) => ({
+      circleId,
+      contributionId,
+      grants: [
+        {
+          id: "0198f2cc-6a50-7a08-aacb-298f4ebdf652",
+          circleId,
+          contributionId,
+          memberId: details.members[0].id,
+          access: "read-write",
+          lifecycle: "defined",
+          generation: 1,
+          createdAtUtc: "2026-08-22T12:00:00Z",
+          authorizedByMemberId: details.members[0].id,
+          authorityGeneration: 1,
+          authorizedAtUtc: "2026-08-22T12:00:00Z",
+        },
+        {
+          id: "0198f2cc-6a50-7a08-aacb-298f4ebdf653",
+          circleId,
+          contributionId,
+          memberId: "0198f2cc-6a50-7a08-aacb-298f4ebdf654",
+          access: "read-only",
+          lifecycle: "defined",
+          generation: 1,
+          createdAtUtc: "2026-08-22T12:00:00Z",
+          authorizedByMemberId: details.members[0].id,
+          authorityGeneration: 1,
+          authorizedAtUtc: "2026-08-22T12:00:00Z",
+        },
+      ],
+    });
+    const mappingPlan = (driveLetter: string) => ({
+      contractVersion: 1,
+      planId: "a".repeat(64),
+      endpoint: "192.168.1.20",
+      uncPath: String.raw`\\192.168.1.20\balls-example`,
+      credentialTarget: "192.168.1.20",
+      driveLetter,
+      friendlyName: "Example Studio",
+      ownershipId: "b".repeat(64),
+      availableDriveLetters: ["M", "N"],
+      actions: ["Map exact share."],
+    });
+    api.previewFilesMapping = async (
+      _circle,
+      _contribution,
+      _grant,
+      _endpoint,
+      drive,
+    ) => mappingPlan(drive);
+    api.mapFiles = async (
+      _circle,
+      _contribution,
+      _grant,
+      _endpoint,
+      drive,
+    ) => ({
+      status: "mapped",
+      plan: mappingPlan(drive),
+    });
+
+    render(<App api={api} />);
+    const form = await screen.findByRole("form", { name: "Map Circle Files" });
+    fireEvent.change(within(form).getByLabelText("Private host IPv4 address"), {
+      target: { value: "192.168.1.20" },
+    });
+    fireEvent.click(
+      within(form).getByRole("button", {
+        name: "Find available drive letters",
+      }),
+    );
+    const drive = await within(form).findByLabelText("Drive letter");
+    expect(
+      within(drive).getByRole("option", { name: "M:" }),
+    ).toBeInTheDocument();
+    fireEvent.change(drive, { target: { value: "M" } });
+    fireEvent.click(
+      within(form).getByRole("button", { name: "Preview exact mapping" }),
+    );
+    expect(await within(form).findByText(/M: →/)).toBeInTheDocument();
+    fireEvent.change(drive, { target: { value: "N" } });
+    expect(
+      within(form).queryByRole("button", { name: "Unmap" }),
+    ).not.toBeInTheDocument();
+    fireEvent.click(
+      within(form).getByRole("button", { name: "Preview exact mapping" }),
+    );
+    expect(await within(form).findByText(/N: →/)).toBeInTheDocument();
+    fireEvent.click(
+      within(form).getByRole("button", { name: "Map in Explorer" }),
+    );
+    expect(await within(form).findByRole("status")).toHaveTextContent("mapped");
+    fireEvent.change(within(form).getByLabelText("Grant"), {
+      target: { value: "0198f2cc-6a50-7a08-aacb-298f4ebdf653" },
+    });
+    expect(
+      within(form).queryByRole("button", { name: "Unmap" }),
+    ).not.toBeInTheDocument();
+  });
+
   it("announces when Circle creation is busy", async () => {
     let finishCreate: ((value: CircleDetailsDto) => void) | undefined;
     const api = createApi({ circles: [] });
@@ -268,5 +391,26 @@ function createApi(circleList: CircleListDto): BrowserApi {
     getCircle: async () => details,
     getMessages: async (circleId) => ({ circleId, messages: [] }),
     createCircle: async () => details,
+    listFilesContributions: async (circleId) => ({
+      circleId,
+      contributions: [],
+    }),
+    listFilesGrants: async (circleId, contributionId) => ({
+      circleId,
+      contributionId,
+      grants: [],
+    }),
+    previewFilesMapping: async () => {
+      throw new Error("No mapping test configured.");
+    },
+    mapFiles: async () => {
+      throw new Error("No mapping test configured.");
+    },
+    inspectFilesMapping: async () => {
+      throw new Error("No mapping test configured.");
+    },
+    unmapFiles: async () => {
+      throw new Error("No mapping test configured.");
+    },
   };
 }

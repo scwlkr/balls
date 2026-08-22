@@ -48,6 +48,14 @@ public sealed class CircleFilesProviderCredentialMaterial : IDisposable
 
 public interface ICircleFilesProviderCredentialStore
 {
+    Task<CircleFilesProviderCredentialBinding?> GetActiveCircleFilesProviderCredentialBindingAsync(
+        string grantId,
+        CancellationToken cancellationToken = default);
+
+    Task<CircleFilesProviderCredentialMaterial?> GetActiveCircleFilesProviderCredentialAsync(
+        string grantId,
+        CancellationToken cancellationToken = default);
+
     Task<CircleFilesProviderCredentialMaterial> PrepareCircleFilesProviderCredentialAsync(
         CircleFilesProviderCredentialBinding binding,
         ReadOnlyMemory<byte> candidateSecret,

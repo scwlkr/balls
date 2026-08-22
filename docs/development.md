@@ -256,6 +256,31 @@ only the exact owned folder ACL, encryption-required share, and Private/LocalSub
 it does not change a network profile or global SMB policy, create Member credentials, map
 Explorer, or expose this mutation through the browser.
 
+After the exact grant credential has been applied, discover a free drive letter in `balls ui` or
+preview one explicit letter from the CLI. The endpoint must be a canonical numeric private or
+loopback IPv4 address; the share and account are derived from the authorized Contribution and
+Grant rather than accepted from network metadata:
+
+```powershell
+$grantId = "replace-with-grant-id"
+$hostAddress = "192.168.1.20"
+$driveLetter = "M"
+dotnet run --project src/Balls.Cli --configuration Release --no-build -- --pipe-name balls-dev files mapping preview --circle $circleId --contribution $contributionId --grant $grantId --endpoint $hostAddress --drive $driveLetter
+$mappingPlanId = "replace-with-64-character-plan-id"
+dotnet run --project src/Balls.Cli --configuration Release --no-build -- --pipe-name balls-dev files mapping map --circle $circleId --contribution $contributionId --grant $grantId --endpoint $hostAddress --drive $driveLetter --plan $mappingPlanId
+dotnet run --project src/Balls.Cli --configuration Release --no-build -- --pipe-name balls-dev files mapping inspect --circle $circleId --contribution $contributionId --grant $grantId --endpoint $hostAddress --drive $driveLetter
+dotnet run --project src/Balls.Cli --configuration Release --no-build -- --pipe-name balls-dev files mapping unmap --circle $circleId --contribution $contributionId --grant $grantId --endpoint $hostAddress --drive $driveLetter
+```
+
+Mapping is unelevated and persistent across sign-out/restart. It never replaces a drive,
+credential target, or Explorer label. Before success, Balls authenticates with the exact random
+grant credential and requires the protected host marker plus the exact generation-specific grant
+marker name at the deterministic share. Marker contents stay unreadable to the limited account;
+their signed-state bindings are derived locally rather than trusted from network metadata. Unmap
+uses `force=false` and removes only a matching drive, friendly label, and
+credential with the exact target/account/ownership comment; changed or open resources are
+preserved with a collision error.
+
 For focused adapter feedback:
 
 ```powershell

@@ -174,9 +174,11 @@ public sealed class CircleFilesEndpointsTests
         using var directory = new TemporaryDirectory();
         var pipeName = $"balls-tests-{Guid.NewGuid():N}";
         var grantProvisioner = new StubGrantCredentialProvisioner();
+        var memberMapper = new StubMemberMapper();
         var host = WindowsHostPlatform.Create() with
         {
             CircleFilesGrantCredentials = grantProvisioner,
+            CircleFilesMemberMapping = memberMapper,
         };
         await using var daemon = await DaemonHost.StartAsync(
             new DaemonOptions(directory.Path, pipeName, "Alice-PC"),
@@ -248,6 +250,61 @@ public sealed class CircleFilesEndpointsTests
             {
                 Assert.IsFalse(json.Contains(forbidden, StringComparison.OrdinalIgnoreCase), forbidden);
             }
+        }
+
+        using var mappingPreviewResponse = await client.PostAsJsonAsync(
+            ControlRoutes.CircleFilesMemberMappingPreview(
+                circle.Circle.Id, contribution.Id, grant.Id),
+            new PreviewCircleFilesMemberMappingRequest("192.168.50.10", "M"),
+            ControlJson.Options);
+        var mappingPreviewJson = await mappingPreviewResponse.Content.ReadAsStringAsync();
+        var mappingPreview = System.Text.Json.JsonSerializer
+            .Deserialize<CircleFilesMemberMappingPlanResponse>(mappingPreviewJson, ControlJson.Options);
+        Assert.IsNotNull(mappingPreview);
+        using var invalidMapResponse = await client.PostAsJsonAsync(
+            ControlRoutes.CircleFilesMemberMappingMap(circle.Circle.Id, contribution.Id, grant.Id),
+            new { endpoint = "192.168.50.10", driveLetter = (string?)null, planId = mappingPreview.PlanId },
+            ControlJson.Options);
+        Assert.AreEqual(HttpStatusCode.BadRequest, invalidMapResponse.StatusCode);
+        Assert.AreEqual(0, memberMapper.SecretUseCount);
+        memberMapper.MapFailure = new CircleFilesHostingException(
+            "mapping_recovery_incomplete",
+            "Injected exact rollback failure.");
+        using var recoveryMapResponse = await client.PostAsJsonAsync(
+            ControlRoutes.CircleFilesMemberMappingMap(circle.Circle.Id, contribution.Id, grant.Id),
+            new ApplyCircleFilesMemberMappingRequest(
+                "192.168.50.10", "M", mappingPreview.PlanId),
+            ControlJson.Options);
+        Assert.AreEqual(HttpStatusCode.Conflict, recoveryMapResponse.StatusCode);
+        memberMapper.MapFailure = null;
+        using var mapResponse = await client.PostAsJsonAsync(
+            ControlRoutes.CircleFilesMemberMappingMap(circle.Circle.Id, contribution.Id, grant.Id),
+            new ApplyCircleFilesMemberMappingRequest(
+                "192.168.50.10", "M", mappingPreview.PlanId),
+            ControlJson.Options);
+        using var inspectResponse = await client.PostAsJsonAsync(
+            ControlRoutes.CircleFilesMemberMappingInspect(circle.Circle.Id, contribution.Id, grant.Id),
+            new InspectCircleFilesMemberMappingRequest("192.168.50.10", "M"),
+            ControlJson.Options);
+        using var unmapResponse = await client.PostAsJsonAsync(
+            ControlRoutes.CircleFilesMemberMappingUnmap(circle.Circle.Id, contribution.Id, grant.Id),
+            new UnmapCircleFilesMemberMappingRequest("192.168.50.10", "M"),
+            ControlJson.Options);
+
+        Assert.AreEqual(HttpStatusCode.OK, mappingPreviewResponse.StatusCode);
+        Assert.AreEqual(HttpStatusCode.OK, mapResponse.StatusCode);
+        Assert.AreEqual(HttpStatusCode.OK, inspectResponse.StatusCode);
+        Assert.AreEqual(HttpStatusCode.OK, unmapResponse.StatusCode);
+        Assert.AreEqual(2, memberMapper.SecretUseCount);
+        Assert.IsTrue(memberMapper.Requests.All(request =>
+            request.Endpoint == "192.168.50.10"
+            && request.DriveLetter == "M"
+            && request.CircleName == "Credential Studio"));
+        foreach (var response in new[] { mapResponse, inspectResponse, unmapResponse })
+        {
+            var json = await response.Content.ReadAsStringAsync();
+            Assert.IsFalse(json.Contains("secret", StringComparison.OrdinalIgnoreCase));
+            Assert.IsFalse(json.Contains("password", StringComparison.OrdinalIgnoreCase));
         }
     }
 
@@ -353,6 +410,76 @@ public sealed class CircleFilesEndpointsTests
                 request.Access,
                 request.Generation,
                 ["Create one exact limited account."]);
+    }
+
+    private sealed class StubMemberMapper : ICircleFilesMemberMapper
+    {
+        internal List<CircleFilesMemberMappingRequest> Requests { get; } = [];
+        internal int SecretUseCount { get; private set; }
+        internal CircleFilesHostingException? MapFailure { get; set; }
+
+        public ValueTask<CircleFilesMemberMappingPlan> PreviewAsync(
+            CircleFilesMemberMappingRequest request,
+            CancellationToken cancellationToken)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            Requests.Add(request);
+            return ValueTask.FromResult(Plan(request));
+        }
+
+        public ValueTask<CircleFilesMemberMappingInspection> InspectAsync(
+            CircleFilesMemberMappingRequest request,
+            CancellationToken cancellationToken)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            Requests.Add(request);
+            return ValueTask.FromResult(new CircleFilesMemberMappingInspection("mapped", Plan(request)));
+        }
+
+        public ValueTask<CircleFilesMemberMappingResult> MapAsync(
+            CircleFilesMemberMappingRequest request,
+            string expectedPlanId,
+            ReadOnlyMemory<byte> secret,
+            CancellationToken cancellationToken)
+        {
+            CountSecret(request, secret, cancellationToken);
+            if (MapFailure is not null) throw MapFailure;
+            Assert.IsTrue(expectedPlanId == new string('e', 64));
+            return ValueTask.FromResult(new CircleFilesMemberMappingResult("mapped", Plan(request)));
+        }
+
+        public ValueTask<CircleFilesMemberMappingResult> UnmapAsync(
+            CircleFilesMemberMappingRequest request,
+            CancellationToken cancellationToken)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            Requests.Add(request);
+            return ValueTask.FromResult(new CircleFilesMemberMappingResult("unmapped", Plan(request)));
+        }
+
+        private void CountSecret(
+            CircleFilesMemberMappingRequest request,
+            ReadOnlyMemory<byte> secret,
+            CancellationToken cancellationToken)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            Assert.IsTrue(secret.Length >= 24);
+            Requests.Add(request);
+            SecretUseCount++;
+        }
+
+        private static CircleFilesMemberMappingPlan Plan(CircleFilesMemberMappingRequest request) =>
+            new(
+                1,
+                new string('e', 64),
+                request.Endpoint,
+                $@"\\{request.Endpoint}\balls-test",
+                request.Endpoint,
+                request.DriveLetter,
+                request.CircleName,
+                new string('f', 64),
+                ["M", "N"],
+                ["Map exact share."]);
     }
 
     private sealed class TemporaryDirectory : IDisposable

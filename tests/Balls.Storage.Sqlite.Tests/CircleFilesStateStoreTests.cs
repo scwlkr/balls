@@ -122,6 +122,14 @@ public sealed class CircleFilesStateStoreTests
                 Assert.IsTrue(prepared.IsNew);
                 CollectionAssert.AreEqual(secret, prepared.Secret.ToArray());
                 await store.CompleteCircleFilesProviderCredentialAsync(binding);
+                Assert.AreEqual(
+                    binding,
+                    await store.GetActiveCircleFilesProviderCredentialBindingAsync(binding.GrantId));
+                using var active = await store.GetActiveCircleFilesProviderCredentialAsync(binding.GrantId);
+                Assert.IsNotNull(active);
+                Assert.AreEqual(binding, active.Binding);
+                Assert.IsTrue(active.IsActive);
+                CollectionAssert.AreEqual(secret, active.Secret.ToArray());
             }
 
             var databasePath = Path.Combine(directory.Path, "balls.db");

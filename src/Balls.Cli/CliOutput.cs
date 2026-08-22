@@ -184,6 +184,38 @@ internal static class CliOutput
             $"Access: {response.Plan.Access}",
             "The password remains protected and is not displayed.");
 
+    internal static string RenderFilesMappingPlan(CircleFilesMemberMappingPlanResponse response) =>
+        string.Join(
+            Environment.NewLine,
+            new[]
+            {
+                "Windows Explorer mapping preview:",
+                $"Drive: {response.DriveLetter}:",
+                $"Circle: {response.FriendlyName}",
+                $"Share: {response.UncPath}",
+                $"Available: {string.Join(", ", response.AvailableDriveLetters.Select(value => value + ":"))}",
+                $"Plan ID: {response.PlanId}",
+                "Map this exact plan with: balls files mapping map ... --plan <plan-id>",
+            }.Concat(response.Actions.Select(action => $"- {action}")));
+
+    internal static string RenderFilesMappingInspection(
+        CircleFilesMemberMappingInspectionResponse response) =>
+        string.Join(
+            Environment.NewLine,
+            $"Explorer mapping: {response.Status}",
+            $"Drive: {response.Plan.DriveLetter}:",
+            $"Circle: {response.Plan.FriendlyName}",
+            $"Share: {response.Plan.UncPath}");
+
+    internal static string RenderFilesMappingResult(CircleFilesMemberMappingResultResponse response) =>
+        string.Join(
+            Environment.NewLine,
+            $"Explorer mapping: {response.Status}",
+            $"Drive: {response.Plan.DriveLetter}:",
+            $"Circle: {response.Plan.FriendlyName}",
+            $"Share: {response.Plan.UncPath}",
+            "The limited password remains protected and is not displayed.");
+
     internal static string RenderSavedInvitation(
         CreateInvitationResponse response,
         string path) =>

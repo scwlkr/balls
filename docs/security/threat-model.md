@@ -17,8 +17,9 @@ message/restart outcomes. It also covers local definition of File Contributions 
 Grants, bounded inspection of Windows SMB/network/firewall readiness, and one narrow elevated
 operation that creates a dedicated folder ACL, encrypted share, and Private/LocalSubnet firewall
 rule. It also covers one protected random local-account credential and exact Member-specific
-folder/share ACL per Access Grant. Credential delivery, Explorer mapping, rotation/revocation,
-Contribution activation/revocation, and existing-content adoption remain out of scope.
+folder/share ACL per Access Grant and exact current-user Explorer mapping. Credential sharing
+between Members, rotation/revocation, Contribution activation/revocation, and existing-content
+adoption remain out of scope.
 
 ## Assets
 
@@ -37,6 +38,8 @@ Contribution activation/revocation, and existing-content adoption remain out of 
   encrypted SMB share, and narrowly scoped firewall rule.
 - exact grant credential binding and lifecycle, DPAPI-protected provider secret, grant-owned local
   account and deny-logon rights, protected grant marker, and exact folder/share ACL entries.
+- exact current-user drive/UNC mapping, Credential Manager target, Explorer friendly-label marker,
+  and mapping ownership ID.
 
 ## Trust boundaries
 
@@ -78,9 +81,12 @@ processes running as that account.
 | A local non-Owner defines Circle Files state | Each mutation resolves the protected local Member identity, requires its persisted Circle role to be Owner, and verifies a Member signature over the exact mutation | Malware in the same unlocked Owner account/session can ask the daemon to sign an authorized mutation |
 | A stale or substituted Circle authority authorizes a contribution/grant | The persisted current generation/root credential must exactly match the protected live Circle authority; the same transcript is independently root-signed and verified before commit | Root rotation/recovery and replicated authorization convergence remain separate work |
 | Retry creates duplicate or conflicting contribution/grant state | Caller request UUID plus normalized input is transactional and idempotent; conflicting reuse and duplicate Contribution/Member grants fail closed | Request IDs are replay identities, not bearer authentication |
-| Circle Files metadata leaks future provider secrets or private authority | Core records contain no provider credentials; local-control, CLI, and read-only browser projections omit transcripts, signatures, credentials, and private material; browser mutation routes are absent | Object IDs, lifecycle, Member/Node relationships, and authorization times are intentionally inspectable to the same OS account |
+| Circle Files metadata leaks provider secrets or private authority | Core records contain no provider credentials; local-control, CLI, and browser projections omit transcripts, signatures, passwords, and private material; browser mapping bodies contain only endpoint/letter/plan ID and retain antiforgery state in memory | Object IDs, endpoint, drive, lifecycle, Member/Node relationships, and authorization times are intentionally inspectable to the same OS account |
 | Provider password leaks through API, CLI, browser, logs, or restart state | The daemon creates 32 random complex ASCII characters, protects them immediately with DPAPI CurrentUser plus domain entropy, persists only the protected blob, sends plaintext only through the authenticated bounded helper pipe, zeroes candidate/material/protocol byte arrays, and returns only the public plan; `ToString` and all browser/list/history projections are redacted | The bounded child PowerShell process necessarily materializes immutable JSON/password strings for its short lifetime; same-user compromise, administrator/LocalSystem, debugger or memory inspection, and a compromised helper remain powerful |
 | A credential is substituted across Circle, grant, Member, access, or generation | SQLite and the helper bind the exact Circle/Contribution/grant/Member/provider/account/ownership/access/generation tuple; Core revalidates current local Contribution and Access Grant authorization before every preview/apply; changed or duplicate bindings fail closed | Rotation and revocation need new lifecycle authorization rather than mutation of this v1 binding |
+| A network endpoint or wrong share is treated as Circle authority | Mapping accepts only canonical numeric private/loopback IPv4, derives the share/account/marker names from signed local state, authenticates with the exact random grant credential, and requires both protected marker names through SMB before success; marker contents remain unreadable and endpoint metadata grants no authority | A host administrator can forge local marker names and Windows resources; authenticated remote replication remains separate work |
+| Mapping overwrites or later removes another resource | The user explicitly selects D-Z; occupied drive, credential target, or Explorer label collisions fail before mutation, including a foreign mapping to the planned UNC. Retry and unmap compare exact UNC, account, ownership comment/marker, and friendly name; unmap is non-forced and preserves changed/open mappings and unrelated label-key values | Windows does not return the stored domain-password blob on every supported configuration; ownership therefore relies on the random derived comment plus target/account, while same-user races and administrator manipulation remain possible |
+| Provider password leaks while mapping | The local API/browser/CLI never receive the password. Preview, inspect, and unmap load binding metadata without decryption; map/reconnect alone unprotect into disposable, exception-zeroed buffers, writes the current-user Credential Manager value, and passes an explicitly NUL-terminated pointer directly to Win32 rather than process arguments or shell commands | The Windows networking API consumes plaintext in daemon memory; same-user compromise, administrator/LocalSystem, debugger, crash dump, or Credential Manager compromise remain powerful |
 | Limited account gains local execution or unrelated file access | The account has no group membership and exactly denies interactive, remote-interactive, batch, and service logon; it receives one inherited whole-folder `ReadAndExecute` or `Modify` ACL and one encrypted-share `Read` or `Change` entry, never `FullControl`. The target folder/share must equal the exact Owner/System host baseline plus all protected marker-backed grants: deny entries, reduced Owner rights, wrong grant rights, orphan SIDs, and unmarked principals fail closed. Known broad token principals are rejected before mutation, and the created account's actual network token groups are checked against every other non-special share | Windows/network logon is intentionally allowed for SMB; access through special administrative shares remains governed by Windows privileges; Windows account-policy or ACL bugs remain high impact |
 | Failed, terminated, or concurrent grant provisioning leaves an account, rights, or ACL | Daemon apply serializes the complete prepare/helper/complete sequence. Each helper step requires exact owned state; failure and partial retry remove only that grant's exact share/folder entry, protected marker, expected LSA-rights subset, and local account in reverse order, preserving other marker-backed grants. An account with the exact random password/description, no groups, and only an expected-rights subset is recoverable after the fixed PowerShell child is killed; changed target state still stops cleanup | Power loss or administrator interference can require exact retry; forged ownership evidence is possible to an administrator |
 | Caller input changes the Windows readiness command | The platform boundary exposes no command or argument input; one exact enum allowlist selects a static encoded script and an exact system PowerShell executable, without a shell | Same-user compromise can replace the running process or machine tools and is outside this inspection boundary |
@@ -161,19 +167,19 @@ are executable.
   credentials and the authenticated channel bind them to signing authority; only the persisted
   Anchor-signed receipt grants the joined relationship.
 - Circle Files state currently stops at `defined`. A Windows host can create the dedicated owned
-  folder/share/firewall resources and one limited account plus exact ACL per Access Grant after
-  readiness and preview. It does not enable features or policy, change network profiles, deliver
-  the password, map Explorer, activate/revoke a Contribution or grant, rotate/revoke credentials,
+  folder/share/firewall resources, one limited account plus exact ACL per Access Grant, and an
+  explicit current-user Explorer mapping after readiness and preview. It does not enable features
+  or policy, change network profiles, expose or share the password between Members, activate/revoke a Contribution or grant, rotate/revoke credentials,
   adopt existing content, or prove remote/physical-machine access. The local Owner remains the host
   share principal until later lifecycle work. Recovery/rotation and remote Owner administration
   remain later trust boundaries.
 
 ## Required implementation for the next trust boundary
 
-Before delivering Member access, keep the implemented capability-specific authorization IDs/proofs,
-protected per-grant secret, exact helper ownership boundary, and fail-closed rollback. Add an
-OS-appropriate secure credential handoff/mapping flow without command-line exposure, then add
-ownership-proven rotation/revocation. Recovery for lost or compromised devices and keys remains
+Before expanding Member access, keep the implemented capability-specific authorization IDs/proofs,
+protected per-grant secret, exact helper/mapping ownership boundaries, and fail-closed rollback.
+Add authenticated per-Member credential delivery, then ownership-proven rotation/revocation.
+Recovery for lost or compromised devices and keys remains
 required before claiming resilient authority.
 Rich message content requires a new rendering/content review; multiple writers or Anchors require
 an explicit synchronization and history-integrity design.

@@ -1,8 +1,8 @@
 # Local Control API v1
 
 **Status:** implemented through provider-neutral Circle Files contribution and Access Grant
-definition, read-only Windows SMB readiness, dedicated Windows folder hosting, and limited
-per-grant Windows SMB credential provisioning.
+definition, read-only Windows SMB readiness, dedicated Windows folder hosting, limited per-grant
+Windows SMB credential provisioning, and exact unelevated Windows Explorer mapping.
 
 This is the versioned, machine-local contract between `balls` or another local integration and
 `ballsd`. It is not a Node-to-Node or Circle replication protocol.
@@ -127,6 +127,8 @@ material. Selecting JSON output for this interactive command is a usage error.
 | Circle Files host apply | `status` (`applied` or `already-applied`) and the unchanged host plan |
 | Circle Files grant credential plan | contract version, deterministic `planId`, provider, canonical folder/share/account/ownership IDs, access, generation, and ordered exact actions |
 | Circle Files grant credential apply | `status` (`applied` or `already-applied`) and the unchanged public plan; no password or protected secret |
+| Circle Files mapping plan | contract version, deterministic `planId`, numeric private endpoint, exact UNC/credential target/drive/friendly name/ownership ID, available drive letters, and ordered actions |
+| Circle Files mapping inspect/apply | `status` plus the public mapping plan; no password or protected secret |
 | Error | `code`, `message` |
 
 The v1 Member roles are `owner` and `member`. Contribution lifecycles are `defined`, `active`, and
@@ -295,6 +297,28 @@ balls files grant credential-apply --circle <circle-id> --contribution <contribu
   --grant <grant-id> --path <absolute-local-path> --plan <plan-id>
 ```
 
+### Circle Files Explorer mapping
+
+The four mapping operations share
+`/control/v1/circles/{circleId}/files/contributions/{contributionId}/grants/{grantId}/mapping`:
+
+| Suffix | Body | Result |
+| --- | --- | --- |
+| `/preview` | `endpoint`, `driveLetter` (empty only for drive discovery) | available letters and a non-mutating exact plan |
+| `/map` | `endpoint`, explicit `driveLetter`, `planId` | `mapped` or `already-mapped` plus the public plan |
+| `/inspect` | `endpoint`, explicit `driveLetter` | `unmapped`, `partial`, or `mapped` plus the public plan |
+| `/unmap` | `endpoint`, explicit `driveLetter` | `unmapped` or `already-unmapped` plus the public plan |
+
+The endpoint is a canonical numeric private/loopback IPv4 address. The daemon derives the exact
+share, account, credential target, marker names, and friendly Circle name from current authorized
+state and the active DPAPI-protected grant credential. Map stores that credential in the current
+user's Credential Manager, creates a persistent `CONNECT_UPDATE_PROFILE` drive without elevation,
+then verifies authenticated directory access and the two exact protected marker names through the
+mapped share before setting the Explorer label. Marker contents remain unreadable to the grant.
+Unmap uses non-forced persistent removal and deletes the label and credential only when all exact
+ownership fields still match. The CLI commands are `balls files mapping
+preview|map|inspect|unmap`; only `map` accepts `--plan`.
+
 ### `POST /control/v1/circles/{circleId}/invitations`
 
 Creates a canonical single-use Circle invitation. The request is
@@ -363,13 +387,13 @@ Circle returns `404 Not Found`.
 ## Browser adapter
 
 The browser listener serves the bundled production application and only these `/browser/v1`
-routes: session exchange, status, Circle list/create/details, ordered Circle message history, and
-read-only Circle Files contribution/Access Grant lists. The browser control
+routes: session exchange, status, Circle list/create/details, ordered Circle message history,
+read-only Circle Files contribution/Access Grant lists, and the four mapping operations. The browser control
 plane is intentionally narrower than `/control/v1`; control routes return `404` on TCP and browser
-routes return `404` over IPC. Invitation creation/redemption and all Circle Files mutations are
-deliberately CLI/local-control only in this slice. In particular, the hosting preview/apply routes
-exist only on protected IPC and are never mapped on loopback TCP. The browser observes messages
-and Circle Files state but does not author either.
+routes return `404` over IPC. Invitation creation/redemption, host provisioning, and grant
+credential provisioning remain CLI/local-control only. Browser mapping routes call the same
+`CircleFilesMemberMappingApplication` as IPC and require the session, exact Origin, and in-memory
+antiforgery token; no password is returned to or stored by JavaScript.
 
 Authenticated `GET /browser/v1/circles/{circleId}/files/contributions` and
 `GET /browser/v1/circles/{circleId}/files/contributions/{contributionId}/grants` return the same
@@ -409,6 +433,7 @@ Handled application errors use this shape:
 | 400 | `contribution_name_required`, `contribution_name_too_long`, `invalid_member_access`, `circle_files_owner_required`, `circle_files_authority_unavailable`, `circle_files_authorization_failed` |
 | 400 | `hosting_path_invalid`, `hosting_authorization_invalid`, `windows_required` |
 | 400 | `grant_authorization_invalid`, `grant_secret_invalid` |
+| 400 | `mapping_request_invalid`, `mapping_endpoint_invalid`, `mapping_endpoint_unreachable` |
 | 404 | `circle_not_found` |
 | 404 | `invitation_not_found` |
 | 404 | `circle_files_contribution_not_found`, `member_not_found` |
@@ -418,6 +443,7 @@ Handled application errors use this shape:
 | 409 | `circle_files_contribution_request_conflict`, `circle_files_grant_request_conflict`, `circle_files_grant_exists` |
 | 409 | `hosting_plan_changed`, `hosting_prerequisites_not_ready`, `hosting_folder_not_empty`, `hosting_ownership_collision`, `hosting_resource_collision`, `hosting_helper_unavailable`, `hosting_helper_authentication_failed`, `hosting_helper_invalid_response`, `hosting_identity_unavailable`, `hosting_consent_cancelled`, `hosting_consent_timeout`, `hosting_apply_failed`, `hosting_recovery_incomplete` |
 | 409 | `grant_plan_changed`, `grant_resource_collision`, `grant_apply_failed`, `circle_files_provider_credential_conflict` |
+| 409 | `mapping_plan_changed`, `mapping_drive_collision`, `mapping_credential_collision`, `mapping_label_collision`, `mapping_resource_collision`, `mapping_share_identity_mismatch`, `mapping_recovery_incomplete` |
 | 409 | `replayed` |
 | 502 | `connection_failed`, authenticated remote-channel errors |
 
@@ -426,10 +452,11 @@ is not guaranteed to use the application error shape.
 
 ## Explicit non-goals
 
-v1 does not expose invitation/join, message-authoring, Circle Files readiness, or Circle Files
-mutation UX to the browser. The local API and CLI implement the exact dedicated-host operation and
-one limited account/ACL operation per Access Grant. They do not enable SMB features or policy,
-start services, change network profiles or global firewall policy, deliver credentials, map drives,
+v1 does not expose invitation/join, message-authoring, Circle Files readiness, host provisioning,
+or grant-credential provisioning to the browser. The local API and CLI implement the exact
+dedicated-host operation, one limited account/ACL operation per Access Grant, and explicit mapping.
+They do not enable SMB features or policy, start services, change network profiles or global firewall policy,
 adopt existing folders with content, delete user files, activate/revoke Contributions or grants,
 rotate/revoke provider credentials, synchronize or replicate content, add version history/trash,
-discover peers, or add automatic/multiple-Anchor behavior.
+discover peers, automatically choose/replace drive letters, share credentials between Members, or
+add automatic/multiple-Anchor behavior.
