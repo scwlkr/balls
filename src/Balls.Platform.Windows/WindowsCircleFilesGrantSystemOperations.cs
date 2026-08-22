@@ -385,6 +385,7 @@ internal sealed class WindowsCircleFilesGrantPowerShell
           [DllImport("kernel32.dll")] static extern bool CloseHandle(IntPtr handle);
           [DllImport("advapi32.dll")] static extern uint LsaOpenPolicy(IntPtr system, ref LSA_OBJECT_ATTRIBUTES attributes, uint access, out IntPtr policy);
           [DllImport("advapi32.dll")] static extern uint LsaAddAccountRights(IntPtr policy, byte[] sid, LSA_UNICODE_STRING[] rights, uint count);
+          [DllImport("advapi32.dll")] static extern uint LsaRemoveAccountRights(IntPtr policy, byte[] sid, bool allRights, IntPtr rights, uint count);
           [DllImport("advapi32.dll")] static extern uint LsaEnumerateAccountRights(IntPtr policy, byte[] sid, out IntPtr rights, out uint count);
           [DllImport("advapi32.dll")] static extern uint LsaClose(IntPtr handle);
           [DllImport("advapi32.dll")] static extern uint LsaFreeMemory(IntPtr buffer);
@@ -393,6 +394,7 @@ internal sealed class WindowsCircleFilesGrantPowerShell
           static IntPtr Open() { var a=new LSA_OBJECT_ATTRIBUTES { Length=Marshal.SizeOf(typeof(LSA_OBJECT_ATTRIBUTES)) }; IntPtr p; uint s=LsaOpenPolicy(IntPtr.Zero, ref a, 0x810, out p); if(s!=0) throw new Win32Exception((int)s); return p; }
           public static bool PasswordWorks(string user,string password) { IntPtr t; if(!LogonUser(user,".",password,3,0,out t)) return false; CloseHandle(t); return true; }
           public static void Add(string sidText) { var sid=new System.Security.Principal.SecurityIdentifier(sidText); var b=new byte[sid.BinaryLength]; sid.GetBinaryForm(b,0); IntPtr p=Open(); var values=new LSA_UNICODE_STRING[Expected.Length]; try { for(int i=0;i<values.Length;i++) values[i]=Make(Expected[i]); uint s=LsaAddAccountRights(p,b,values,(uint)values.Length); if(s!=0) throw new Win32Exception((int)s); } finally { foreach(var v in values) if(v.Buffer!=IntPtr.Zero) Marshal.FreeHGlobal(v.Buffer); LsaClose(p); } }
+          public static void Remove(string sidText) { if(!Exact(sidText)) throw new InvalidOperationException("account rights changed"); var sid=new System.Security.Principal.SecurityIdentifier(sidText); var b=new byte[sid.BinaryLength]; sid.GetBinaryForm(b,0); IntPtr p=Open(); try { uint s=LsaRemoveAccountRights(p,b,true,IntPtr.Zero,0); if(s!=0) throw new Win32Exception((int)s); } finally { LsaClose(p); } }
           public static bool Exact(string sidText) { var sid=new System.Security.Principal.SecurityIdentifier(sidText); var b=new byte[sid.BinaryLength]; sid.GetBinaryForm(b,0); IntPtr p=Open(), values=IntPtr.Zero; try { uint count; uint s=LsaEnumerateAccountRights(p,b,out values,out count); if(s!=0) return false; var found=new HashSet<string>(StringComparer.Ordinal); int size=Marshal.SizeOf(typeof(LSA_UNICODE_STRING)); for(int i=0;i<count;i++){ var v=(LSA_UNICODE_STRING)Marshal.PtrToStructure(IntPtr.Add(values,i*size),typeof(LSA_UNICODE_STRING)); found.Add(Marshal.PtrToStringUni(v.Buffer,v.Length/2)); } return found.SetEquals(Expected); } finally { if(values!=IntPtr.Zero)LsaFreeMemory(values); LsaClose(p); } }
         }
         '@
@@ -438,7 +440,7 @@ internal sealed class WindowsCircleFilesGrantPowerShell
               throw
             }
           }
-          'RemoveAccount' { if ((Get-AccountState) -ne 'Owned') { throw 'account ownership changed' }; Microsoft.PowerShell.LocalAccounts\Remove-LocalUser -Name ([string]$request.AccountName) -ErrorAction Stop; $state='Missing' }
+          'RemoveAccount' { if ((Get-AccountState) -ne 'Owned') { throw 'account ownership changed' }; $user=Microsoft.PowerShell.LocalAccounts\Get-LocalUser -Name ([string]$request.AccountName) -ErrorAction Stop; [BallsGrantRights]::Remove([string]$user.SID.Value); try { Microsoft.PowerShell.LocalAccounts\Remove-LocalUser -Name ([string]$request.AccountName) -ErrorAction Stop } catch { [BallsGrantRights]::Add([string]$user.SID.Value); throw }; $state='Missing' }
           'InspectShareAccess' { $state = Get-ShareState }
           'GrantShareAccess' { if ((Get-ShareState) -ne 'Missing') { throw 'share access collision' }; $user=Microsoft.PowerShell.LocalAccounts\Get-LocalUser -Name ([string]$request.AccountName) -ErrorAction Stop; $account=$user.SID.Translate([System.Security.Principal.NTAccount]).Value; SmbShare\Grant-SmbShareAccess -Name ([string]$request.ShareName) -AccountName $account -AccessRight ([string]$request.AccessRight) -Force -ErrorAction Stop | Out-Null; $state=Get-ShareState }
           'RevokeShareAccess' { if ((Get-ShareState) -ne 'Owned') { throw 'share access ownership changed' }; $user=Microsoft.PowerShell.LocalAccounts\Get-LocalUser -Name ([string]$request.AccountName) -ErrorAction Stop; $account=$user.SID.Translate([System.Security.Principal.NTAccount]).Value; SmbShare\Revoke-SmbShareAccess -Name ([string]$request.ShareName) -AccountName $account -Force -ErrorAction Stop | Out-Null; $state=Get-ShareState }
