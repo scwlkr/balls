@@ -96,6 +96,17 @@ public sealed class WindowsCircleFilesGrantOperationTests
         }
     }
 
+    [TestMethod]
+    public void Helper_plan_comparison_is_structural_after_json_round_trip()
+    {
+        var bytes = System.Text.Json.JsonSerializer.SerializeToUtf8Bytes(
+            new WindowsCircleFilesHelperEnvelope("grant", null, Plan));
+        var roundTrip = System.Text.Json.JsonSerializer.Deserialize<WindowsCircleFilesHelperEnvelope>(bytes);
+
+        Assert.IsNotNull(roundTrip?.Grant);
+        Assert.IsTrue(WindowsCircleFilesHelperCommand.GrantPlansEqual(roundTrip.Grant, Plan));
+    }
+
     private static WindowsCircleFilesGrantHelperPlan CreatePlan()
     {
         var proof = new CircleFilesHostAuthorizationProof(

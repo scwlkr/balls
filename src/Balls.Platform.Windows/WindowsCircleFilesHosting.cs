@@ -741,11 +741,11 @@ public static class WindowsCircleFilesHelperCommand
         }
     }
 
-    private static bool PlansEqual(
+    internal static bool PlansEqual(
         WindowsCircleFilesHelperPlan received,
         WindowsCircleFilesHelperPlan recomputed) =>
         received.OwnerSid == recomputed.OwnerSid
-        && received.Request == recomputed.Request
+        && HostRequestsEqual(received.Request, recomputed.Request)
         && received.PublicPlan.ContractVersion == recomputed.PublicPlan.ContractVersion
         && received.PublicPlan.PlanId == recomputed.PublicPlan.PlanId
         && received.PublicPlan.Provider == recomputed.PublicPlan.Provider
@@ -756,11 +756,11 @@ public static class WindowsCircleFilesHelperCommand
         && received.PublicPlan.TargetExists == recomputed.PublicPlan.TargetExists
         && received.PublicPlan.Actions.SequenceEqual(recomputed.PublicPlan.Actions, StringComparer.Ordinal);
 
-    private static bool GrantPlansEqual(
+    internal static bool GrantPlansEqual(
         WindowsCircleFilesGrantHelperPlan received,
         WindowsCircleFilesGrantHelperPlan recomputed) =>
         received.OwnerSid == recomputed.OwnerSid
-        && received.Request == recomputed.Request
+        && GrantRequestsEqual(received.Request, recomputed.Request)
         && PlansEqual(received.HostPlan, recomputed.HostPlan)
         && received.PublicPlan.ContractVersion == recomputed.PublicPlan.ContractVersion
         && received.PublicPlan.PlanId == recomputed.PublicPlan.PlanId
@@ -773,6 +773,52 @@ public static class WindowsCircleFilesHelperCommand
         && received.PublicPlan.Generation == recomputed.PublicPlan.Generation
         && received.PublicPlan.Actions.SequenceEqual(recomputed.PublicPlan.Actions, StringComparer.Ordinal)
         && CryptographicOperations.FixedTimeEquals(received.Secret, recomputed.Secret);
+
+    private static bool GrantRequestsEqual(
+        CircleFilesGrantCredentialRequest received,
+        CircleFilesGrantCredentialRequest recomputed) =>
+        HostRequestsEqual(received.Host, recomputed.Host)
+        && received.GrantId == recomputed.GrantId
+        && received.MemberId == recomputed.MemberId
+        && received.Access == recomputed.Access
+        && received.Generation == recomputed.Generation
+        && received.AuthorizationDigest == recomputed.AuthorizationDigest
+        && ProofsEqual(received.Authorization, recomputed.Authorization);
+
+    private static bool HostRequestsEqual(
+        CircleFilesHostRequest received,
+        CircleFilesHostRequest recomputed) =>
+        received.CircleId == recomputed.CircleId
+        && received.ContributionId == recomputed.ContributionId
+        && received.ProviderId == recomputed.ProviderId
+        && received.NodeId == recomputed.NodeId
+        && received.DisplayName == recomputed.DisplayName
+        && received.FolderPath.Equals(recomputed.FolderPath, StringComparison.OrdinalIgnoreCase)
+        && received.AuthorizationDigest == recomputed.AuthorizationDigest
+        && received.Authorization is not null
+        && recomputed.Authorization is not null
+        && ProofsEqual(received.Authorization, recomputed.Authorization);
+
+    private static bool ProofsEqual(
+        CircleFilesHostAuthorizationProof received,
+        CircleFilesHostAuthorizationProof recomputed) =>
+        CryptographicOperations.FixedTimeEquals(received.Transcript, recomputed.Transcript)
+        && CryptographicOperations.FixedTimeEquals(received.MemberSignature, recomputed.MemberSignature)
+        && CryptographicOperations.FixedTimeEquals(
+            received.CircleAuthoritySignature,
+            recomputed.CircleAuthoritySignature)
+        && CredentialsEqual(received.MemberCredential, recomputed.MemberCredential)
+        && CredentialsEqual(received.CircleAuthorityCredential, recomputed.CircleAuthorityCredential);
+
+    private static bool CredentialsEqual(
+        CircleFilesHostPublicCredential received,
+        CircleFilesHostPublicCredential recomputed) =>
+        received.Role == recomputed.Role
+        && received.Algorithm == recomputed.Algorithm
+        && received.KeyId == recomputed.KeyId
+        && CryptographicOperations.FixedTimeEquals(
+            received.SubjectPublicKeyInfo,
+            recomputed.SubjectPublicKeyInfo);
 
     private static WindowsCircleFilesHostProvisioner CreateHostVerifier(string daemonUserSid) =>
         new(
