@@ -158,6 +158,11 @@ public sealed class WindowsCircleFilesGrantOperationTests
     [TestMethod]
     public void Host_folder_acl_requires_exact_protected_owner_system_baseline()
     {
+        if (!OperatingSystem.IsWindows())
+        {
+            Assert.Inconclusive("The exact Windows folder ACL contract requires Windows.");
+        }
+
         var directory = Path.Combine(Path.GetTempPath(), "balls-grant-acl", Guid.NewGuid().ToString("N"));
         Directory.CreateDirectory(directory);
         try
@@ -243,6 +248,11 @@ public sealed class WindowsCircleFilesGrantOperationTests
     [TestMethod]
     public void Marker_acl_failure_removes_the_exact_file_created_by_the_attempt()
     {
+        if (!OperatingSystem.IsWindows())
+        {
+            Assert.Inconclusive("The protected Windows marker contract requires Windows.");
+        }
+
         var directory = Path.Combine(Path.GetTempPath(), "balls-grant-marker", Guid.NewGuid().ToString("N"));
         Directory.CreateDirectory(directory);
         var markerPath = Path.Combine(directory, ".balls-grant-test-v1.json");
@@ -274,6 +284,11 @@ public sealed class WindowsCircleFilesGrantOperationTests
     [TestMethod]
     public async Task Marker_partial_write_failure_deletes_the_file_and_rolls_back_the_account()
     {
+        if (!OperatingSystem.IsWindows())
+        {
+            Assert.Inconclusive("The protected Windows marker contract requires Windows.");
+        }
+
         var directory = Path.Combine(Path.GetTempPath(), "balls-grant-marker", Guid.NewGuid().ToString("N"));
         Directory.CreateDirectory(directory);
         var markerPath = Path.Combine(directory, ".balls-grant-test-v1.json");
