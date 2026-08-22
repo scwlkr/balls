@@ -70,6 +70,17 @@ public sealed class WindowsCircleFilesMemberMapperTests
         var retry = await mapper.MapAsync(Request, plan.PlanId, Secret, CancellationToken.None);
         Assert.AreEqual("already-mapped", retry.Status);
         CollectionAssert.AreEqual(new[] { "share:validate" }, operations.Events.ToArray());
+
+        operations.DriveAccessible = false;
+        operations.Events.Clear();
+        var disconnected = await mapper.InspectAsync(Request, Secret, CancellationToken.None);
+        Assert.AreEqual("partial", disconnected.Status);
+        var reconnect = await mapper.MapAsync(Request, plan.PlanId, Secret, CancellationToken.None);
+        Assert.AreEqual("already-mapped", reconnect.Status);
+        Assert.IsTrue(operations.DriveAccessible);
+        CollectionAssert.AreEqual(
+            new[] { "endpoint:probe", "drive:reconnect", "share:validate" },
+            operations.Events.ToArray());
     }
 
     [TestMethod]
@@ -150,10 +161,12 @@ public sealed class WindowsCircleFilesMemberMapperTests
         public HashSet<string> ShareEntries { get; } =
             [".balls-owned-v1.json", $".balls-grant-{Request.GrantId}-g1-v1.json"];
         public IOException? EndpointFailure { get; set; }
+        public bool DriveAccessible { get; set; }
         public List<string> Events { get; } = [];
 
         public IReadOnlyList<string> GetAvailableDriveLetters() => AvailableLetters;
         public string? GetMappedUnc(string driveLetter) => Mapping;
+        public bool IsDriveAccessible(string driveLetter) => DriveAccessible;
         public WindowsCircleFilesStoredCredential? GetCredential(string target) => Credential;
         public WindowsCircleFilesStoredLabel? GetLabel(string uncPath) => Label;
 
@@ -173,6 +186,20 @@ public sealed class WindowsCircleFilesMemberMapperTests
         {
             Events.Add("drive:map");
             Mapping = uncPath;
+            DriveAccessible = true;
+        }
+
+        public void ReconnectDrive(string driveLetter, string uncPath, string accountName, ReadOnlySpan<byte> secret)
+        {
+            Events.Add("drive:reconnect");
+            Mapping = uncPath;
+            DriveAccessible = true;
+        }
+
+        public void DisconnectDriveSession(string driveLetter, string expectedUncPath)
+        {
+            Events.Add("drive:disconnect");
+            DriveAccessible = false;
         }
 
         public bool ShareEntryExists(string uncPath, string fileName)
@@ -194,6 +221,7 @@ public sealed class WindowsCircleFilesMemberMapperTests
         {
             Events.Add("drive:delete");
             Mapping = null;
+            DriveAccessible = false;
         }
 
         public void DeleteLabel(string uncPath, string friendlyName, string ownershipId)

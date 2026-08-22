@@ -35,11 +35,14 @@ internal interface IWindowsCircleFilesMappingOperations
 {
     IReadOnlyList<string> GetAvailableDriveLetters();
     string? GetMappedUnc(string driveLetter);
+    bool IsDriveAccessible(string driveLetter);
     WindowsCircleFilesStoredCredential? GetCredential(string target);
     WindowsCircleFilesStoredLabel? GetLabel(string uncPath);
     void ProbeEndpoint(string endpoint);
     void SaveCredential(string target, string accountName, string ownershipId, ReadOnlySpan<byte> secret);
     void MapDrive(string driveLetter, string uncPath, string accountName, ReadOnlySpan<byte> secret);
+    void ReconnectDrive(string driveLetter, string uncPath, string accountName, ReadOnlySpan<byte> secret);
+    void DisconnectDriveSession(string driveLetter, string expectedUncPath);
     bool ShareEntryExists(string uncPath, string fileName);
     void SaveLabel(string uncPath, string friendlyName, string ownershipId);
     void UnmapDrive(string driveLetter, string expectedUncPath);
@@ -113,8 +116,13 @@ public sealed class WindowsCircleFilesMemberMapper : ICircleFilesMemberMapper
     {
         cancellationToken.ThrowIfCancellationRequested();
         var plan = CreatePlan(request);
+        var status = InspectExact(request, plan);
+        if (status == "mapped" && !operations.IsDriveAccessible(plan.DriveLetter))
+        {
+            status = "partial";
+        }
         return ValueTask.FromResult(new CircleFilesMemberMappingInspection(
-            InspectExact(request, plan),
+            status,
             plan));
     }
 
@@ -130,6 +138,26 @@ public sealed class WindowsCircleFilesMemberMapper : ICircleFilesMemberMapper
         var status = InspectExact(request, plan);
         if (status == "mapped")
         {
+            if (!operations.IsDriveAccessible(plan.DriveLetter))
+            {
+                ProbeEndpoint(plan.Endpoint);
+                operations.ReconnectDrive(
+                    plan.DriveLetter,
+                    plan.UncPath,
+                    request.AccountName,
+                    secret.Span);
+                try
+                {
+                    ValidateShare(request, plan);
+                }
+                catch
+                {
+                    TryRollback(() => operations.DisconnectDriveSession(
+                        plan.DriveLetter, plan.UncPath));
+                    throw;
+                }
+                return new CircleFilesMemberMappingResult("already-mapped", plan);
+            }
             ValidateShare(request, plan);
             return new CircleFilesMemberMappingResult("already-mapped", plan);
         }
@@ -138,16 +166,7 @@ public sealed class WindowsCircleFilesMemberMapper : ICircleFilesMemberMapper
         {
             throw Collision("mapping_drive_collision", "The selected drive letter is already in use.");
         }
-        try
-        {
-            operations.ProbeEndpoint(plan.Endpoint);
-        }
-        catch (Exception exception) when (exception is IOException or System.Net.Sockets.SocketException)
-        {
-            throw new CircleFilesHostingException(
-                "mapping_endpoint_unreachable",
-                "The exact private SMB endpoint could not be reached.");
-        }
+        ProbeEndpoint(plan.Endpoint);
 
         var credentialCreated = false;
         var driveCreated = false;
@@ -351,6 +370,20 @@ public sealed class WindowsCircleFilesMemberMapper : ICircleFilesMemberMapper
         }
     }
 
+    private void ProbeEndpoint(string endpoint)
+    {
+        try
+        {
+            operations.ProbeEndpoint(endpoint);
+        }
+        catch (Exception exception) when (exception is IOException or System.Net.Sockets.SocketException)
+        {
+            throw new CircleFilesHostingException(
+                "mapping_endpoint_unreachable",
+                "The exact private SMB endpoint could not be reached.");
+        }
+    }
+
     private static void ValidateRequest(
         CircleFilesMemberMappingRequest request,
         bool allowUnselectedDrive)
@@ -489,6 +522,8 @@ internal sealed class WindowsCircleFilesMappingOperations : IWindowsCircleFilesM
         return key?.GetValue("RemotePath") as string;
     }
 
+    public bool IsDriveAccessible(string driveLetter) => Directory.Exists($@"{driveLetter}:\");
+
     public WindowsCircleFilesStoredCredential? GetCredential(string target)
     {
         if (!CredRead(target, CredentialTypeDomainPassword, 0, out var pointer))
@@ -580,6 +615,28 @@ internal sealed class WindowsCircleFilesMappingOperations : IWindowsCircleFilesM
             Array.Clear(chars);
             CryptographicOperations.ZeroMemory(encoded);
         }
+    }
+
+    public void ReconnectDrive(
+        string driveLetter,
+        string uncPath,
+        string accountName,
+        ReadOnlySpan<byte> secret) => MapDrive(driveLetter, uncPath, accountName, secret);
+
+    public void DisconnectDriveSession(string driveLetter, string expectedUncPath)
+    {
+        var actual = GetMappedUnc(driveLetter);
+        if (actual is null || !string.Equals(
+                actual.TrimEnd('\\'),
+                expectedUncPath.TrimEnd('\\'),
+                StringComparison.OrdinalIgnoreCase))
+        {
+            throw new CircleFilesHostingException(
+                "mapping_resource_collision",
+                "The selected drive letter no longer matches the exact Balls-owned mapping.");
+        }
+        var result = WNetCancelConnection2($"{driveLetter}:", 0, false);
+        if (result != 0) ThrowNative(result);
     }
 
     public bool ShareEntryExists(string uncPath, string fileName) =>
