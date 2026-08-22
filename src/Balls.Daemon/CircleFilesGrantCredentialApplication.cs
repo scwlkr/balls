@@ -2,15 +2,16 @@ using System.Security.Cryptography;
 using Balls.Core;
 using Balls.Platform;
 using Balls.Protocol.Control.V1;
-using Balls.Storage.Sqlite;
 
 namespace Balls.Daemon;
 
 internal sealed class CircleFilesGrantCredentialApplication(
     CircleFilesApplication files,
-    SqliteLocalStateStore store,
+    ICircleFilesProviderCredentialStore store,
     ICircleFilesGrantCredentialProvisioner provisioner)
 {
+    private readonly SemaphoreSlim applyGate = new(1, 1);
+
     internal async Task<CircleFilesGrantCredentialPlanResponse> PreviewAsync(
         CircleId circleId,
         CircleFilesContributionId contributionId,
@@ -24,6 +25,27 @@ internal sealed class CircleFilesGrantCredentialApplication(
     }
 
     internal async Task<CircleFilesGrantCredentialApplyResponse> ApplyAsync(
+        CircleId circleId,
+        CircleFilesContributionId contributionId,
+        MemberAccessGrantId grantId,
+        string folderPath,
+        string planId,
+        CancellationToken cancellationToken)
+    {
+        await applyGate.WaitAsync(cancellationToken).ConfigureAwait(false);
+        try
+        {
+            return await ApplyCoreAsync(
+                circleId, contributionId, grantId, folderPath, planId, cancellationToken)
+                .ConfigureAwait(false);
+        }
+        finally
+        {
+            applyGate.Release();
+        }
+    }
+
+    private async Task<CircleFilesGrantCredentialApplyResponse> ApplyCoreAsync(
         CircleId circleId,
         CircleFilesContributionId contributionId,
         MemberAccessGrantId grantId,

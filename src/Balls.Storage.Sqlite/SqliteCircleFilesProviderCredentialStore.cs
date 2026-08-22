@@ -4,51 +4,7 @@ using Microsoft.Data.Sqlite;
 
 namespace Balls.Storage.Sqlite;
 
-public sealed record CircleFilesProviderCredentialBinding(
-    string GrantId,
-    string CircleId,
-    string ContributionId,
-    string MemberId,
-    string Provider,
-    string AccountName,
-    string OwnershipId,
-    string Access,
-    long Generation);
-
-public sealed class CircleFilesProviderCredentialMaterial : IDisposable
-{
-    private byte[] secret;
-
-    internal CircleFilesProviderCredentialMaterial(
-        CircleFilesProviderCredentialBinding binding,
-        byte[] secret,
-        bool isNew,
-        bool isActive)
-    {
-        Binding = binding;
-        this.secret = secret;
-        IsNew = isNew;
-        IsActive = isActive;
-    }
-
-    public CircleFilesProviderCredentialBinding Binding { get; }
-
-    public bool IsNew { get; }
-
-    public bool IsActive { get; }
-
-    public ReadOnlyMemory<byte> Secret => secret;
-
-    public void Dispose()
-    {
-        CryptographicOperations.ZeroMemory(secret);
-        secret = [];
-    }
-
-    public override string ToString() => "Circle Files provider credential (redacted)";
-}
-
-public sealed partial class SqliteLocalStateStore
+public sealed partial class SqliteLocalStateStore : ICircleFilesProviderCredentialStore
 {
     private const string CircleFilesProviderCredentialSchemaSql =
         """

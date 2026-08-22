@@ -221,23 +221,28 @@ public sealed class CircleFilesEndpointsTests
             previewJson,
             ControlJson.Options);
         Assert.IsNotNull(preview);
-        using var applyResponse = await client.PostAsJsonAsync(
+        var applyTasks = Enumerable.Range(0, 2).Select(_ => client.PostAsJsonAsync(
             ControlRoutes.CircleFilesGrantCredentialApply(
                 circle.Circle.Id, contribution.Id, grant.Id),
             new ApplyCircleFilesGrantCredentialRequest(folder, preview.PlanId),
-            ControlJson.Options);
-        var applyJson = await applyResponse.Content.ReadAsStringAsync();
-        var applied = System.Text.Json.JsonSerializer.Deserialize<CircleFilesGrantCredentialApplyResponse>(
-            applyJson,
-            ControlJson.Options);
+            ControlJson.Options)).ToArray();
+        var applyResponses = await Task.WhenAll(applyTasks);
+        var applyJson = await Task.WhenAll(
+            applyResponses.Select(response => response.Content.ReadAsStringAsync()));
+        var applied = applyJson.Select(json => System.Text.Json.JsonSerializer
+            .Deserialize<CircleFilesGrantCredentialApplyResponse>(json, ControlJson.Options))
+            .ToArray();
 
         Assert.AreEqual(HttpStatusCode.OK, previewResponse.StatusCode);
-        Assert.AreEqual(HttpStatusCode.OK, applyResponse.StatusCode);
-        Assert.IsNotNull(applied);
-        Assert.AreEqual("applied", applied.Status);
-        Assert.AreEqual(1, grantProvisioner.SecretUseCount);
+        Assert.IsTrue(applyResponses.All(response => response.StatusCode == HttpStatusCode.OK));
+        Assert.IsTrue(applied.All(response => response is not null));
+        CollectionAssert.AreEquivalent(
+            new[] { "applied", "already-applied" },
+            applied.Select(response => response!.Status).ToArray());
+        Assert.AreEqual(2, grantProvisioner.SecretUseCount);
+        Assert.AreEqual(1, grantProvisioner.MaximumConcurrentApplyCount);
         Assert.IsTrue(grantProvisioner.SecretLength >= 24);
-        foreach (var json in new[] { previewJson, applyJson })
+        foreach (var json in new[] { previewJson }.Concat(applyJson))
         {
             foreach (var forbidden in new[] { "password", "secret", "signature", "transcript", "authorization" })
             {
@@ -295,8 +300,12 @@ public sealed class CircleFilesEndpointsTests
 
     private sealed class StubGrantCredentialProvisioner : ICircleFilesGrantCredentialProvisioner
     {
-        internal int SecretUseCount { get; private set; }
+        private int activeApplyCount;
+        private int maximumConcurrentApplyCount;
+        private int secretUseCount;
+        internal int SecretUseCount => secretUseCount;
         internal int SecretLength { get; private set; }
+        internal int MaximumConcurrentApplyCount => maximumConcurrentApplyCount;
 
         public ValueTask<CircleFilesGrantCredentialPlan> PreviewAsync(
             CircleFilesGrantCredentialRequest request,
@@ -306,7 +315,7 @@ public sealed class CircleFilesEndpointsTests
             return ValueTask.FromResult(CreatePlan(request));
         }
 
-        public ValueTask<CircleFilesGrantCredentialApplyResult> ApplyAsync(
+        public async ValueTask<CircleFilesGrantCredentialApplyResult> ApplyAsync(
             CircleFilesGrantCredentialRequest request,
             string expectedPlanId,
             ReadOnlyMemory<byte> secret,
@@ -315,11 +324,20 @@ public sealed class CircleFilesEndpointsTests
             cancellationToken.ThrowIfCancellationRequested();
             var plan = CreatePlan(request);
             Assert.AreEqual(expectedPlanId, plan.PlanId);
-            SecretUseCount++;
+            var active = Interlocked.Increment(ref activeApplyCount);
+            lock (this)
+            {
+                maximumConcurrentApplyCount = Math.Max(maximumConcurrentApplyCount, active);
+            }
+            await Task.Delay(75, cancellationToken);
+            Interlocked.Decrement(ref activeApplyCount);
+            var useCount = Interlocked.Increment(ref secretUseCount);
             SecretLength = secret.Length;
-            return ValueTask.FromResult(new CircleFilesGrantCredentialApplyResult(
-                CircleFilesGrantCredentialApplyStatus.Applied,
-                plan));
+            return new CircleFilesGrantCredentialApplyResult(
+                useCount == 1
+                    ? CircleFilesGrantCredentialApplyStatus.Applied
+                    : CircleFilesGrantCredentialApplyStatus.AlreadyApplied,
+                plan);
         }
 
         private static CircleFilesGrantCredentialPlan CreatePlan(

@@ -539,13 +539,21 @@ internal static class WindowsCircleFilesHelperProtocol
         var bytes = JsonSerializer.SerializeToUtf8Bytes(value);
         if (bytes.Length == 0 || bytes.Length > maximumBytes)
         {
+            CryptographicOperations.ZeroMemory(bytes);
             throw new InvalidDataException("The helper message is outside its size limit.");
         }
 
         var length = BitConverter.GetBytes(System.Net.IPAddress.HostToNetworkOrder(bytes.Length));
-        await stream.WriteAsync(length, cancellationToken).ConfigureAwait(false);
-        await stream.WriteAsync(bytes, cancellationToken).ConfigureAwait(false);
-        await stream.FlushAsync(cancellationToken).ConfigureAwait(false);
+        try
+        {
+            await stream.WriteAsync(length, cancellationToken).ConfigureAwait(false);
+            await stream.WriteAsync(bytes, cancellationToken).ConfigureAwait(false);
+            await stream.FlushAsync(cancellationToken).ConfigureAwait(false);
+        }
+        finally
+        {
+            CryptographicOperations.ZeroMemory(bytes);
+        }
     }
 
     internal static async ValueTask<T> ReadAsync<T>(
@@ -562,9 +570,16 @@ internal static class WindowsCircleFilesHelperProtocol
         }
 
         var bytes = new byte[length];
-        await stream.ReadExactlyAsync(bytes, cancellationToken).ConfigureAwait(false);
-        return JsonSerializer.Deserialize<T>(bytes)
-            ?? throw new InvalidDataException("The helper message is invalid.");
+        try
+        {
+            await stream.ReadExactlyAsync(bytes, cancellationToken).ConfigureAwait(false);
+            return JsonSerializer.Deserialize<T>(bytes)
+                ?? throw new InvalidDataException("The helper message is invalid.");
+        }
+        finally
+        {
+            CryptographicOperations.ZeroMemory(bytes);
+        }
     }
 }
 
@@ -689,36 +704,43 @@ public static class WindowsCircleFilesHelperCommand
 
                 if (envelope.Operation == "grant" && envelope.Grant is { } grant)
                 {
-                    if (grant.OwnerSid != daemonUserSid || grant.Secret.Length is < 24 or > 128)
+                    try
                     {
-                        await WriteErrorAsync(pipe, "hosting_helper_authentication_failed", helperToken)
-                            .ConfigureAwait(false);
-                        return 4;
-                    }
-                    WindowsCircleFilesGrantAuthorizationVerifier.Validate(grant.Request);
-                    var verifier = new WindowsCircleFilesGrantCredentialProvisioner(
-                        CreateHostVerifier(daemonUserSid),
-                        new RejectNestedGrantHelper());
-                    var recomputed = await verifier.PrepareForHelperAsync(
-                        grant.Request,
-                        grant.Secret,
-                        helperToken).ConfigureAwait(false);
-                    if (!GrantPlansEqual(grant, recomputed))
-                    {
-                        await WriteErrorAsync(pipe, "hosting_helper_authentication_failed", helperToken)
-                            .ConfigureAwait(false);
-                        return 4;
-                    }
+                        if (grant.OwnerSid != daemonUserSid || grant.Secret.Length is < 24 or > 128)
+                        {
+                            await WriteErrorAsync(pipe, "hosting_helper_authentication_failed", helperToken)
+                                .ConfigureAwait(false);
+                            return 4;
+                        }
+                        WindowsCircleFilesGrantAuthorizationVerifier.Validate(grant.Request);
+                        var verifier = new WindowsCircleFilesGrantCredentialProvisioner(
+                            CreateHostVerifier(daemonUserSid),
+                            new RejectNestedGrantHelper());
+                        var recomputed = await verifier.PrepareForHelperAsync(
+                            grant.Request,
+                            grant.Secret,
+                            helperToken).ConfigureAwait(false);
+                        if (!GrantPlansEqual(grant, recomputed))
+                        {
+                            await WriteErrorAsync(pipe, "hosting_helper_authentication_failed", helperToken)
+                                .ConfigureAwait(false);
+                            return 4;
+                        }
 
-                    var status = await new WindowsCircleFilesGrantOperation(
-                            new WindowsCircleFilesGrantSystemOperations())
-                        .ExecuteAsync(recomputed, helperToken).ConfigureAwait(false);
-                    await WriteSuccessAsync(
-                        pipe,
-                        status == CircleFilesGrantCredentialApplyStatus.Applied,
-                        "The limited Windows Member credential is ready.",
-                        helperToken).ConfigureAwait(false);
-                    return 0;
+                        var status = await new WindowsCircleFilesGrantOperation(
+                                new WindowsCircleFilesGrantSystemOperations())
+                            .ExecuteAsync(recomputed, helperToken).ConfigureAwait(false);
+                        await WriteSuccessAsync(
+                            pipe,
+                            status == CircleFilesGrantCredentialApplyStatus.Applied,
+                            "The limited Windows Member credential is ready.",
+                            helperToken).ConfigureAwait(false);
+                        return 0;
+                    }
+                    finally
+                    {
+                        CryptographicOperations.ZeroMemory(grant.Secret);
+                    }
                 }
 
                 await WriteErrorAsync(pipe, "hosting_helper_authentication_failed", helperToken)

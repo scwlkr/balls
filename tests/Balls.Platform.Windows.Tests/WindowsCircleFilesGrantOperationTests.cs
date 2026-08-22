@@ -1,5 +1,7 @@
 using System.Runtime.Versioning;
+using System.Security.AccessControl;
 using System.Security.Cryptography;
+using System.Security.Principal;
 using Balls.Core;
 using Balls.Platform;
 using Balls.Platform.Windows;
@@ -71,6 +73,9 @@ public sealed class WindowsCircleFilesGrantOperationTests
         StringAssert.Contains(script, "SeDenyRemoteInteractiveLogonRight");
         StringAssert.Contains(script, "LsaRemoveAccountRights");
         StringAssert.Contains(script, "[BallsGrantRights]::Remove");
+        StringAssert.Contains(script, "[BallsGrantRights]::None");
+        StringAssert.Contains(script, "S-1-5-11");
+        StringAssert.Contains(script, "InjectAccountFailure");
         StringAssert.Contains(script, "Grant-SmbShareAccess");
         StringAssert.Contains(script, "$user.SID.Translate([System.Security.Principal.NTAccount]).Value");
         Assert.IsFalse(script.Contains("-AccountName ('.\\'", StringComparison.Ordinal));
@@ -100,6 +105,60 @@ public sealed class WindowsCircleFilesGrantOperationTests
         {
             CryptographicOperations.ZeroMemory(first);
             CryptographicOperations.ZeroMemory(second);
+        }
+    }
+
+    [TestMethod]
+    public void Missing_marker_or_generic_folder_access_fails_closed()
+    {
+        var directory = Path.Combine(Path.GetTempPath(), "balls-grant-acl", Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(directory);
+        try
+        {
+            var currentSid = WindowsIdentity.GetCurrent().User!;
+            var security = new DirectorySecurity();
+            security.SetAccessRuleProtection(isProtected: true, preserveInheritance: false);
+            security.SetOwner(currentSid);
+            security.AddAccessRule(new FileSystemAccessRule(
+                currentSid,
+                FileSystemRights.FullControl,
+                AccessControlType.Allow));
+            new DirectoryInfo(directory).SetAccessControl(security);
+            Assert.IsFalse(WindowsCircleFilesGrantSystemOperations.HasUnsafeFolderAccess(
+                Plan with { PublicPlan = Plan.PublicPlan with { FolderPath = directory } },
+                includeGrantAccount: false));
+            security.AddAccessRule(new FileSystemAccessRule(
+                new SecurityIdentifier(WellKnownSidType.WorldSid, null),
+                FileSystemRights.ReadAndExecute,
+                AccessControlType.Allow));
+            new DirectoryInfo(directory).SetAccessControl(security);
+            var genericPlan = Plan with
+            {
+                PublicPlan = Plan.PublicPlan with { FolderPath = directory },
+            };
+            Assert.IsTrue(WindowsCircleFilesGrantSystemOperations.HasUnsafeFolderAccess(
+                genericPlan,
+                includeGrantAccount: false));
+
+            security.RemoveAccessRuleAll(new FileSystemAccessRule(
+                new SecurityIdentifier(WellKnownSidType.WorldSid, null),
+                FileSystemRights.ReadAndExecute,
+                AccessControlType.Allow));
+            new DirectoryInfo(directory).SetAccessControl(security);
+            var grantPlan = genericPlan with
+            {
+                PublicPlan = genericPlan.PublicPlan with
+                {
+                    AccountName = WindowsIdentity.GetCurrent().Name,
+                },
+            };
+            Assert.IsTrue(WindowsCircleFilesGrantSystemOperations.HasUnsafeFolderAccess(
+                grantPlan,
+                includeGrantAccount: true));
+        }
+        finally
+        {
+            Directory.Delete(directory, recursive: true);
         }
     }
 
