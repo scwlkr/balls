@@ -47,7 +47,7 @@ checks are recorded on the pull request and issue after they complete.
 ## Dedicated Windows VM evidence
 
 The owned `Balls.Dev.Windows11` Hyper-V guest ran Debug and Release source builds from exact clean
-commit `428d33d8f75bbfc1b8e1399d447434bd869e4c56`. No checkpoint was restored. The test temporarily
+commit `995ebb5cb07076ad7986a715d8171afeb18af621`. No checkpoint was restored. The test temporarily
 changed only the guest's connected profile and the exact 17 event-identified Public/Any inbound
 allow rules used by the readiness fixture; the physical host was not changed.
 
@@ -62,6 +62,7 @@ Observed structured result:
 | Child termination after account creation | `grant_apply_failed`; exact account with zero rights recovered and removed |
 | Child termination after LSA rights | `grant_apply_failed`; exact account and four rights recovered and removed |
 | Debug account failure | failure immediately after LSA rights returned `grant_apply_failed`; `AccountFailureRollbackClean: true` |
+| Marker ACL failure | failure after exact marker flush and before ACL protection returned `grant_apply_failed`; partial marker and account removed |
 | Debug injected failure | later share-access failure returned `grant_apply_failed`; `FailureRollbackClean: true` |
 | Release clean apply | `applied` |
 | Release restart retry | `already-applied` with the unchanged plan/protected credential |
