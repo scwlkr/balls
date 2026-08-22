@@ -106,7 +106,7 @@ public static class CliApplication
         HttpClient client;
         try
         {
-            var timeout = tokens.Count >= 3
+            TimeSpan? timeout = tokens.Count >= 3
                 && tokens[0] == "files"
                 && tokens[1] == "host"
                 && tokens[2] == "apply"
