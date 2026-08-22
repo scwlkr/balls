@@ -275,8 +275,9 @@ dotnet run --project src/Balls.Cli --configuration Release --no-build -- --pipe-
 Mapping is unelevated and persistent across sign-out/restart. It never replaces a drive,
 credential target, or Explorer label. Before success, Balls reads the exact host and grant marker
 files through SMB and compares their Circle/Contribution/provider/Grant/Member/access/generation
-bindings. Unmap uses `force=false` and removes only a matching drive, friendly label, and exact
-credential; changed or open resources are preserved with a collision error.
+bindings. Unmap uses `force=false` and removes only a matching drive, friendly label, and
+credential with the exact target/account/ownership comment; changed or open resources are
+preserved with a collision error.
 
 For focused adapter feedback:
 

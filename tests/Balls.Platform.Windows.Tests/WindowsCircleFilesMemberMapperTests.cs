@@ -64,7 +64,7 @@ public sealed class WindowsCircleFilesMemberMapperTests
 
         Assert.AreEqual("mapped", result.Status);
         CollectionAssert.AreEqual(
-            new[] { "credential:save", "drive:map", "share:validate", "label:save" },
+            new[] { "endpoint:probe", "credential:save", "drive:map", "share:validate", "label:save" },
             operations.Events.ToArray());
         Assert.IsFalse(result.ToString()!.Contains(Encoding.UTF8.GetString(Secret), StringComparison.Ordinal));
 
@@ -93,7 +93,7 @@ public sealed class WindowsCircleFilesMemberMapperTests
         CollectionAssert.AreEqual(
             new[]
             {
-                "credential:save", "drive:map", "share:validate",
+                "endpoint:probe", "credential:save", "drive:map", "share:validate",
                 "drive:delete", "credential:delete",
             },
             operations.Events.ToArray());
@@ -107,7 +107,7 @@ public sealed class WindowsCircleFilesMemberMapperTests
         var operations = new StubOperations
         {
             AvailableLetters = ["M"],
-            ShareReadFailure = new IOException("Sensitive native network detail."),
+            EndpointFailure = new IOException("Sensitive native network detail."),
         };
         var mapper = new WindowsCircleFilesMemberMapper(operations);
         var plan = await mapper.PreviewAsync(Request, CancellationToken.None);
@@ -120,7 +120,7 @@ public sealed class WindowsCircleFilesMemberMapperTests
         CollectionAssert.AreEqual(
             new[]
             {
-                "credential:save", "drive:map", "drive:delete", "credential:delete",
+                "endpoint:probe",
             },
             operations.Events.ToArray());
     }
@@ -168,12 +168,19 @@ public sealed class WindowsCircleFilesMemberMapperTests
         public string HostMarker { get; set; } = "{}";
         public string GrantMarker { get; set; } = "{}";
         public IOException? ShareReadFailure { get; set; }
+        public IOException? EndpointFailure { get; set; }
         public List<string> Events { get; } = [];
 
         public IReadOnlyList<string> GetAvailableDriveLetters() => AvailableLetters;
         public string? GetMappedUnc(string driveLetter) => Mapping;
         public WindowsCircleFilesStoredCredential? GetCredential(string target) => Credential;
         public WindowsCircleFilesStoredLabel? GetLabel(string uncPath) => Label;
+
+        public void ProbeEndpoint(string endpoint)
+        {
+            Events.Add("endpoint:probe");
+            if (EndpointFailure is not null) throw EndpointFailure;
+        }
 
         public void SaveCredential(string target, string accountName, string ownershipId, ReadOnlySpan<byte> secret)
         {
@@ -213,7 +220,7 @@ public sealed class WindowsCircleFilesMemberMapperTests
             Label = null;
         }
 
-        public void DeleteCredential(string target, string accountName, string ownershipId, ReadOnlySpan<byte> secret)
+        public void DeleteCredential(string target, string accountName, string ownershipId)
         {
             Events.Add("credential:delete");
             Credential = null;

@@ -38,13 +38,14 @@ internal interface IWindowsCircleFilesMappingOperations
     string? GetMappedUnc(string driveLetter);
     WindowsCircleFilesStoredCredential? GetCredential(string target);
     WindowsCircleFilesStoredLabel? GetLabel(string uncPath);
+    void ProbeEndpoint(string endpoint);
     void SaveCredential(string target, string accountName, string ownershipId, ReadOnlySpan<byte> secret);
     void MapDrive(string driveLetter, string uncPath, string accountName, ReadOnlySpan<byte> secret);
     string ReadShareFile(string uncPath, string fileName);
     void SaveLabel(string uncPath, string friendlyName, string ownershipId);
     void UnmapDrive(string driveLetter, string expectedUncPath);
     void DeleteLabel(string uncPath, string friendlyName, string ownershipId);
-    void DeleteCredential(string target, string accountName, string ownershipId, ReadOnlySpan<byte> secret);
+    void DeleteCredential(string target, string accountName, string ownershipId);
 }
 
 [SupportedOSPlatform("windows")]
@@ -114,7 +115,7 @@ public sealed class WindowsCircleFilesMemberMapper : ICircleFilesMemberMapper
         cancellationToken.ThrowIfCancellationRequested();
         var plan = CreatePlan(request);
         return ValueTask.FromResult(new CircleFilesMemberMappingInspection(
-            InspectExact(request, plan, secret.Span),
+            InspectExact(request, plan),
             plan));
     }
 
@@ -127,7 +128,7 @@ public sealed class WindowsCircleFilesMemberMapper : ICircleFilesMemberMapper
         cancellationToken.ThrowIfCancellationRequested();
         var plan = CreatePlan(request);
         ValidatePlanId(expectedPlanId, plan.PlanId);
-        var status = InspectExact(request, plan, secret.Span);
+        var status = InspectExact(request, plan);
         if (status == "mapped")
         {
             ValidateShare(request, plan);
@@ -137,6 +138,16 @@ public sealed class WindowsCircleFilesMemberMapper : ICircleFilesMemberMapper
             && !plan.AvailableDriveLetters.Contains(plan.DriveLetter, StringComparer.Ordinal))
         {
             throw Collision("mapping_drive_collision", "The selected drive letter is already in use.");
+        }
+        try
+        {
+            operations.ProbeEndpoint(plan.Endpoint);
+        }
+        catch (Exception exception) when (exception is IOException or System.Net.Sockets.SocketException)
+        {
+            throw new CircleFilesHostingException(
+                "mapping_endpoint_unreachable",
+                "The exact private SMB endpoint could not be reached.");
         }
 
         var credentialCreated = false;
@@ -192,8 +203,7 @@ public sealed class WindowsCircleFilesMemberMapper : ICircleFilesMemberMapper
                 TryRollback(() => operations.DeleteCredential(
                     plan.CredentialTarget,
                     request.AccountName,
-                    plan.OwnershipId,
-                    secret.Span));
+                    plan.OwnershipId));
             }
             throw;
         }
@@ -206,7 +216,7 @@ public sealed class WindowsCircleFilesMemberMapper : ICircleFilesMemberMapper
     {
         cancellationToken.ThrowIfCancellationRequested();
         var plan = CreatePlan(request);
-        var status = InspectExact(request, plan, secret.Span);
+        var status = InspectExact(request, plan);
         if (status == "unmapped")
         {
             return ValueTask.FromResult(new CircleFilesMemberMappingResult("already-unmapped", plan));
@@ -227,8 +237,7 @@ public sealed class WindowsCircleFilesMemberMapper : ICircleFilesMemberMapper
                 operations.DeleteCredential(
                     plan.CredentialTarget,
                     request.AccountName,
-                    plan.OwnershipId,
-                    secret.Span);
+                    plan.OwnershipId);
             }
         }
 
@@ -271,8 +280,7 @@ public sealed class WindowsCircleFilesMemberMapper : ICircleFilesMemberMapper
 
     private string InspectExact(
         CircleFilesMemberMappingRequest request,
-        CircleFilesMemberMappingPlan plan,
-        ReadOnlySpan<byte> secret)
+        CircleFilesMemberMappingPlan plan)
     {
         var owned = 0;
         var mapping = operations.GetMappedUnc(plan.DriveLetter);
@@ -288,8 +296,7 @@ public sealed class WindowsCircleFilesMemberMapper : ICircleFilesMemberMapper
             {
                 if (credential.Target != plan.CredentialTarget
                     || credential.AccountName != request.AccountName
-                    || credential.OwnershipId != plan.OwnershipId
-                    || !CryptographicOperations.FixedTimeEquals(credential.Secret.Span, secret))
+                    || credential.OwnershipId != plan.OwnershipId)
                 {
                     throw ResourceCollision();
                 }
@@ -481,6 +488,24 @@ internal sealed class WindowsCircleFilesMappingOperations : IWindowsCircleFilesM
             .ToArray();
     }
 
+    public void ProbeEndpoint(string endpoint)
+    {
+        using var socket = new System.Net.Sockets.Socket(
+            System.Net.Sockets.AddressFamily.InterNetwork,
+            System.Net.Sockets.SocketType.Stream,
+            System.Net.Sockets.ProtocolType.Tcp);
+        using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(3));
+        try
+        {
+            socket.ConnectAsync(IPAddress.Parse(endpoint), 445, timeout.Token)
+                .AsTask().GetAwaiter().GetResult();
+        }
+        catch (OperationCanceledException exception)
+        {
+            throw new IOException("The private SMB endpoint did not answer in time.", exception);
+        }
+    }
+
     public string? GetMappedUnc(string driveLetter)
     {
         var capacity = 1024;
@@ -649,15 +674,13 @@ internal sealed class WindowsCircleFilesMappingOperations : IWindowsCircleFilesM
     public void DeleteCredential(
         string target,
         string accountName,
-        string ownershipId,
-        ReadOnlySpan<byte> secret)
+        string ownershipId)
     {
         using var actual = GetCredential(target);
         if (actual is null) return;
         if (actual.Target != target
             || actual.AccountName != accountName
-            || actual.OwnershipId != ownershipId
-            || !CryptographicOperations.FixedTimeEquals(actual.Secret.Span, secret))
+            || actual.OwnershipId != ownershipId)
         {
             throw new CircleFilesHostingException(
                 "mapping_resource_collision",

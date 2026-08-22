@@ -14,14 +14,14 @@
 - Windows saves one domain-password credential for the exact numeric private endpoint, maps the
   exact UNC persistently with `CONNECT_UPDATE_PROFILE`, validates host and grant markers through
   SMB, and writes a friendly Circle label with an exact ownership value.
-- Inspect and unmap compare exact drive/UNC, account, credential comment and secret, label, and
+- Inspect and unmap compare exact drive/UNC, account, credential ownership comment, label, and
   ownership ID. Unmap uses `force=false`; mismatched or open resources are preserved.
 
 ## Automated evidence
 
 | Gate | Observation |
 | --- | --- |
-| Windows mapping contract | 4 focused tests passed for discovery, collision refusal, exact map/retry, wrong-share rollback, redaction, repurposed-resource refusal, and exact unmap |
+| Windows mapping contract | 5 focused tests passed for discovery, collision refusal, bounded offline preflight, exact map/retry, wrong-share rollback, redaction, repurposed-resource refusal, and exact unmap |
 | Protected storage | 7 Circle Files state-store tests passed, including active credential readback through the configured current-user protector and restart stability |
 | Daemon/local-control | 4 focused endpoint/OpenAPI tests passed; preview/map/inspect/unmap used the shared application and returned no secret/password fields |
 | Browser | 10 component tests passed, including discovery before explicit selection and map through the browser API; TypeScript and ESLint passed |

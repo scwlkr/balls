@@ -315,7 +315,7 @@ state and the active DPAPI-protected grant credential. Map stores that credentia
 user's Credential Manager, creates a persistent `CONNECT_UPDATE_PROFILE` drive without elevation,
 then verifies both ownership markers through the mapped share before setting the Explorer label.
 Unmap uses non-forced persistent removal and deletes the label and credential only when all exact
-ownership fields and secret bytes still match. The CLI commands are `balls files mapping
+ownership fields still match. The CLI commands are `balls files mapping
 preview|map|inspect|unmap`; only `map` accepts `--plan`.
 
 ### `POST /control/v1/circles/{circleId}/invitations`
