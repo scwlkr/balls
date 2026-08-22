@@ -136,6 +136,28 @@ internal static class CliOutput
                 response.Grants.Select(value =>
                     $"{value.Id}\t{value.MemberId}\t{value.Access}\t{value.Lifecycle}\tgeneration {value.Generation}"));
 
+    internal static string RenderFilesHostPlan(CircleFilesHostPlanResponse response) =>
+        string.Join(
+            Environment.NewLine,
+            new[]
+            {
+                "Circle Files host preview:",
+                $"Folder: {response.FolderPath}",
+                $"Share: {response.ShareName}",
+                "Firewall: Private networks and LocalSubnet only",
+                $"Plan ID: {response.PlanId}",
+                "Apply this exact plan with: balls files host apply ... --plan <plan-id>",
+            }.Concat(response.Actions.Select(action => $"- {action}")));
+
+    internal static string RenderAppliedFilesHost(CircleFilesHostApplyResponse response) =>
+        string.Join(
+            Environment.NewLine,
+            response.Status == "already-applied"
+                ? "The dedicated Circle Files host was already ready."
+                : "Created the dedicated Circle Files host.",
+            $"Folder: {response.Plan.FolderPath}",
+            $"Share: {response.Plan.ShareName}");
+
     internal static string RenderSavedInvitation(
         CreateInvitationResponse response,
         string path) =>

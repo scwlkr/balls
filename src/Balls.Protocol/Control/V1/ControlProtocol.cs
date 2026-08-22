@@ -50,4 +50,19 @@ public static class ControlRoutes
     {
         return $"{CircleFilesContributions(circleId)}/{Uri.EscapeDataString(contributionId)}/grants";
     }
+
+    public static string CircleFilesHost(string circleId, string contributionId)
+    {
+        return $"{CircleFilesContributions(circleId)}/{Uri.EscapeDataString(contributionId)}/host";
+    }
+
+    public static string CircleFilesHostPreview(string circleId, string contributionId)
+    {
+        return CircleFilesHost(circleId, contributionId) + "/preview";
+    }
+
+    public static string CircleFilesHostApply(string circleId, string contributionId)
+    {
+        return CircleFilesHost(circleId, contributionId) + "/apply";
+    }
 }

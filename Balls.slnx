@@ -20,6 +20,7 @@
     <Project Path="src/Balls.Security.Windows/Balls.Security.Windows.csproj" />
     <Project Path="src/Balls.Storage.Sqlite/Balls.Storage.Sqlite.csproj" />
     <Project Path="src/Balls.Transport.Lan/Balls.Transport.Lan.csproj" />
+    <Project Path="src/Balls.Windows.Helper/Balls.Windows.Helper.csproj" />
   </Folder>
   <Folder Name="/tests/">
     <Project Path="tests/Balls.Architecture.Tests/Balls.Architecture.Tests.csproj" />

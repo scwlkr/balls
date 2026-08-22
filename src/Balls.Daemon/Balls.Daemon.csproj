@@ -9,6 +9,7 @@
     <ProjectReference Include="..\Balls.Protocol\Balls.Protocol.csproj" />
     <ProjectReference Include="..\Balls.Storage.Sqlite\Balls.Storage.Sqlite.csproj" />
     <ProjectReference Include="..\Balls.Transport.Lan\Balls.Transport.Lan.csproj" />
+    <ProjectReference Include="..\Balls.Windows.Helper\Balls.Windows.Helper.csproj" ReferenceOutputAssembly="false" />
   </ItemGroup>
   <ItemGroup>
     <PackageReference Include="Microsoft.AspNetCore.OpenApi" />
@@ -32,5 +33,17 @@
         <CopyToPublishDirectory>PreserveNewest</CopyToPublishDirectory>
       </ResolvedFileToPublish>
     </ItemGroup>
+  </Target>
+  <Target Name="CopyWindowsCircleFilesHelper" AfterTargets="Build" Condition="$([MSBuild]::IsOSPlatform('Windows'))">
+    <ItemGroup>
+      <_WindowsCircleFilesHelper Include="$(MSBuildProjectDirectory)\..\Balls.Windows.Helper\bin\$(Configuration)\net10.0\balls-windows-helper*" />
+    </ItemGroup>
+    <Copy SourceFiles="@(_WindowsCircleFilesHelper)" DestinationFolder="$(TargetDir)" SkipUnchangedFiles="true" />
+  </Target>
+  <Target Name="PublishWindowsCircleFilesHelper" AfterTargets="Publish" Condition="$([MSBuild]::IsOSPlatform('Windows'))">
+    <ItemGroup>
+      <_WindowsCircleFilesHelperPublish Include="$(MSBuildProjectDirectory)\..\Balls.Windows.Helper\bin\$(Configuration)\net10.0\balls-windows-helper*" />
+    </ItemGroup>
+    <Copy SourceFiles="@(_WindowsCircleFilesHelperPublish)" DestinationFolder="$(PublishDir)" SkipUnchangedFiles="true" />
   </Target>
 </Project>

@@ -35,6 +35,25 @@ public sealed record CircleFilesContributionListResponse(
     string CircleId,
     IReadOnlyList<CircleFilesContributionResponse> Contributions);
 
+public sealed record PreviewCircleFilesHostRequest(string FolderPath);
+
+public sealed record ApplyCircleFilesHostRequest(string FolderPath, string PlanId);
+
+public sealed record CircleFilesHostPlanResponse(
+    int ContractVersion,
+    string PlanId,
+    string Provider,
+    string FolderPath,
+    string ShareName,
+    string FirewallRuleName,
+    string OwnershipId,
+    bool TargetExists,
+    IReadOnlyList<string> Actions);
+
+public sealed record CircleFilesHostApplyResponse(
+    string Status,
+    CircleFilesHostPlanResponse Plan);
+
 public sealed record CreateMemberAccessGrantRequest(
     string RequestId,
     string MemberId,

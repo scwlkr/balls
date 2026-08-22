@@ -506,6 +506,10 @@ public static class CliApplication
                     client, tokens, outputFormat, standardOutput, standardError, cancellationToken),
                 ("grant", "list") => ListFilesGrantsAsync(
                     client, tokens, outputFormat, standardOutput, standardError, cancellationToken),
+                ("host", "preview") => PreviewFilesHostAsync(
+                    client, tokens, outputFormat, standardOutput, standardError, cancellationToken),
+                ("host", "apply") => ApplyFilesHostAsync(
+                    client, tokens, outputFormat, standardOutput, standardError, cancellationToken),
                 _ => WriteUsageErrorAsync(standardError, outputFormat, "unknown files command."),
             }
             : WriteUsageErrorAsync(standardError, outputFormat, "unknown files command.");
@@ -720,6 +724,93 @@ public static class CliApplication
             outputFormat,
             result.Value,
             CliOutput.RenderFilesGrants);
+        return CliExitCodes.Success;
+    }
+
+    private static async Task<int> PreviewFilesHostAsync(
+        HttpClient client,
+        IReadOnlyList<string> tokens,
+        CliOutputFormat outputFormat,
+        TextWriter output,
+        TextWriter error,
+        CancellationToken cancellationToken)
+    {
+        if (!TryParseNamedOptions(
+                tokens,
+                3,
+                ["--circle", "--contribution", "--path"],
+                out var options,
+                out var parseError)
+            || !options.TryGetValue("--circle", out var circleId)
+            || !options.TryGetValue("--contribution", out var contributionId)
+            || !options.TryGetValue("--path", out var folderPath))
+        {
+            return await WriteUsageErrorAsync(
+                error,
+                outputFormat,
+                parseError ?? "usage: balls files host preview --circle <circle-id> --contribution <contribution-id> --path <absolute-local-path>.");
+        }
+
+        using var response = await client.PostAsJsonAsync(
+            ControlRoutes.CircleFilesHostPreview(circleId, contributionId),
+            new PreviewCircleFilesHostRequest(folderPath),
+            ControlJson.Options,
+            cancellationToken).ConfigureAwait(false);
+        var result = await ReadResponseAsync<CircleFilesHostPlanResponse>(
+            response,
+            outputFormat,
+            error,
+            cancellationToken).ConfigureAwait(false);
+        if (result.Value is null)
+        {
+            return result.ExitCode;
+        }
+
+        await WriteResultAsync(output, outputFormat, result.Value, CliOutput.RenderFilesHostPlan);
+        return CliExitCodes.Success;
+    }
+
+    private static async Task<int> ApplyFilesHostAsync(
+        HttpClient client,
+        IReadOnlyList<string> tokens,
+        CliOutputFormat outputFormat,
+        TextWriter output,
+        TextWriter error,
+        CancellationToken cancellationToken)
+    {
+        if (!TryParseNamedOptions(
+                tokens,
+                3,
+                ["--circle", "--contribution", "--path", "--plan"],
+                out var options,
+                out var parseError)
+            || !options.TryGetValue("--circle", out var circleId)
+            || !options.TryGetValue("--contribution", out var contributionId)
+            || !options.TryGetValue("--path", out var folderPath)
+            || !options.TryGetValue("--plan", out var planId))
+        {
+            return await WriteUsageErrorAsync(
+                error,
+                outputFormat,
+                parseError ?? "usage: balls files host apply --circle <circle-id> --contribution <contribution-id> --path <absolute-local-path> --plan <plan-id>.");
+        }
+
+        using var response = await client.PostAsJsonAsync(
+            ControlRoutes.CircleFilesHostApply(circleId, contributionId),
+            new ApplyCircleFilesHostRequest(folderPath, planId),
+            ControlJson.Options,
+            cancellationToken).ConfigureAwait(false);
+        var result = await ReadResponseAsync<CircleFilesHostApplyResponse>(
+            response,
+            outputFormat,
+            error,
+            cancellationToken).ConfigureAwait(false);
+        if (result.Value is null)
+        {
+            return result.ExitCode;
+        }
+
+        await WriteResultAsync(output, outputFormat, result.Value, CliOutput.RenderAppliedFilesHost);
         return CliExitCodes.Success;
     }
 
@@ -1439,7 +1530,7 @@ public static class CliApplication
         if (outputFormat == CliOutputFormat.Text)
         {
             await error.WriteLineAsync(
-                "commands: ui | status | circle create | circle join | circle list | member list | node list | invitation create | invitation redeem | message send | message list | files readiness | files contribution create/list | files grant create/list");
+                "commands: ui | status | circle create | circle join | circle list | member list | node list | invitation create | invitation redeem | message send | message list | files readiness | files contribution create/list | files grant create/list | files host preview/apply");
         }
 
         return CliExitCodes.UsageError;

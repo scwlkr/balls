@@ -455,6 +455,160 @@
         }
       }
     },
+    "/control/v1/circles/{circleId}/files/contributions/{contributionId}/host/preview": {
+      "post": {
+        "tags": [
+          "ballsd"
+        ],
+        "parameters": [
+          {
+            "name": "circleId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "contributionId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PreviewCircleFilesHostRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CircleFilesHostPlanResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/control/v1/circles/{circleId}/files/contributions/{contributionId}/host/apply": {
+      "post": {
+        "tags": [
+          "ballsd"
+        ],
+        "parameters": [
+          {
+            "name": "circleId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "contributionId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ApplyCircleFilesHostRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CircleFilesHostApplyResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/control/v1/circles/{circleId}/files/contributions/{contributionId}/grants": {
       "post": {
         "tags": [
@@ -1152,6 +1306,21 @@
   },
   "components": {
     "schemas": {
+      "ApplyCircleFilesHostRequest": {
+        "required": [
+          "folderPath",
+          "planId"
+        ],
+        "type": "object",
+        "properties": {
+          "folderPath": {
+            "type": "string"
+          },
+          "planId": {
+            "type": "string"
+          }
+        }
+      },
       "BrowserSessionResponse": {
         "required": [
           "antiforgeryToken",
@@ -1267,6 +1436,72 @@
           "authorizedAtUtc": {
             "type": "string",
             "format": "date-time"
+          }
+        }
+      },
+      "CircleFilesHostApplyResponse": {
+        "required": [
+          "status",
+          "plan"
+        ],
+        "type": "object",
+        "properties": {
+          "status": {
+            "type": "string"
+          },
+          "plan": {
+            "$ref": "#/components/schemas/CircleFilesHostPlanResponse"
+          }
+        }
+      },
+      "CircleFilesHostPlanResponse": {
+        "required": [
+          "contractVersion",
+          "planId",
+          "provider",
+          "folderPath",
+          "shareName",
+          "firewallRuleName",
+          "ownershipId",
+          "targetExists",
+          "actions"
+        ],
+        "type": "object",
+        "properties": {
+          "contractVersion": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "planId": {
+            "type": "string"
+          },
+          "provider": {
+            "type": "string"
+          },
+          "folderPath": {
+            "type": "string"
+          },
+          "shareName": {
+            "type": "string"
+          },
+          "firewallRuleName": {
+            "type": "string"
+          },
+          "ownershipId": {
+            "type": "string"
+          },
+          "targetExists": {
+            "type": "boolean"
+          },
+          "actions": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
           }
         }
       },
@@ -1782,6 +2017,17 @@
           "createdAtUtc": {
             "type": "string",
             "format": "date-time"
+          }
+        }
+      },
+      "PreviewCircleFilesHostRequest": {
+        "required": [
+          "folderPath"
+        ],
+        "type": "object",
+        "properties": {
+          "folderPath": {
+            "type": "string"
           }
         }
       },
