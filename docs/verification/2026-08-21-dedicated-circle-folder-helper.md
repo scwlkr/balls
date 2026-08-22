@@ -18,8 +18,9 @@
 - The helper recomputes the whole plan under elevation and can perform only the typed folder ACL,
   marker/journal, SMB-share, and firewall operations. Its fixed PowerShell adapter accepts JSON on
   standard input, inherits no `PSModulePath`, has a 20-second timeout, and enforces a combined
-  16,384-character streaming output budget. The helper itself exits within two minutes even if its
-  authenticated daemon peer stalls.
+  16,384-character streaming output budget. Forward work stops within two minutes even if its
+  authenticated daemon peer stalls; cancellation then performs reverse recovery with the same
+  per-command bounds before the helper exits.
 - Paths must be absolute fixed-local locations with an existing parent that are new or empty. Roots, Windows/profile
   roots, network locations, files, existing reparse traversal, user content, and foreign
   markers/resources are refused at both privilege levels.
