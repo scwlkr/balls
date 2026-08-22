@@ -430,8 +430,8 @@ internal sealed class WindowsCircleFilesGrantPowerShell
           }
           'RemoveAccount' { if ((Get-AccountState) -ne 'Owned') { throw 'account ownership changed' }; Microsoft.PowerShell.LocalAccounts\Remove-LocalUser -Name ([string]$request.AccountName) -ErrorAction Stop; $state='Missing' }
           'InspectShareAccess' { $state = Get-ShareState }
-          'GrantShareAccess' { if ((Get-ShareState) -ne 'Missing') { throw 'share access collision' }; SmbShare\Grant-SmbShareAccess -Name ([string]$request.ShareName) -AccountName ('.\' + [string]$request.AccountName) -AccessRight ([string]$request.AccessRight) -Force -ErrorAction Stop | Out-Null; $state=Get-ShareState }
-          'RevokeShareAccess' { if ((Get-ShareState) -ne 'Owned') { throw 'share access ownership changed' }; SmbShare\Revoke-SmbShareAccess -Name ([string]$request.ShareName) -AccountName ('.\' + [string]$request.AccountName) -Force -ErrorAction Stop | Out-Null; $state=Get-ShareState }
+          'GrantShareAccess' { if ((Get-ShareState) -ne 'Missing') { throw 'share access collision' }; $user=Microsoft.PowerShell.LocalAccounts\Get-LocalUser -Name ([string]$request.AccountName) -ErrorAction Stop; $account=$user.SID.Translate([System.Security.Principal.NTAccount]).Value; SmbShare\Grant-SmbShareAccess -Name ([string]$request.ShareName) -AccountName $account -AccessRight ([string]$request.AccessRight) -Force -ErrorAction Stop | Out-Null; $state=Get-ShareState }
+          'RevokeShareAccess' { if ((Get-ShareState) -ne 'Owned') { throw 'share access ownership changed' }; $user=Microsoft.PowerShell.LocalAccounts\Get-LocalUser -Name ([string]$request.AccountName) -ErrorAction Stop; $account=$user.SID.Translate([System.Security.Principal.NTAccount]).Value; SmbShare\Revoke-SmbShareAccess -Name ([string]$request.ShareName) -AccountName $account -Force -ErrorAction Stop | Out-Null; $state=Get-ShareState }
           default { throw 'unsupported command' }
         }
         [PSCustomObject]@{ State=$state } | Microsoft.PowerShell.Utility\ConvertTo-Json -Compress

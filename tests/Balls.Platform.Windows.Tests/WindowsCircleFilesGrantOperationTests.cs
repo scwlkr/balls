@@ -70,6 +70,8 @@ public sealed class WindowsCircleFilesGrantOperationTests
         StringAssert.Contains(script, "SeDenyInteractiveLogonRight");
         StringAssert.Contains(script, "SeDenyRemoteInteractiveLogonRight");
         StringAssert.Contains(script, "Grant-SmbShareAccess");
+        StringAssert.Contains(script, "$user.SID.Translate([System.Security.Principal.NTAccount]).Value");
+        Assert.IsFalse(script.Contains("-AccountName ('.\\'", StringComparison.Ordinal));
         Assert.IsFalse(script.Contains("Invoke-Expression", StringComparison.OrdinalIgnoreCase));
         Assert.IsFalse(script.Contains("ScriptBlock", StringComparison.OrdinalIgnoreCase));
     }
