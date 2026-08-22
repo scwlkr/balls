@@ -113,6 +113,8 @@ receipt but does not gain private root/Anchor authority or redefine itself as th
   unprotected material only to the in-process helper path; a changed binding or duplicate identity
   fails closed. Successful helper completion atomically advances the row to active. Pending state
   survives restart so recovery reuses the same password rather than creating conflicting accounts.
+  The daemon serializes the complete protected preparation, elevated helper, and completion sequence
+  so concurrent exact apply requests cannot treat another request's resources as their rollback prefix.
 - A repeated creation request with equivalent normalized input returns the original Circle. A
   conflicting reuse fails with `creation_request_conflict`.
 - Store operations are serialized within the process. Disposal waits for the active operation and

@@ -236,7 +236,8 @@ Active frontier:
 - [#59 — Issue one limited SMB credential per Member access grant](https://github.com/scwlkr/balls/issues/59)
   adds DPAPI-protected random credential state, deterministic preview/apply, one no-group local
   account with four deny-logon rights, exact read-only/read-write folder and encrypted-share ACLs,
-  restart-safe retry, and ownership-proven reverse rollback. VM evidence is in the
+  serialized restart-safe retry, generic-principal collision rejection, and ownership-proven reverse
+  rollback. Exact-commit VM evidence includes issued-credential SMB I/O and logon denial in the
   [limited credential record](verification/2026-08-21-limited-smb-member-credential.md).
 - [#60](https://github.com/scwlkr/balls/issues/60) is the next frontier after #59 lands.
 - [#61](https://github.com/scwlkr/balls/issues/61) and

@@ -550,15 +550,21 @@ including both current Owner/root signatures, and deterministically binds Circle
 Member, grant, access, generation, host plan, account name, and ownership ID. Apply generates one
 32-character cryptographically random complex password, stores only its DPAPI CurrentUser-
 protected form in SQLite, and passes the plaintext only through the authenticated bounded helper
-pipe. Public local-control, CLI, OpenAPI, and browser projections never contain that material.
+pipe. The Core credential-store contract keeps provider material behind the domain seam; daemon
+apply serializes the complete prepare/helper/complete sequence so concurrent exact requests cannot
+roll back each other's resources. Public local-control, CLI, OpenAPI, and browser projections never
+contain that material.
 
 The helper creates one grant-owned local account with no group membership, no expiry, and exactly
 four deny-logon rights (interactive, remote interactive, batch, and service). It adds one inherited
 whole-folder ACL (`ReadAndExecute` or `Modify`, never `FullControl`) and one matching encrypted-share
 allow entry (`Read` or `Change`). A protected grant marker records the full ownership binding and
-pre-mutation folder SDDL. Exact retry reuses the same protected credential across process restart;
-foreign account, marker, folder ACL, or share ACL state fails closed. Failure rolls back the owned
-prefix in reverse order, including removal of the four account rights before deleting the account.
+pre-mutation folder SDDL. Preflight rejects generic Everyone/Authenticated Users allow access on
+the target folder, target share, or any other non-special share, and rejects a surviving grant-SID
+folder ACE when its marker is missing. Exact retry reuses the same protected credential across
+process restart; foreign account, marker, folder ACL, or share ACL state fails closed. Failure rolls
+back the owned prefix in reverse order, including partial account creation after LSA rights were
+added and removal of the four account rights before deleting the account.
 
 For the files-first v1, the Windows provider uses SMB 3.1.1 with SMB1 and guest access disabled,
 signing and encryption required, and one limited provider credential per Member Access Grant. A

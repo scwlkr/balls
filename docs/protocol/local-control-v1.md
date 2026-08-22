@@ -280,7 +280,11 @@ deny-logon rights, one whole-folder ACL, one encrypted-share allow entry, and on
 marker. Read-only grants map to folder `ReadAndExecute` and share `Read`; read-write grants map to
 folder `Modify` and share `Change`. Success returns `applied` or `already-applied` plus only the
 public plan. The random password is DPAPI-protected before elevation, reused on exact restart retry,
-and is never returned by this route, the CLI, browser, history/list projections, or errors. The CLI is:
+and is never returned by this route, the CLI, browser, history/list projections, or errors. Exact
+applies are serialized through protected preparation, helper execution, and lifecycle completion;
+concurrent retries therefore resolve to one `applied` and one `already-applied`, rather than racing
+rollback. Generic Everyone/Authenticated Users access on the folder, target share, or any other
+non-special share fails closed before account creation. The CLI is:
 
 ```text
 balls files grant credential-apply --circle <circle-id> --contribution <contribution-id> \
