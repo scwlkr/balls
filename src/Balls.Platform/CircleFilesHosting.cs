@@ -1,3 +1,6 @@
+using System.Net;
+using System.Security.Cryptography;
+
 namespace Balls.Platform;
 
 public static class CircleFilesHostingContract
@@ -27,6 +30,25 @@ public sealed record CircleFilesHostAuthorizationProof(
     byte[] CircleAuthoritySignature,
     CircleFilesHostPublicCredential MemberCredential,
     CircleFilesHostPublicCredential CircleAuthorityCredential);
+
+public static class CircleFilesHostAuthorizationDigest
+{
+    public static string Compute(CircleFilesHostAuthorizationProof proof)
+    {
+        ArgumentNullException.ThrowIfNull(proof);
+        using var hash = IncrementalHash.CreateHash(HashAlgorithmName.SHA256);
+        Append(hash, proof.Transcript);
+        Append(hash, proof.MemberSignature);
+        Append(hash, proof.CircleAuthoritySignature);
+        return Convert.ToHexStringLower(hash.GetHashAndReset());
+    }
+
+    private static void Append(IncrementalHash hash, byte[] value)
+    {
+        hash.AppendData(BitConverter.GetBytes(IPAddress.HostToNetworkOrder(value.Length)));
+        hash.AppendData(value);
+    }
+}
 
 public sealed record CircleFilesHostPlan(
     int ContractVersion,

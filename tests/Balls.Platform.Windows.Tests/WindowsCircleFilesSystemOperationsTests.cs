@@ -1,4 +1,5 @@
 using System.Runtime.Versioning;
+using System.Security.AccessControl;
 using Balls.Platform;
 using Balls.Platform.Windows;
 
@@ -51,6 +52,43 @@ public sealed class WindowsCircleFilesSystemOperationsTests
                     plan,
                     WindowsCircleFilesOperationStep.FolderAcl,
                     CancellationToken.None));
+
+            await operations.ApplyAsync(
+                plan,
+                WindowsCircleFilesOperationStep.OwnershipMarker,
+                CancellationToken.None);
+            Assert.AreEqual(
+                WindowsCircleFilesOwnedState.Owned,
+                await operations.InspectAsync(
+                    plan,
+                    WindowsCircleFilesOperationStep.OwnershipMarker,
+                    CancellationToken.None));
+
+            var markerPath = Path.Combine(folder, ".balls-owned-v1.json");
+            var originalMarkerSddl = new FileInfo(markerPath).GetAccessControl()
+                .GetSecurityDescriptorSddlForm(
+                    AccessControlSections.Owner | AccessControlSections.Access);
+            var broadenedMarkerSecurity = new FileInfo(markerPath).GetAccessControl();
+            broadenedMarkerSecurity.SetAccessRuleProtection(
+                isProtected: false,
+                preserveInheritance: true);
+            new FileInfo(markerPath).SetAccessControl(broadenedMarkerSecurity);
+            Assert.AreEqual(
+                WindowsCircleFilesOwnedState.Collision,
+                await operations.InspectAsync(
+                    plan,
+                    WindowsCircleFilesOperationStep.OwnershipMarker,
+                    CancellationToken.None));
+            var restoredMarkerSecurity = new FileSecurity();
+            restoredMarkerSecurity.SetSecurityDescriptorSddlForm(
+                originalMarkerSddl,
+                AccessControlSections.Owner | AccessControlSections.Access);
+            new FileInfo(markerPath).SetAccessControl(restoredMarkerSecurity);
+
+            await operations.RollbackAsync(
+                plan,
+                WindowsCircleFilesOperationStep.OwnershipMarker,
+                CancellationToken.None);
 
             await operations.RollbackAsync(
                 plan,

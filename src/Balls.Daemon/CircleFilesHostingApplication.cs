@@ -1,5 +1,3 @@
-using System.Net;
-using System.Security.Cryptography;
 using Balls.Core;
 using Balls.Platform;
 using Balls.Protocol.Control.V1;
@@ -50,11 +48,17 @@ internal sealed class CircleFilesHostingApplication(
         string folderPath,
         CancellationToken cancellationToken)
     {
-        var authorized = await files.GetAuthorizedLocalContributionForHostingAsync(
+        var authorized = await files.GetAuthorizedLocalContributionAsync(
             circleId,
             contributionId,
             cancellationToken).ConfigureAwait(false);
         var contribution = authorized.Contribution;
+        var authorization = new CircleFilesHostAuthorizationProof(
+            contribution.Authorization.Transcript,
+            contribution.Authorization.MemberSignature,
+            contribution.Authorization.CircleAuthoritySignature,
+            ToHostCredential(authorized.MemberCredential),
+            ToHostCredential(authorized.CircleAuthorityCredential));
         return new CircleFilesHostRequest(
             contribution.CircleId.ToString(),
             contribution.Id.ToString(),
@@ -62,13 +66,8 @@ internal sealed class CircleFilesHostingApplication(
             contribution.Provider.NodeId.ToString(),
             contribution.DisplayName,
             folderPath,
-            AuthorizationDigest(contribution.Authorization),
-            new CircleFilesHostAuthorizationProof(
-                contribution.Authorization.Transcript,
-                contribution.Authorization.MemberSignature,
-                contribution.Authorization.CircleAuthoritySignature,
-                ToHostCredential(authorized.MemberCredential),
-                ToHostCredential(authorized.CircleAuthorityCredential)));
+            CircleFilesHostAuthorizationDigest.Compute(authorization),
+            authorization);
     }
 
     private static CircleFilesHostPublicCredential ToHostCredential(
@@ -83,21 +82,6 @@ internal sealed class CircleFilesHostingApplication(
             credential.Algorithm,
             credential.KeyId,
             credential.SubjectPublicKeyInfo);
-
-    private static string AuthorizationDigest(CircleFilesOwnerAuthorization authorization)
-    {
-        using var hash = IncrementalHash.CreateHash(HashAlgorithmName.SHA256);
-        Append(hash, authorization.Transcript);
-        Append(hash, authorization.MemberSignature);
-        Append(hash, authorization.CircleAuthoritySignature);
-        return Convert.ToHexStringLower(hash.GetHashAndReset());
-    }
-
-    private static void Append(IncrementalHash hash, byte[] value)
-    {
-        hash.AppendData(BitConverter.GetBytes(IPAddress.HostToNetworkOrder(value.Length)));
-        hash.AppendData(value);
-    }
 
     private static CircleFilesHostPlanResponse ToResponse(CircleFilesHostPlan plan) =>
         new(

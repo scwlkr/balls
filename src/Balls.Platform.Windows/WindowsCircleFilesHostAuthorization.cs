@@ -1,5 +1,4 @@
 using System.Buffers.Binary;
-using System.Net;
 using System.Security.Cryptography;
 using System.Text;
 using Balls.Platform;
@@ -41,21 +40,11 @@ internal static class WindowsCircleFilesHostAuthorizationVerifier
         string expectedDigest,
         CircleFilesHostAuthorizationProof proof)
     {
-        using var hash = IncrementalHash.CreateHash(HashAlgorithmName.SHA256);
-        Append(hash, proof.Transcript);
-        Append(hash, proof.MemberSignature);
-        Append(hash, proof.CircleAuthoritySignature);
-        var actual = Convert.ToHexStringLower(hash.GetHashAndReset());
+        var actual = CircleFilesHostAuthorizationDigest.Compute(proof);
         return expectedDigest.Length == actual.Length
             && CryptographicOperations.FixedTimeEquals(
                 Encoding.ASCII.GetBytes(expectedDigest),
                 Encoding.ASCII.GetBytes(actual));
-    }
-
-    private static void Append(IncrementalHash hash, byte[] value)
-    {
-        hash.AppendData(BitConverter.GetBytes(IPAddress.HostToNetworkOrder(value.Length)));
-        hash.AppendData(value);
     }
 
     private static bool VerifyCredential(
@@ -126,7 +115,7 @@ internal static class WindowsCircleFilesHostAuthorizationVerifier
     private static string ReadString(ref ReadOnlySpan<byte> remaining)
     {
         var length = ReadInt32(ref remaining);
-        if (length is < 0 or > 256 || remaining.Length < length)
+        if (length is < 0 or > 512 || remaining.Length < length)
         {
             throw new InvalidDataException();
         }

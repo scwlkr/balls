@@ -253,6 +253,8 @@ public sealed class WindowsCircleFilesHostProvisioner : ICircleFilesHostProvisio
             || !environment.IsFixedLocalDrive(root)
             || environment.FileExists(fullPath)
             || environment.HasReparsePointInExistingPath(fullPath)
+            || Path.GetDirectoryName(fullPath) is not { } parent
+            || !environment.DirectoryExists(parent)
             || environment.RefusedRoots.Any(refused => IsAtOrBelow(fullPath, refused)))
         {
             throw InvalidPath("The hosting folder must be a dedicated local folder outside protected or general-purpose locations.");
@@ -603,6 +605,7 @@ internal static partial class WindowsNamedPipeProcessIdentity
 [SupportedOSPlatform("windows")]
 public static class WindowsCircleFilesHelperCommand
 {
+    private static readonly TimeSpan MaximumLifetime = TimeSpan.FromMinutes(2);
     private const int MaximumMessageBytes = 64 * 1024;
 
     public static async Task<int> RunAsync(string[] args, CancellationToken cancellationToken = default)
@@ -625,6 +628,9 @@ public static class WindowsCircleFilesHelperCommand
             return 3;
         }
 
+        using var lifetime = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+        lifetime.CancelAfter(MaximumLifetime);
+        var helperToken = lifetime.Token;
         try
         {
             await using var pipe = new NamedPipeClientStream(
@@ -633,7 +639,7 @@ public static class WindowsCircleFilesHelperCommand
                 PipeDirection.InOut,
                 PipeOptions.Asynchronous,
                 TokenImpersonationLevel.Identification);
-            await pipe.ConnectAsync(10_000, cancellationToken).ConfigureAwait(false);
+            await pipe.ConnectAsync(10_000, helperToken).ConfigureAwait(false);
             if (!WindowsNamedPipeProcessIdentity.TryGetServerProcessId(pipe, out var actualServerPid)
                 || actualServerPid != serverPid)
             {
@@ -645,10 +651,10 @@ public static class WindowsCircleFilesHelperCommand
                 var received = await WindowsCircleFilesHelperProtocol.ReadAsync<WindowsCircleFilesHelperPlan>(
                     pipe,
                     MaximumMessageBytes,
-                    cancellationToken).ConfigureAwait(false);
+                    helperToken).ConfigureAwait(false);
                 if (received.OwnerSid != daemonUserSid)
                 {
-                    await WriteErrorAsync(pipe, "hosting_helper_authentication_failed", cancellationToken)
+                    await WriteErrorAsync(pipe, "hosting_helper_authentication_failed", helperToken)
                         .ConfigureAwait(false);
                     return 4;
                 }
@@ -658,17 +664,17 @@ public static class WindowsCircleFilesHelperCommand
                     new WindowsSmbReadinessInspector(),
                     new WindowsCircleFilesPathEnvironment(daemonUserSid),
                     new RejectNestedHelper());
-                var recomputed = await verifier.PrepareForHelperAsync(received.Request, cancellationToken)
+                var recomputed = await verifier.PrepareForHelperAsync(received.Request, helperToken)
                     .ConfigureAwait(false);
                 if (!PlansEqual(received, recomputed))
                 {
-                    await WriteErrorAsync(pipe, "hosting_helper_authentication_failed", cancellationToken)
+                    await WriteErrorAsync(pipe, "hosting_helper_authentication_failed", helperToken)
                         .ConfigureAwait(false);
                     return 4;
                 }
 
                 var status = await new WindowsCircleFilesOperation(new WindowsCircleFilesSystemOperations())
-                    .ExecuteAsync(recomputed, cancellationToken).ConfigureAwait(false);
+                    .ExecuteAsync(recomputed, helperToken).ConfigureAwait(false);
                 await WindowsCircleFilesHelperProtocol.WriteAsync(
                     pipe,
                     new WindowsCircleFilesHelperResponse(
@@ -676,14 +682,18 @@ public static class WindowsCircleFilesHelperCommand
                         null,
                         "The dedicated Circle Files host is ready."),
                     MaximumMessageBytes,
-                    cancellationToken).ConfigureAwait(false);
+                    helperToken).ConfigureAwait(false);
                 return 0;
             }
             catch (CircleFilesHostingException exception)
             {
-                await WriteErrorAsync(pipe, exception.Code, cancellationToken).ConfigureAwait(false);
+                await WriteErrorAsync(pipe, exception.Code, helperToken).ConfigureAwait(false);
                 return 6;
             }
+        }
+        catch (OperationCanceledException)
+        {
+            return 7;
         }
         catch (Exception exception) when (exception is IOException or JsonException or UnauthorizedAccessException)
         {

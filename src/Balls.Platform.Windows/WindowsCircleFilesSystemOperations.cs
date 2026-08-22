@@ -135,6 +135,7 @@ internal sealed class WindowsCircleFilesSystemOperations : IWindowsCircleFilesOp
             plan.PublicPlan.FolderPath,
             plan.OwnerSid);
         return string.Equals(File.ReadAllText(markerPath), expected, StringComparison.Ordinal)
+            && HasDesiredFileSecurity(markerPath, plan.OwnerSid)
             ? WindowsCircleFilesOwnedState.Owned
             : WindowsCircleFilesOwnedState.Collision;
     }

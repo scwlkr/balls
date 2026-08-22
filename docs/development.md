@@ -248,7 +248,8 @@ $planId = "replace-with-64-character-plan-id"
 dotnet run --project src/Balls.Cli --configuration Release --no-build -- --pipe-name balls-dev files host apply --circle $circleId --contribution $contributionId --path $circleFilesPath --plan $planId
 ```
 
-The host must report `ready`. The path must be absolute, fixed-local, dedicated, and new or empty;
+The host must report `ready`. The path must be absolute, fixed-local, dedicated, have an existing
+parent, and be new or empty;
 roots, Windows/profile roots, network paths, files, reparse traversal, existing content, and
 foreign ownership markers are refused. Preview is non-mutating and deterministic. Apply creates
 only the exact owned folder ACL, encryption-required share, and Private/LocalSubnet firewall rule;

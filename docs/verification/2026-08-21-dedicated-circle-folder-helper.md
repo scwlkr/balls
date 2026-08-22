@@ -18,12 +18,14 @@
 - The helper recomputes the whole plan under elevation and can perform only the typed folder ACL,
   marker/journal, SMB-share, and firewall operations. Its fixed PowerShell adapter accepts JSON on
   standard input, inherits no `PSModulePath`, has a 20-second timeout, and enforces a combined
-  16,384-character streaming output budget.
-- Paths must be absolute fixed-local locations that are new or empty. Roots, Windows/profile
+  16,384-character streaming output budget. The helper itself exits within two minutes even if its
+  authenticated daemon peer stalls.
+- Paths must be absolute fixed-local locations with an existing parent that are new or empty. Roots, Windows/profile
   roots, network locations, files, existing reparse traversal, user content, and foreign
   markers/resources are refused at both privilege levels.
 - Exact ownership is recorded in the folder marker and journal plus the share and firewall
-  descriptions. The protected ACL grants full control only to the local Owner and LocalSystem;
+  descriptions. Both marker files must retain a protected ACL granting full control only to the
+  local Owner and LocalSystem to count as owned; the folder uses the same principals;
   the share requires encryption and initially grants only the Owner; the inbound rule is limited
   to `Private`, TCP 445, `LocalSubnet`, and `LanmanServer`.
 - Retry succeeds only for the complete exact state. Failure and partial recovery inspect every

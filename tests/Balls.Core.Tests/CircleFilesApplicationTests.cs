@@ -72,7 +72,8 @@ public sealed class CircleFilesApplicationTests
         Assert.AreEqual(contribution, state.Contributions.Single());
         Assert.AreEqual(
             contribution,
-            await application.GetAuthorizedLocalContributionAsync(CircleId, contribution.Id));
+            (await application.GetAuthorizedLocalContributionAsync(CircleId, contribution.Id))
+                .Contribution);
     }
 
     [TestMethod]

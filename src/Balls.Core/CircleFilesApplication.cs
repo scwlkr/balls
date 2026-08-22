@@ -71,16 +71,7 @@ public sealed class CircleFilesApplication(
         CancellationToken cancellationToken = default) =>
         state.ListContributionsAsync(circleId, cancellationToken);
 
-    public async Task<CircleFilesContribution> GetAuthorizedLocalContributionAsync(
-        CircleId circleId,
-        CircleFilesContributionId contributionId,
-        CancellationToken cancellationToken = default) =>
-        (await GetAuthorizedLocalContributionForHostingAsync(
-            circleId,
-            contributionId,
-            cancellationToken).ConfigureAwait(false)).Contribution;
-
-    public async Task<AuthorizedCircleFilesContribution> GetAuthorizedLocalContributionForHostingAsync(
+    public async Task<AuthorizedCircleFilesContribution> GetAuthorizedLocalContributionAsync(
         CircleId circleId,
         CircleFilesContributionId contributionId,
         CancellationToken cancellationToken = default)

@@ -172,6 +172,13 @@ public sealed class WindowsCircleFilesHostingTests
     }
 
     [TestMethod]
+    public void Elevated_helper_accepts_the_full_UTF8_size_of_a_valid_contribution_name()
+    {
+        WindowsCircleFilesHostAuthorizationVerifier.Validate(
+            CreateAuthorizedRequest(new string('\u754c', 100)));
+    }
+
+    [TestMethod]
     public void Elevated_path_revalidation_keeps_the_authenticated_daemon_owner_sid()
     {
         const string daemonOwnerSid = "S-1-5-21-1000";
@@ -266,6 +273,18 @@ public sealed class WindowsCircleFilesHostingTests
         Assert.AreEqual("hosting_folder_not_empty", error.Code);
     }
 
+    [TestMethod]
+    public async Task Preview_rejects_a_new_target_whose_parent_does_not_exist()
+    {
+        var error = await Assert.ThrowsExactlyAsync<CircleFilesHostingException>(
+            () => CreateProvisioner(
+                    new StubEnvironment { ParentExists = false },
+                    new StubHelper())
+                .PreviewAsync(Request, CancellationToken.None).AsTask());
+
+        Assert.AreEqual("hosting_path_invalid", error.Code);
+    }
+
     private static WindowsCircleFilesHostProvisioner CreateProvisioner(
         StubEnvironment environment,
         StubHelper helper) =>
@@ -302,7 +321,7 @@ public sealed class WindowsCircleFilesHostingTests
         }
     }
 
-    private static CircleFilesHostRequest CreateAuthorizedRequest()
+    private static CircleFilesHostRequest CreateAuthorizedRequest(string displayName = "Company files")
     {
         var circleId = new CircleId(Guid.Parse("019d2a6b-1b66-7d38-9c35-8d64ca8f8901"));
         var contributionId = new CircleFilesContributionId(
@@ -322,7 +341,7 @@ public sealed class WindowsCircleFilesHostingTests
             contributionId,
             circleId,
             new CircleFilesProviderIdentity(providerId, nodeId),
-            "Company files",
+            displayName,
             CircleFilesContributionLifecycle.Defined,
             1,
             authorizedAt,
@@ -382,6 +401,8 @@ public sealed class WindowsCircleFilesHostingTests
 
         public bool ExistingDirectory { get; init; }
 
+        public bool ParentExists { get; init; } = true;
+
         public bool HasReparsePoint { get; init; }
 
         public IReadOnlyList<string> Entries { get; init; } = [];
@@ -401,7 +422,10 @@ public sealed class WindowsCircleFilesHostingTests
 
         public bool FileExists(string path) => FileAtTarget;
 
-        public bool DirectoryExists(string path) => ExistingDirectory;
+        public bool DirectoryExists(string path) =>
+            path.Equals(Request.FolderPath, StringComparison.OrdinalIgnoreCase)
+                ? ExistingDirectory
+                : ParentExists;
 
         public bool HasReparsePointInExistingPath(string path) => HasReparsePoint;
 

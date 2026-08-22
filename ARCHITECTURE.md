@@ -523,10 +523,10 @@ Owner even when UAC uses a different administrator credential. The elevated help
 readiness, path safety, identity, and the complete plan rather than trusting the preview. Its only
 system mutation path is a fixed encoded PowerShell command enum; it accepts structured JSON over
 standard input and uses a 20-second timeout plus one combined 16,384-character streaming output
-budget. No arbitrary command, script, or caller-controlled shell argument crosses the elevation
-boundary.
+budget. The elevated helper also has its own two-minute lifetime even if the daemon stalls. No
+arbitrary command, script, or caller-controlled shell argument crosses the elevation boundary.
 
-Both privilege levels require an absolute fixed-local path outside drive roots, Windows and
+Both privilege levels require an absolute fixed-local path with an existing parent, outside drive roots, Windows and
 profile roots, network locations, files, and any existing reparse traversal. The target must be
 new or empty, or contain only the exact Balls ownership marker and operation journal. Preflight
 rejects any share, rule, marker, or journal collision before mutation. Apply creates a protected
@@ -536,7 +536,8 @@ granting only that Owner, and one inbound TCP 445 rule restricted to `Private`, 
 
 The exact ownership ID appears in the folder marker, operation journal, share description, and
 firewall description. Each step is inspected before use; retry returns `already-applied` only for
-the complete exact state. Partial or failed work rolls back in reverse order and removes only
+the complete exact state, including protected Owner/LocalSystem ACLs on both marker files. Partial
+or failed work rolls back in reverse order and removes only
 resources whose complete identity and properties prove Balls ownership. Existing content is never
 adopted or deleted, an originally empty folder has its prior ACL restored, and the journal can
 claim at most the exact target directory rather than any ancestor.
