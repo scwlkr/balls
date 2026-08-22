@@ -37,7 +37,8 @@ the repository toolchain, and the initial source/browser/installer smokes are pr
 Status: implementation. Trusted Circle is owner-accepted and published as
 [`0.3.0-alpha.1`](https://github.com/scwlkr/balls/releases/tag/0.3.0-alpha.1). #56 establishes the
 provider-neutral contribution and Access Grant foundation. #57 adds the read-only Windows SMB
-readiness gate; #58 is the next ready frontier and #59–#62 remain dependency-blocked.
+readiness gate. #58 adds the dedicated owned-folder hosting helper; #59 is the next frontier after
+#58 lands, while #60–#62 remain dependency-blocked.
 
 Exit outcome: two Windows Members can add, remove, rename, and edit files in the same persistent
 Explorer-mapped folder over a private LAN. Circle contribution and authorization drive a
@@ -225,9 +226,14 @@ Active frontier:
   local-control v1, and structured CLI. It fails closed on unsafe or unknown host/network/firewall
   observations and performs no mutation. Exact Windows host and VM results are recorded in the
   [SMB readiness record](verification/2026-08-21-windows-smb-readiness.md).
-- [#58](https://github.com/scwlkr/balls/issues/58) is the next ready frontier after #57.
-- [#59](https://github.com/scwlkr/balls/issues/59),
-  [#60](https://github.com/scwlkr/balls/issues/60),
+- [#58 — Create a dedicated Circle folder through a narrow Windows helper](https://github.com/scwlkr/balls/issues/58)
+  adds deterministic preview/apply over protected local control, a one-operation authenticated UAC
+  helper, exact ownership/journaling, a protected Owner/System ACL, encrypted SMB share, and
+  Private/LocalSubnet firewall rule. VM apply/retry, injected rollback, hostile path, collision,
+  and cleanup evidence is in the
+  [dedicated helper record](verification/2026-08-21-dedicated-circle-folder-helper.md).
+- [#59](https://github.com/scwlkr/balls/issues/59) is the next frontier after #58 lands.
+- [#60](https://github.com/scwlkr/balls/issues/60),
   [#61](https://github.com/scwlkr/balls/issues/61), and
   [#62](https://github.com/scwlkr/balls/issues/62) remain dependency-blocked.
 

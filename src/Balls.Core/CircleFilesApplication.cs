@@ -71,6 +71,50 @@ public sealed class CircleFilesApplication(
         CancellationToken cancellationToken = default) =>
         state.ListContributionsAsync(circleId, cancellationToken);
 
+    public async Task<AuthorizedCircleFilesContribution> GetAuthorizedLocalContributionAsync(
+        CircleId circleId,
+        CircleFilesContributionId contributionId,
+        CancellationToken cancellationToken = default)
+    {
+        var context = await GetOwnerAuthorizationContextAsync(circleId, cancellationToken)
+            .ConfigureAwait(false);
+        var contribution = (await state.ListContributionsAsync(circleId, cancellationToken)
+                .ConfigureAwait(false))
+            .SingleOrDefault(value => value.Id == contributionId)
+            ?? throw new LocalStateException(
+                "circle_files_contribution_not_found",
+                "The requested Circle Files contribution was not found.");
+        var authorization = contribution.Authorization;
+        if (contribution.Provider.NodeId != context.NodeId)
+        {
+            throw new LocalStateException(
+                "circle_files_host_not_local",
+                "This contribution is not hosted by the local Node.");
+        }
+
+        if (authorization.OwnerMemberId != context.MemberId
+            || authorization.AuthorityGeneration != context.AuthorityGeneration
+            || authorization.Transcript.Length == 0
+            || !IdentityCryptography.Verify(
+                authorization.Transcript,
+                authorization.MemberSignature,
+                context.MemberCredential)
+            || !IdentityCryptography.Verify(
+                authorization.Transcript,
+                authorization.CircleAuthoritySignature,
+                context.RootCredential))
+        {
+            throw new LocalStateException(
+                "circle_files_authorization_failed",
+                "The Circle Files contribution authorization is invalid or stale.");
+        }
+
+        return new AuthorizedCircleFilesContribution(
+            contribution,
+            context.MemberCredential,
+            context.RootCredential);
+    }
+
     public async Task<MemberAccessGrant> CreateAccessGrantAsync(
         CreateMemberAccessGrantCommand command,
         CancellationToken cancellationToken = default)

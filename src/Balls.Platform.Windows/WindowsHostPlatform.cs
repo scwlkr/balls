@@ -24,7 +24,8 @@ public static class WindowsHostPlatform
             transport,
             transport,
             new WindowsSystemBrowserLauncher(),
-            new WindowsSmbReadinessInspector());
+            new WindowsSmbReadinessInspector(),
+            new WindowsCircleFilesHostProvisioner());
     }
 
     private sealed class WindowsLocalStatePreparer : ILocalStatePreparer

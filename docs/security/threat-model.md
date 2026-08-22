@@ -2,8 +2,8 @@
 
 **Status:** Windows/Linux local Node baseline, protected production Node/Circle/transport identity
 storage, bounded invitations, authenticated LAN transport, persisted two-Node membership,
-minimal durable Circle messaging, provider-neutral Circle Files authorization, and read-only
-Windows SMB readiness, 2026-08-21.
+minimal durable Circle messaging, provider-neutral Circle Files authorization, read-only Windows
+SMB readiness, and dedicated Windows folder hosting, 2026-08-21.
 
 ## Scope
 
@@ -12,10 +12,11 @@ This baseline covers one unelevated Windows or Linux account running `ballsd`, t
 browser UI, and the daemon's SQLite state directory. It also covers the remote v1 identity,
 authenticated-channel, admission, and minimal persistent-message boundaries. Executable loopback,
 separate-process, and Windows-host/Ubuntu-VM tests prove the transport, admission, and
-message/restart outcomes. It now also covers local definition of File Contributions and Member
-Access Grants plus bounded inspection of Windows SMB, network-profile, and firewall readiness. No
-provider credential, SMB/policy/service/firewall mutation, folder, share, account, ACL, or mapping
-operation is in scope yet.
+message/restart outcomes. It also covers local definition of File Contributions and Member Access
+Grants, bounded inspection of Windows SMB/network/firewall readiness, and one narrow elevated
+operation that creates a dedicated folder ACL, encrypted share, and Private/LocalSubnet firewall
+rule. Provider accounts/credentials, Member-specific ACLs, Explorer mapping, Contribution
+activation/revocation, and existing-content adoption remain out of scope.
 
 ## Assets
 
@@ -30,6 +31,8 @@ operation is in scope yet.
 - explicit encrypted Circle authority exports and their custody metadata.
 - Circle Files Contribution/provider identities, Member Access Grants, lifecycle/generation, and
   their canonical Owner-Member/current-root authorization proofs.
+- dedicated-folder ownership marker and recovery journal, deterministic host plan, protected ACL,
+  encrypted SMB share, and narrowly scoped firewall rule.
 
 ## Trust boundaries
 
@@ -43,6 +46,8 @@ operation is in scope yet.
 7. The selected Anchor's live authority state to explicit offline authority export/restore.
 8. The Windows adapter to a bounded child PowerShell process reading fixed SMB, registry, network,
    service, command-metadata, and firewall observations.
+9. The unelevated daemon to the UAC-elevated Windows helper over a random one-time named pipe, and
+   that helper to fixed Windows ACL, SMB-share, and firewall command adapters.
 
 The same OS account is the current local-control principal. Local IPC does not distinguish between
 processes running as that account.
@@ -72,8 +77,15 @@ processes running as that account.
 | Circle Files metadata leaks future provider secrets or private authority | Core records contain no provider credentials; local-control, CLI, and read-only browser projections omit transcripts, signatures, credentials, and private material; browser mutation routes are absent | Object IDs, lifecycle, Member/Node relationships, and authorization times are intentionally inspectable to the same OS account |
 | Caller input changes the Windows readiness command | The platform boundary exposes no command or argument input; one exact enum allowlist selects a static encoded script and an exact system PowerShell executable, without a shell | Same-user compromise can replace the running process or machine tools and is outside this inspection boundary |
 | Windows inspection hangs, floods output, or returns malformed/forward-unknown data | The child process has a 10-second timeout, one combined 65,536-character decoded-output budget for both streams, strict JSON parsing, exact recognized values, and deterministic redacted `unknown` results | Inspection can be unavailable or conservatively unknown; this endpoint is not a general diagnostic console |
-| SMB would be exposed on an unsafe network scope | Readiness is `not-ready` unless a connected Private profile exists, Private/Public firewall profiles are enabled with default inbound Block, and no enabled Public/Any-profile inbound allow rule has a protocol/port scope that can include TCP 445 | Readiness proves enforceable preconditions, not that a later helper creates a correct narrowly scoped rule; ambiguous broad Public rules are rejected conservatively |
-| Readiness inspection mutates the host | The static allowlist uses only read operations and command-metadata inspection; contract tests reject mutation verbs and VM before/after snapshots proved no observed setting change | A later privileged mutation helper requires a separate threat model, authorization, rollback, and ownership boundary |
+| SMB would be exposed on an unsafe network scope | Readiness is `not-ready` unless a connected Private profile exists, Private/Public firewall profiles are enabled with default inbound Block, and no enabled Public/Any-profile inbound allow rule has a protocol/port scope that can include TCP 445 | Readiness proves enforceable preconditions; the separate exact helper rule and ownership checks enforce mutation scope, while ambiguous broad pre-existing rules are rejected conservatively |
+| Readiness inspection mutates the host | The static readiness allowlist uses only read operations and command-metadata inspection; contract tests reject mutation verbs and VM before/after snapshots proved no observed setting change | Hosting is a separate explicit preview/apply contract and never occurs through the readiness endpoint |
+| Caller input becomes an arbitrary elevated command | The daemon launches one exact adjacent helper and passes only a random pipe name and daemon PID; the helper accepts one versioned hosting plan, verifies both persisted Contribution signatures and exact signed fields, recomputes it under elevation, and selects only typed folder/share/firewall operations plus a fixed encoded PowerShell command enum | Replacement of the daemon/helper binary by the same user or an administrator remains outside this source-run boundary; installed artifacts require protected locations and signing |
+| Another process impersonates the daemon or elevated helper | A cryptographically random pipe name is never persisted; the daemon verifies the connected client PID equals the exact launched helper PID; the helper verifies the pipe server PID, adjacent `ballsd.exe` path, and process-token Owner SID before accepting the signed plan. The pipe ACL admits only that Owner and administrators, and messages are length-prefixed and capped at 64 KiB | Source-run binaries live in a same-user-writable tree; administrator/LocalSystem and compromise or replacement of either authenticated process remain powerful |
+| A hostile or substituted folder path reaches privileged mutation | Both privilege levels canonicalize the same absolute fixed-local path and reject drive roots, Windows/profile roots, network locations, files, existing reparse traversal, nonempty directories, and foreign markers; the elevated helper reruns preflight immediately before mutation | Same-user and administrator races remain possible without retained directory handles; Balls therefore never adopts existing content |
+| A retry or foreign resource is mistaken for Balls-owned state | The plan and ownership IDs are deterministic from authorized Circle/Contribution/provider/Node/path inputs; exact marker, journal, ACL semantics, share name/path/description/encryption/access, and firewall name/description/profile/address/service properties must all match | A same-user administrator can forge or replace all local ownership evidence |
+| Partial failure leaves unsafe access or rollback deletes user state | An operation journal records folder provenance before restriction; it can identify only the exact target as newly created, never a parent/ancestor. All resource collisions are preflighted; failure and partial-state recovery inspect exact ownership and roll back in reverse order; only proven-owned rules/shares/markers are removed, the target is removed only while empty, and an originally empty folder's observed prior ACL is restored | Power loss or hostile interference can require a later retry; a recovery-incomplete result fails closed instead of broad cleanup |
+| SMB is exposed beyond the intended private LAN | Apply requires the complete readiness report to be `ready`; the owned share requires encryption and one current-Owner share principal; the only created inbound rule is enabled for `Private`, TCP 445, `LocalSubnet`, and `LanmanServer`; the helper never changes a network profile or global SMB policy | The Owner principal is temporary infrastructure until #59 replaces it with per-Member credentials; other pre-existing firewall rules remain the operator's responsibility and cause readiness failure when broad |
+| Elevated subprocess hangs, floods output, or leaks diagnostics | Helper IPC is capped at 64 KiB; forward work has an independent two-minute lifetime, after which reverse recovery runs with individually bounded commands; each fixed PowerShell child has a 20-second timeout and one combined 16,384-character streaming budget, suppresses inherited module paths, and returns only typed states and bounded public errors | Recovery can extend elevation beyond the forward deadline but remains bounded by the fixed step set and child-command limits; local Windows tooling can still be unavailable or compromised; raw subprocess output is intentionally discarded |
 
 ## Trusted Circle remote design threats
 
@@ -140,19 +152,22 @@ are executable.
 - Circle and Node UUIDs remain non-secret object references. Durable role-scoped public
   credentials and the authenticated channel bind them to signing authority; only the persisted
   Anchor-signed receipt grants the joined relationship.
-- Circle Files state currently stops at `defined` metadata. Windows readiness reports only whether
-  the local host can enforce the planned SMB 3.1.1 boundary; it does not enable features or policy,
-  start services, create a folder/share/account/ACL, issue provider credentials, map Explorer,
-  activate or revoke a Contribution, or prove remote/physical-machine access. The selected
-  authority-holding Node performs Owner mutations; recovery/rotation and remote Owner
-  administration remain later trust boundaries.
+- Circle Files state currently stops at `defined`. A Windows host can now create only the dedicated
+  owned folder ACL, encrypted share, and Private/LocalSubnet firewall rule after readiness and an
+  exact preview. It does not enable features or policy, change network profiles, create provider
+  accounts or Member credentials, grant Member filesystem access, map Explorer, activate/revoke a
+  Contribution, adopt existing content, or prove remote/physical-machine access. The temporary
+  share principal is the local Owner until the next credential slice. Recovery/rotation and remote
+  Owner administration remain later trust boundaries.
 
 ## Required implementation for the next trust boundary
 
-Before any provider or remote Circle Files mutation, keep the implemented capability-specific
-authorization IDs/proofs and add the narrow provider/helper authorization, ownership markers,
-secret protection, rollback, and revocation behavior required by that operation. Recovery/rotation
-for lost or compromised devices and keys remains required before claiming resilient authority.
+Before issuing Member access, keep the implemented capability-specific authorization IDs/proofs,
+exact helper ownership boundary, and fail-closed rollback. Add one limited local account and
+protected random credential per Access Grant, exact grant-generation ACLs, secret-at-rest
+protection, idempotent rotation, and ownership-proven revocation without logging or returning raw
+secrets. Recovery/rotation for lost or compromised devices and keys remains required before
+claiming resilient authority.
 Rich message content requires a new rendering/content review; multiple writers or Anchors require
 an explicit synchronization and history-integrity design.
 

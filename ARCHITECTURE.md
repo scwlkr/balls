@@ -419,6 +419,11 @@ project that selects an OS adapter. Windows, Linux, and macOS are registered; ot
 one typed, fail-closed selection result. Executable entry points do not perform their own OS
 checks or construct adapter types.
 
+`Balls.Windows.Helper` is the deliberate exception: it is not a cross-platform product entry
+point or adapter selector, but the Windows adapter's short-lived UAC process boundary. It directly
+enters the single Windows helper command, fails immediately on any non-Windows host, and exposes no
+general daemon, CLI, browser, or platform-selection behavior.
+
 ## Privilege model
 
 Normal `ballsd` operation should not require full-time Administrator/root privileges.
@@ -474,9 +479,10 @@ only public object, lifecycle, and authorizing-Member metadata; signatures, tran
 authority, and future provider credentials stay behind the Core-owned persistence seam.
 
 The browser adapter reuses the same application queries for read-only contribution and Access
-Grant lists and has no Circle Files mutation route in this slice. Folder/share creation, provider
-credentials, drive mapping, provider lifecycle transitions, and revocation are separate adapters
-and tickets built on these IDs and grants.
+Grant lists and has no Circle Files mutation route in this slice. Protected local control and the
+CLI can now preview and apply one dedicated Windows hosting operation. Provider credentials,
+drive mapping, provider lifecycle transitions, and revocation remain separate adapters and
+tickets built on these IDs and grants.
 
 Windows SMB readiness is an implemented read-only host capability behind
 `ICircleFilesReadinessInspector` in `Balls.Platform`. `Balls.Platform.Windows` supplies the SMB
@@ -499,6 +505,44 @@ conservatively rejects an enabled Public/Any-profile inbound allow rule whose pr
 can include TCP 445. Any unsafe observation makes the aggregate `not-ready`; otherwise an unknown
 observation makes it `unknown`. Inspection never changes a feature, policy, service, profile,
 folder, share, account, ACL, rule, or mapping.
+
+The Windows hosting adapter implements version 1 of one exact privileged operation: provision the
+dedicated folder, encrypted SMB share, and Private-profile-only firewall rule for an authorized
+Contribution. The daemon revalidates the current local Owner and both persisted authorization
+signatures, binds their proof to the request digest, computes a deterministic preview, and
+requires the caller to return that exact plan ID. The Contribution remains `defined`; credentials,
+Member ACLs, activation, and Explorer mapping are not implied by hosting infrastructure alone.
+
+Apply starts a separate `balls-windows-helper.exe` with UAC and passes only a random one-time pipe
+name plus the daemon PID. Before sending the bounded 64 KiB JSON plan, each side verifies the
+other process's exact PID on the named pipe. The helper additionally requires the server process
+to be the adjacent `ballsd.exe`, binds the plan's Owner SID to that process token, and independently
+verifies both P-256 Contribution authorization signatures and their exact Circle, Contribution,
+provider, Node, display-name, lifecycle, and generation transcript. This preserves the daemon
+Owner even when UAC uses a different administrator credential. The elevated helper recomputes
+readiness, path safety, identity, and the complete plan rather than trusting the preview. Its only
+system mutation path is a fixed encoded PowerShell command enum; it accepts structured JSON over
+standard input and uses a 20-second timeout plus one combined 16,384-character streaming output
+budget. The elevated helper stops forward operation after two minutes even if the daemon stalls;
+cancellation then enters reverse recovery, whose individual system commands retain the same
+20-second bounds. No arbitrary command, script, or caller-controlled shell argument crosses the
+elevation boundary.
+
+Both privilege levels require an absolute fixed-local path with an existing parent, outside drive roots, Windows and
+profile roots, network locations, files, and any existing reparse traversal. The target must be
+new or empty, or contain only the exact Balls ownership marker and operation journal. Preflight
+rejects any share, rule, marker, or journal collision before mutation. Apply creates a protected
+ACL granting only the local Owner and LocalSystem full control, an encryption-required SMB share
+granting only that Owner, and one inbound TCP 445 rule restricted to `Private`, `LocalSubnet`, and
+`LanmanServer`.
+
+The exact ownership ID appears in the folder marker, operation journal, share description, and
+firewall description. Each step is inspected before use; retry returns `already-applied` only for
+the complete exact state, including protected Owner/LocalSystem ACLs on both marker files. Partial
+or failed work rolls back in reverse order and removes only
+resources whose complete identity and properties prove Balls ownership. Existing content is never
+adopted or deleted, an originally empty folder has its prior ACL restored, and the journal can
+claim at most the exact target directory rather than any ancestor.
 
 For the files-first v1, the Windows provider uses SMB 3.1.1 with SMB1 and guest access disabled,
 signing and encryption required, and one limited provider credential per Member Access Grant. A

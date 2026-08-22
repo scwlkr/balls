@@ -104,7 +104,7 @@ public sealed class CliApplicationTests
         Assert.AreEqual(string.Empty, misplacedOutput.ToString());
         Assert.AreEqual(
             "balls: --output must be either 'text' or 'json'." + Environment.NewLine
-                + "commands: ui | status | circle create | circle join | circle list | member list | node list | invitation create | invitation redeem | message send | message list | files readiness | files contribution create/list | files grant create/list"
+                + "commands: ui | status | circle create | circle join | circle list | member list | node list | invitation create | invitation redeem | message send | message list | files readiness | files contribution create/list | files grant create/list | files host preview/apply"
                 + Environment.NewLine,
             unsupportedError.ToString());
         StringAssert.StartsWith(misplacedError.ToString(), "balls: unknown command.");
@@ -136,6 +136,31 @@ public sealed class CliApplicationTests
             CliOutput.SerializeError(
                 "circle_not_found",
                 "The requested Circle is not known to this Node."));
+    }
+
+    [TestMethod]
+    public void Circle_Files_host_preview_and_apply_have_safe_stable_text()
+    {
+        var plan = new CircleFilesHostPlanResponse(
+            1,
+            new string('a', 64),
+            "windows-smb-3.1.1-v1",
+            @"C:\BallsShares\Example",
+            "balls-example",
+            "Balls-SMB-example",
+            new string('b', 64),
+            false,
+            ["Create the dedicated folder."]);
+
+        var preview = CliOutput.RenderFilesHostPlan(plan);
+        var applied = CliOutput.RenderAppliedFilesHost(
+            new CircleFilesHostApplyResponse("applied", plan));
+
+        StringAssert.Contains(preview, @"Folder: C:\BallsShares\Example");
+        StringAssert.Contains(preview, "Private networks and LocalSubnet only");
+        StringAssert.Contains(preview, new string('a', 64));
+        StringAssert.Contains(applied, "Created the dedicated Circle Files host.");
+        Assert.IsFalse(preview.Contains(new string('b', 64), StringComparison.Ordinal));
     }
 
     [TestMethod]

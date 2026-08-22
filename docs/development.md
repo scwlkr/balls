@@ -229,6 +229,33 @@ change policy, start services, alter firewall or network profiles, or create fol
 accounts, ACLs, credentials, or mappings. Windows 11 build 26100 or newer and Windows Server 2025
 are the currently recognized generations for the controls this provider requires.
 
+After defining a Contribution, preview its one exact dedicated-host operation before requesting
+UAC approval:
+
+```powershell
+$circleId = "replace-with-circle-id"
+$contributionId = "replace-with-contribution-id"
+$circleFilesPath = "C:\BallsCircleFiles\MyCircle"
+dotnet run --project src/Balls.Cli --configuration Release --no-build -- --pipe-name balls-dev files host preview --circle $circleId --contribution $contributionId --path $circleFilesPath
+dotnet run --project src/Balls.Cli --configuration Release --no-build -- --output json --pipe-name balls-dev files host preview --circle $circleId --contribution $contributionId --path $circleFilesPath
+```
+
+Copy the returned `planId` into the explicit apply command. Apply may display one Windows UAC
+prompt and then returns `applied` or `already-applied`:
+
+```powershell
+$planId = "replace-with-64-character-plan-id"
+dotnet run --project src/Balls.Cli --configuration Release --no-build -- --pipe-name balls-dev files host apply --circle $circleId --contribution $contributionId --path $circleFilesPath --plan $planId
+```
+
+The host must report `ready`. The path must be absolute, fixed-local, dedicated, have an existing
+parent, and be new or empty;
+roots, Windows/profile roots, network paths, files, reparse traversal, existing content, and
+foreign ownership markers are refused. Preview is non-mutating and deterministic. Apply creates
+only the exact owned folder ACL, encryption-required share, and Private/LocalSubnet firewall rule;
+it does not change a network profile or global SMB policy, create Member credentials, map
+Explorer, or expose this mutation through the browser.
+
 For focused adapter feedback:
 
 ```powershell

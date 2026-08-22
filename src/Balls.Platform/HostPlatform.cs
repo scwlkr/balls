@@ -46,4 +46,5 @@ public sealed record HostPlatform(
     ILocalControlServerTransport LocalControlServer,
     ILocalControlClientTransport LocalControlClient,
     ISystemBrowserLauncher SystemBrowser,
-    ICircleFilesReadinessInspector CircleFilesReadiness);
+    ICircleFilesReadinessInspector CircleFilesReadiness,
+    ICircleFilesHostProvisioner CircleFilesHosting);

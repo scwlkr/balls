@@ -144,6 +144,9 @@ public static class DaemonHost
                 store,
                 store,
                 TimeProvider.System);
+            var filesHostingApplication = new CircleFilesHostingApplication(
+                filesApplication,
+                host.CircleFilesHosting);
             var browserAccess = new BrowserAccessBroker(
                 TimeProvider.System,
                 launchLifetime: TimeSpan.FromMinutes(1),
@@ -409,6 +412,95 @@ public static class DaemonHost
                 .Produces<CircleFilesContributionListResponse>(StatusCodes.Status200OK)
                 .Produces<ErrorResponse>(StatusCodes.Status400BadRequest)
                 .Produces<ErrorResponse>(StatusCodes.Status404NotFound);
+            application.MapPost(
+                ControlRoutes.Circles + "/{circleId}/files/contributions/{contributionId}/host/preview",
+                async (
+                    string circleId,
+                    string contributionId,
+                    PreviewCircleFilesHostRequest request,
+                    CancellationToken token) =>
+                {
+                    if (!TryParseCanonicalId(circleId, out var parsedCircleId)
+                        || !TryParseCanonicalId(contributionId, out var parsedContributionId))
+                    {
+                        return Results.BadRequest(
+                            new ErrorResponse(
+                                "invalid_request_id",
+                                "Circle and contribution IDs must be canonical UUIDs."));
+                    }
+
+                    try
+                    {
+                        return Results.Ok(
+                            await filesHostingApplication.PreviewAsync(
+                                new CircleId(parsedCircleId),
+                                new CircleFilesContributionId(parsedContributionId),
+                                request.FolderPath,
+                                token).ConfigureAwait(false));
+                    }
+                    catch (LocalStateException exception) when (
+                        exception.Code is "circle_not_found" or "circle_files_contribution_not_found")
+                    {
+                        return Results.NotFound(new ErrorResponse(exception.Code, exception.Message));
+                    }
+                    catch (LocalStateException exception)
+                    {
+                        return Results.BadRequest(new ErrorResponse(exception.Code, exception.Message));
+                    }
+                    catch (CircleFilesHostingException exception)
+                    {
+                        return MapHostingError(exception);
+                    }
+                })
+                .Produces<CircleFilesHostPlanResponse>(StatusCodes.Status200OK)
+                .Produces<ErrorResponse>(StatusCodes.Status400BadRequest)
+                .Produces<ErrorResponse>(StatusCodes.Status404NotFound)
+                .Produces<ErrorResponse>(StatusCodes.Status409Conflict);
+            application.MapPost(
+                ControlRoutes.Circles + "/{circleId}/files/contributions/{contributionId}/host/apply",
+                async (
+                    string circleId,
+                    string contributionId,
+                    ApplyCircleFilesHostRequest request,
+                    CancellationToken token) =>
+                {
+                    if (!TryParseCanonicalId(circleId, out var parsedCircleId)
+                        || !TryParseCanonicalId(contributionId, out var parsedContributionId))
+                    {
+                        return Results.BadRequest(
+                            new ErrorResponse(
+                                "invalid_request_id",
+                                "Circle and contribution IDs must be canonical UUIDs."));
+                    }
+
+                    try
+                    {
+                        return Results.Ok(
+                            await filesHostingApplication.ApplyAsync(
+                                new CircleId(parsedCircleId),
+                                new CircleFilesContributionId(parsedContributionId),
+                                request.FolderPath,
+                                request.PlanId,
+                                token).ConfigureAwait(false));
+                    }
+                    catch (LocalStateException exception) when (
+                        exception.Code is "circle_not_found" or "circle_files_contribution_not_found")
+                    {
+                        return Results.NotFound(new ErrorResponse(exception.Code, exception.Message));
+                    }
+                    catch (LocalStateException exception)
+                    {
+                        return Results.BadRequest(new ErrorResponse(exception.Code, exception.Message));
+                    }
+                    catch (CircleFilesHostingException exception)
+                    {
+                        return MapHostingError(exception);
+                    }
+                })
+                .Produces<CircleFilesHostApplyResponse>(StatusCodes.Status200OK)
+                .Produces<ErrorResponse>(StatusCodes.Status400BadRequest)
+                .Produces<ErrorResponse>(StatusCodes.Status404NotFound)
+                .Produces<ErrorResponse>(StatusCodes.Status409Conflict);
             application.MapPost(
                 ControlRoutes.Circles + "/{circleId}/files/contributions/{contributionId}/grants",
                 async (
@@ -936,6 +1028,17 @@ public static class DaemonHost
             _ => default,
         };
         return access != default;
+    }
+
+    private static IResult MapHostingError(CircleFilesHostingException exception)
+    {
+        var error = new ErrorResponse(exception.Code, exception.Message);
+        return exception.Code is
+            "hosting_path_invalid" or
+            "hosting_authorization_invalid" or
+            "windows_required"
+            ? Results.BadRequest(error)
+            : Results.Conflict(error);
     }
 
     private sealed record CircleLookup(CircleDetails? Circle, IResult? Error);

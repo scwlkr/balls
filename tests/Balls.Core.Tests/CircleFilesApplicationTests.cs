@@ -70,6 +70,10 @@ public sealed class CircleFilesApplicationTests
             contribution.Authorization.CircleAuthoritySignature,
             context.RootCredential));
         Assert.AreEqual(contribution, state.Contributions.Single());
+        Assert.AreEqual(
+            contribution,
+            (await application.GetAuthorizedLocalContributionAsync(CircleId, contribution.Id))
+                .Contribution);
     }
 
     [TestMethod]

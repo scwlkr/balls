@@ -21,7 +21,8 @@ public static class LinuxHostPlatform
             transport,
             transport,
             new LinuxSystemBrowserLauncher(),
-            new UnsupportedCircleFilesReadinessInspector());
+            new UnsupportedCircleFilesReadinessInspector(),
+            new UnsupportedCircleFilesHostProvisioner());
     }
 
     private sealed class LinuxSystemBrowserLauncher : ISystemBrowserLauncher
