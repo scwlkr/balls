@@ -79,6 +79,7 @@ public sealed class WindowsCircleFilesGrantOperationTests
         Assert.AreEqual("grant_authorization_invalid", error.Code);
 
         var script = WindowsCircleFilesGrantPowerShell.Script;
+        Assert.IsTrue(script.Length + 512 < 32_767);
         StringAssert.Contains(script, "SeDenyInteractiveLogonRight");
         StringAssert.Contains(script, "SeDenyRemoteInteractiveLogonRight");
         StringAssert.Contains(script, "LsaRemoveAccountRights");

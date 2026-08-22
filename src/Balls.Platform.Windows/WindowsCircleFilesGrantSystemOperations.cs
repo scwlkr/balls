@@ -384,8 +384,8 @@ internal sealed class WindowsCircleFilesGrantPowerShell
         startInfo.ArgumentList.Add("-NoLogo");
         startInfo.ArgumentList.Add("-NoProfile");
         startInfo.ArgumentList.Add("-NonInteractive");
-        startInfo.ArgumentList.Add("-EncodedCommand");
-        startInfo.ArgumentList.Add(Convert.ToBase64String(Encoding.Unicode.GetBytes(Script)));
+        startInfo.ArgumentList.Add("-Command");
+        startInfo.ArgumentList.Add(Script);
         var injectAccountFailure = false;
         string? injectAccountTerminationStep = null;
 #if DEBUG
