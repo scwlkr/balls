@@ -267,6 +267,16 @@ public sealed class CircleFilesEndpointsTests
             ControlJson.Options);
         Assert.AreEqual(HttpStatusCode.BadRequest, invalidMapResponse.StatusCode);
         Assert.AreEqual(0, memberMapper.SecretUseCount);
+        memberMapper.MapFailure = new CircleFilesHostingException(
+            "mapping_recovery_incomplete",
+            "Injected exact rollback failure.");
+        using var recoveryMapResponse = await client.PostAsJsonAsync(
+            ControlRoutes.CircleFilesMemberMappingMap(circle.Circle.Id, contribution.Id, grant.Id),
+            new ApplyCircleFilesMemberMappingRequest(
+                "192.168.50.10", "M", mappingPreview.PlanId),
+            ControlJson.Options);
+        Assert.AreEqual(HttpStatusCode.Conflict, recoveryMapResponse.StatusCode);
+        memberMapper.MapFailure = null;
         using var mapResponse = await client.PostAsJsonAsync(
             ControlRoutes.CircleFilesMemberMappingMap(circle.Circle.Id, contribution.Id, grant.Id),
             new ApplyCircleFilesMemberMappingRequest(
@@ -285,7 +295,7 @@ public sealed class CircleFilesEndpointsTests
         Assert.AreEqual(HttpStatusCode.OK, mapResponse.StatusCode);
         Assert.AreEqual(HttpStatusCode.OK, inspectResponse.StatusCode);
         Assert.AreEqual(HttpStatusCode.OK, unmapResponse.StatusCode);
-        Assert.AreEqual(1, memberMapper.SecretUseCount);
+        Assert.AreEqual(2, memberMapper.SecretUseCount);
         Assert.IsTrue(memberMapper.Requests.All(request =>
             request.Endpoint == "192.168.50.10"
             && request.DriveLetter == "M"
@@ -406,6 +416,7 @@ public sealed class CircleFilesEndpointsTests
     {
         internal List<CircleFilesMemberMappingRequest> Requests { get; } = [];
         internal int SecretUseCount { get; private set; }
+        internal CircleFilesHostingException? MapFailure { get; set; }
 
         public ValueTask<CircleFilesMemberMappingPlan> PreviewAsync(
             CircleFilesMemberMappingRequest request,
@@ -432,6 +443,7 @@ public sealed class CircleFilesEndpointsTests
             CancellationToken cancellationToken)
         {
             CountSecret(request, secret, cancellationToken);
+            if (MapFailure is not null) throw MapFailure;
             Assert.IsTrue(expectedPlanId == new string('e', 64));
             return ValueTask.FromResult(new CircleFilesMemberMappingResult("mapped", Plan(request)));
         }

@@ -88,6 +88,7 @@ internal static class CircleFilesMemberMappingEndpoints
             var response = new ErrorResponse(exception.Code, exception.Message);
             return exception.Code.Contains("collision", StringComparison.Ordinal)
                 || exception.Code is "mapping_plan_changed" or "mapping_share_identity_mismatch"
+                    or "mapping_recovery_incomplete"
                 ? Results.Conflict(response)
                 : Results.BadRequest(response);
         }
