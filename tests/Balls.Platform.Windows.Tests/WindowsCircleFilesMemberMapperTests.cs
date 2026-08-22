@@ -78,7 +78,7 @@ public sealed class WindowsCircleFilesMemberMapperTests
         var operations = new StubOperations { AvailableLetters = ["M"] };
         var mapper = new WindowsCircleFilesMemberMapper(operations);
         var plan = await mapper.PreviewAsync(Request, CancellationToken.None);
-        operations.ShareEntries = [".balls-owned-v1.json", ".balls-grant-wrong-g1-v1.json"];
+        operations.ShareEntries.Remove($".balls-grant-{Request.GrantId}-g1-v1.json");
 
         var error = await Assert.ThrowsExactlyAsync<CircleFilesHostingException>(
             () => mapper.MapAsync(Request, plan.PlanId, Secret, CancellationToken.None).AsTask());
@@ -147,7 +147,7 @@ public sealed class WindowsCircleFilesMemberMapperTests
         public string? Mapping { get; set; }
         public WindowsCircleFilesStoredCredential? Credential { get; set; }
         public WindowsCircleFilesStoredLabel? Label { get; set; }
-        public IReadOnlyList<string> ShareEntries { get; set; } =
+        public HashSet<string> ShareEntries { get; } =
             [".balls-owned-v1.json", $".balls-grant-{Request.GrantId}-g1-v1.json"];
         public IOException? EndpointFailure { get; set; }
         public List<string> Events { get; } = [];
@@ -175,10 +175,13 @@ public sealed class WindowsCircleFilesMemberMapperTests
             Mapping = uncPath;
         }
 
-        public IReadOnlyList<string> ListShareEntries(string uncPath)
+        public bool ShareEntryExists(string uncPath, string fileName)
         {
-            Events.Add("share:validate");
-            return ShareEntries;
+            if (fileName.StartsWith(".balls-grant-", StringComparison.Ordinal))
+            {
+                Events.Add("share:validate");
+            }
+            return ShareEntries.Contains(fileName);
         }
 
         public void SaveLabel(string uncPath, string friendlyName, string ownershipId)

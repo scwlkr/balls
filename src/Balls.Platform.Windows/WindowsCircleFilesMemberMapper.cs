@@ -40,7 +40,7 @@ internal interface IWindowsCircleFilesMappingOperations
     void ProbeEndpoint(string endpoint);
     void SaveCredential(string target, string accountName, string ownershipId, ReadOnlySpan<byte> secret);
     void MapDrive(string driveLetter, string uncPath, string accountName, ReadOnlySpan<byte> secret);
-    IReadOnlyList<string> ListShareEntries(string uncPath);
+    bool ShareEntryExists(string uncPath, string fileName);
     void SaveLabel(string uncPath, string friendlyName, string ownershipId);
     void UnmapDrive(string driveLetter, string expectedUncPath);
     void DeleteLabel(string uncPath, string friendlyName, string ownershipId);
@@ -327,11 +327,10 @@ public sealed class WindowsCircleFilesMemberMapper : ICircleFilesMemberMapper
     {
         try
         {
-            var entries = operations.ListShareEntries(plan.UncPath);
-            if (!entries.Contains(".balls-owned-v1.json", StringComparer.Ordinal)
-                || !entries.Contains(
-                    $".balls-grant-{request.GrantId}-g{request.Generation}-v1.json",
-                    StringComparer.Ordinal))
+            if (!operations.ShareEntryExists(plan.UncPath, ".balls-owned-v1.json")
+                || !operations.ShareEntryExists(
+                    plan.UncPath,
+                    $".balls-grant-{request.GrantId}-g{request.Generation}-v1.json"))
             {
                 throw ShareMismatch();
             }
@@ -583,12 +582,15 @@ internal sealed class WindowsCircleFilesMappingOperations : IWindowsCircleFilesM
         }
     }
 
-    public IReadOnlyList<string> ListShareEntries(string uncPath) =>
-        Directory.EnumerateFileSystemEntries(uncPath)
-            .Select(Path.GetFileName)
-            .Where(name => name is not null)
-            .Cast<string>()
-            .ToArray();
+    public bool ShareEntryExists(string uncPath, string fileName) =>
+        Directory.EnumerateFileSystemEntries(
+                uncPath,
+                fileName,
+                SearchOption.TopDirectoryOnly)
+            .Any(path => string.Equals(
+                Path.GetFileName(path),
+                fileName,
+                StringComparison.Ordinal));
 
     public WindowsCircleFilesStoredLabel? GetLabel(string uncPath)
     {
