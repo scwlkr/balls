@@ -253,6 +253,7 @@ public sealed class WindowsCircleFilesGrantOperationTests
                     markerPath,
                     "{\"ownershipId\":\"test\"}\n",
                     WindowsIdentity.GetCurrent().User!.Value,
+                    injectPartialWriteFailure: false,
                     injectAclFailure: true));
             Assert.IsFalse(File.Exists(markerPath));
 
@@ -260,8 +261,32 @@ public sealed class WindowsCircleFilesGrantOperationTests
                 markerPath,
                 "{\"ownershipId\":\"test\"}\n",
                 WindowsIdentity.GetCurrent().User!.Value,
+                injectPartialWriteFailure: false,
                 injectAclFailure: false);
             Assert.IsTrue(File.Exists(markerPath));
+        }
+        finally
+        {
+            Directory.Delete(directory, recursive: true);
+        }
+    }
+
+    [TestMethod]
+    public async Task Marker_partial_write_failure_deletes_the_file_and_rolls_back_the_account()
+    {
+        var directory = Path.Combine(Path.GetTempPath(), "balls-grant-marker", Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(directory);
+        var markerPath = Path.Combine(directory, ".balls-grant-test-v1.json");
+        try
+        {
+            var operations = new PartialMarkerFailureOperations(markerPath);
+            var error = await Assert.ThrowsExactlyAsync<CircleFilesHostingException>(
+                () => new WindowsCircleFilesGrantOperation(operations)
+                    .ExecuteAsync(Plan, CancellationToken.None).AsTask());
+
+            Assert.AreEqual("grant_apply_failed", error.Code);
+            Assert.IsFalse(File.Exists(markerPath));
+            Assert.IsFalse(operations.AccountExists);
         }
         finally
         {
@@ -443,6 +468,57 @@ public sealed class WindowsCircleFilesGrantOperationTests
         {
             RolledBack.Add(step);
             States[step] = WindowsCircleFilesOwnedState.Missing;
+            return ValueTask.CompletedTask;
+        }
+    }
+
+    private sealed class PartialMarkerFailureOperations(string markerPath) : IWindowsCircleFilesGrantOperations
+    {
+        public bool AccountExists { get; private set; }
+
+        public ValueTask<WindowsCircleFilesOwnedState> InspectAsync(
+            WindowsCircleFilesGrantHelperPlan plan,
+            WindowsCircleFilesGrantOperationStep step,
+            CancellationToken cancellationToken) => ValueTask.FromResult(step switch
+            {
+                WindowsCircleFilesGrantOperationStep.LocalAccount when AccountExists =>
+                    WindowsCircleFilesOwnedState.Owned,
+                WindowsCircleFilesGrantOperationStep.GrantMarker when File.Exists(markerPath) =>
+                    WindowsCircleFilesOwnedState.Collision,
+                _ => WindowsCircleFilesOwnedState.Missing,
+            });
+
+        public ValueTask ApplyAsync(
+            WindowsCircleFilesGrantHelperPlan plan,
+            WindowsCircleFilesGrantOperationStep step,
+            CancellationToken cancellationToken)
+        {
+            if (step == WindowsCircleFilesGrantOperationStep.LocalAccount)
+            {
+                AccountExists = true;
+                return ValueTask.CompletedTask;
+            }
+            if (step == WindowsCircleFilesGrantOperationStep.GrantMarker)
+            {
+                WindowsCircleFilesGrantSystemOperations.WriteProtectedMarkerFile(
+                    markerPath,
+                    "{\"ownershipId\":\"test\"}\n",
+                    WindowsIdentity.GetCurrent().User!.Value,
+                    injectPartialWriteFailure: true,
+                    injectAclFailure: false);
+            }
+            throw new InvalidOperationException("Unexpected operation step.");
+        }
+
+        public ValueTask RollbackAsync(
+            WindowsCircleFilesGrantHelperPlan plan,
+            WindowsCircleFilesGrantOperationStep step,
+            CancellationToken cancellationToken)
+        {
+            if (step == WindowsCircleFilesGrantOperationStep.LocalAccount)
+            {
+                AccountExists = false;
+            }
             return ValueTask.CompletedTask;
         }
     }

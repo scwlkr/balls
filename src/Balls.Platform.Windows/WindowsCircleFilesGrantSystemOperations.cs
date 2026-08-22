@@ -1,18 +1,27 @@
+using System.ComponentModel;
 using System.Diagnostics;
+using System.Runtime.InteropServices;
 using System.Runtime.Versioning;
 using System.Security.AccessControl;
 using System.Security.Principal;
 using System.Text;
 using System.Text.Json;
 using Balls.Platform;
+using Microsoft.Win32.SafeHandles;
 
 namespace Balls.Platform.Windows;
 
 internal sealed record WindowsCircleFilesGrantShareBinding(string AccountSid, string AccessRight);
 
 [SupportedOSPlatform("windows")]
-internal sealed class WindowsCircleFilesGrantSystemOperations : IWindowsCircleFilesGrantOperations
+internal sealed partial class WindowsCircleFilesGrantSystemOperations : IWindowsCircleFilesGrantOperations
 {
+    private const uint DeleteAccess = 0x00010000;
+    private const uint GenericWriteAccess = 0x40000000;
+    private const uint CreateNewDisposition = 1;
+    private const uint FileAttributeNormal = 0x00000080;
+    private const int FileDispositionInfoClass = 4;
+
     private readonly WindowsCircleFilesGrantPowerShell powerShell = new();
 
     public async ValueTask<WindowsCircleFilesOwnedState> InspectAsync(
@@ -146,28 +155,61 @@ internal sealed class WindowsCircleFilesGrantSystemOperations : IWindowsCircleFi
             RemoveGrantAccessFromSddl(currentSddl, existingMarkers));
         var path = MarkerPath(plan);
         var content = JsonSerializer.Serialize(marker) + "\n";
+        var injectPartialWriteFailure = false;
         var injectAclFailure = false;
 #if DEBUG
+        injectPartialWriteFailure = Environment.GetEnvironmentVariable(
+            "BALLS_TEST_WINDOWS_GRANT_MARKER_WRITE_FAILURE") == "1";
         injectAclFailure = Environment.GetEnvironmentVariable(
             "BALLS_TEST_WINDOWS_GRANT_MARKER_ACL_FAILURE") == "1";
 #endif
-        WriteProtectedMarkerFile(path, content, plan.OwnerSid, injectAclFailure);
+        WriteProtectedMarkerFile(
+            path,
+            content,
+            plan.OwnerSid,
+            injectPartialWriteFailure,
+            injectAclFailure);
     }
 
     internal static void WriteProtectedMarkerFile(
         string path,
         string content,
         string ownerSid,
+        bool injectPartialWriteFailure,
         bool injectAclFailure)
     {
         var created = false;
         try
         {
-            using (var stream = new FileStream(path, FileMode.CreateNew, FileAccess.Write, FileShare.None))
+            using (var stream = CreateExclusiveMarkerStream(path))
             {
                 created = true;
-                stream.Write(Encoding.UTF8.GetBytes(content));
-                stream.Flush(flushToDisk: true);
+                try
+                {
+                    var bytes = Encoding.UTF8.GetBytes(content);
+                    if (injectPartialWriteFailure)
+                    {
+                        stream.Write(bytes.AsSpan(0, Math.Max(1, bytes.Length / 2)));
+                        stream.Flush(flushToDisk: true);
+                        throw new IOException("A bounded partial marker write failure was injected.");
+                    }
+                    stream.Write(bytes);
+                    stream.Flush(flushToDisk: true);
+                }
+                catch (Exception writeException)
+                {
+                    try
+                    {
+                        MarkOpenFileForDeletion(stream.SafeFileHandle);
+                    }
+                    catch (Exception cleanupException)
+                    {
+                        throw new IOException(
+                            "The grant marker write failed and its protected-handle cleanup also failed.",
+                            new AggregateException(writeException, cleanupException));
+                    }
+                    throw;
+                }
             }
             if (injectAclFailure)
             {
@@ -185,6 +227,40 @@ internal sealed class WindowsCircleFilesGrantSystemOperations : IWindowsCircleFi
         }
     }
 
+    private static FileStream CreateExclusiveMarkerStream(string path)
+    {
+        var handle = CreateFile(
+            path,
+            GenericWriteAccess | DeleteAccess,
+            shareMode: 0,
+            securityAttributes: IntPtr.Zero,
+            CreateNewDisposition,
+            FileAttributeNormal,
+            templateFile: IntPtr.Zero);
+        if (handle.IsInvalid)
+        {
+            var error = Marshal.GetLastWin32Error();
+            handle.Dispose();
+            throw new Win32Exception(error, $"Could not create the grant marker '{path}'.");
+        }
+        return new FileStream(handle, FileAccess.Write);
+    }
+
+    private static void MarkOpenFileForDeletion(SafeFileHandle handle)
+    {
+        var disposition = new FileDispositionInfo { DeleteFile = 1 };
+        if (SetFileInformationByHandle(
+                handle,
+                FileDispositionInfoClass,
+                ref disposition,
+                (uint)Marshal.SizeOf<FileDispositionInfo>()) == 0)
+        {
+            throw new Win32Exception(
+                Marshal.GetLastWin32Error(),
+                "Could not delete the partial grant marker by its protected handle.");
+        }
+    }
+
     private static void TryRemoveCreatedMarker(string path, string expectedContent)
     {
         try
@@ -199,6 +275,33 @@ internal sealed class WindowsCircleFilesGrantSystemOperations : IWindowsCircleFi
         {
         }
     }
+
+    [StructLayout(LayoutKind.Sequential)]
+    private struct FileDispositionInfo
+    {
+        public byte DeleteFile;
+    }
+
+    [LibraryImport(
+        "kernel32.dll",
+        EntryPoint = "CreateFileW",
+        SetLastError = true,
+        StringMarshalling = StringMarshalling.Utf16)]
+    private static partial SafeFileHandle CreateFile(
+        string fileName,
+        uint desiredAccess,
+        uint shareMode,
+        IntPtr securityAttributes,
+        uint creationDisposition,
+        uint flagsAndAttributes,
+        IntPtr templateFile);
+
+    [LibraryImport("kernel32.dll", SetLastError = true)]
+    private static partial int SetFileInformationByHandle(
+        SafeFileHandle fileHandle,
+        int fileInformationClass,
+        ref FileDispositionInfo fileInformation,
+        uint bufferSize);
 
     private static void RemoveMarker(WindowsCircleFilesGrantHelperPlan plan)
     {
