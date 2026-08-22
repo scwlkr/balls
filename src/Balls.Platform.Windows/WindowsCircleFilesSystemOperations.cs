@@ -35,6 +35,15 @@ internal sealed class WindowsCircleFilesSystemOperations : IWindowsCircleFilesOp
         WindowsCircleFilesOperationStep step,
         CancellationToken cancellationToken)
     {
+#if DEBUG
+        if (string.Equals(
+                Environment.GetEnvironmentVariable("BALLS_TEST_WINDOWS_HOST_FAILURE_STEP"),
+                step.ToString(),
+                StringComparison.Ordinal))
+        {
+            throw new InvalidOperationException("A bounded debug-only hosting failure was injected.");
+        }
+#endif
         switch (step)
         {
             case WindowsCircleFilesOperationStep.FolderAcl:
