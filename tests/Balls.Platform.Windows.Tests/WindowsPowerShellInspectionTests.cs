@@ -23,6 +23,8 @@ public sealed class WindowsPowerShellInspectionTests
         StringAssert.Contains(script, "Get-SmbClientConfiguration");
         StringAssert.Contains(script, "Get-NetConnectionProfile");
         StringAssert.Contains(script, "Get-NetFirewallProfile");
+        StringAssert.Contains(script, "Get-NetFirewallRule");
+        StringAssert.Contains(script, "Get-NetFirewallPortFilter");
         StringAssert.Contains(script, "Get-Service");
         StringAssert.Contains(script, "Get-Command");
         Assert.IsFalse(script.Contains("Set-", StringComparison.OrdinalIgnoreCase));
@@ -46,9 +48,13 @@ public sealed class WindowsPowerShellInspectionTests
 
         Assert.AreEqual("query", error.ParamName);
     }
+}
 
+[TestClass]
+[TestCategory("OSIntegration")]
+public sealed class WindowsPowerShellProcessTests
+{
     [TestMethod]
-    [TestCategory("OSIntegration")]
     public async Task Bounded_runner_terminates_a_query_that_exceeds_its_timeout()
     {
         if (!OperatingSystem.IsWindows())
@@ -89,7 +95,54 @@ public sealed class WindowsPowerShellInspectionTests
     }
 
     [TestMethod]
-    [TestCategory("OSIntegration")]
+    [DataRow(false)]
+    [DataRow(true)]
+    public async Task Bounded_runner_terminates_when_either_output_stream_exceeds_its_limit(
+        bool standardError)
+    {
+        if (!OperatingSystem.IsWindows())
+        {
+            Assert.Inconclusive("The bounded PowerShell process test requires Windows.");
+            return;
+        }
+
+        var executable = Path.Combine(
+            Environment.GetFolderPath(Environment.SpecialFolder.System),
+            "WindowsPowerShell",
+            "v1.0",
+            "powershell.exe");
+        var startInfo = new ProcessStartInfo
+        {
+            FileName = executable,
+            CreateNoWindow = true,
+            UseShellExecute = false,
+            RedirectStandardOutput = true,
+            RedirectStandardError = true,
+            StandardOutputEncoding = Encoding.UTF8,
+            StandardErrorEncoding = Encoding.UTF8,
+        };
+        startInfo.ArgumentList.Add("-NoLogo");
+        startInfo.ArgumentList.Add("-NoProfile");
+        startInfo.ArgumentList.Add("-NonInteractive");
+        startInfo.ArgumentList.Add("-Command");
+        startInfo.ArgumentList.Add(standardError
+            ? "[Console]::Error.Write(('x' * 4096)); Start-Sleep -Seconds 30"
+            : "[Console]::Out.Write(('x' * 4096)); Start-Sleep -Seconds 30");
+        var stopwatch = Stopwatch.StartNew();
+
+        var error = await Assert.ThrowsExactlyAsync<WindowsInspectionException>(
+            () => BoundedWindowsInspectionProcessRunner.RunAsync(
+                startInfo,
+                TimeSpan.FromSeconds(5),
+                1024,
+                CancellationToken.None));
+
+        stopwatch.Stop();
+        Assert.AreEqual("The Windows inspection exceeded its output limit.", error.Message);
+        Assert.IsLessThan(TimeSpan.FromSeconds(2), stopwatch.Elapsed);
+    }
+
+    [TestMethod]
     public async Task Real_adapter_returns_a_complete_typed_report_on_Windows()
     {
         if (!OperatingSystem.IsWindows())

@@ -135,11 +135,37 @@ internal sealed class StaticWindowsPowerShellJsonSource : IWindowsPowerShellJson
             try {
                 $privateFirewall = NetSecurity\Get-NetFirewallProfile -Name 'Private' -PolicyStore ActiveStore -ErrorAction Stop
                 $publicFirewall = NetSecurity\Get-NetFirewallProfile -Name 'Public' -PolicyStore ActiveStore -ErrorAction Stop
+                $publicSmbInboundAllowRules = 0
+                foreach ($rule in @(NetSecurity\Get-NetFirewallRule -PolicyStore ActiveStore -Enabled True -Direction Inbound -Action Allow -ErrorAction Stop)) {
+                    $profiles = @(([string]$rule.Profile -split ',') | ForEach-Object { $_.Trim() })
+                    if (($profiles -notcontains 'Any') -and ($profiles -notcontains 'Public')) { continue }
+
+                    foreach ($portFilter in @($rule | NetSecurity\Get-NetFirewallPortFilter -ErrorAction Stop)) {
+                        $protocol = [string]$portFilter.Protocol
+                        if ($protocol -notin @('Any', 'TCP', '6')) { continue }
+
+                        foreach ($localPort in @($portFilter.LocalPort)) {
+                            $portText = [string]$localPort
+                            if ($portText -in @('Any', '445')) {
+                                $publicSmbInboundAllowRules++
+                                break
+                            }
+
+                            if ($portText -match '^(\d+)-(\d+)$') {
+                                if (([int]$Matches[1] -le 445) -and ([int]$Matches[2] -ge 445)) {
+                                    $publicSmbInboundAllowRules++
+                                    break
+                                }
+                            }
+                        }
+                    }
+                }
                 $firewall = [PSCustomObject]@{
                     PrivateEnabled = [bool]$privateFirewall.Enabled
                     PrivateDefaultInboundAction = [string]$privateFirewall.DefaultInboundAction
                     PublicEnabled = [bool]$publicFirewall.Enabled
                     PublicDefaultInboundAction = [string]$publicFirewall.DefaultInboundAction
+                    PublicSmbInboundAllowRules = $publicSmbInboundAllowRules
                 }
             } catch { $firewall = $null }
 
@@ -194,18 +220,38 @@ internal static class BoundedWindowsInspectionProcessRunner
         timeout.CancelAfter(queryTimeout);
         try
         {
-            var standardOutput = process.StandardOutput.ReadToEndAsync(timeout.Token);
-            var standardError = process.StandardError.ReadToEndAsync(timeout.Token);
-            await process.WaitForExitAsync(timeout.Token).ConfigureAwait(false);
-            var output = await standardOutput.ConfigureAwait(false);
-            _ = await standardError.ConfigureAwait(false);
+            var outputBudget = new OutputCharacterBudget(maximumOutputCharacters);
+            var standardOutput = ReadBoundedAsync(
+                process.StandardOutput,
+                outputBudget,
+                process,
+                capture: true,
+                timeout.Token);
+            var standardError = ReadBoundedAsync(
+                process.StandardError,
+                outputBudget,
+                process,
+                capture: false,
+                timeout.Token);
+            await Task.WhenAll(
+                process.WaitForExitAsync(timeout.Token),
+                standardOutput,
+                standardError).ConfigureAwait(false);
+            var outputResult = await standardOutput.ConfigureAwait(false);
+            var errorResult = await standardError.ConfigureAwait(false);
 
-            if (process.ExitCode != 0 || output.Length == 0 || output.Length > maximumOutputCharacters)
+            if (outputResult.ExceededLimit || errorResult.ExceededLimit)
+            {
+                throw new WindowsInspectionException(
+                    "The Windows inspection exceeded its output limit.");
+            }
+
+            if (process.ExitCode != 0 || outputResult.Text.Length == 0)
             {
                 throw new WindowsInspectionException("The Windows inspection returned an invalid response.");
             }
 
-            return output;
+            return outputResult.Text;
         }
         catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
         {
@@ -236,5 +282,41 @@ internal static class BoundedWindowsInspectionProcessRunner
         catch (Exception exception) when (exception is InvalidOperationException or Win32Exception)
         {
         }
+    }
+
+    private static async Task<BoundedReadResult> ReadBoundedAsync(
+        StreamReader reader,
+        OutputCharacterBudget budget,
+        Process process,
+        bool capture,
+        CancellationToken cancellationToken)
+    {
+        var buffer = new char[4096];
+        var output = capture ? new StringBuilder() : null;
+        while (true)
+        {
+            var count = await reader.ReadAsync(buffer, cancellationToken).ConfigureAwait(false);
+            if (count == 0)
+            {
+                return new BoundedReadResult(output?.ToString() ?? string.Empty, false);
+            }
+
+            if (!budget.TryConsume(count))
+            {
+                TryTerminate(process);
+                return new BoundedReadResult(string.Empty, true);
+            }
+
+            output?.Append(buffer, 0, count);
+        }
+    }
+
+    private sealed record BoundedReadResult(string Text, bool ExceededLimit);
+
+    private sealed class OutputCharacterBudget(int limit)
+    {
+        private int consumed;
+
+        internal bool TryConsume(int count) => Interlocked.Add(ref consumed, count) <= limit;
     }
 }

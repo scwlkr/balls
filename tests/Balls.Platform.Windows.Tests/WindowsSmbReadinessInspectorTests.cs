@@ -28,7 +28,8 @@ public sealed class WindowsSmbReadinessInspectorTests
             "PrivateEnabled": true,
             "PrivateDefaultInboundAction": "Block",
             "PublicEnabled": true,
-            "PublicDefaultInboundAction": "Block"
+            "PublicDefaultInboundAction": "Block",
+            "PublicSmbInboundAllowRules": 0
           }
         }
         """;
@@ -86,6 +87,7 @@ public sealed class WindowsSmbReadinessInspectorTests
             (root => root["Firewall"]!["PublicEnabled"] = false, "public_firewall_disabled"),
             (root => root["Firewall"]!["PrivateDefaultInboundAction"] = "Allow", "private_inbound_not_blocked"),
             (root => root["Firewall"]!["PublicDefaultInboundAction"] = "Allow", "public_inbound_not_blocked"),
+            (root => root["Firewall"]!["PublicSmbInboundAllowRules"] = 1, "public_smb_inbound_allowed"),
         };
 
         foreach (var testCase in cases)
