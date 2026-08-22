@@ -158,6 +158,32 @@ internal static class CliOutput
             $"Folder: {response.Plan.FolderPath}",
             $"Share: {response.Plan.ShareName}");
 
+    internal static string RenderFilesGrantCredentialPlan(
+        CircleFilesGrantCredentialPlanResponse response) =>
+        string.Join(
+            Environment.NewLine,
+            new[]
+            {
+                "Limited Windows Member credential preview:",
+                $"Account: {response.AccountName}",
+                $"Access: {response.Access}",
+                $"Folder: {response.FolderPath}",
+                $"Share: {response.ShareName}",
+                $"Plan ID: {response.PlanId}",
+                "Apply this exact plan with: balls files grant credential-apply ... --plan <plan-id>",
+            }.Concat(response.Actions.Select(action => $"- {action}")));
+
+    internal static string RenderAppliedFilesGrantCredential(
+        CircleFilesGrantCredentialApplyResponse response) =>
+        string.Join(
+            Environment.NewLine,
+            response.Status == "already-applied"
+                ? "The limited Windows Member credential was already ready."
+                : "Created the limited Windows Member credential.",
+            $"Account: {response.Plan.AccountName}",
+            $"Access: {response.Plan.Access}",
+            "The password remains protected and is not displayed.");
+
     internal static string RenderSavedInvitation(
         CreateInvitationResponse response,
         string path) =>

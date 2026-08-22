@@ -1,3 +1,5 @@
+using System.Security.Cryptography;
+using System.Text;
 using Balls.Core;
 using Balls.Storage.Sqlite;
 using Microsoft.Data.Sqlite;
@@ -79,6 +81,145 @@ public sealed class CircleFilesStateStoreTests
     }
 
     [TestMethod]
+    public async Task Provider_credential_is_protected_restart_stable_and_conflicting_reuse_fails()
+    {
+        using var directory = new TemporaryDirectory();
+        CircleFilesProviderCredentialBinding binding;
+        var secret = Encoding.UTF8.GetBytes("Aa2!provider-secret-that-never-leaks");
+        try
+        {
+            await using (var store = await SqliteLocalStateStore.OpenAsync(
+                             directory.Path,
+                             TestPrivateMaterialProtector.Instance))
+            {
+                var circles = new CircleApplication(store, new FixedTimeProvider(Now), "Owner-PC");
+                var circle = await circles.CreateCircleAsync(
+                    new CreateCircleCommand(
+                        new CreationRequestId(Guid.Parse("0198d000-2000-7000-8000-000000000081")),
+                        "Credential Circle",
+                        "Owner"));
+                var files = new CircleFilesApplication(store, store, new FixedTimeProvider(Now));
+                var contribution = await files.CreateContributionAsync(
+                    new CreateCircleFilesContributionCommand(
+                        new CircleFilesContributionRequestId(
+                            Guid.Parse("0198d000-2000-7000-8000-000000000082")),
+                        circle.Circle.Id,
+                        "Credential Files"));
+                var grant = await files.CreateAccessGrantAsync(
+                    new CreateMemberAccessGrantCommand(
+                        new MemberAccessGrantRequestId(
+                            Guid.Parse("0198d000-2000-7000-8000-000000000083")),
+                        circle.Circle.Id,
+                        contribution.Id,
+                        circle.Members.Single().Id,
+                        MemberAccessMode.ReadWrite));
+                binding = new CircleFilesProviderCredentialBinding(
+                    grant.Id.ToString(), circle.Circle.Id.ToString(), contribution.Id.ToString(),
+                    grant.MemberId.ToString(), "windows-smb-3.1.1-v1", "BallsG-abcdef0123456",
+                    new string('a', 64), "read-write", grant.Generation);
+
+                using var prepared = await store.PrepareCircleFilesProviderCredentialAsync(binding, secret);
+                Assert.IsTrue(prepared.IsNew);
+                CollectionAssert.AreEqual(secret, prepared.Secret.ToArray());
+                await store.CompleteCircleFilesProviderCredentialAsync(binding);
+            }
+
+            var databasePath = Path.Combine(directory.Path, "balls.db");
+            await using (var connection = new SqliteConnection($"Data Source={databasePath};Pooling=False"))
+            {
+                await connection.OpenAsync();
+                using var command = connection.CreateCommand();
+                command.CommandText = "SELECT protected_secret FROM circle_files_provider_credentials;";
+                var protectedValue = (byte[])(await command.ExecuteScalarAsync())!;
+                Assert.IsFalse(secret.SequenceEqual(protectedValue));
+            }
+
+            await using var reopened = await SqliteLocalStateStore.OpenAsync(
+                directory.Path,
+                TestPrivateMaterialProtector.Instance);
+            using (var retry = await reopened.PrepareCircleFilesProviderCredentialAsync(
+                       binding,
+                       Encoding.UTF8.GetBytes("Different-candidate-secret-Aa2!")))
+            {
+                Assert.IsFalse(retry.IsNew);
+                Assert.IsTrue(retry.IsActive);
+                CollectionAssert.AreEqual(secret, retry.Secret.ToArray());
+                Assert.AreEqual("Circle Files provider credential (redacted)", retry.ToString());
+            }
+
+            var conflict = binding with { MemberId = Guid.NewGuid().ToString("D") };
+            var error = await Assert.ThrowsExactlyAsync<LocalStateConflictException>(
+                () => reopened.PrepareCircleFilesProviderCredentialAsync(conflict, secret));
+            Assert.AreEqual("circle_files_provider_credential_conflict", error.Code);
+            await reopened.DisposeAsync();
+
+            await using (var connection = new SqliteConnection($"Data Source={databasePath};Pooling=False"))
+            {
+                await connection.OpenAsync();
+                using var corrupt = connection.CreateCommand();
+                corrupt.CommandText = "UPDATE circle_files_provider_credentials SET protected_secret = X'00';";
+                await corrupt.ExecuteNonQueryAsync();
+            }
+            var invalid = await Assert.ThrowsExactlyAsync<LocalStateException>(
+                () => SqliteLocalStateStore.OpenAsync(
+                    directory.Path,
+                    TestPrivateMaterialProtector.Instance));
+            Assert.AreEqual("invalid_private_material", invalid.Code);
+        }
+        finally
+        {
+            CryptographicOperations.ZeroMemory(secret);
+        }
+    }
+
+    [TestMethod]
+    public async Task Version_six_provider_credential_migration_is_atomic_and_restartable()
+    {
+        using var directory = new TemporaryDirectory();
+        await using (var store = await SqliteLocalStateStore.OpenAsync(
+                         directory.Path,
+                         TestPrivateMaterialProtector.Instance))
+        {
+        }
+        var databasePath = Path.Combine(directory.Path, "balls.db");
+        await using (var connection = new SqliteConnection($"Data Source={databasePath};Pooling=False"))
+        {
+            await connection.OpenAsync();
+            using (var downgrade = connection.CreateCommand())
+            {
+                downgrade.CommandText =
+                    """
+                    PRAGMA foreign_keys = OFF;
+                    DROP TABLE circle_files_provider_credentials;
+                    PRAGMA user_version = 6;
+                    PRAGMA foreign_keys = ON;
+                    """;
+                await downgrade.ExecuteNonQueryAsync();
+            }
+            await Assert.ThrowsExactlyAsync<InvalidOperationException>(
+                () => SqliteLocalStateStore.ExecuteV6ToV7MigrationAsync(
+                    connection,
+                    _ => throw new InvalidOperationException("injected"),
+                    CancellationToken.None));
+            using var inspect = connection.CreateCommand();
+            inspect.CommandText =
+                """
+                SELECT (SELECT user_version FROM pragma_user_version),
+                       (SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name='circle_files_provider_credentials');
+                """;
+            await using var reader = await inspect.ExecuteReaderAsync();
+            Assert.IsTrue(await reader.ReadAsync());
+            Assert.AreEqual(6L, reader.GetInt64(0));
+            Assert.AreEqual(0L, reader.GetInt64(1));
+        }
+
+        await using var reopened = await SqliteLocalStateStore.OpenAsync(
+            directory.Path,
+            TestPrivateMaterialProtector.Instance);
+        Assert.AreEqual(SqliteLocalStateStore.CurrentSchemaVersion, await ReadVersionAsync(databasePath));
+    }
+
+    [TestMethod]
     public async Task Version_three_step_records_four_so_an_interrupted_upgrade_can_resume()
     {
         using var directory = new TemporaryDirectory();
@@ -105,6 +246,7 @@ public sealed class CircleFilesStateStoreTests
                 downgrade.CommandText =
                     """
                     PRAGMA foreign_keys = OFF;
+                    DROP TABLE circle_files_provider_credentials;
                     DROP TABLE circle_files_access_grants;
                     DROP TABLE circle_files_contributions;
                     DROP TABLE circle_messages;
@@ -161,6 +303,7 @@ public sealed class CircleFilesStateStoreTests
             using var command = connection.CreateCommand();
             command.CommandText =
                 """
+                DROP TABLE circle_files_provider_credentials;
                 DROP TABLE circle_files_access_grants;
                 DROP TABLE circle_files_contributions;
                 PRAGMA user_version = 5;
@@ -211,6 +354,7 @@ public sealed class CircleFilesStateStoreTests
             {
                 downgrade.CommandText =
                     """
+                    DROP TABLE circle_files_provider_credentials;
                     DROP TABLE circle_files_access_grants;
                     DROP TABLE circle_files_contributions;
                     PRAGMA user_version = 5;
@@ -334,6 +478,15 @@ public sealed class CircleFilesStateStoreTests
         CollectionAssert.AreEqual(
             expected.CircleAuthoritySignature,
             actual.CircleAuthoritySignature);
+    }
+
+    private static async Task<int> ReadVersionAsync(string databasePath)
+    {
+        await using var connection = new SqliteConnection($"Data Source={databasePath};Pooling=False");
+        await connection.OpenAsync();
+        using var command = connection.CreateCommand();
+        command.CommandText = "PRAGMA user_version;";
+        return Convert.ToInt32(await command.ExecuteScalarAsync(), System.Globalization.CultureInfo.InvariantCulture);
     }
 
     private sealed class FixedTimeProvider(DateTimeOffset utcNow) : TimeProvider

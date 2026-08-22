@@ -1,7 +1,8 @@
 # Local Control API v1
 
 **Status:** implemented through provider-neutral Circle Files contribution and Access Grant
-definition, read-only Windows SMB readiness, and dedicated Windows folder hosting.
+definition, read-only Windows SMB readiness, dedicated Windows folder hosting, and limited
+per-grant Windows SMB credential provisioning.
 
 This is the versioned, machine-local contract between `balls` or another local integration and
 `ballsd`. It is not a Node-to-Node or Circle replication protocol.
@@ -124,6 +125,8 @@ material. Selecting JSON output for this interactive command is a usage error.
 | Circle Files readiness | `provider`, aggregate `status`, ordered checks with `id`, `status`, stable `code`, and bounded safe `summary` |
 | Circle Files host plan | contract version, deterministic `planId`, provider, canonical folder path, share/rule/ownership IDs, whether the target exists, and ordered exact actions |
 | Circle Files host apply | `status` (`applied` or `already-applied`) and the unchanged host plan |
+| Circle Files grant credential plan | contract version, deterministic `planId`, provider, canonical folder/share/account/ownership IDs, access, generation, and ordered exact actions |
+| Circle Files grant credential apply | `status` (`applied` or `already-applied`) and the unchanged public plan; no password or protected secret |
 | Error | `code`, `message` |
 
 The v1 Member roles are `owner` and `member`. Contribution lifecycles are `defined`, `active`, and
@@ -255,7 +258,42 @@ balls files grant create --circle <circle-id> --contribution <contribution-id> \
 ```
 
 Responses intentionally omit the canonical authorization transcript, both signatures, protected
-private authority, and all future provider credentials.
+private authority, and all provider credential material.
+
+### `POST /control/v1/circles/{circleId}/files/contributions/{contributionId}/grants/{grantId}/credential/preview`
+
+Revalidates the persisted Contribution and Access Grant, current local Owner, current Circle root,
+dedicated host state, and canonical folder path. The body is `{ "folderPath": "..." }`. Success
+returns a deterministic version 1 public plan with exact provider, share, local-account, ownership,
+access, and generation bindings. Preview creates no account, secret, ACL, or share entry. The CLI is:
+
+```text
+balls files grant credential-preview --circle <circle-id> --contribution <contribution-id> \
+  --grant <grant-id> --path <absolute-local-path>
+```
+
+### `POST /control/v1/circles/{circleId}/files/contributions/{contributionId}/grants/{grantId}/credential/apply`
+
+Accepts `{ "folderPath": "...", "planId": "..." }`, revalidates and recomputes the complete plan,
+then asks the authenticated narrow helper to create one limited local account, exactly four
+deny-logon rights, one whole-folder ACL, one encrypted-share allow entry, and one protected grant
+marker. Read-only grants map to folder `ReadAndExecute` and share `Read`; read-write grants map to
+folder `Modify` and share `Change`. Success returns `applied` or `already-applied` plus only the
+public plan. The random password is DPAPI-protected before elevation, reused on exact restart retry,
+and is never returned by this route, the CLI, browser, history/list projections, or errors. Exact
+applies are serialized through protected preparation, helper execution, and lifecycle completion;
+concurrent retries therefore resolve to one `applied` and one `already-applied`, rather than racing
+  rollback. The exact Owner/System host baseline plus every protected marker-backed Member grant is
+  accepted; deny entries, reduced Owner rights, wrong grant rights, orphan SIDs, unmarked entries,
+  and known broad Windows token principals fail closed. Multiple Member grants therefore coexist
+  without broadening either grant. The helper then checks the created account's actual network-logon
+token groups; custom or nested group access on another non-special share blocks the grant and rolls
+the exact owned prefix back. The CLI is:
+
+```text
+balls files grant credential-apply --circle <circle-id> --contribution <contribution-id> \
+  --grant <grant-id> --path <absolute-local-path> --plan <plan-id>
+```
 
 ### `POST /control/v1/circles/{circleId}/invitations`
 
@@ -370,6 +408,7 @@ Handled application errors use this shape:
 | 400 | `invalid_message_endpoint`, `invalid_message_text`, `unauthorized`, `oversized` |
 | 400 | `contribution_name_required`, `contribution_name_too_long`, `invalid_member_access`, `circle_files_owner_required`, `circle_files_authority_unavailable`, `circle_files_authorization_failed` |
 | 400 | `hosting_path_invalid`, `hosting_authorization_invalid`, `windows_required` |
+| 400 | `grant_authorization_invalid`, `grant_secret_invalid` |
 | 404 | `circle_not_found` |
 | 404 | `invitation_not_found` |
 | 404 | `circle_files_contribution_not_found`, `member_not_found` |
@@ -378,6 +417,7 @@ Handled application errors use this shape:
 | 409 | `message_request_conflict`, `conflict` |
 | 409 | `circle_files_contribution_request_conflict`, `circle_files_grant_request_conflict`, `circle_files_grant_exists` |
 | 409 | `hosting_plan_changed`, `hosting_prerequisites_not_ready`, `hosting_folder_not_empty`, `hosting_ownership_collision`, `hosting_resource_collision`, `hosting_helper_unavailable`, `hosting_helper_authentication_failed`, `hosting_helper_invalid_response`, `hosting_identity_unavailable`, `hosting_consent_cancelled`, `hosting_consent_timeout`, `hosting_apply_failed`, `hosting_recovery_incomplete` |
+| 409 | `grant_plan_changed`, `grant_resource_collision`, `grant_apply_failed`, `circle_files_provider_credential_conflict` |
 | 409 | `replayed` |
 | 502 | `connection_failed`, authenticated remote-channel errors |
 
@@ -387,9 +427,9 @@ is not guaranteed to use the application error shape.
 ## Explicit non-goals
 
 v1 does not expose invitation/join, message-authoring, Circle Files readiness, or Circle Files
-mutation UX to the browser. The local API and CLI implement only one exact dedicated-host
-folder/ACL/encrypted-share/Private-firewall operation. They do not enable SMB features or policy,
-start services, change network profiles or global firewall policy, create provider accounts or
-Member credentials, grant Member ACLs, map drives, adopt existing folders with content, delete
-user files, activate/revoke Contributions or grants, synchronize or replicate content, add version
-history/trash, discover peers, or add automatic/multiple-Anchor behavior.
+mutation UX to the browser. The local API and CLI implement the exact dedicated-host operation and
+one limited account/ACL operation per Access Grant. They do not enable SMB features or policy,
+start services, change network profiles or global firewall policy, deliver credentials, map drives,
+adopt existing folders with content, delete user files, activate/revoke Contributions or grants,
+rotate/revoke provider credentials, synchronize or replicate content, add version history/trash,
+discover peers, or add automatic/multiple-Anchor behavior.

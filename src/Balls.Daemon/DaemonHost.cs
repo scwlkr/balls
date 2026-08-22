@@ -147,6 +147,10 @@ public static class DaemonHost
             var filesHostingApplication = new CircleFilesHostingApplication(
                 filesApplication,
                 host.CircleFilesHosting);
+            var filesGrantCredentialApplication = new CircleFilesGrantCredentialApplication(
+                filesApplication,
+                store,
+                host.CircleFilesGrantCredentials);
             var browserAccess = new BrowserAccessBroker(
                 TimeProvider.System,
                 launchLifetime: TimeSpan.FromMinutes(1),
@@ -561,6 +565,99 @@ public static class DaemonHost
                     }
                 })
                 .Produces<MemberAccessGrantResponse>(StatusCodes.Status201Created)
+                .Produces<ErrorResponse>(StatusCodes.Status400BadRequest)
+                .Produces<ErrorResponse>(StatusCodes.Status404NotFound)
+                .Produces<ErrorResponse>(StatusCodes.Status409Conflict);
+            application.MapPost(
+                ControlRoutes.Circles + "/{circleId}/files/contributions/{contributionId}/grants/{grantId}/credential/preview",
+                async (
+                    string circleId,
+                    string contributionId,
+                    string grantId,
+                    PreviewCircleFilesGrantCredentialRequest request,
+                    CancellationToken token) =>
+                {
+                    if (!TryParseCanonicalId(circleId, out var parsedCircleId)
+                        || !TryParseCanonicalId(contributionId, out var parsedContributionId)
+                        || !TryParseCanonicalId(grantId, out var parsedGrantId))
+                    {
+                        return Results.BadRequest(new ErrorResponse(
+                            "invalid_request_id",
+                            "Circle, contribution, and grant IDs must be canonical UUIDs."));
+                    }
+                    try
+                    {
+                        return Results.Ok(await filesGrantCredentialApplication.PreviewAsync(
+                            new CircleId(parsedCircleId),
+                            new CircleFilesContributionId(parsedContributionId),
+                            new MemberAccessGrantId(parsedGrantId),
+                            request.FolderPath,
+                            token).ConfigureAwait(false));
+                    }
+                    catch (LocalStateException exception) when (exception.Code is
+                        "circle_not_found" or
+                        "circle_files_contribution_not_found" or
+                        "circle_files_grant_not_found")
+                    {
+                        return Results.NotFound(new ErrorResponse(exception.Code, exception.Message));
+                    }
+                    catch (LocalStateException exception)
+                    {
+                        return Results.BadRequest(new ErrorResponse(exception.Code, exception.Message));
+                    }
+                    catch (CircleFilesHostingException exception)
+                    {
+                        return MapHostingError(exception);
+                    }
+                })
+                .Produces<CircleFilesGrantCredentialPlanResponse>(StatusCodes.Status200OK)
+                .Produces<ErrorResponse>(StatusCodes.Status400BadRequest)
+                .Produces<ErrorResponse>(StatusCodes.Status404NotFound)
+                .Produces<ErrorResponse>(StatusCodes.Status409Conflict);
+            application.MapPost(
+                ControlRoutes.Circles + "/{circleId}/files/contributions/{contributionId}/grants/{grantId}/credential/apply",
+                async (
+                    string circleId,
+                    string contributionId,
+                    string grantId,
+                    ApplyCircleFilesGrantCredentialRequest request,
+                    CancellationToken token) =>
+                {
+                    if (!TryParseCanonicalId(circleId, out var parsedCircleId)
+                        || !TryParseCanonicalId(contributionId, out var parsedContributionId)
+                        || !TryParseCanonicalId(grantId, out var parsedGrantId))
+                    {
+                        return Results.BadRequest(new ErrorResponse(
+                            "invalid_request_id",
+                            "Circle, contribution, and grant IDs must be canonical UUIDs."));
+                    }
+                    try
+                    {
+                        return Results.Ok(await filesGrantCredentialApplication.ApplyAsync(
+                            new CircleId(parsedCircleId),
+                            new CircleFilesContributionId(parsedContributionId),
+                            new MemberAccessGrantId(parsedGrantId),
+                            request.FolderPath,
+                            request.PlanId,
+                            token).ConfigureAwait(false));
+                    }
+                    catch (LocalStateException exception) when (exception.Code is
+                        "circle_not_found" or
+                        "circle_files_contribution_not_found" or
+                        "circle_files_grant_not_found")
+                    {
+                        return Results.NotFound(new ErrorResponse(exception.Code, exception.Message));
+                    }
+                    catch (LocalStateException exception)
+                    {
+                        return Results.BadRequest(new ErrorResponse(exception.Code, exception.Message));
+                    }
+                    catch (CircleFilesHostingException exception)
+                    {
+                        return MapHostingError(exception);
+                    }
+                })
+                .Produces<CircleFilesGrantCredentialApplyResponse>(StatusCodes.Status200OK)
                 .Produces<ErrorResponse>(StatusCodes.Status400BadRequest)
                 .Produces<ErrorResponse>(StatusCodes.Status404NotFound)
                 .Produces<ErrorResponse>(StatusCodes.Status409Conflict);
@@ -1036,6 +1133,8 @@ public static class DaemonHost
         return exception.Code is
             "hosting_path_invalid" or
             "hosting_authorization_invalid" or
+            "grant_authorization_invalid" or
+            "grant_secret_invalid" or
             "windows_required"
             ? Results.BadRequest(error)
             : Results.Conflict(error);

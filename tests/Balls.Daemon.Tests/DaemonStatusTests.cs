@@ -207,6 +207,8 @@ public sealed class DaemonStatusTests
         StringAssert.Contains(document, nameof(CircleFilesContributionListResponse));
         StringAssert.Contains(document, nameof(CreateMemberAccessGrantRequest));
         StringAssert.Contains(document, nameof(MemberAccessGrantListResponse));
+        StringAssert.Contains(document, nameof(PreviewCircleFilesGrantCredentialRequest));
+        StringAssert.Contains(document, nameof(CircleFilesGrantCredentialApplyResponse));
         StringAssert.Contains(document, nameof(CircleFilesReadinessResponse));
         StringAssert.Contains(document, nameof(ErrorResponse));
     }

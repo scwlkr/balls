@@ -81,6 +81,12 @@ public sealed record AuthorizedCircleFilesContribution(
     PublicIdentityCredential MemberCredential,
     PublicIdentityCredential CircleAuthorityCredential);
 
+public sealed record AuthorizedMemberAccessGrant(
+    MemberAccessGrant Grant,
+    CircleFilesContribution Contribution,
+    PublicIdentityCredential OwnerMemberCredential,
+    PublicIdentityCredential CircleAuthorityCredential);
+
 public sealed record MemberAccessGrant(
     MemberAccessGrantId Id,
     CircleId CircleId,

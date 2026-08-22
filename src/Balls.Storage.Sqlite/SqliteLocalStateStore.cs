@@ -14,7 +14,7 @@ public sealed partial class SqliteLocalStateStore :
     IAsyncDisposable
 {
     public const int ApplicationId = 0x42414C53;
-    public const int CurrentSchemaVersion = 6;
+    public const int CurrentSchemaVersion = 7;
 
     private readonly SqliteConnection connection;
     private readonly IPrivateMaterialProtector privateMaterialProtector;
@@ -144,11 +144,22 @@ public sealed partial class SqliteLocalStateStore :
             if (!isFreshDatabase && version is 1 or 2 or 3 or 4 or 5)
             {
                 await MigrateV5ToV6Async(connection, cancellationToken).ConfigureAwait(false);
+                await ValidateSchemaAsync(connection, 6, cancellationToken)
+                    .ConfigureAwait(false);
+            }
+
+            if (!isFreshDatabase && version is 1 or 2 or 3 or 4 or 5 or 6)
+            {
+                await MigrateV6ToV7Async(connection, cancellationToken).ConfigureAwait(false);
                 await ValidateSchemaAsync(connection, CurrentSchemaVersion, cancellationToken)
                     .ConfigureAwait(false);
             }
 
             await ValidatePrivateMaterialsAsync(
+                connection,
+                privateMaterialProtector,
+                cancellationToken).ConfigureAwait(false);
+            await ValidateCircleFilesProviderCredentialsAsync(
                 connection,
                 privateMaterialProtector,
                 cancellationToken).ConfigureAwait(false);
@@ -560,6 +571,10 @@ public sealed partial class SqliteLocalStateStore :
         {
             AddCircleFilesExpectedTables(expectedTables);
         }
+        if (schemaVersion >= 7)
+        {
+            AddCircleFilesProviderCredentialExpectedTable(expectedTables);
+        }
 
         using (var unexpectedObjectCommand = connection.CreateCommand())
         {
@@ -897,6 +912,8 @@ public sealed partial class SqliteLocalStateStore :
             {CircleMessageSchemaSql}
 
             {CircleFilesSchemaSql}
+
+            {CircleFilesProviderCredentialSchemaSql}
 
             PRAGMA application_id = {ApplicationId};
             PRAGMA user_version = {CurrentSchemaVersion};

@@ -108,8 +108,8 @@ public static class CliApplication
         {
             TimeSpan? timeout = tokens.Count >= 3
                 && tokens[0] == "files"
-                && tokens[1] == "host"
-                && tokens[2] == "apply"
+                && ((tokens[1] == "host" && tokens[2] == "apply")
+                    || (tokens[1] == "grant" && tokens[2] == "credential-apply"))
                 ? TimeSpan.FromMinutes(2.5)
                 : null;
             client = host.LocalControlClient.CreateClient(localControlEndpoint, timeout);
@@ -512,6 +512,10 @@ public static class CliApplication
                     client, tokens, outputFormat, standardOutput, standardError, cancellationToken),
                 ("grant", "list") => ListFilesGrantsAsync(
                     client, tokens, outputFormat, standardOutput, standardError, cancellationToken),
+                ("grant", "credential-preview") => PreviewFilesGrantCredentialAsync(
+                    client, tokens, outputFormat, standardOutput, standardError, cancellationToken),
+                ("grant", "credential-apply") => ApplyFilesGrantCredentialAsync(
+                    client, tokens, outputFormat, standardOutput, standardError, cancellationToken),
                 ("host", "preview") => PreviewFilesHostAsync(
                     client, tokens, outputFormat, standardOutput, standardError, cancellationToken),
                 ("host", "apply") => ApplyFilesHostAsync(
@@ -773,6 +777,87 @@ public static class CliApplication
         }
 
         await WriteResultAsync(output, outputFormat, result.Value, CliOutput.RenderFilesHostPlan);
+        return CliExitCodes.Success;
+    }
+
+    private static async Task<int> PreviewFilesGrantCredentialAsync(
+        HttpClient client,
+        IReadOnlyList<string> tokens,
+        CliOutputFormat outputFormat,
+        TextWriter output,
+        TextWriter error,
+        CancellationToken cancellationToken)
+    {
+        if (!TryParseNamedOptions(
+                tokens,
+                3,
+                ["--circle", "--contribution", "--grant", "--path"],
+                out var options,
+                out var parseError)
+            || !options.TryGetValue("--circle", out var circleId)
+            || !options.TryGetValue("--contribution", out var contributionId)
+            || !options.TryGetValue("--grant", out var grantId)
+            || !options.TryGetValue("--path", out var folderPath))
+        {
+            return await WriteUsageErrorAsync(
+                error,
+                outputFormat,
+                parseError ?? "usage: balls files grant credential-preview --circle <circle-id> --contribution <contribution-id> --grant <grant-id> --path <absolute-local-path>.");
+        }
+        using var response = await client.PostAsJsonAsync(
+            ControlRoutes.CircleFilesGrantCredentialPreview(circleId, contributionId, grantId),
+            new PreviewCircleFilesGrantCredentialRequest(folderPath),
+            ControlJson.Options,
+            cancellationToken).ConfigureAwait(false);
+        var result = await ReadResponseAsync<CircleFilesGrantCredentialPlanResponse>(
+            response, outputFormat, error, cancellationToken).ConfigureAwait(false);
+        if (result.Value is null)
+        {
+            return result.ExitCode;
+        }
+        await WriteResultAsync(
+            output, outputFormat, result.Value, CliOutput.RenderFilesGrantCredentialPlan);
+        return CliExitCodes.Success;
+    }
+
+    private static async Task<int> ApplyFilesGrantCredentialAsync(
+        HttpClient client,
+        IReadOnlyList<string> tokens,
+        CliOutputFormat outputFormat,
+        TextWriter output,
+        TextWriter error,
+        CancellationToken cancellationToken)
+    {
+        if (!TryParseNamedOptions(
+                tokens,
+                3,
+                ["--circle", "--contribution", "--grant", "--path", "--plan"],
+                out var options,
+                out var parseError)
+            || !options.TryGetValue("--circle", out var circleId)
+            || !options.TryGetValue("--contribution", out var contributionId)
+            || !options.TryGetValue("--grant", out var grantId)
+            || !options.TryGetValue("--path", out var folderPath)
+            || !options.TryGetValue("--plan", out var planId))
+        {
+            return await WriteUsageErrorAsync(
+                error,
+                outputFormat,
+                parseError ?? "usage: balls files grant credential-apply --circle <circle-id> --contribution <contribution-id> --grant <grant-id> --path <absolute-local-path> --plan <plan-id>.");
+        }
+        using var response = await client.PostAsJsonAsync(
+            ControlRoutes.CircleFilesGrantCredentialApply(circleId, contributionId, grantId),
+            new ApplyCircleFilesGrantCredentialRequest(folderPath, planId),
+            ControlJson.Options,
+            cancellationToken).ConfigureAwait(false);
+        var result = await ReadResponseAsync<CircleFilesGrantCredentialApplyResponse>(
+            response, outputFormat, error, cancellationToken).ConfigureAwait(false);
+        if (result.Value is null)
+        {
+            return result.ExitCode;
+        }
+        await WriteResultAsync(
+            output, outputFormat, result.Value, CliOutput.RenderAppliedFilesGrantCredential);
         return CliExitCodes.Success;
     }
 
@@ -1536,7 +1621,7 @@ public static class CliApplication
         if (outputFormat == CliOutputFormat.Text)
         {
             await error.WriteLineAsync(
-                "commands: ui | status | circle create | circle join | circle list | member list | node list | invitation create | invitation redeem | message send | message list | files readiness | files contribution create/list | files grant create/list | files host preview/apply");
+                "commands: ui | status | circle create | circle join | circle list | member list | node list | invitation create | invitation redeem | message send | message list | files readiness | files contribution create/list | files grant create/list/credential-preview/credential-apply | files host preview/apply");
         }
 
         return CliExitCodes.UsageError;

@@ -54,6 +54,26 @@ public sealed record CircleFilesHostApplyResponse(
     string Status,
     CircleFilesHostPlanResponse Plan);
 
+public sealed record PreviewCircleFilesGrantCredentialRequest(string FolderPath);
+
+public sealed record ApplyCircleFilesGrantCredentialRequest(string FolderPath, string PlanId);
+
+public sealed record CircleFilesGrantCredentialPlanResponse(
+    int ContractVersion,
+    string PlanId,
+    string Provider,
+    string FolderPath,
+    string ShareName,
+    string AccountName,
+    string OwnershipId,
+    string Access,
+    long Generation,
+    IReadOnlyList<string> Actions);
+
+public sealed record CircleFilesGrantCredentialApplyResponse(
+    string Status,
+    CircleFilesGrantCredentialPlanResponse Plan);
+
 public sealed record CreateMemberAccessGrantRequest(
     string RequestId,
     string MemberId,
