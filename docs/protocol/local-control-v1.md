@@ -283,8 +283,10 @@ public plan. The random password is DPAPI-protected before elevation, reused on 
 and is never returned by this route, the CLI, browser, history/list projections, or errors. Exact
 applies are serialized through protected preparation, helper execution, and lifecycle completion;
 concurrent retries therefore resolve to one `applied` and one `already-applied`, rather than racing
-rollback. Unexpected target-folder/share entries and known broad Windows token principals fail
-closed before account creation. The helper then checks the created account's actual network-logon
+  rollback. The exact Owner/System host baseline plus every protected marker-backed Member grant is
+  accepted; deny entries, reduced Owner rights, wrong grant rights, orphan SIDs, unmarked entries,
+  and known broad Windows token principals fail closed. Multiple Member grants therefore coexist
+  without broadening either grant. The helper then checks the created account's actual network-logon
 token groups; custom or nested group access on another non-special share blocks the grant and rolls
 the exact owned prefix back. The CLI is:
 
