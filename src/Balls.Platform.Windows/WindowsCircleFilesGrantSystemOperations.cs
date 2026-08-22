@@ -397,7 +397,9 @@ internal sealed class WindowsCircleFilesGrantPowerShell
           $user = Microsoft.PowerShell.LocalAccounts\Get-LocalUser -Name ([string]$request.AccountName) -ErrorAction SilentlyContinue
           if ($null -eq $user) { return 'Missing' }
           $groups = @(Microsoft.PowerShell.LocalAccounts\Get-LocalGroup | Where-Object { @((Microsoft.PowerShell.LocalAccounts\Get-LocalGroupMember -Name $_.Name -ErrorAction SilentlyContinue).SID.Value) -contains [string]$user.SID.Value })
-          $owned = [string]$user.Description -eq [string]$request.Description -and [bool]$user.Enabled -and [bool]$user.PasswordNeverExpires -and -not [bool]$user.UserMayChangePassword -and $groups.Count -eq 0 -and [BallsGrantRights]::PasswordWorks([string]$request.AccountName,[string]$request.Password) -and [BallsGrantRights]::Exact([string]$user.SID.Value)
+          $sam = [ADSI]('WinNT://./' + [string]$request.AccountName + ',user')
+          $passwordDoesNotExpire = ([int]$sam.UserFlags.Value -band 0x10000) -ne 0
+          $owned = [string]$user.Description -eq [string]$request.Description -and [bool]$user.Enabled -and $passwordDoesNotExpire -and -not [bool]$user.UserMayChangePassword -and $groups.Count -eq 0 -and [BallsGrantRights]::PasswordWorks([string]$request.AccountName,[string]$request.Password) -and [BallsGrantRights]::Exact([string]$user.SID.Value)
           if ($owned) { return 'Owned' }
           return 'Collision'
         }
