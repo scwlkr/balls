@@ -421,6 +421,9 @@ internal sealed class WindowsCircleFilesGrantPowerShell
             try {
               $user = Microsoft.PowerShell.LocalAccounts\New-LocalUser -Name ([string]$request.AccountName) -Password $secure -Description ([string]$request.Description) -AccountNeverExpires -PasswordNeverExpires -UserMayNotChangePassword -ErrorAction Stop
               Microsoft.PowerShell.LocalAccounts\Set-LocalUser -Name ([string]$request.AccountName) -PasswordNeverExpires $true -UserMayChangePassword $false -ErrorAction Stop
+              $sam = [ADSI]('WinNT://./' + [string]$request.AccountName + ',user')
+              $sam.Put('UserFlags', ([int]$sam.UserFlags.Value -bor 0x10000 -bor 0x40))
+              $sam.SetInfo()
               Microsoft.PowerShell.LocalAccounts\Get-LocalGroup | Where-Object { @((Microsoft.PowerShell.LocalAccounts\Get-LocalGroupMember -Name $_.Name -ErrorAction SilentlyContinue).SID.Value) -contains [string]$user.SID.Value } | ForEach-Object { Microsoft.PowerShell.LocalAccounts\Remove-LocalGroupMember -Name $_.Name -Member $user.Name -ErrorAction Stop }
               [BallsGrantRights]::Add([string]$user.SID.Value)
               $state = Get-AccountState
