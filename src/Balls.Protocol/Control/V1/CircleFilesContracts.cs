@@ -74,6 +74,37 @@ public sealed record CircleFilesGrantCredentialApplyResponse(
     string Status,
     CircleFilesGrantCredentialPlanResponse Plan);
 
+public sealed record PreviewCircleFilesMemberMappingRequest(string Endpoint, string DriveLetter);
+
+public sealed record ApplyCircleFilesMemberMappingRequest(
+    string Endpoint,
+    string DriveLetter,
+    string PlanId);
+
+public sealed record InspectCircleFilesMemberMappingRequest(string Endpoint, string DriveLetter);
+
+public sealed record UnmapCircleFilesMemberMappingRequest(string Endpoint, string DriveLetter);
+
+public sealed record CircleFilesMemberMappingPlanResponse(
+    int ContractVersion,
+    string PlanId,
+    string Endpoint,
+    string UncPath,
+    string CredentialTarget,
+    string DriveLetter,
+    string FriendlyName,
+    string OwnershipId,
+    IReadOnlyList<string> AvailableDriveLetters,
+    IReadOnlyList<string> Actions);
+
+public sealed record CircleFilesMemberMappingInspectionResponse(
+    string Status,
+    CircleFilesMemberMappingPlanResponse Plan);
+
+public sealed record CircleFilesMemberMappingResultResponse(
+    string Status,
+    CircleFilesMemberMappingPlanResponse Plan);
+
 public sealed record CreateMemberAccessGrantRequest(
     string RequestId,
     string MemberId,

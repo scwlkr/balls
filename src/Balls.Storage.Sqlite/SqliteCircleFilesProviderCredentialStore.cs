@@ -29,6 +29,27 @@ public sealed partial class SqliteLocalStateStore : ICircleFilesProviderCredenti
         );
         """;
 
+    public Task<CircleFilesProviderCredentialMaterial?> GetActiveCircleFilesProviderCredentialAsync(
+        string grantId,
+        CancellationToken cancellationToken = default) =>
+        ExecuteLockedAsync(
+            async token =>
+            {
+                if (!Guid.TryParseExact(grantId, "D", out _))
+                {
+                    throw new ArgumentException("Grant ID must be a canonical UUID.", nameof(grantId));
+                }
+                var existing = await ReadProviderCredentialAsync(grantId, null, token)
+                    .ConfigureAwait(false);
+                if (existing is null || existing.Value.Lifecycle != 2) return null;
+                return new CircleFilesProviderCredentialMaterial(
+                    existing.Value.Binding,
+                    UnprotectProviderSecret(existing.Value.Scheme, existing.Value.Protected),
+                    isNew: false,
+                    isActive: true);
+            },
+            cancellationToken);
+
     public Task<CircleFilesProviderCredentialMaterial> PrepareCircleFilesProviderCredentialAsync(
         CircleFilesProviderCredentialBinding binding,
         ReadOnlyMemory<byte> candidateSecret,

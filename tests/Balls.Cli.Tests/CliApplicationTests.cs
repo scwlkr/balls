@@ -104,7 +104,7 @@ public sealed class CliApplicationTests
         Assert.AreEqual(string.Empty, misplacedOutput.ToString());
         Assert.AreEqual(
             "balls: --output must be either 'text' or 'json'." + Environment.NewLine
-                + "commands: ui | status | circle create | circle join | circle list | member list | node list | invitation create | invitation redeem | message send | message list | files readiness | files contribution create/list | files grant create/list/credential-preview/credential-apply | files host preview/apply"
+                + "commands: ui | status | circle create | circle join | circle list | member list | node list | invitation create | invitation redeem | message send | message list | files readiness | files contribution create/list | files grant create/list/credential-preview/credential-apply | files host preview/apply | files mapping preview/map/inspect/unmap"
                 + Environment.NewLine,
             unsupportedError.ToString());
         StringAssert.StartsWith(misplacedError.ToString(), "balls: unknown command.");
@@ -185,6 +185,31 @@ public sealed class CliApplicationTests
         StringAssert.Contains(applied, "password remains protected");
         Assert.IsFalse(preview.Contains("secret", StringComparison.OrdinalIgnoreCase));
         Assert.IsFalse(applied.Contains(new string('b', 64), StringComparison.Ordinal));
+    }
+
+    [TestMethod]
+    public void Circle_Files_mapping_output_is_explicit_and_never_contains_ownership_material()
+    {
+        var plan = new CircleFilesMemberMappingPlanResponse(
+            1,
+            new string('a', 64),
+            "192.168.50.10",
+            @"\\192.168.50.10\balls-example",
+            "192.168.50.10",
+            "M",
+            "Example Studio",
+            new string('b', 64),
+            ["M", "N"],
+            ["Map the exact share."]);
+
+        var preview = CliOutput.RenderFilesMappingPlan(plan);
+        var mapped = CliOutput.RenderFilesMappingResult(
+            new CircleFilesMemberMappingResultResponse("mapped", plan));
+
+        StringAssert.Contains(preview, "Drive: M:");
+        StringAssert.Contains(preview, "Available: M:, N:");
+        StringAssert.Contains(mapped, "password remains protected");
+        Assert.IsFalse(preview.Contains(new string('b', 64), StringComparison.Ordinal));
     }
 
     [TestMethod]

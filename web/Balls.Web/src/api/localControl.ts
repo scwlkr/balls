@@ -17,3 +17,13 @@ export type CreateCircleDto = components["schemas"]["CreateCircleRequest"];
 export type BrowserSessionDto = components["schemas"]["BrowserSessionResponse"];
 export type MemberDto = components["schemas"]["MemberResponse"];
 export type CircleNodeDto = components["schemas"]["CircleNodeResponse"];
+export type CircleFilesContributionListDto =
+  components["schemas"]["CircleFilesContributionListResponse"];
+export type MemberAccessGrantListDto =
+  components["schemas"]["MemberAccessGrantListResponse"];
+export type CircleFilesMemberMappingPlanDto =
+  components["schemas"]["CircleFilesMemberMappingPlanResponse"];
+export type CircleFilesMemberMappingInspectionDto =
+  components["schemas"]["CircleFilesMemberMappingInspectionResponse"];
+export type CircleFilesMemberMappingResultDto =
+  components["schemas"]["CircleFilesMemberMappingResultResponse"];

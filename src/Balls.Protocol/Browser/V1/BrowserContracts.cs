@@ -26,6 +26,14 @@ public static class BrowserRoutes
     {
         return $"{CircleFilesContributions(circleId)}/{Uri.EscapeDataString(contributionId)}/grants";
     }
+
+    public static string CircleFilesMemberMapping(
+        string circleId,
+        string contributionId,
+        string grantId)
+    {
+        return $"{CircleFilesAccessGrants(circleId, contributionId)}/{Uri.EscapeDataString(grantId)}/mapping";
+    }
 }
 
 public sealed record LaunchBrowserResponse(string Url, DateTimeOffset ExpiresAtUtc);

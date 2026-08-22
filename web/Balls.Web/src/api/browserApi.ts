@@ -5,6 +5,11 @@ import type {
   CreateCircleDto,
   BrowserSessionDto,
   StatusDto,
+  CircleFilesContributionListDto,
+  MemberAccessGrantListDto,
+  CircleFilesMemberMappingPlanDto,
+  CircleFilesMemberMappingInspectionDto,
+  CircleFilesMemberMappingResultDto,
 } from "./localControl";
 
 interface ErrorDto {
@@ -22,6 +27,42 @@ export interface BrowserApi {
     name: string,
     ownerDisplayName: string,
   ): Promise<CircleDetailsDto>;
+  listFilesContributions(
+    circleId: string,
+  ): Promise<CircleFilesContributionListDto>;
+  listFilesGrants(
+    circleId: string,
+    contributionId: string,
+  ): Promise<MemberAccessGrantListDto>;
+  previewFilesMapping(
+    circleId: string,
+    contributionId: string,
+    grantId: string,
+    endpoint: string,
+    driveLetter: string,
+  ): Promise<CircleFilesMemberMappingPlanDto>;
+  mapFiles(
+    circleId: string,
+    contributionId: string,
+    grantId: string,
+    endpoint: string,
+    driveLetter: string,
+    planId: string,
+  ): Promise<CircleFilesMemberMappingResultDto>;
+  inspectFilesMapping(
+    circleId: string,
+    contributionId: string,
+    grantId: string,
+    endpoint: string,
+    driveLetter: string,
+  ): Promise<CircleFilesMemberMappingInspectionDto>;
+  unmapFiles(
+    circleId: string,
+    contributionId: string,
+    grantId: string,
+    endpoint: string,
+    driveLetter: string,
+  ): Promise<CircleFilesMemberMappingResultDto>;
 }
 
 class FetchBrowserApi implements BrowserApi {
@@ -75,6 +116,103 @@ class FetchBrowserApi implements BrowserApi {
         "X-Balls-Antiforgery": this.antiforgeryToken,
       },
     });
+  }
+
+  listFilesContributions(circleId: string) {
+    return this.request<CircleFilesContributionListDto>(
+      `/browser/v1/circles/${encodeURIComponent(circleId)}/files/contributions`,
+    );
+  }
+
+  listFilesGrants(circleId: string, contributionId: string) {
+    return this.request<MemberAccessGrantListDto>(
+      `/browser/v1/circles/${encodeURIComponent(circleId)}/files/contributions/${encodeURIComponent(contributionId)}/grants`,
+    );
+  }
+
+  previewFilesMapping(
+    circleId: string,
+    contributionId: string,
+    grantId: string,
+    endpoint: string,
+    driveLetter: string,
+  ) {
+    return this.mappingRequest<CircleFilesMemberMappingPlanDto>(
+      circleId,
+      contributionId,
+      grantId,
+      "preview",
+      { endpoint, driveLetter },
+    );
+  }
+
+  mapFiles(
+    circleId: string,
+    contributionId: string,
+    grantId: string,
+    endpoint: string,
+    driveLetter: string,
+    planId: string,
+  ) {
+    return this.mappingRequest<CircleFilesMemberMappingResultDto>(
+      circleId,
+      contributionId,
+      grantId,
+      "map",
+      { endpoint, driveLetter, planId },
+    );
+  }
+
+  inspectFilesMapping(
+    circleId: string,
+    contributionId: string,
+    grantId: string,
+    endpoint: string,
+    driveLetter: string,
+  ) {
+    return this.mappingRequest<CircleFilesMemberMappingInspectionDto>(
+      circleId,
+      contributionId,
+      grantId,
+      "inspect",
+      { endpoint, driveLetter },
+    );
+  }
+
+  unmapFiles(
+    circleId: string,
+    contributionId: string,
+    grantId: string,
+    endpoint: string,
+    driveLetter: string,
+  ) {
+    return this.mappingRequest<CircleFilesMemberMappingResultDto>(
+      circleId,
+      contributionId,
+      grantId,
+      "unmap",
+      { endpoint, driveLetter },
+    );
+  }
+
+  private mappingRequest<T>(
+    circleId: string,
+    contributionId: string,
+    grantId: string,
+    operation: "preview" | "map" | "inspect" | "unmap",
+    body: Record<string, string>,
+  ) {
+    if (!this.antiforgeryToken) {
+      throw new Error("Run balls ui again to change an Explorer mapping.");
+    }
+    return this.request<T>(
+      `/browser/v1/circles/${encodeURIComponent(circleId)}/files/contributions/${encodeURIComponent(contributionId)}/grants/${encodeURIComponent(grantId)}/mapping/${operation}`,
+      {
+        method: "POST",
+        body: JSON.stringify(body),
+        headers: { "X-Balls-Antiforgery": this.antiforgeryToken },
+      },
+    );
   }
 
   private async request<T>(path: string, init: RequestInit = {}): Promise<T> {

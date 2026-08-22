@@ -62,6 +62,11 @@ Circle messaging now carries one bounded Member-and-Node-signed text message to 
 Anchor over admitted-peer mTLS, assigns durable Anchor order, and exposes the same restart-stable
 history through the CLI and browser workspace.
 
+On Windows, an Owner can now contribute a new dedicated folder, issue one limited SMB credential
+per Access Grant, and map the exact private IPv4/share into an explicitly selected free drive
+letter. `ballsd` keeps the password inside protected current-user state and Windows Credential
+Manager; CLI and browser preview/map/inspect/unmap responses contain only the public plan.
+
 ## Quick start
 
 On Windows with the .NET SDK selected by [`global.json`](global.json):
@@ -83,6 +88,7 @@ dotnet run --project src/Balls.Cli --configuration Release --no-build -- --pipe-
 dotnet run --project src/Balls.Cli --configuration Release --no-build -- --pipe-name <second-node-pipe> circle join --file .\invite.balls-invitation --endpoint 127.0.0.1:46321 --member <display-name>
 dotnet run --project src/Balls.Cli --configuration Release --no-build -- --pipe-name <second-node-pipe> message send --circle <circle-id> --endpoint 127.0.0.1:46322 --text "Hello, Circle."
 dotnet run --project src/Balls.Cli --configuration Release --no-build -- --pipe-name balls-dev message list --circle <circle-id>
+dotnet run --project src/Balls.Cli --configuration Release --no-build -- --pipe-name balls-dev files mapping preview --circle <circle-id> --contribution <contribution-id> --grant <grant-id> --endpoint <private-ipv4> --drive M
 dotnet run --project src/Balls.Cli --configuration Release --no-build -- --pipe-name balls-dev ui
 dotnet run --project src/Balls.Cli --configuration Release --no-build -- --output json --pipe-name balls-dev status
 ```
