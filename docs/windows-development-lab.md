@@ -105,6 +105,7 @@ Invoke each applicable script through `Invoke-BallsDevGuestScript.ps1`:
 | Restore, format, Release build, unsigned execution, Circle create/list, restart persistence | `Test-BallsVmSourceBuild.Guest.ps1` | `C:\BallsLab\source-smoke\latest-result.json` |
 | Generated client, component tests, real Playwright Chromium journey | `Test-BallsVmBrowser.Guest.ps1` | `C:\BallsLab\browser-smoke\latest-result.json` |
 | Read-only Windows SMB readiness contracts, real adapter, structured CLI, and no-mutation snapshot | `Test-BallsVmSmbReadiness.Guest.ps1` | `C:\BallsLab\smb-readiness\latest-result.json` |
+| Dedicated Circle folder clean apply/retry, hostile paths, collisions, and injected rollback | machine-local `Test-BallsCircleFilesHelper.Guest.ps1` | structured PowerShell Direct result captured in the dated verification record |
 | Launch the unsigned Balls browser UI for interactive review | `Launch-BallsVmUi.Guest.ps1` | `Get-BallsVmUiLaunchStatus.Guest.ps1` reports daemon and Chrome state |
 | Historical `0.2.0-alpha.1` release download and installer proof | `Test-BallsVmReleaseInstaller.Guest.ps1` | `C:\BallsLab\release-installer\0.2.0-alpha.1\installer-result.json` |
 
@@ -129,6 +130,16 @@ On 2026-08-21, PowerShell Direct passed, Windows Enterprise Evaluation reported 
 Smart App Control reported off in the guest, and source, browser, and installer smokes passed from
 clean repository commit `4aae91a02e27d4268b100e0f320babd79e004bb8`. Re-run the applicable gate
 after source, toolchain, VM, or policy changes; the dated result is not evidence for later code.
+
+On 2026-08-21, the dedicated Circle Files helper gate passed from exact source commit
+`7bf86c506591cfd18681c71ab988eb2e268657b6`. The guest fixture temporarily selected a Private
+profile and disabled its 17 pre-existing broad Public/Any SMB allow rules so the already-proven
+readiness contract could permit the mutation. Its `finally` path restored the original Public
+profile and enabled states. Release apply/retry, Debug-only injected failure rollback, hostile
+path refusal, pre-existing share collision, protected folder ACL, required share encryption, and
+Private/LocalSubnet firewall scope were observed. Post-run inspection found no Balls share or
+firewall rule and the VM was stopped. No checkpoint was restored. See the
+[dedicated helper verification](verification/2026-08-21-dedicated-circle-folder-helper.md).
 
 Two explicit checkpoints exist:
 

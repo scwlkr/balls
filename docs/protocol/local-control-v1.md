@@ -1,7 +1,7 @@
 # Local Control API v1
 
 **Status:** implemented through provider-neutral Circle Files contribution and Access Grant
-definition plus read-only Windows SMB readiness.
+definition, read-only Windows SMB readiness, and dedicated Windows folder hosting.
 
 This is the versioned, machine-local contract between `balls` or another local integration and
 `ballsd`. It is not a Node-to-Node or Circle replication protocol.
@@ -58,7 +58,8 @@ values, and misplaced options return usage exit code `2` without contacting `bal
 Text is the default and is intended for people. `--output json` is supported for `status`,
 `circle create`, `circle join`, `circle list`, `member list`, `node list`, `invitation create`, and
 `invitation redeem`, `message send/list`, `files contribution create/list`, and `files grant
-create/list`. A successful JSON document is one line on standard output:
+create/list`, `files readiness`, and `files host preview/apply`. A successful JSON document is one
+line on standard output:
 
 ```json
 {
@@ -121,6 +122,8 @@ material. Selecting JSON output for this interactive command is a usage error.
 | File Contribution | `id`, `circleId`, provider, `displayName`, lifecycle, generation, created time, authorizing Member/generation/time |
 | Member Access Grant | `id`, `circleId`, `contributionId`, `memberId`, access, lifecycle, generation, created time, authorizing Member/generation/time |
 | Circle Files readiness | `provider`, aggregate `status`, ordered checks with `id`, `status`, stable `code`, and bounded safe `summary` |
+| Circle Files host plan | contract version, deterministic `planId`, provider, canonical folder path, share/rule/ownership IDs, whether the target exists, and ordered exact actions |
+| Circle Files host apply | `status` (`applied` or `already-applied`) and the unchanged host plan |
 | Error | `code`, `message` |
 
 The v1 Member roles are `owner` and `member`. Contribution lifecycles are `defined`, `active`, and
@@ -200,6 +203,40 @@ reuse returns `409`. Success returns `201 Created`. The equivalent CLI is:
 
 ```text
 balls files contribution create --circle <circle-id> --name <name> [--request-id <uuid>]
+```
+
+### `POST /control/v1/circles/{circleId}/files/contributions/{contributionId}/host/preview`
+
+Validates the persisted Contribution and its current Owner/root authorization, runs the complete
+readiness inspection, and accepts `{ "folderPath": "C:\\BallsCircleFiles\\MyCircle" }`. The path
+must canonicalize to an absolute fixed-local location that is new or empty and outside roots,
+Windows/profile roots, files, network locations, and any existing reparse traversal.
+
+Success returns `200 OK` with a version 1 deterministic plan containing its 64-character plan ID,
+canonical path, exact share/firewall/ownership IDs, existing-target flag, and ordered actions.
+Preview performs no host mutation. Repeating it against unchanged authorized input and host state
+returns the same plan. The equivalent CLI is:
+
+```text
+balls files host preview --circle <circle-id> --contribution <contribution-id> \
+  --path <absolute-local-path>
+```
+
+### `POST /control/v1/circles/{circleId}/files/contributions/{contributionId}/host/apply`
+
+Accepts `{ "folderPath": "...", "planId": "..." }`. The daemon revalidates the Contribution,
+authorization, readiness, path, and complete plan; a stale or substituted plan fails before UAC.
+On Windows it then asks the narrow helper to create only the protected folder ACL,
+encryption-required SMB share, and Private/TCP 445/LocalSubnet/LanmanServer firewall rule.
+
+Success returns `200 OK` with `applied` or `already-applied` and the exact plan. Existing user
+content and foreign resources are never adopted or removed. A failed or interrupted operation
+uses exact ownership markers and a journal to roll back only proven-owned changes. The CLI may
+wait for one UAC decision and uses:
+
+```text
+balls files host apply --circle <circle-id> --contribution <contribution-id> \
+  --path <absolute-local-path> --plan <plan-id>
 ```
 
 ### `POST /control/v1/circles/{circleId}/files/contributions/{contributionId}/grants`
@@ -291,9 +328,10 @@ The browser listener serves the bundled production application and only these `/
 routes: session exchange, status, Circle list/create/details, ordered Circle message history, and
 read-only Circle Files contribution/Access Grant lists. The browser control
 plane is intentionally narrower than `/control/v1`; control routes return `404` on TCP and browser
-routes return `404` over IPC. Invitation creation/redemption and every Circle Files mutation are
-deliberately CLI/local-control only in this slice. The browser observes messages and Circle Files
-state but does not author either.
+routes return `404` over IPC. Invitation creation/redemption and all Circle Files mutations are
+deliberately CLI/local-control only in this slice. In particular, the hosting preview/apply routes
+exist only on protected IPC and are never mapped on loopback TCP. The browser observes messages
+and Circle Files state but does not author either.
 
 Authenticated `GET /browser/v1/circles/{circleId}/files/contributions` and
 `GET /browser/v1/circles/{circleId}/files/contributions/{contributionId}/grants` return the same
@@ -331,6 +369,7 @@ Handled application errors use this shape:
 | 400 | `invalid_invitation_validity`, `invalid_admission_endpoint`, `member_display_name`, `malformed`, `forged`, `expired`, `not_yet_valid`, `revoked`, `wrong_circle`, `wrong_node`, `downgraded`, `unsupported_version`, `unsupported_suite`, `unauthorized_issuer`, `stale_authority_state` |
 | 400 | `invalid_message_endpoint`, `invalid_message_text`, `unauthorized`, `oversized` |
 | 400 | `contribution_name_required`, `contribution_name_too_long`, `invalid_member_access`, `circle_files_owner_required`, `circle_files_authority_unavailable`, `circle_files_authorization_failed` |
+| 400 | `hosting_path_invalid`, `hosting_authorization_invalid`, `windows_required` |
 | 404 | `circle_not_found` |
 | 404 | `invitation_not_found` |
 | 404 | `circle_files_contribution_not_found`, `member_not_found` |
@@ -338,6 +377,7 @@ Handled application errors use this shape:
 | 409 | `admission_attempt_conflict` |
 | 409 | `message_request_conflict`, `conflict` |
 | 409 | `circle_files_contribution_request_conflict`, `circle_files_grant_request_conflict`, `circle_files_grant_exists` |
+| 409 | `hosting_plan_changed`, `hosting_prerequisites_not_ready`, `hosting_folder_not_empty`, `hosting_ownership_collision`, `hosting_resource_collision`, `hosting_helper_unavailable`, `hosting_helper_authentication_failed`, `hosting_helper_invalid_response`, `hosting_identity_unavailable`, `hosting_consent_cancelled`, `hosting_consent_timeout`, `hosting_apply_failed`, `hosting_recovery_incomplete` |
 | 409 | `replayed` |
 | 502 | `connection_failed`, authenticated remote-channel errors |
 
@@ -347,8 +387,9 @@ is not guaranteed to use the application error shape.
 ## Explicit non-goals
 
 v1 does not expose invitation/join, message-authoring, Circle Files readiness, or Circle Files
-mutation UX to the browser. The local API and CLI inspect Windows SMB readiness but do not mutate
-SMB features or policy, start services, change network/firewall state, create folders/shares/accounts
-or ACLs, store provider credentials, map drives, adopt existing folders, delete files, revoke
-access, synchronize or replicate content, add version history/trash, discover peers, or add
-automatic/multiple-Anchor behavior.
+mutation UX to the browser. The local API and CLI implement only one exact dedicated-host
+folder/ACL/encrypted-share/Private-firewall operation. They do not enable SMB features or policy,
+start services, change network profiles or global firewall policy, create provider accounts or
+Member credentials, grant Member ACLs, map drives, adopt existing folders with content, delete
+user files, activate/revoke Contributions or grants, synchronize or replicate content, add version
+history/trash, discover peers, or add automatic/multiple-Anchor behavior.

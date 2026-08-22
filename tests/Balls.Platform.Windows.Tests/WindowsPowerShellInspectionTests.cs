@@ -55,6 +55,28 @@ public sealed class WindowsPowerShellInspectionTests
 public sealed class WindowsPowerShellProcessTests
 {
     [TestMethod]
+    public async Task Bounded_runner_writes_redirected_input_without_weakening_output_bounds()
+    {
+        if (!OperatingSystem.IsWindows())
+        {
+            Assert.Inconclusive("The bounded PowerShell process test requires Windows.");
+            return;
+        }
+
+        var startInfo = CreatePowerShellStartInfo(
+            "$value = [Console]::In.ReadToEnd(); [Console]::Out.Write($value)");
+
+        var output = await BoundedWindowsInspectionProcessRunner.RunWithInputAsync(
+            startInfo,
+            "bounded input",
+            TimeSpan.FromSeconds(5),
+            1024,
+            CancellationToken.None);
+
+        Assert.AreEqual("bounded input", output);
+    }
+
+    [TestMethod]
     public async Task Bounded_runner_terminates_a_query_that_exceeds_its_timeout()
     {
         if (!OperatingSystem.IsWindows())
@@ -133,6 +155,7 @@ public sealed class WindowsPowerShellProcessTests
                 "powershell.exe"),
             CreateNoWindow = true,
             UseShellExecute = false,
+            RedirectStandardInput = true,
             RedirectStandardOutput = true,
             RedirectStandardError = true,
             StandardOutputEncoding = Encoding.UTF8,

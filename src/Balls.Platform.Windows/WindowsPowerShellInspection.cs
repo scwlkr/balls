@@ -189,13 +189,40 @@ internal static class BoundedWindowsInspectionProcessRunner
         ProcessStartInfo startInfo,
         TimeSpan queryTimeout,
         int maximumOutputCharacters,
+        CancellationToken cancellationToken) =>
+        await RunCoreAsync(
+            startInfo,
+            standardInput: null,
+            queryTimeout,
+            maximumOutputCharacters,
+            cancellationToken).ConfigureAwait(false);
+
+    internal static async Task<string> RunWithInputAsync(
+        ProcessStartInfo startInfo,
+        string standardInput,
+        TimeSpan queryTimeout,
+        int maximumOutputCharacters,
+        CancellationToken cancellationToken) =>
+        await RunCoreAsync(
+            startInfo,
+            standardInput,
+            queryTimeout,
+            maximumOutputCharacters,
+            cancellationToken).ConfigureAwait(false);
+
+    private static async Task<string> RunCoreAsync(
+        ProcessStartInfo startInfo,
+        string? standardInput,
+        TimeSpan queryTimeout,
+        int maximumOutputCharacters,
         CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(startInfo);
         ArgumentOutOfRangeException.ThrowIfLessThanOrEqual(maximumOutputCharacters, 0);
         if (startInfo.UseShellExecute
             || !startInfo.RedirectStandardOutput
-            || !startInfo.RedirectStandardError)
+            || !startInfo.RedirectStandardError
+            || (standardInput is not null && !startInfo.RedirectStandardInput))
         {
             throw new ArgumentException(
                 "Windows inspection must use redirected streams without a shell.",
@@ -220,6 +247,14 @@ internal static class BoundedWindowsInspectionProcessRunner
         timeout.CancelAfter(queryTimeout);
         try
         {
+            if (standardInput is not null)
+            {
+                await process.StandardInput.WriteAsync(
+                    standardInput.AsMemory(),
+                    timeout.Token).ConfigureAwait(false);
+                process.StandardInput.Close();
+            }
+
             var outputBudget = new OutputCharacterBudget(maximumOutputCharacters);
             var standardOutput = ReadBoundedAsync(
                 process.StandardOutput,

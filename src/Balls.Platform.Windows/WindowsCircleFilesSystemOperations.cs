@@ -480,35 +480,19 @@ internal sealed class WindowsCircleFilesPowerShell
         string input,
         CancellationToken cancellationToken)
     {
-        using var process = new Process { StartInfo = startInfo };
         try
         {
-            if (!process.Start())
-            {
-                throw new InvalidOperationException();
-            }
+            return await BoundedWindowsInspectionProcessRunner.RunWithInputAsync(
+                startInfo,
+                input,
+                Timeout,
+                MaximumOutputCharacters,
+                cancellationToken).ConfigureAwait(false);
         }
-        catch (Exception exception) when (exception is Win32Exception or InvalidOperationException)
+        catch (WindowsInspectionException exception)
         {
-            throw new IOException("The fixed Windows hosting command could not start.", exception);
+            throw new IOException("The fixed Windows hosting command failed.", exception);
         }
-
-        using var timeout = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
-        timeout.CancelAfter(Timeout);
-        await process.StandardInput.WriteAsync(input.AsMemory(), timeout.Token).ConfigureAwait(false);
-        process.StandardInput.Close();
-        var outputTask = process.StandardOutput.ReadToEndAsync(timeout.Token);
-        var errorTask = process.StandardError.ReadToEndAsync(timeout.Token);
-        await Task.WhenAll(process.WaitForExitAsync(timeout.Token), outputTask, errorTask)
-            .ConfigureAwait(false);
-        var output = await outputTask.ConfigureAwait(false);
-        var error = await errorTask.ConfigureAwait(false);
-        if (output.Length + error.Length > MaximumOutputCharacters || process.ExitCode != 0)
-        {
-            throw new IOException("The fixed Windows hosting command failed.");
-        }
-
-        return output;
     }
 
     internal const string Script =
