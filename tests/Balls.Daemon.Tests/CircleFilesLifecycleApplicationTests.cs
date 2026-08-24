@@ -158,6 +158,17 @@ public sealed class CircleFilesLifecycleApplicationTests
                 "mapping-unmap:already-unmapped",
             },
             events.Select(value => $"{value.Operation}:{value.Outcome}").ToArray());
+
+        await Assert.ThrowsExactlyAsync<LocalStateException>(() => retry.UnmapAsync(
+            circleId,
+            CircleFilesContributionId.New(),
+            grantId,
+            "192.168.50.10",
+            "M",
+            CancellationToken.None));
+        Assert.AreEqual(
+            events.Count,
+            (await reopened.ListCircleFilesLifecycleAuditEventsAsync(circleId)).Count);
     }
 
     private static CircleFilesProviderCredentialBinding CreateBinding(

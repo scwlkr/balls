@@ -105,6 +105,9 @@ internal sealed class CircleFilesMemberMappingApplication(
         await mutationGate.WaitAsync(cancellationToken).ConfigureAwait(false);
         try
         {
+            var request = await CreateUnmapRequestAsync(
+                circleId, contributionId, grantId, endpoint, driveLetter, cancellationToken)
+                .ConfigureAwait(false);
             await RecordUnmapAsync(
                 circleId,
                 contributionId,
@@ -113,9 +116,6 @@ internal sealed class CircleFilesMemberMappingApplication(
                 cancellationToken).ConfigureAwait(false);
             try
             {
-                var request = await CreateUnmapRequestAsync(
-                    circleId, contributionId, grantId, endpoint, driveLetter, cancellationToken)
-                    .ConfigureAwait(false);
                 var result = await mapper.UnmapAsync(request, cancellationToken)
                     .ConfigureAwait(false);
                 await RecordUnmapAsync(

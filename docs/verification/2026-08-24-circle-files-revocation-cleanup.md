@@ -17,7 +17,9 @@
 - Windows operation contracts return `busy` before mutation, require separate termination
   confirmation, bound counts to 1,000, recover injected partial cleanup on retry, and refuse hostile
   substitution before session termination or rollback. Final host cleanup closes only exact
-  contributed-file handles and never closes their containing SMB sessions.
+  contributed-file handles and never closes their containing SMB sessions. A protected exact
+  recovery witness allows restoration of Windows' automatic firewall change only while share
+  creation remains incomplete.
 - A Windows-gated ACL/marker integration test writes 4,096 deterministic user bytes, removes exact
   Balls metadata, and verifies the contributed folder and bytes remain unchanged. A second
   Windows-gated case covers preservation when the contributed folder is empty and verifies exact
@@ -36,7 +38,7 @@ dotnet test tests/Balls.Cli.Tests/Balls.Cli.Tests.csproj --configuration Release
 
 `dotnet run --project eng/Balls.Verify --configuration Release -- full` passed on Linux: locked
 restore, format and generated-client checks, zero-warning Release build, 255 passed .NET tests
-(53 platform-gated skips), web lint/typecheck, 10 component tests, production build, and one
+(54 platform-gated skips), web lint/typecheck, 10 component tests, production build, and one
 Playwright daemon-restart journey.
 
 ## Windows lab status
@@ -45,8 +47,8 @@ The required live gate used two disposable Windows Nodes on an isolated virtual 
 Server 2025 Desktop Experience provider and a Windows Server 2022 Core client. Each Node had 2 GiB
 RAM. The user's working Windows/Revit VM was not started, stopped, reconfigured, or otherwise used.
 
-The complete Windows platform test assembly passed 57 tests with zero skips and zero failures. The
-live product path then observed this matrix:
+The complete Windows platform test assembly passed 58 tests with zero skips and zero failures. The
+live product path and companion same-session Windows OS check observed this matrix:
 
 | Scenario | Observed result |
 | --- | --- |
@@ -56,6 +58,7 @@ live product path then observed this matrix:
 | Confirmation boundary | Forced cleanup before an observed busy result was refused with `circle_files_open_session_confirmation_required`; ordinary cleanup then returned `busy` with one exact session. |
 | Hostile substitution | Replacing the exact grant marker caused `grant_resource_collision`; the open session was not terminated and the original marker hash was unchanged after restoration. |
 | Open-session termination | Confirmed cleanup terminated the exact SMB session and returned `partial` because the grant marker was deliberately held without delete sharing. The client observed its established session fail. |
+| Mixed-session host scope | A separate two-share check held one handle in the contribution and one unrelated handle on the same SMB session. Exact file-ID termination removed the contribution handle while the unrelated handle and containing session remained usable. |
 | Restart recovery | After daemon restart and marker-lock release, cleanup returned `removed`; its exact retry returned `already-removed`. The local grant account and marker were absent. |
 | Future authentication | The second Node could no longer authenticate with the revoked relayed credential. |
 | Final host removal | Host removal returned `removed`; its exact retry returned `already-removed`. The share and Balls firewall rule were absent while the contributed folder and user file survived. |
@@ -64,7 +67,7 @@ live product path then observed this matrix:
 
 The live run and final review also exposed and drove fixes for the Windows helper publish bundle,
 early helper-exit reporting, fixed-script parsing, protected PowerShell script transport, Windows
-PowerShell assembly resolution, restart-safe restoration of automatically enabled built-in SMB
-firewall rules, empty `Get-SmbSession` query semantics, durable unmap audit, and final-host open-file
+PowerShell assembly resolution, protected restart-safe restoration of automatically enabled built-in
+SMB firewall rules, empty `Get-SmbSession` query semantics, durable unmap audit, and final-host open-file
 termination scope. The final two-Node observations above and complete Windows test run were made
 after the applicable fixes.

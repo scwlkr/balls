@@ -583,7 +583,9 @@ Partial results remain retryable from persisted state.
 
 Host cleanup is allowed only after every grant is revoked and every issued provider credential is
 marked removed. It removes the exact firewall rule, encrypted share, protected ownership marker,
-and operation journal, but never deletes the contributed folder or user files. Lifecycle and exact
+and operation journal, but never deletes the contributed folder or user files. A protected recovery
+witness distinguishes an interrupted Windows-created firewall side effect from a later administrator
+policy change; the latter refuses cleanup. Lifecycle and exact
 mapping-unmap requests, bounded results, refusals, failures, and cancellations are appended to a redacted SQLite audit
 containing only object IDs, stable operation/outcome tokens, bounded session counts, and timestamps.
 An interrupted request remains visible and is resolved by the idempotent retry. Successful

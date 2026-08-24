@@ -163,6 +163,58 @@ public sealed class WindowsCircleFilesSystemOperationsTests
         }
     }
 
+    [TestMethod]
+    public async Task Firewall_recovery_witness_is_exact_protected_and_removed_with_host_metadata()
+    {
+        if (!OperatingSystem.IsWindows())
+        {
+            Assert.Inconclusive("Windows ACL integration requires Windows.");
+            return;
+        }
+
+        var root = Path.Combine(Path.GetTempPath(), "balls-hosting-tests", Guid.NewGuid().ToString("N"));
+        var folder = Path.Combine(root, "CircleFiles");
+        Directory.CreateDirectory(root);
+        try
+        {
+            var plan = CreatePlan(folder);
+            var operations = new WindowsCircleFilesSystemOperations();
+            await operations.ApplyAsync(
+                plan,
+                WindowsCircleFilesOperationStep.FolderAcl,
+                CancellationToken.None);
+            WindowsCircleFilesSystemOperations.PrepareFirewallRecovery(plan);
+            var witnessPath = Path.Combine(
+                folder,
+                WindowsCircleFilesSystemOperations.FirewallRecoveryFileName);
+            var exactContent = await File.ReadAllTextAsync(witnessPath);
+
+            Assert.IsTrue(WindowsCircleFilesSystemOperations.HasOwnedFirewallRecovery(plan));
+            await File.WriteAllTextAsync(witnessPath, "substituted");
+            Assert.IsFalse(WindowsCircleFilesSystemOperations.HasOwnedFirewallRecovery(plan));
+            Assert.AreEqual(
+                WindowsCircleFilesOwnedState.Collision,
+                await operations.InspectAsync(
+                    plan,
+                    WindowsCircleFilesOperationStep.FolderAcl,
+                    CancellationToken.None));
+
+            await File.WriteAllTextAsync(witnessPath, exactContent);
+            Assert.IsTrue(WindowsCircleFilesSystemOperations.HasOwnedFirewallRecovery(plan));
+            await operations.RollbackFolderAclPreservingFolderAsync(plan, CancellationToken.None);
+
+            Assert.IsFalse(File.Exists(witnessPath));
+            Assert.IsTrue(Directory.Exists(folder));
+        }
+        finally
+        {
+            if (Directory.Exists(root))
+            {
+                Directory.Delete(root, recursive: true);
+            }
+        }
+    }
+
     private static WindowsCircleFilesHelperPlan CreatePlan(string folder)
     {
         var ownerSid = System.Security.Principal.WindowsIdentity.GetCurrent().User?.Value

@@ -141,6 +141,8 @@ public sealed class WindowsCircleFilesHostingTests
         StringAssert.Contains(script, "-Service LanmanServer");
         StringAssert.Contains(script, "FileServer-ServerManager-SMB-TCP-In");
         StringAssert.Contains(script, "Restore-ServerManagerSmbFirewallBaseline");
+        StringAssert.Contains(script, "CanRestoreServerManagerSmbFirewall");
+        StringAssert.Contains(script, "built-in smb firewall baseline changed");
         StringAssert.Contains(script, "NetSecurity\\Disable-NetFirewallRule -ErrorAction Stop");
         StringAssert.Contains(script, "Close-SmbOpenFile -FileId");
         StringAssert.Contains(script, "Translate([System.Security.Principal.NTAccount])");
