@@ -575,15 +575,18 @@ daemon requires the exact persisted revocation proof and credential binding befo
 grant cleanup can inspect or mutate Windows. Cleanup proves every recorded account, marker, ACL
 entry, share entry, share, firewall rule, and operation journal before removal; substituted or
 ambiguous evidence refuses mutation. Open SMB sessions return `busy` with a bounded count.
-Termination requires a second explicit request and targets only the exact grant account, or for
-final host removal, sessions whose open files all remain inside the exact contribution path.
+Termination requires a second explicit request after a durable `busy` audit outcome and targets
+only the exact grant account, or for final host removal, sessions whose open files all remain inside
+the exact contribution path.
 Partial results remain retryable from persisted state.
 
 Host cleanup is allowed only after every grant is revoked and every issued provider credential is
 marked removed. It removes the exact firewall rule, encrypted share, protected ownership marker,
-and operation journal, but never deletes the contributed folder or user files. Lifecycle outcomes
-are appended to a redacted SQLite audit containing only object IDs, stable operation/outcome tokens,
-bounded session counts, and timestamps. Successful credential removal disables future credential
+and operation journal, but never deletes the contributed folder or user files. Lifecycle requests,
+bounded results, refusals, failures, and cancellations are appended to a redacted SQLite audit
+containing only object IDs, stable operation/outcome tokens, bounded session counts, and timestamps.
+An interrupted request remains visible and is resolved by the idempotent retry. Successful
+credential removal disables future credential
 authorization while retaining DPAPI-protected recovery material; secure deletion is not claimed.
 
 For the files-first v1, the Windows provider uses SMB 3.1.1 with SMB1 and guest access disabled,

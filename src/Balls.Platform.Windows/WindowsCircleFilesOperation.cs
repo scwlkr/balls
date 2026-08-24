@@ -36,6 +36,10 @@ internal interface IWindowsCircleFilesOperations
         WindowsCircleFilesHelperPlan plan,
         WindowsCircleFilesOperationStep step,
         CancellationToken cancellationToken);
+
+    ValueTask RollbackFolderAclPreservingFolderAsync(
+        WindowsCircleFilesHelperPlan plan,
+        CancellationToken cancellationToken);
 }
 
 internal interface IWindowsCircleFilesHostSessionOperations
@@ -47,6 +51,7 @@ internal interface IWindowsCircleFilesHostSessionOperations
     ValueTask TerminateOpenSessionsAsync(
         WindowsCircleFilesHelperPlan plan,
         CancellationToken cancellationToken);
+
 }
 
 internal sealed class WindowsCircleFilesOperation(IWindowsCircleFilesOperations operations)
@@ -235,8 +240,17 @@ internal sealed class WindowsCircleFilesHostRemovalOperation(
             {
                 if (states[step] == WindowsCircleFilesOwnedState.Owned)
                 {
-                    await operations.RollbackAsync(plan, step, cancellationToken)
-                        .ConfigureAwait(false);
+                    if (step == WindowsCircleFilesOperationStep.FolderAcl)
+                    {
+                        await operations.RollbackFolderAclPreservingFolderAsync(
+                            plan,
+                            cancellationToken).ConfigureAwait(false);
+                    }
+                    else
+                    {
+                        await operations.RollbackAsync(plan, step, cancellationToken)
+                            .ConfigureAwait(false);
+                    }
                     if (await operations.InspectAsync(plan, step, cancellationToken)
                             .ConfigureAwait(false) != WindowsCircleFilesOwnedState.Missing)
                     {

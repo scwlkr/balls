@@ -82,7 +82,7 @@ internal sealed class WindowsCircleFilesSystemOperations :
                 RemoveMarker(plan);
                 break;
             case WindowsCircleFilesOperationStep.FolderAcl:
-                RollbackFolderAcl(plan);
+                RollbackFolderAcl(plan, preserveFolder: false);
                 break;
             default:
                 throw new ArgumentOutOfRangeException(nameof(step));
@@ -98,6 +98,15 @@ internal sealed class WindowsCircleFilesSystemOperations :
         WindowsCircleFilesHelperPlan plan,
         CancellationToken cancellationToken) =>
         powerShell.TerminateOpenSessionsAsync(plan, cancellationToken);
+
+    public ValueTask RollbackFolderAclPreservingFolderAsync(
+        WindowsCircleFilesHelperPlan plan,
+        CancellationToken cancellationToken)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        RollbackFolderAcl(plan, preserveFolder: true);
+        return ValueTask.CompletedTask;
+    }
 
     private static WindowsCircleFilesOwnedState InspectFolderAcl(WindowsCircleFilesHelperPlan plan)
     {
@@ -242,7 +251,9 @@ internal sealed class WindowsCircleFilesSystemOperations :
         File.Delete(Path.Combine(plan.PublicPlan.FolderPath, WindowsCircleFilesOwnershipMarker.FileName));
     }
 
-    private static void RollbackFolderAcl(WindowsCircleFilesHelperPlan plan)
+    private static void RollbackFolderAcl(
+        WindowsCircleFilesHelperPlan plan,
+        bool preserveFolder)
     {
         var journal = ReadJournal(plan)
             ?? throw new CircleFilesHostingException(
@@ -258,15 +269,17 @@ internal sealed class WindowsCircleFilesSystemOperations :
                 "The folder ACL changed and was left untouched.");
         }
 
-        if (journal.TargetExisted)
-        {
-            var security = new DirectorySecurity();
-            security.SetSecurityDescriptorSddlForm(journal.PreMutationSddl);
-            new DirectoryInfo(folder).SetAccessControl(security);
-        }
+        var security = new DirectorySecurity();
+        security.SetSecurityDescriptorSddlForm(journal.PreMutationSddl);
+        new DirectoryInfo(folder).SetAccessControl(security);
 
         var journalPath = Path.Combine(folder, JournalFileName);
         File.Delete(journalPath);
+        if (preserveFolder)
+        {
+            return;
+        }
+
         foreach (var directory in journal.CreatedDirectories)
         {
             if (!Directory.Exists(directory)

@@ -141,7 +141,7 @@ public sealed class WindowsCircleFilesOperationTests
                 WindowsCircleFilesOperationStep.FolderAcl,
             },
             operations.RolledBack.ToArray());
-        Assert.IsTrue(operations.PreservedUserFiles);
+        Assert.AreEqual(1, operations.PreserveFolderRollbackCount);
 
         var substituted = new StubRemovalOperations(openSessionCount: 1);
         substituted.States[WindowsCircleFilesOperationStep.EncryptedShare] =
@@ -201,6 +201,11 @@ public sealed class WindowsCircleFilesOperationTests
             States[step] = WindowsCircleFilesOwnedState.Missing;
             return ValueTask.CompletedTask;
         }
+
+        public ValueTask RollbackFolderAclPreservingFolderAsync(
+            WindowsCircleFilesHelperPlan plan,
+            CancellationToken cancellationToken) =>
+            RollbackAsync(plan, WindowsCircleFilesOperationStep.FolderAcl, cancellationToken);
     }
 
     private sealed class StubRemovalOperations :
@@ -221,9 +226,9 @@ public sealed class WindowsCircleFilesOperationTests
 
         internal List<WindowsCircleFilesOperationStep> RolledBack { get; } = [];
 
-        internal bool PreservedUserFiles { get; private set; } = true;
-
         internal int TerminationCount { get; private set; }
+
+        internal int PreserveFolderRollbackCount { get; private set; }
 
         public ValueTask<int> CountOpenSessionsAsync(
             WindowsCircleFilesHelperPlan plan,
@@ -235,6 +240,17 @@ public sealed class WindowsCircleFilesOperationTests
         {
             TerminationCount++;
             openSessionCount = 0;
+            return ValueTask.CompletedTask;
+        }
+
+        public ValueTask RollbackFolderAclPreservingFolderAsync(
+            WindowsCircleFilesHelperPlan plan,
+            CancellationToken cancellationToken)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            PreserveFolderRollbackCount++;
+            RolledBack.Add(WindowsCircleFilesOperationStep.FolderAcl);
+            States[WindowsCircleFilesOperationStep.FolderAcl] = WindowsCircleFilesOwnedState.Missing;
             return ValueTask.CompletedTask;
         }
 
@@ -255,8 +271,6 @@ public sealed class WindowsCircleFilesOperationTests
         {
             RolledBack.Add(step);
             States[step] = WindowsCircleFilesOwnedState.Missing;
-            PreservedUserFiles &= step != WindowsCircleFilesOperationStep.FolderAcl
-                || plan.PublicPlan.FolderPath == Plan.PublicPlan.FolderPath;
             return ValueTask.CompletedTask;
         }
     }

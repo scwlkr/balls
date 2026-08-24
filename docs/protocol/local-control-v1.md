@@ -333,7 +333,8 @@ already-revoked client can remove its exact owned mapping.
 `POST .../grants/{grantId}/cleanup/preview` accepts `folderPath` and requires the persisted
 revocation plus exact protected provider binding. `cleanup/apply` additionally requires the
 deterministic `planId`. With `terminateOpenSessions=false`, exact open grant sessions return `busy`
-without mutation. A second explicit apply with `terminateOpenSessions=true` may terminate only the
+without mutation. A second explicit apply with `terminateOpenSessions=true` is accepted only when
+the latest completed audit outcome for that exact operation is `busy`, and may terminate only the
 exact grant account's sessions. Changed or ambiguous ownership returns conflict before session
 termination or resource removal.
 

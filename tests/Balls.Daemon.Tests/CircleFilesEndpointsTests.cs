@@ -334,6 +334,11 @@ public sealed class CircleFilesEndpointsTests
         var cleanupPlan = await cleanupPreviewResponse.Content
             .ReadFromJsonAsync<CircleFilesGrantCleanupPlanResponse>(ControlJson.Options);
         Assert.IsNotNull(cleanupPlan);
+        using var unconfirmedTerminationResponse = await client.PostAsJsonAsync(
+            ControlRoutes.CircleFilesGrantCleanupApply(
+                circle.Circle.Id, contribution.Id, grant.Id),
+            new ApplyCircleFilesGrantCleanupRequest(folder, cleanupPlan.PlanId, true),
+            ControlJson.Options);
         using var busyResponse = await client.PostAsJsonAsync(
             ControlRoutes.CircleFilesGrantCleanupApply(
                 circle.Circle.Id, contribution.Id, grant.Id),
@@ -353,6 +358,7 @@ public sealed class CircleFilesEndpointsTests
         Assert.AreEqual(HttpStatusCode.OK, revokeResponse.StatusCode);
         Assert.AreEqual(HttpStatusCode.BadRequest, rejectedPreview.StatusCode);
         Assert.AreEqual(HttpStatusCode.OK, postRevokeUnmap.StatusCode);
+        Assert.AreEqual(HttpStatusCode.Conflict, unconfirmedTerminationResponse.StatusCode);
         Assert.AreEqual("busy", busy?.Status);
         Assert.AreEqual(1, busy?.OpenSessionCount);
         Assert.AreEqual("removed", removed?.Status);
@@ -362,6 +368,36 @@ public sealed class CircleFilesEndpointsTests
             AssertSafeProjection(json);
             Assert.IsFalse(json.Contains("password", StringComparison.OrdinalIgnoreCase));
         }
+
+        using var hostRemovalPreviewResponse = await client.PostAsJsonAsync(
+            ControlRoutes.CircleFilesHostRemovalPreview(circle.Circle.Id, contribution.Id),
+            new PreviewCircleFilesHostRemovalRequest(folder),
+            ControlJson.Options);
+        var hostRemovalPlan = await hostRemovalPreviewResponse.Content
+            .ReadFromJsonAsync<CircleFilesHostRemovalPlanResponse>(ControlJson.Options);
+        Assert.IsNotNull(hostRemovalPlan);
+        using var unconfirmedHostTerminationResponse = await client.PostAsJsonAsync(
+            ControlRoutes.CircleFilesHostRemovalApply(circle.Circle.Id, contribution.Id),
+            new ApplyCircleFilesHostRemovalRequest(folder, hostRemovalPlan.PlanId, true),
+            ControlJson.Options);
+        using var busyHostRemovalResponse = await client.PostAsJsonAsync(
+            ControlRoutes.CircleFilesHostRemovalApply(circle.Circle.Id, contribution.Id),
+            new ApplyCircleFilesHostRemovalRequest(folder, hostRemovalPlan.PlanId, false),
+            ControlJson.Options);
+        var busyHostRemoval = await busyHostRemovalResponse.Content
+            .ReadFromJsonAsync<CircleFilesHostRemovalResultResponse>(ControlJson.Options);
+        using var hostRemovalResponse = await client.PostAsJsonAsync(
+            ControlRoutes.CircleFilesHostRemovalApply(circle.Circle.Id, contribution.Id),
+            new ApplyCircleFilesHostRemovalRequest(folder, hostRemovalPlan.PlanId, true),
+            ControlJson.Options);
+        var hostRemoval = await hostRemovalResponse.Content
+            .ReadFromJsonAsync<CircleFilesHostRemovalResultResponse>(ControlJson.Options);
+
+        Assert.AreEqual(HttpStatusCode.OK, hostRemovalPreviewResponse.StatusCode);
+        Assert.AreEqual(HttpStatusCode.Conflict, unconfirmedHostTerminationResponse.StatusCode);
+        Assert.AreEqual("busy", busyHostRemoval?.Status);
+        Assert.AreEqual("removed", hostRemoval?.Status);
+        Assert.AreEqual(2, lifecycle.RemoveHostCalls);
     }
 
     private static void AssertSafeProjection(string json)
@@ -541,6 +577,7 @@ public sealed class CircleFilesEndpointsTests
     private sealed class StubLifecycleManager : ICircleFilesLifecycleManager
     {
         internal int RemoveGrantCalls { get; private set; }
+        internal int RemoveHostCalls { get; private set; }
 
         public ValueTask<CircleFilesGrantCleanupPlan> PreviewGrantCleanupAsync(
             CircleFilesGrantCleanupRequest request,
@@ -587,9 +624,12 @@ public sealed class CircleFilesEndpointsTests
             cancellationToken.ThrowIfCancellationRequested();
             var plan = HostPlan(request);
             Assert.AreEqual(expectedPlanId, plan.PlanId);
+            RemoveHostCalls++;
             return ValueTask.FromResult(new CircleFilesHostRemovalResult(
-                CircleFilesCleanupStatus.Removed,
-                0,
+                terminateOpenSessions
+                    ? CircleFilesCleanupStatus.Removed
+                    : CircleFilesCleanupStatus.Busy,
+                terminateOpenSessions ? 0 : 1,
                 plan));
         }
 

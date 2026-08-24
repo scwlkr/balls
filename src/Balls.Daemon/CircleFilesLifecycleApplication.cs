@@ -24,28 +24,32 @@ internal sealed class CircleFilesLifecycleApplication(
         await mutationGate.WaitAsync(cancellationToken).ConfigureAwait(false);
         try
         {
-            var revoked = await files.RevokeAccessGrantAsync(
-                new RevokeMemberAccessGrantCommand(
-                    requestId,
-                    circleId,
-                    contributionId,
-                    grantId,
-                    expectedGeneration),
-                cancellationToken).ConfigureAwait(false);
-            await RecordAsync(
+            return await ExecuteAuditedAsync(
                 circleId,
                 contributionId,
                 grantId,
                 "grant-revoke",
-                "revoked",
-                0,
+                async () =>
+                {
+                    var revoked = await files.RevokeAccessGrantAsync(
+                        new RevokeMemberAccessGrantCommand(
+                            requestId,
+                            circleId,
+                            contributionId,
+                            grantId,
+                            expectedGeneration),
+                        cancellationToken).ConfigureAwait(false);
+                    return new AuditedResult<MemberAccessGrantRevocationResponse>(
+                        new MemberAccessGrantRevocationResponse(
+                            revoked.Revocation.RequestId.ToString(),
+                            revoked.Grant.Id.ToString(),
+                            revoked.Revocation.RevokedGeneration,
+                            revoked.Revocation.RevokedAtUtc,
+                            "revoked"),
+                        "revoked",
+                        0);
+                },
                 cancellationToken).ConfigureAwait(false);
-            return new MemberAccessGrantRevocationResponse(
-                revoked.Revocation.RequestId.ToString(),
-                revoked.Grant.Id.ToString(),
-                revoked.Revocation.RevokedGeneration,
-                revoked.Revocation.RevokedAtUtc,
-                "revoked");
         }
         finally
         {
@@ -82,46 +86,61 @@ internal sealed class CircleFilesLifecycleApplication(
         await mutationGate.WaitAsync(cancellationToken).ConfigureAwait(false);
         try
         {
-            var request = await CreateGrantCleanupRequestAsync(
-                circleId,
-                contributionId,
-                grantId,
-                folderPath,
-                cancellationToken).ConfigureAwait(false);
-            using var material = await credentials.GetCircleFilesProviderCredentialForCleanupAsync(
-                grantId.ToString(),
-                cancellationToken).ConfigureAwait(false)
-                ?? throw new LocalStateException(
-                    "circle_files_provider_credential_missing",
-                    "The exact Windows grant credential record is unavailable for cleanup.");
-            EnsureExactBinding(request.Grant, material.Binding);
-            var result = await lifecycle.RemoveGrantAsync(
-                request,
-                planId,
-                material.Secret,
-                terminateOpenSessions,
-                cancellationToken).ConfigureAwait(false);
-            if (result.Status is CircleFilesCleanupStatus.Removed
-                or CircleFilesCleanupStatus.AlreadyRemoved)
-            {
-                await credentials.CompleteCircleFilesProviderCredentialRemovalAsync(
-                    material.Binding,
-                    cancellationToken).ConfigureAwait(false);
-            }
-
-            var outcome = ToStatus(result.Status);
-            await RecordAsync(
+            return await ExecuteAuditedAsync(
                 circleId,
                 contributionId,
                 grantId,
                 "grant-cleanup",
-                outcome,
-                result.OpenSessionCount,
+                async () =>
+                {
+                    if (terminateOpenSessions)
+                    {
+                        await RequirePriorBusyAsync(
+                            circleId,
+                            contributionId,
+                            grantId,
+                            "grant-cleanup",
+                            cancellationToken).ConfigureAwait(false);
+                    }
+
+                    var request = await CreateGrantCleanupRequestAsync(
+                        circleId,
+                        contributionId,
+                        grantId,
+                        folderPath,
+                        cancellationToken).ConfigureAwait(false);
+                    using var material = await credentials
+                        .GetCircleFilesProviderCredentialForCleanupAsync(
+                            grantId.ToString(),
+                            cancellationToken).ConfigureAwait(false)
+                        ?? throw new LocalStateException(
+                            "circle_files_provider_credential_missing",
+                            "The exact Windows grant credential record is unavailable for cleanup.");
+                    EnsureExactBinding(request.Grant, material.Binding);
+                    var result = await lifecycle.RemoveGrantAsync(
+                        request,
+                        planId,
+                        material.Secret,
+                        terminateOpenSessions,
+                        cancellationToken).ConfigureAwait(false);
+                    if (result.Status is CircleFilesCleanupStatus.Removed
+                        or CircleFilesCleanupStatus.AlreadyRemoved)
+                    {
+                        await credentials.CompleteCircleFilesProviderCredentialRemovalAsync(
+                            material.Binding,
+                            cancellationToken).ConfigureAwait(false);
+                    }
+
+                    var outcome = ToStatus(result.Status);
+                    return new AuditedResult<CircleFilesGrantCleanupResultResponse>(
+                        new CircleFilesGrantCleanupResultResponse(
+                            outcome,
+                            result.OpenSessionCount,
+                            ToResponse(result.Plan)),
+                        outcome,
+                        result.OpenSessionCount);
+                },
                 cancellationToken).ConfigureAwait(false);
-            return new CircleFilesGrantCleanupResultResponse(
-                outcome,
-                result.OpenSessionCount,
-                ToResponse(result.Plan));
         }
         finally
         {
@@ -155,29 +174,43 @@ internal sealed class CircleFilesLifecycleApplication(
         await mutationGate.WaitAsync(cancellationToken).ConfigureAwait(false);
         try
         {
-            var request = await CreateHostRemovalRequestAsync(
-                circleId,
-                contributionId,
-                folderPath,
-                cancellationToken).ConfigureAwait(false);
-            var result = await lifecycle.RemoveHostAsync(
-                request,
-                planId,
-                terminateOpenSessions,
-                cancellationToken).ConfigureAwait(false);
-            var outcome = ToStatus(result.Status);
-            await RecordAsync(
+            return await ExecuteAuditedAsync(
                 circleId,
                 contributionId,
                 null,
                 "host-remove",
-                outcome,
-                result.OpenSessionCount,
+                async () =>
+                {
+                    if (terminateOpenSessions)
+                    {
+                        await RequirePriorBusyAsync(
+                            circleId,
+                            contributionId,
+                            null,
+                            "host-remove",
+                            cancellationToken).ConfigureAwait(false);
+                    }
+
+                    var request = await CreateHostRemovalRequestAsync(
+                        circleId,
+                        contributionId,
+                        folderPath,
+                        cancellationToken).ConfigureAwait(false);
+                    var result = await lifecycle.RemoveHostAsync(
+                        request,
+                        planId,
+                        terminateOpenSessions,
+                        cancellationToken).ConfigureAwait(false);
+                    var outcome = ToStatus(result.Status);
+                    return new AuditedResult<CircleFilesHostRemovalResultResponse>(
+                        new CircleFilesHostRemovalResultResponse(
+                            outcome,
+                            result.OpenSessionCount,
+                            ToResponse(result.Plan)),
+                        outcome,
+                        result.OpenSessionCount);
+                },
                 cancellationToken).ConfigureAwait(false);
-            return new CircleFilesHostRemovalResultResponse(
-                outcome,
-                result.OpenSessionCount,
-                ToResponse(result.Plan));
         }
         finally
         {
@@ -334,6 +367,100 @@ internal sealed class CircleFilesLifecycleApplication(
                 openSessionCount,
                 timeProvider.GetUtcNow()),
             cancellationToken);
+
+    private async Task<T> ExecuteAuditedAsync<T>(
+        CircleId circleId,
+        CircleFilesContributionId contributionId,
+        MemberAccessGrantId? grantId,
+        string operation,
+        Func<Task<AuditedResult<T>>> action,
+        CancellationToken cancellationToken)
+    {
+        await RecordAsync(
+            circleId,
+            contributionId,
+            grantId,
+            operation,
+            "requested",
+            0,
+            cancellationToken).ConfigureAwait(false);
+        try
+        {
+            var result = await action().ConfigureAwait(false);
+            await RecordAsync(
+                circleId,
+                contributionId,
+                grantId,
+                operation,
+                result.Outcome,
+                result.OpenSessionCount,
+                CancellationToken.None).ConfigureAwait(false);
+            return result.Value;
+        }
+        catch (OperationCanceledException)
+        {
+            await RecordAsync(
+                circleId,
+                contributionId,
+                grantId,
+                operation,
+                "cancelled",
+                0,
+                CancellationToken.None).ConfigureAwait(false);
+            throw;
+        }
+        catch (Exception exception) when (exception is LocalStateException
+            or InputValidationException
+            or CircleFilesHostingException)
+        {
+            await RecordAsync(
+                circleId,
+                contributionId,
+                grantId,
+                operation,
+                "refused",
+                0,
+                CancellationToken.None).ConfigureAwait(false);
+            throw;
+        }
+        catch
+        {
+            await RecordAsync(
+                circleId,
+                contributionId,
+                grantId,
+                operation,
+                "failed",
+                0,
+                CancellationToken.None).ConfigureAwait(false);
+            throw;
+        }
+    }
+
+    private async Task RequirePriorBusyAsync(
+        CircleId circleId,
+        CircleFilesContributionId contributionId,
+        MemberAccessGrantId? grantId,
+        string operation,
+        CancellationToken cancellationToken)
+    {
+        var previousOutcome = (await audit.ListCircleFilesLifecycleAuditEventsAsync(
+                circleId,
+                cancellationToken).ConfigureAwait(false))
+            .LastOrDefault(value =>
+                value.ContributionId == contributionId
+                && value.GrantId == grantId
+                && value.Operation == operation
+                && value.Outcome != "requested");
+        if (previousOutcome?.Outcome != "busy")
+        {
+            throw new LocalStateConflictException(
+                "circle_files_open_session_confirmation_required",
+                "Run cleanup without session termination first, then explicitly confirm after a busy result.");
+        }
+    }
+
+    private sealed record AuditedResult<T>(T Value, string Outcome, int OpenSessionCount);
 
     private static CircleFilesHostAuthorizationProof ToProof(
         CircleFilesOwnerAuthorization authorization,

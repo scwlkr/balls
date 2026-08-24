@@ -1,10 +1,12 @@
 # Circle Files revocation and cleanup verification
 
-**Date:** 2026-08-24  
-**Issue:** [#61](https://github.com/scwlkr/balls/issues/61)  
+**Date:** 2026-08-24
+
+**Issue:** [#61](https://github.com/scwlkr/balls/issues/61)
+
 **Branch:** `codex/issue-61-revoke-circle-files`
 
-## Observed locally
+## Executable coverage
 
 - Core and SQLite tests commit one exact grant generation to `revoked`, reject future active
   authorization, preserve the signed revocation across restart, and reject generation drift.
@@ -14,9 +16,10 @@
 - Windows operation contracts return `busy` before mutation, require separate termination
   confirmation, bound counts to 1,000, recover injected partial cleanup on retry, and refuse hostile
   substitution before session termination or rollback.
-- The Windows ACL/marker integration test writes 4,096 deterministic user bytes, removes exact Balls
-  metadata, and verifies the contributed folder and bytes remain unchanged. It executes only on a
-  Windows runner.
+- A Windows-gated ACL/marker integration test writes 4,096 deterministic user bytes, removes exact
+  Balls metadata, and verifies the contributed folder and bytes remain unchanged. It was skipped on
+  this Linux run and remains unobserved here. A second Windows-gated case covers preservation when
+  the contributed folder is empty.
 - Local-control and CLI contracts expose revoke, cleanup preview/apply, explicit session
   confirmation, final host removal, and no secret/proof fields. The committed OpenAPI document and
   generated web client were refreshed from the running daemon.
