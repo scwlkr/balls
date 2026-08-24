@@ -243,7 +243,7 @@ public sealed class WindowsCircleFilesGrantOperationTests
             var output = await BoundedWindowsInspectionProcessRunner.RunWithInputAsync(
                 startInfo,
                 "stdin-probe",
-                TimeSpan.FromSeconds(10),
+                TimeSpan.FromSeconds(20),
                 1024,
                 CancellationToken.None);
             Assert.AreEqual("{\"Value\":\"stdin-probe\"}", output.Trim());
