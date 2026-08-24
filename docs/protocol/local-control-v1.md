@@ -328,7 +328,9 @@ preview|map|inspect|unmap`; only `map` accepts `--plan`.
 `POST .../grants/{grantId}/revoke` requires a canonical request UUID and positive
 `expectedGeneration`. It commits the exact dual-signed revocation before returning; every future
 active credential/mapping authorization then fails closed. Mapping `unmap` remains available so an
-already-revoked client can remove its exact owned mapping.
+already-revoked client can remove its exact owned mapping. Unmap records a durable `requested`
+event before mutation and an `unmapped`, `already-unmapped`, refused, failed, or cancelled outcome;
+an interrupted request remains visible for idempotent retry.
 
 `POST .../grants/{grantId}/cleanup/preview` accepts `folderPath` and requires the persisted
 revocation plus exact protected provider binding. `cleanup/apply` additionally requires the
@@ -340,8 +342,9 @@ termination or resource removal.
 
 `POST .../host/remove/preview` and `/remove/apply` use the same two-step session contract. They are
 refused until all grants are revoked and every issued grant credential is removed. Host removal
-targets only the recorded Balls share, firewall rule, marker, and journal; it never deletes the
-contributed folder or user files. `partial` remains restart/retry state, not success.
+closes only exact open-file handles under the contribution and never closes their containing SMB
+sessions. It targets only the recorded Balls share, firewall rule, marker, and journal; it never
+deletes the contributed folder or user files. `partial` remains restart/retry state, not success.
 
 ### `POST /control/v1/circles/{circleId}/invitations`
 

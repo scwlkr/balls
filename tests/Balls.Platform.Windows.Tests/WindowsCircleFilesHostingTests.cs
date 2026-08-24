@@ -140,11 +140,23 @@ public sealed class WindowsCircleFilesHostingTests
         StringAssert.Contains(script, "-RemoteAddress LocalSubnet");
         StringAssert.Contains(script, "-Service LanmanServer");
         StringAssert.Contains(script, "FileServer-ServerManager-SMB-TCP-In");
+        StringAssert.Contains(script, "Restore-ServerManagerSmbFirewallBaseline");
         StringAssert.Contains(script, "NetSecurity\\Disable-NetFirewallRule -ErrorAction Stop");
+        StringAssert.Contains(script, "Close-SmbOpenFile -FileId");
         StringAssert.Contains(script, "Translate([System.Security.Principal.NTAccount])");
         Assert.IsFalse(script.Contains("Invoke-Expression", StringComparison.OrdinalIgnoreCase));
         Assert.IsFalse(script.Contains("ScriptBlock", StringComparison.OrdinalIgnoreCase));
+        Assert.IsFalse(script.Contains("Close-SmbSession", StringComparison.OrdinalIgnoreCase));
         Assert.IsFalse(script.Contains("-Profile Public", StringComparison.OrdinalIgnoreCase));
+
+        var createShareBlock = ExtractCommandBlock(script, "CreateShare", "RemoveShare");
+        StringAssert.Contains(createShareBlock, "Restore-ServerManagerSmbFirewallBaseline");
+        var removeShareBlock = ExtractCommandBlock(script, "RemoveShare", "InspectFirewall");
+        Assert.IsTrue(
+            removeShareBlock.IndexOf(
+                "Restore-ServerManagerSmbFirewallBaseline",
+                StringComparison.Ordinal)
+            < removeShareBlock.IndexOf("Remove-SmbShare", StringComparison.Ordinal));
     }
 
     [TestMethod]
@@ -211,6 +223,14 @@ public sealed class WindowsCircleFilesHostingTests
                 WindowsCircleFilesPowerShellCommand.TerminateOpenSessions,
             },
             Enum.GetValues<WindowsCircleFilesPowerShellCommand>());
+    }
+
+    private static string ExtractCommandBlock(string script, string command, string nextCommand)
+    {
+        var start = script.IndexOf($"'{command}' {{", StringComparison.Ordinal);
+        var end = script.IndexOf($"'{nextCommand}' {{", start, StringComparison.Ordinal);
+        Assert.IsTrue(start >= 0 && end > start);
+        return script[start..end];
     }
 
     [TestMethod]

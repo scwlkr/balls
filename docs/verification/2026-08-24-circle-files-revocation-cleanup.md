@@ -12,10 +12,12 @@
   authorization, preserve the signed revocation across restart, and reject generation drift.
 - SQLite schema v8 migration rolls back atomically on injected failure. Removed credential state,
   protected recovery material, and redacted append-only outcomes survive restart without plaintext
-  secret bytes in the database.
+  secret bytes in the database. Exact mapping unmap records `requested` plus terminal outcomes,
+  survives restart, and records an idempotent retry.
 - Windows operation contracts return `busy` before mutation, require separate termination
   confirmation, bound counts to 1,000, recover injected partial cleanup on retry, and refuse hostile
-  substitution before session termination or rollback.
+  substitution before session termination or rollback. Final host cleanup closes only exact
+  contributed-file handles and never closes their containing SMB sessions.
 - A Windows-gated ACL/marker integration test writes 4,096 deterministic user bytes, removes exact
   Balls metadata, and verifies the contributed folder and bytes remain unchanged. A second
   Windows-gated case covers preservation when the contributed folder is empty and verifies exact
@@ -33,7 +35,7 @@ dotnet test tests/Balls.Cli.Tests/Balls.Cli.Tests.csproj --configuration Release
 ```
 
 `dotnet run --project eng/Balls.Verify --configuration Release -- full` passed on Linux: locked
-restore, format and generated-client checks, zero-warning Release build, 254 passed .NET tests
+restore, format and generated-client checks, zero-warning Release build, 255 passed .NET tests
 (53 platform-gated skips), web lint/typecheck, 10 component tests, production build, and one
 Playwright daemon-restart journey.
 
@@ -60,7 +62,9 @@ live product path then observed this matrix:
 | Exact ACL restoration | The surviving folder's owner, group, DACL, inheritance flags, and complete SDDL matched a fresh sibling created under the same parent. |
 | Durable audit | The redacted export contained bounded `requested` plus `revoked`, `refused`, `busy`, `partial`, `removed`, and `already-removed` outcomes, including restart recovery, with no credential, proof, password, or secret fields. |
 
-The live run also exposed and drove fixes for the Windows helper publish bundle, early helper-exit
-reporting, fixed-script parsing, protected PowerShell script transport, Windows PowerShell assembly
-resolution, automatically enabled built-in SMB firewall rules, and empty `Get-SmbSession` query
-semantics. The final two-Node observations above were made after those fixes.
+The live run and final review also exposed and drove fixes for the Windows helper publish bundle,
+early helper-exit reporting, fixed-script parsing, protected PowerShell script transport, Windows
+PowerShell assembly resolution, restart-safe restoration of automatically enabled built-in SMB
+firewall rules, empty `Get-SmbSession` query semantics, durable unmap audit, and final-host open-file
+termination scope. The final two-Node observations above and complete Windows test run were made
+after the applicable fixes.

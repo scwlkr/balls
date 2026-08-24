@@ -123,10 +123,11 @@ receipt but does not gain private root/Anchor authority or redefine itself as th
   so concurrent exact apply requests cannot treat another request's resources as their rollback prefix.
 - Cleanup advances the exact provider binding to `removed` only after the platform reports
   `removed` or `already-removed`. Busy/partial outcomes retain protected recovery material across
-  restart, while active credential authorization returns nothing after removal. A `requested` audit
-  insert precedes mutation; bounded results, refusals, failures, and cancellations append terminal
-  inserts, while an interrupted request remains visible for idempotent retry. Audit inserts contain
-  no proof, secret, subprocess output, or free-form diagnostic text.
+  restart, while active credential authorization returns nothing after removal. Cleanup and exact
+  mapping unmap write a `requested` audit insert before mutation; bounded results, refusals,
+  failures, and cancellations append terminal inserts, while an interrupted request remains visible
+  for idempotent retry. Audit inserts contain no proof, secret, subprocess output, or free-form
+  diagnostic text.
 - A repeated creation request with equivalent normalized input returns the original Circle. A
   conflicting reuse fails with `creation_request_conflict`.
 - Store operations are serialized within the process. Disposal waits for the active operation and

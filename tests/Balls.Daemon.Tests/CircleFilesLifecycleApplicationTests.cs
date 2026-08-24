@@ -67,6 +67,114 @@ public sealed class CircleFilesLifecycleApplicationTests
             events.Select(value => $"{value.Operation}:{value.Outcome}").ToArray());
     }
 
+    [TestMethod]
+    public async Task Exact_unmap_audit_survives_restart_and_records_idempotent_retry()
+    {
+        using var directory = new TemporaryDirectory();
+        CircleId circleId;
+        CircleFilesContributionId contributionId;
+        MemberAccessGrantId grantId;
+
+        await using (var store = await SqliteLocalStateStore.OpenAsync(
+                         directory.Path,
+                         PassthroughProtector.Instance))
+        {
+            var time = new FixedTimeProvider(Now);
+            var circles = new CircleApplication(store, time, "Alice-PC");
+            var circle = await circles.CreateCircleAsync(
+                new CreateCircleCommand(
+                    new CreationRequestId(Guid.CreateVersion7()),
+                    "Example Studio",
+                    "Alice"));
+            circleId = circle.Circle.Id;
+            var files = new CircleFilesApplication(store, store, time);
+            var contribution = await files.CreateContributionAsync(
+                new CreateCircleFilesContributionCommand(
+                    new CircleFilesContributionRequestId(Guid.CreateVersion7()),
+                    circleId,
+                    "Project Files"));
+            contributionId = contribution.Id;
+            var grant = await files.CreateAccessGrantAsync(
+                new CreateMemberAccessGrantCommand(
+                    new MemberAccessGrantRequestId(Guid.CreateVersion7()),
+                    circleId,
+                    contributionId,
+                    circle.Members.Single().Id,
+                    MemberAccessMode.ReadWrite));
+            grantId = grant.Id;
+            var binding = CreateBinding(circleId, contributionId, grant);
+            using (await store.PrepareCircleFilesProviderCredentialAsync(
+                       binding,
+                       new byte[32]))
+            {
+                await store.CompleteCircleFilesProviderCredentialAsync(binding);
+            }
+
+            var application = new CircleFilesMemberMappingApplication(
+                circles,
+                files,
+                store,
+                store,
+                new StubMemberMapper("unmapped"),
+                time);
+            var result = await application.UnmapAsync(
+                circleId,
+                contributionId,
+                grantId,
+                "192.168.50.10",
+                "M",
+                CancellationToken.None);
+
+            Assert.AreEqual("unmapped", result.Status);
+        }
+
+        await using var reopened = await SqliteLocalStateStore.OpenAsync(
+            directory.Path,
+            PassthroughProtector.Instance);
+        var retryTime = new FixedTimeProvider(Now.AddMinutes(1));
+        var retry = new CircleFilesMemberMappingApplication(
+            new CircleApplication(reopened, retryTime, "Alice-PC"),
+            new CircleFilesApplication(reopened, reopened, retryTime),
+            reopened,
+            reopened,
+            new StubMemberMapper("already-unmapped"),
+            retryTime);
+        var retryResult = await retry.UnmapAsync(
+            circleId,
+            contributionId,
+            grantId,
+            "192.168.50.10",
+            "M",
+            CancellationToken.None);
+        var events = await reopened.ListCircleFilesLifecycleAuditEventsAsync(circleId);
+
+        Assert.AreEqual("already-unmapped", retryResult.Status);
+        CollectionAssert.AreEqual(
+            new[]
+            {
+                "mapping-unmap:requested",
+                "mapping-unmap:unmapped",
+                "mapping-unmap:requested",
+                "mapping-unmap:already-unmapped",
+            },
+            events.Select(value => $"{value.Operation}:{value.Outcome}").ToArray());
+    }
+
+    private static CircleFilesProviderCredentialBinding CreateBinding(
+        CircleId circleId,
+        CircleFilesContributionId contributionId,
+        MemberAccessGrant grant) =>
+        new(
+            grant.Id.ToString(),
+            circleId.ToString(),
+            contributionId.ToString(),
+            grant.MemberId.ToString(),
+            "windows-smb-3.1.1-v1",
+            "BallsG-test",
+            new string('a', 64),
+            "read-write",
+            grant.Generation);
+
     private sealed class FixedTimeProvider(DateTimeOffset value) : TimeProvider
     {
         public override DateTimeOffset GetUtcNow() => value;
@@ -81,6 +189,46 @@ public sealed class CircleFilesLifecycleApplicationTests
         public byte[] Protect(ReadOnlySpan<byte> privateMaterial) => privateMaterial.ToArray();
 
         public byte[] Unprotect(ReadOnlySpan<byte> protectedMaterial) => protectedMaterial.ToArray();
+    }
+
+    private sealed class StubMemberMapper(string unmapStatus) : ICircleFilesMemberMapper
+    {
+        public ValueTask<CircleFilesMemberMappingPlan> PreviewAsync(
+            CircleFilesMemberMappingRequest request,
+            CancellationToken cancellationToken) =>
+            ValueTask.FromException<CircleFilesMemberMappingPlan>(new NotSupportedException());
+
+        public ValueTask<CircleFilesMemberMappingInspection> InspectAsync(
+            CircleFilesMemberMappingRequest request,
+            CancellationToken cancellationToken) =>
+            ValueTask.FromException<CircleFilesMemberMappingInspection>(new NotSupportedException());
+
+        public ValueTask<CircleFilesMemberMappingResult> MapAsync(
+            CircleFilesMemberMappingRequest request,
+            string expectedPlanId,
+            ReadOnlyMemory<byte> secret,
+            CancellationToken cancellationToken) =>
+            ValueTask.FromException<CircleFilesMemberMappingResult>(new NotSupportedException());
+
+        public ValueTask<CircleFilesMemberMappingResult> UnmapAsync(
+            CircleFilesMemberMappingRequest request,
+            CancellationToken cancellationToken)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            return ValueTask.FromResult(new CircleFilesMemberMappingResult(
+                unmapStatus,
+                new CircleFilesMemberMappingPlan(
+                    CircleFilesMemberMappingContract.Version,
+                    new string('b', 64),
+                    request.Endpoint,
+                    $@"\\{request.Endpoint}\balls-test",
+                    request.Endpoint,
+                    request.DriveLetter,
+                    request.CircleName,
+                    new string('c', 64),
+                    [request.DriveLetter],
+                    ["Unmap the exact owned mapping."])));
+        }
     }
 
     private sealed class TemporaryDirectory : IDisposable

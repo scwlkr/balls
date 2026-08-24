@@ -155,7 +155,9 @@ public static class DaemonHost
                 circleApplication,
                 filesApplication,
                 store,
-                host.CircleFilesMemberMapping);
+                store,
+                host.CircleFilesMemberMapping,
+                TimeProvider.System);
             var filesLifecycleApplication = new CircleFilesLifecycleApplication(
                 filesApplication,
                 store,

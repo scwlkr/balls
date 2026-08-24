@@ -576,14 +576,15 @@ grant cleanup can inspect or mutate Windows. Cleanup proves every recorded accou
 entry, share entry, share, firewall rule, and operation journal before removal; substituted or
 ambiguous evidence refuses mutation. Open SMB sessions return `busy` with a bounded count.
 Termination requires a second explicit request after a durable `busy` audit outcome and targets
-only the exact grant account, or for final host removal, sessions whose open files all remain inside
-the exact contribution path.
+only the exact grant account. Final host removal closes only file handles whose paths remain inside
+the exact contribution, then removes that exact share; it never closes the containing SMB session,
+which may also carry unrelated idle tree connections.
 Partial results remain retryable from persisted state.
 
 Host cleanup is allowed only after every grant is revoked and every issued provider credential is
 marked removed. It removes the exact firewall rule, encrypted share, protected ownership marker,
-and operation journal, but never deletes the contributed folder or user files. Lifecycle requests,
-bounded results, refusals, failures, and cancellations are appended to a redacted SQLite audit
+and operation journal, but never deletes the contributed folder or user files. Lifecycle and exact
+mapping-unmap requests, bounded results, refusals, failures, and cancellations are appended to a redacted SQLite audit
 containing only object IDs, stable operation/outcome tokens, bounded session counts, and timestamps.
 An interrupted request remains visible and is resolved by the idempotent retry. Successful
 credential removal disables future credential

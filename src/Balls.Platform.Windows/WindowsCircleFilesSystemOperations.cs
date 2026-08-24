@@ -716,24 +716,25 @@ internal sealed class WindowsCircleFilesPowerShell
             return 'Collision'
         }
 
+        function Restore-ServerManagerSmbFirewallBaseline {
+            $rule = NetSecurity\Get-NetFirewallRule -Name 'FileServer-ServerManager-SMB-TCP-In' -ErrorAction SilentlyContinue
+            if ($null -ne $rule -and [string]$rule.Enabled -eq 'True') {
+                $rule | NetSecurity\Disable-NetFirewallRule -ErrorAction Stop
+            }
+        }
+
         function Test-OwnedOpenPath([string]$path) {
             $root = ([string]$request.Path).TrimEnd('\')
             return $path.Equals($root, [System.StringComparison]::OrdinalIgnoreCase) -or $path.StartsWith($root + '\', [System.StringComparison]::OrdinalIgnoreCase)
         }
 
-        function Get-OwnedSessions {
+        function Get-OwnedOpenFiles {
             $shareState = Get-ShareState
             if ($shareState -eq 'Missing') { return @() }
             if ($shareState -ne 'Owned') { throw 'share ownership changed' }
             $allOpen = @(SmbShare\Get-SmbOpenFile -IncludeHidden -ErrorAction Stop | Microsoft.PowerShell.Utility\Select-Object -First 1001)
             if ($allOpen.Count -gt 1000) { throw 'open file inspection exceeded limit' }
-            $sessionIds = @($allOpen | Where-Object { Test-OwnedOpenPath ([string]$_.Path) } | Select-Object -ExpandProperty SessionId -Unique)
-            if ($sessionIds.Count -gt 1000) { throw 'session inspection exceeded limit' }
-            foreach ($sessionId in $sessionIds) {
-                $sessionOpen = @(SmbShare\Get-SmbOpenFile -SessionId $sessionId -IncludeHidden -ErrorAction Stop | Microsoft.PowerShell.Utility\Select-Object -First 1001)
-                if ($sessionOpen.Count -gt 1000 -or @($sessionOpen | Where-Object { -not (Test-OwnedOpenPath ([string]$_.Path)) }).Count -ne 0) { throw 'session scope collision' }
-            }
-            return @(foreach ($sessionId in $sessionIds) { SmbShare\Get-SmbSession -SessionId $sessionId -ErrorAction Stop })
+            return @($allOpen | Where-Object { Test-OwnedOpenPath ([string]$_.Path) })
         }
 
         switch ([string]$request.Command) {
@@ -745,11 +746,12 @@ internal sealed class WindowsCircleFilesPowerShell
                 $serverManagerSmbRuleWasEnabled = $null -ne $serverManagerSmbRule -and [string]$serverManagerSmbRule.Enabled -eq 'True'
                 if ($serverManagerSmbRuleWasEnabled) { throw 'unsafe built-in public smb rule enabled' }
                 SmbShare\New-SmbShare -Name ([string]$request.ShareName) -Path ([string]$request.Path) -Description $description -FullAccess $ownerAccount -EncryptData $true -FolderEnumerationMode AccessBased -CachingMode None -ErrorAction Stop | Out-Null
-                NetSecurity\Get-NetFirewallRule -Name $serverManagerSmbRuleName -ErrorAction SilentlyContinue | Where-Object { [string]$_.Enabled -eq 'True' } | NetSecurity\Disable-NetFirewallRule -ErrorAction Stop
+                Restore-ServerManagerSmbFirewallBaseline
                 $state = Get-ShareState
             }
             'RemoveShare' {
                 if ((Get-ShareState) -ne 'Owned') { throw 'share ownership changed' }
+                Restore-ServerManagerSmbFirewallBaseline
                 SmbShare\Remove-SmbShare -Name ([string]$request.ShareName) -Force -ErrorAction Stop
                 $state = 'Missing'
             }
@@ -764,8 +766,8 @@ internal sealed class WindowsCircleFilesPowerShell
                 NetSecurity\Remove-NetFirewallRule -Name ([string]$request.FirewallRuleName) -ErrorAction Stop
                 $state = 'Missing'
             }
-            'CountOpenSessions' { $count = @(Get-OwnedSessions).Count }
-            'TerminateOpenSessions' { $ownedSessions = @(Get-OwnedSessions); foreach ($session in $ownedSessions) { SmbShare\Close-SmbSession -SessionId $session.SessionId -Force -ErrorAction Stop }; $count = @(Get-OwnedSessions).Count }
+            'CountOpenSessions' { $count = @(@(Get-OwnedOpenFiles) | Select-Object -ExpandProperty SessionId -Unique).Count }
+            'TerminateOpenSessions' { @(Get-OwnedOpenFiles) | ForEach-Object { SmbShare\Close-SmbOpenFile -FileId $_.FileId -Force -ErrorAction Stop }; $count = @(@(Get-OwnedOpenFiles) | Select-Object -ExpandProperty SessionId -Unique).Count }
             default { throw 'unsupported command' }
         }
         $result = if ($null -ne $count) { [PSCustomObject]@{ Count = [int]$count } } else { [PSCustomObject]@{ State = $state } }
