@@ -339,24 +339,26 @@ public sealed class CircleFilesStateStoreTests
                         Now));
             }
 
-            await using var reopened = await SqliteLocalStateStore.OpenAsync(
-                directory.Path,
-                TestPrivateMaterialProtector.Instance);
-            Assert.IsNull(await reopened.GetActiveCircleFilesProviderCredentialAsync(
-                grantId.ToString()));
-            var state = await reopened.GetCircleFilesProviderCredentialStateAsync(
-                grantId.ToString());
-            Assert.IsNotNull(state);
-            Assert.IsTrue(state.IsRemoved);
-            Assert.IsFalse(state.IsActive);
-            using var cleanup = await reopened.GetCircleFilesProviderCredentialForCleanupAsync(
-                grantId.ToString());
-            Assert.IsNotNull(cleanup);
-            CollectionAssert.AreEqual(secret, cleanup.Secret.ToArray());
-            var events = await reopened.ListCircleFilesLifecycleAuditEventsAsync(circleId);
-            Assert.AreEqual(1, events.Count);
-            Assert.AreEqual("grant-cleanup", events.Single().Operation);
-            Assert.AreEqual("removed", events.Single().Outcome);
+            await using (var reopened = await SqliteLocalStateStore.OpenAsync(
+                             directory.Path,
+                             TestPrivateMaterialProtector.Instance))
+            {
+                Assert.IsNull(await reopened.GetActiveCircleFilesProviderCredentialAsync(
+                    grantId.ToString()));
+                var state = await reopened.GetCircleFilesProviderCredentialStateAsync(
+                    grantId.ToString());
+                Assert.IsNotNull(state);
+                Assert.IsTrue(state.IsRemoved);
+                Assert.IsFalse(state.IsActive);
+                using var cleanup = await reopened.GetCircleFilesProviderCredentialForCleanupAsync(
+                    grantId.ToString());
+                Assert.IsNotNull(cleanup);
+                CollectionAssert.AreEqual(secret, cleanup.Secret.ToArray());
+                var events = await reopened.ListCircleFilesLifecycleAuditEventsAsync(circleId);
+                Assert.AreEqual(1, events.Count);
+                Assert.AreEqual("grant-cleanup", events.Single().Operation);
+                Assert.AreEqual("removed", events.Single().Outcome);
+            }
 
             var databasePath = Path.Combine(directory.Path, "balls.db");
             var databaseBytes = await File.ReadAllBytesAsync(databasePath);
