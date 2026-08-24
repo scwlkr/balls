@@ -250,8 +250,8 @@ Active frontier:
 - [#61 — Revoke Circle Files grants and remove only Balls-owned infrastructure](https://github.com/scwlkr/balls/issues/61)
   adds atomic exact-generation revocation, fail-closed future authorization, busy/confirm session
   handling, restart-safe exact-owned grant/host cleanup, and redacted lifecycle audit. Local focused
-  evidence is in the [revocation and cleanup record](verification/2026-08-24-circle-files-revocation-cleanup.md);
-  the two-Windows-VM acceptance row remains explicitly pending there.
+  and two-Windows-VM evidence is in the
+  [revocation and cleanup record](verification/2026-08-24-circle-files-revocation-cleanup.md).
 - [#62](https://github.com/scwlkr/balls/issues/62) remains dependency-blocked.
 
 ## Working rules

@@ -712,27 +712,8 @@ internal sealed class WindowsCircleFilesGrantPowerShell
         WindowsCircleFilesGrantHelperPlan plan,
         CancellationToken token)
     {
-        var executable = Path.Combine(
-            Environment.GetFolderPath(Environment.SpecialFolder.System),
-            "WindowsPowerShell", "v1.0", "powershell.exe");
-        var startInfo = new ProcessStartInfo
-        {
-            FileName = executable,
-            CreateNoWindow = true,
-            UseShellExecute = false,
-            RedirectStandardInput = true,
-            RedirectStandardOutput = true,
-            RedirectStandardError = true,
-            StandardInputEncoding = new UTF8Encoding(false),
-            StandardOutputEncoding = Encoding.UTF8,
-            StandardErrorEncoding = Encoding.UTF8,
-        };
-        startInfo.Environment.Remove("PSModulePath");
-        startInfo.ArgumentList.Add("-NoLogo");
-        startInfo.ArgumentList.Add("-NoProfile");
-        startInfo.ArgumentList.Add("-NonInteractive");
-        startInfo.ArgumentList.Add("-Command");
-        startInfo.ArgumentList.Add(Script);
+        using var fixedScript = WindowsProtectedPowerShellScript.Create(Script);
+        var startInfo = fixedScript.CreateStartInfo();
         var injectAccountFailure = false;
         string? injectAccountTerminationStep = null;
 #if DEBUG
@@ -863,7 +844,8 @@ internal sealed class WindowsCircleFilesGrantPowerShell
           if ((Get-AccountState) -notin @('Owned','Recoverable')) { throw 'account ownership changed' }
           $user=Microsoft.PowerShell.LocalAccounts\Get-LocalUser -Name ([string]$request.AccountName) -ErrorAction Stop
           $account=$user.SID.Translate([System.Security.Principal.NTAccount]).Value
-          $owned=@(SmbShare\Get-SmbSession -ClientUserName $account -ErrorAction Stop | Microsoft.PowerShell.Utility\Select-Object -First 1001)
+          try { $owned=@(SmbShare\Get-SmbSession -ClientUserName $account -ErrorAction Stop | Microsoft.PowerShell.Utility\Select-Object -First 1001) }
+          catch { if ($_.FullyQualifiedErrorId -ne 'CmdletizationQuery_NotFound_ClientUserName,Get-SmbSession') { throw }; $owned=@() }
           if ($owned.Count -gt 1000) { throw 'session inspection exceeded limit' }
           return $owned
         }
@@ -898,6 +880,179 @@ internal sealed class WindowsCircleFilesGrantPowerShell
           'TerminateOpenSessions' { @(Get-OwnedSessions) | ForEach-Object { SmbShare\Close-SmbSession -SessionId $_.SessionId -Force -ErrorAction Stop }; $count=@(Get-OwnedSessions).Count }
           default { throw 'unsupported command' }
         }
-        if ($null -ne $count) { [PSCustomObject]@{ Count=[int]$count } } else { [PSCustomObject]@{ State=$state } } | Microsoft.PowerShell.Utility\ConvertTo-Json -Compress
+        $result = if ($null -ne $count) { [PSCustomObject]@{ Count=[int]$count } } else { [PSCustomObject]@{ State=$state } }
+        $result | Microsoft.PowerShell.Utility\ConvertTo-Json -Compress
         """;
+}
+
+[SupportedOSPlatform("windows")]
+internal sealed class WindowsProtectedPowerShellScript : IDisposable
+{
+    private bool disposed;
+
+    private WindowsProtectedPowerShellScript(string directoryPath, string path)
+    {
+        DirectoryPath = directoryPath;
+        Path = path;
+    }
+
+    internal string DirectoryPath { get; }
+
+    internal string Path { get; }
+
+    internal static WindowsProtectedPowerShellScript Create(string script)
+    {
+        ArgumentNullException.ThrowIfNull(script);
+        var currentUser = WindowsIdentity.GetCurrent().User
+            ?? throw new InvalidOperationException(
+                "The current Windows account has no security identifier.");
+        var localSystem = new SecurityIdentifier(WellKnownSidType.LocalSystemSid, null);
+        var directoryPath = System.IO.Path.Combine(
+            System.IO.Path.GetTempPath(),
+            "balls-grant-" + Guid.NewGuid().ToString("N"));
+        var directory = new DirectoryInfo(directoryPath);
+        var directorySecurity = CreateSecurity(
+            currentUser,
+            localSystem,
+            InheritanceFlags.ContainerInherit | InheritanceFlags.ObjectInherit);
+        directory.Create(directorySecurity);
+        var scriptPath = System.IO.Path.Combine(directoryPath, "grant.ps1");
+        try
+        {
+            using (var stream = new FileStream(
+                       scriptPath,
+                       FileMode.CreateNew,
+                       FileAccess.Write,
+                       FileShare.None,
+                       bufferSize: 4096,
+                       FileOptions.WriteThrough))
+            using (var writer = new StreamWriter(stream, new UTF8Encoding(false)))
+            {
+                writer.Write(script);
+                writer.Flush();
+                stream.Flush(flushToDisk: true);
+            }
+
+            var file = new FileInfo(scriptPath);
+            if ((file.Attributes & FileAttributes.ReparsePoint) != 0)
+            {
+                throw new UnauthorizedAccessException(
+                    "The fixed Windows grant script cannot be a filesystem reparse point.");
+            }
+            file.SetAccessControl(CreateFileSecurity(currentUser, localSystem));
+            return new WindowsProtectedPowerShellScript(directoryPath, scriptPath);
+        }
+        catch
+        {
+            TryDelete(scriptPath, directoryPath);
+            throw;
+        }
+    }
+
+    internal ProcessStartInfo CreateStartInfo()
+    {
+        ObjectDisposedException.ThrowIf(disposed, this);
+        var startInfo = new ProcessStartInfo
+        {
+            FileName = System.IO.Path.Combine(
+                Environment.GetFolderPath(Environment.SpecialFolder.System),
+                "WindowsPowerShell", "v1.0", "powershell.exe"),
+            WorkingDirectory = DirectoryPath,
+            CreateNoWindow = true,
+            UseShellExecute = false,
+            RedirectStandardInput = true,
+            RedirectStandardOutput = true,
+            RedirectStandardError = true,
+            StandardInputEncoding = new UTF8Encoding(false),
+            StandardOutputEncoding = Encoding.UTF8,
+            StandardErrorEncoding = Encoding.UTF8,
+        };
+        startInfo.Environment.Remove("PSModulePath");
+        startInfo.ArgumentList.Add("-NoLogo");
+        startInfo.ArgumentList.Add("-NoProfile");
+        startInfo.ArgumentList.Add("-NonInteractive");
+        startInfo.ArgumentList.Add("-File");
+        startInfo.ArgumentList.Add(Path);
+        return startInfo;
+    }
+
+    public void Dispose()
+    {
+        if (disposed)
+        {
+            return;
+        }
+        disposed = true;
+        TryDelete(Path, DirectoryPath);
+    }
+
+    private static DirectorySecurity CreateSecurity(
+        SecurityIdentifier currentUser,
+        SecurityIdentifier localSystem,
+        InheritanceFlags inheritance)
+    {
+        var security = new DirectorySecurity();
+        security.SetAccessRuleProtection(isProtected: true, preserveInheritance: false);
+        security.SetOwner(currentUser);
+        AddAccessRules(security, currentUser, localSystem, inheritance);
+        return security;
+    }
+
+    private static FileSecurity CreateFileSecurity(
+        SecurityIdentifier currentUser,
+        SecurityIdentifier localSystem)
+    {
+        var security = new FileSecurity();
+        security.SetAccessRuleProtection(isProtected: true, preserveInheritance: false);
+        security.SetOwner(currentUser);
+        foreach (var sid in DistinctPrincipals(currentUser, localSystem))
+        {
+            security.AddAccessRule(new FileSystemAccessRule(
+                sid,
+                FileSystemRights.FullControl,
+                AccessControlType.Allow));
+        }
+        return security;
+    }
+
+    private static void AddAccessRules(
+        DirectorySecurity security,
+        SecurityIdentifier currentUser,
+        SecurityIdentifier localSystem,
+        InheritanceFlags inheritance)
+    {
+        foreach (var sid in DistinctPrincipals(currentUser, localSystem))
+        {
+            security.AddAccessRule(new FileSystemAccessRule(
+                sid,
+                FileSystemRights.FullControl,
+                inheritance,
+                PropagationFlags.None,
+                AccessControlType.Allow));
+        }
+    }
+
+    private static IEnumerable<SecurityIdentifier> DistinctPrincipals(
+        SecurityIdentifier currentUser,
+        SecurityIdentifier localSystem)
+    {
+        yield return currentUser;
+        if (currentUser != localSystem)
+        {
+            yield return localSystem;
+        }
+    }
+
+    private static void TryDelete(string scriptPath, string directoryPath)
+    {
+        try
+        {
+            File.Delete(scriptPath);
+            Directory.Delete(directoryPath);
+        }
+        catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
+        {
+            // The file contains only fixed product code; request secrets are never persisted.
+        }
+    }
 }

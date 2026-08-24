@@ -329,7 +329,10 @@ internal sealed class WindowsElevatedCircleFilesLifecycleHelperClient :
         timeout.CancelAfter(ApprovalTimeout);
         try
         {
-            await pipe.WaitForConnectionAsync(timeout.Token).ConfigureAwait(false);
+            await WindowsCircleFilesHelperProcess.WaitForConnectionAsync(
+                pipe,
+                helper,
+                timeout.Token).ConfigureAwait(false);
             if (!WindowsNamedPipeProcessIdentity.TryGetClientProcessId(pipe, out var clientPid)
                 || clientPid != helper.Id)
             {

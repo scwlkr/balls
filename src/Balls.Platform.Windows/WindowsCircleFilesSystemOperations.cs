@@ -740,7 +740,12 @@ internal sealed class WindowsCircleFilesPowerShell
             'InspectShare' { $state = Get-ShareState }
             'CreateShare' {
                 if ((Get-ShareState) -ne 'Missing') { throw 'share collision' }
+                $serverManagerSmbRuleName = 'FileServer-ServerManager-SMB-TCP-In'
+                $serverManagerSmbRule = NetSecurity\Get-NetFirewallRule -Name $serverManagerSmbRuleName -ErrorAction SilentlyContinue
+                $serverManagerSmbRuleWasEnabled = $null -ne $serverManagerSmbRule -and [string]$serverManagerSmbRule.Enabled -eq 'True'
+                if ($serverManagerSmbRuleWasEnabled) { throw 'unsafe built-in public smb rule enabled' }
                 SmbShare\New-SmbShare -Name ([string]$request.ShareName) -Path ([string]$request.Path) -Description $description -FullAccess $ownerAccount -EncryptData $true -FolderEnumerationMode AccessBased -CachingMode None -ErrorAction Stop | Out-Null
+                NetSecurity\Get-NetFirewallRule -Name $serverManagerSmbRuleName -ErrorAction SilentlyContinue | Where-Object { [string]$_.Enabled -eq 'True' } | NetSecurity\Disable-NetFirewallRule -ErrorAction Stop
                 $state = Get-ShareState
             }
             'RemoveShare' {
@@ -763,7 +768,8 @@ internal sealed class WindowsCircleFilesPowerShell
             'TerminateOpenSessions' { $ownedSessions = @(Get-OwnedSessions); foreach ($session in $ownedSessions) { SmbShare\Close-SmbSession -SessionId $session.SessionId -Force -ErrorAction Stop }; $count = @(Get-OwnedSessions).Count }
             default { throw 'unsupported command' }
         }
-        if ($null -ne $count) { [PSCustomObject]@{ Count = [int]$count } } else { [PSCustomObject]@{ State = $state } } | Microsoft.PowerShell.Utility\ConvertTo-Json -Compress
+        $result = if ($null -ne $count) { [PSCustomObject]@{ Count = [int]$count } } else { [PSCustomObject]@{ State = $state } }
+        $result | Microsoft.PowerShell.Utility\ConvertTo-Json -Compress
         """;
 }
 

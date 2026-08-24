@@ -33,19 +33,34 @@ dotnet test tests/Balls.Cli.Tests/Balls.Cli.Tests.csproj --configuration Release
 ```
 
 `dotnet run --project eng/Balls.Verify --configuration Release -- full` passed on Linux: locked
-restore, format and generated-client checks, zero-warning Release build, 253 passed .NET tests
-(51 platform-gated skips), web lint/typecheck, 10 component tests, production build, and one
+restore, format and generated-client checks, zero-warning Release build, 254 passed .NET tests
+(53 platform-gated skips), web lint/typecheck, 10 component tests, production build, and one
 Playwright daemon-restart journey.
 
 ## Windows lab status
 
-The owned Windows 11 VM verified product commit `2ee22c09e7185d0f901a826e0d6d810801624e21`
-from a SHA-256-checked source archive using .NET SDK 10.0.400. The focused run passed 5 Core
-revocation tests, 10 SQLite restart/audit tests, and all 42 Windows lifecycle and OS-integration
-tests with zero skips. That execution caught and drove fixes for Windows SQLite file sharing and
-exact SDDL control-flag restoration before the final green run.
+The required live gate used two disposable Windows Nodes on an isolated virtual LAN: a Windows
+Server 2025 Desktop Experience provider and a Windows Server 2022 Core client. Each Node had 2 GiB
+RAM. The user's working Windows/Revit VM was not started, stopped, reconfigured, or otherwise used.
 
-Only one Windows Node is currently available. Therefore this record does **not** claim the required
-two-Windows-Node live proof of future-auth denial, open-session termination, injected partial
-recovery, hostile on-machine substitution, or before/after user-file hashes. Supply a second owned
-Windows Node and run the canonical gate from `docs/windows-development-lab.md` before closing #61.
+The complete Windows platform test assembly passed 57 tests with zero skips and zero failures. The
+live product path then observed this matrix:
+
+| Scenario | Observed result |
+| --- | --- |
+| Host and grant | The provider hosted a Circle Files share and created one read-write grant; the client authenticated with that exact relayed credential. |
+| User bytes | The client wrote a deterministic 4,096-byte file. Its SHA-256 remained `4e441a3533bb2c10cd5649981d395744213e09a336746b5a3458fee4057205ec` through revoke, cleanup, daemon restart, and host removal. |
+| Exact revoke and retry | Revoke returned `revoked`; an exact retry returned the same durable result. Future authorization was rejected. |
+| Confirmation boundary | Forced cleanup before an observed busy result was refused with `circle_files_open_session_confirmation_required`; ordinary cleanup then returned `busy` with one exact session. |
+| Hostile substitution | Replacing the exact grant marker caused `grant_resource_collision`; the open session was not terminated and the original marker hash was unchanged after restoration. |
+| Open-session termination | Confirmed cleanup terminated the exact SMB session and returned `partial` because the grant marker was deliberately held without delete sharing. The client observed its established session fail. |
+| Restart recovery | After daemon restart and marker-lock release, cleanup returned `removed`; its exact retry returned `already-removed`. The local grant account and marker were absent. |
+| Future authentication | The second Node could no longer authenticate with the revoked relayed credential. |
+| Final host removal | Host removal returned `removed`; its exact retry returned `already-removed`. The share and Balls firewall rule were absent while the contributed folder and user file survived. |
+| Exact ACL restoration | The surviving folder's owner, group, DACL, inheritance flags, and complete SDDL matched a fresh sibling created under the same parent. |
+| Durable audit | The redacted export contained bounded `requested` plus `revoked`, `refused`, `busy`, `partial`, `removed`, and `already-removed` outcomes, including restart recovery, with no credential, proof, password, or secret fields. |
+
+The live run also exposed and drove fixes for the Windows helper publish bundle, early helper-exit
+reporting, fixed-script parsing, protected PowerShell script transport, Windows PowerShell assembly
+resolution, automatically enabled built-in SMB firewall rules, and empty `Get-SmbSession` query
+semantics. The final two-Node observations above were made after those fixes.

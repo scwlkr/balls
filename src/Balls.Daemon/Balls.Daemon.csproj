@@ -40,10 +40,27 @@
     </ItemGroup>
     <Copy SourceFiles="@(_WindowsCircleFilesHelper)" DestinationFolder="$(TargetDir)" SkipUnchangedFiles="true" />
   </Target>
-  <Target Name="PublishWindowsCircleFilesHelper" AfterTargets="Publish" Condition="$([MSBuild]::IsOSPlatform('Windows'))">
+  <Target
+    Name="PublishWindowsCircleFilesHelper"
+    AfterTargets="Publish"
+    Condition="$([MSBuild]::IsOSPlatform('Windows')) Or $([System.String]::Copy('$(RuntimeIdentifier)').StartsWith('win-'))">
+    <PropertyGroup>
+      <_WindowsCircleFilesHelperPublishDir Condition="'$(RuntimeIdentifier)' == ''">$(MSBuildProjectDirectory)\..\Balls.Windows.Helper\bin\$(Configuration)\net10.0\</_WindowsCircleFilesHelperPublishDir>
+      <_WindowsCircleFilesHelperPublishDir Condition="'$(RuntimeIdentifier)' != ''">$(MSBuildProjectDirectory)\..\Balls.Windows.Helper\bin\$(Configuration)\net10.0\$(RuntimeIdentifier)\</_WindowsCircleFilesHelperPublishDir>
+    </PropertyGroup>
+    <Error
+      Condition="!Exists('$(_WindowsCircleFilesHelperPublishDir)balls-windows-helper.exe') Or !Exists('$(_WindowsCircleFilesHelperPublishDir)balls-windows-helper.dll') Or !Exists('$(_WindowsCircleFilesHelperPublishDir)balls-windows-helper.deps.json') Or !Exists('$(_WindowsCircleFilesHelperPublishDir)balls-windows-helper.runtimeconfig.json')"
+      Text="The complete Windows Circle Files helper was not built for publishing." />
     <ItemGroup>
-      <_WindowsCircleFilesHelperPublish Include="$(MSBuildProjectDirectory)\..\Balls.Windows.Helper\bin\$(Configuration)\net10.0\balls-windows-helper*" />
+      <_WindowsCircleFilesHelperPublish Include="$(_WindowsCircleFilesHelperPublishDir)balls-windows-helper.exe" />
+      <_WindowsCircleFilesHelperPublish Include="$(_WindowsCircleFilesHelperPublishDir)balls-windows-helper.dll" />
+      <_WindowsCircleFilesHelperPublish Include="$(_WindowsCircleFilesHelperPublishDir)balls-windows-helper.deps.json" />
+      <_WindowsCircleFilesHelperPublish Include="$(_WindowsCircleFilesHelperPublishDir)balls-windows-helper.runtimeconfig.json" />
+      <_WindowsCircleFilesHelperPublish Include="$(_WindowsCircleFilesHelperPublishDir)balls-windows-helper.pdb" Condition="Exists('$(_WindowsCircleFilesHelperPublishDir)balls-windows-helper.pdb')" />
     </ItemGroup>
     <Copy SourceFiles="@(_WindowsCircleFilesHelperPublish)" DestinationFolder="$(PublishDir)" SkipUnchangedFiles="true" />
+    <Error
+      Condition="!Exists('$(PublishDir)balls-windows-helper.dll')"
+      Text="The published Windows Circle Files helper is incomplete." />
   </Target>
 </Project>

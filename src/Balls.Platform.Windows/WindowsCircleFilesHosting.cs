@@ -485,7 +485,10 @@ internal sealed class WindowsElevatedCircleFilesHelperClient : IWindowsCircleFil
         timeout.CancelAfter(ApprovalTimeout);
         try
         {
-            await pipe.WaitForConnectionAsync(timeout.Token).ConfigureAwait(false);
+            await WindowsCircleFilesHelperProcess.WaitForConnectionAsync(
+                pipe,
+                helper,
+                timeout.Token).ConfigureAwait(false);
             if (!WindowsNamedPipeProcessIdentity.TryGetClientProcessId(pipe, out var clientPid)
                 || clientPid != helper.Id)
             {
@@ -544,6 +547,31 @@ internal sealed record WindowsCircleFilesHelperEnvelope(
     WindowsCircleFilesGrantHelperPlan? Grant,
     WindowsCircleFilesGrantCleanupHelperPlan? GrantCleanup = null,
     WindowsCircleFilesHostRemovalHelperPlan? HostRemoval = null);
+
+internal static class WindowsCircleFilesHelperProcess
+{
+    internal static async Task WaitForConnectionAsync(
+        NamedPipeServerStream pipe,
+        Process helper,
+        CancellationToken cancellationToken)
+    {
+        var connection = pipe.WaitForConnectionAsync(cancellationToken);
+        var exit = helper.WaitForExitAsync(cancellationToken);
+        var completed = await Task.WhenAny(connection, exit).ConfigureAwait(false);
+        if (completed == exit)
+        {
+            await exit.ConfigureAwait(false);
+            if (!pipe.IsConnected)
+            {
+                throw new CircleFilesHostingException(
+                    "hosting_helper_unavailable",
+                    "The Windows Circle Files helper exited before connecting.");
+            }
+        }
+
+        await connection.ConfigureAwait(false);
+    }
+}
 
 internal static class WindowsCircleFilesHelperProtocol
 {

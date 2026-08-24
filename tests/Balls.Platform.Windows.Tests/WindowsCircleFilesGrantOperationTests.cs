@@ -165,7 +165,6 @@ public sealed class WindowsCircleFilesGrantOperationTests
         Assert.AreEqual("grant_authorization_invalid", cleanupError.Code);
 
         var script = WindowsCircleFilesGrantPowerShell.Script;
-        Assert.IsTrue(script.Length + 512 < 32_767);
         StringAssert.Contains(script, "SeDenyInteractiveLogonRight");
         StringAssert.Contains(script, "SeDenyRemoteInteractiveLogonRight");
         StringAssert.Contains(script, "LsaRemoveAccountRights");
@@ -181,6 +180,7 @@ public sealed class WindowsCircleFilesGrantOperationTests
         StringAssert.Contains(script, "Grant-SmbShareAccess");
         StringAssert.Contains(script, "GrantMarkersValid");
         StringAssert.Contains(script, "Select-Object -First 1001");
+        StringAssert.Contains(script, "CmdletizationQuery_NotFound_ClientUserName,Get-SmbSession");
         StringAssert.Contains(script, "Close-SmbSession -SessionId");
         StringAssert.Contains(script, "BlockedOwned");
         StringAssert.Contains(script, "$expectedTarget");
@@ -191,6 +191,66 @@ public sealed class WindowsCircleFilesGrantOperationTests
         var description = WindowsCircleFilesGrantPowerShell.AccountDescription(Plan);
         Assert.AreEqual("Balls grant v1 " + new string('f', 32), description);
         Assert.IsTrue(description.Length <= 48);
+    }
+
+    [TestMethod]
+    public async Task Protected_fixed_script_preserves_stdin_and_is_removed_after_use()
+    {
+        if (!OperatingSystem.IsWindows())
+        {
+            Assert.Inconclusive("The protected fixed-script transport requires Windows.");
+            return;
+        }
+
+        const string script =
+            "$value=[Console]::In.ReadToEnd();"
+            + "[PSCustomObject]@{Value=$value}|ConvertTo-Json -Compress";
+        string directoryPath;
+        string scriptPath;
+        using (var fixedScript = WindowsProtectedPowerShellScript.Create(script))
+        {
+            directoryPath = fixedScript.DirectoryPath;
+            scriptPath = fixedScript.Path;
+            Assert.AreEqual(script, File.ReadAllText(scriptPath));
+
+            var currentUser = WindowsIdentity.GetCurrent().User!;
+            var security = new FileInfo(scriptPath).GetAccessControl(AccessControlSections.All);
+            Assert.IsTrue(security.AreAccessRulesProtected);
+            var owner = security.GetOwner(typeof(SecurityIdentifier)) as SecurityIdentifier
+                ?? throw new AssertFailedException("The fixed script has no SID owner.");
+            Assert.AreEqual(
+                currentUser.Value,
+                owner.Value);
+            var expected = new HashSet<string>(StringComparer.Ordinal)
+            {
+                currentUser.Value,
+                new SecurityIdentifier(WellKnownSidType.LocalSystemSid, null).Value,
+            };
+            var rules = security.GetAccessRules(true, false, typeof(SecurityIdentifier))
+                .Cast<FileSystemAccessRule>().ToArray();
+            Assert.IsTrue(rules.All(rule =>
+                rule.AccessControlType == AccessControlType.Allow
+                && rule.FileSystemRights == FileSystemRights.FullControl
+                && rule.IdentityReference is SecurityIdentifier sid
+                && expected.Remove(sid.Value)));
+            Assert.AreEqual(0, expected.Count);
+
+            var startInfo = fixedScript.CreateStartInfo();
+            Assert.IsFalse(startInfo.Environment.ContainsKey("BALLS_FIXED_SCRIPT"));
+            Assert.AreEqual(directoryPath, startInfo.WorkingDirectory);
+            CollectionAssert.Contains(startInfo.ArgumentList.ToArray(), "-File");
+            CollectionAssert.Contains(startInfo.ArgumentList.ToArray(), scriptPath);
+            var output = await BoundedWindowsInspectionProcessRunner.RunWithInputAsync(
+                startInfo,
+                "stdin-probe",
+                TimeSpan.FromSeconds(10),
+                1024,
+                CancellationToken.None);
+            Assert.AreEqual("{\"Value\":\"stdin-probe\"}", output.Trim());
+        }
+
+        Assert.IsFalse(File.Exists(scriptPath));
+        Assert.IsFalse(Directory.Exists(directoryPath));
     }
 
     [TestMethod]
