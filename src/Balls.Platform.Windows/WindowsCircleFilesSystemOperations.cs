@@ -1,5 +1,6 @@
 using System.ComponentModel;
 using System.Diagnostics;
+using System.Runtime.InteropServices;
 using System.Runtime.Versioning;
 using System.Security.AccessControl;
 using System.Security.Principal;
@@ -269,9 +270,7 @@ internal sealed class WindowsCircleFilesSystemOperations :
                 "The folder ACL changed and was left untouched.");
         }
 
-        var security = new DirectorySecurity();
-        security.SetSecurityDescriptorSddlForm(journal.PreMutationSddl);
-        new DirectoryInfo(folder).SetAccessControl(security);
+        RestoreSecurityDescriptor(folder, journal.PreMutationSddl);
 
         var journalPath = Path.Combine(folder, JournalFileName);
         File.Delete(journalPath);
@@ -313,6 +312,54 @@ internal sealed class WindowsCircleFilesSystemOperations :
                 AccessControlSections.Owner | AccessControlSections.Group | AccessControlSections.Access)
             .GetSecurityDescriptorSddlForm(
                 AccessControlSections.Owner | AccessControlSections.Group | AccessControlSections.Access);
+
+    private static void RestoreSecurityDescriptor(string folder, string sddl)
+    {
+        if (!ConvertStringSecurityDescriptorToSecurityDescriptor(
+                sddl,
+                stringSecurityDescriptorRevision: 1,
+                out var securityDescriptor,
+                out _))
+        {
+            throw new Win32Exception(Marshal.GetLastWin32Error());
+        }
+
+        try
+        {
+            const uint ownerSecurityInformation = 0x00000001;
+            const uint groupSecurityInformation = 0x00000002;
+            const uint daclSecurityInformation = 0x00000004;
+            if (!SetFileSecurity(
+                    folder,
+                    ownerSecurityInformation | groupSecurityInformation | daclSecurityInformation,
+                    securityDescriptor))
+            {
+                throw new Win32Exception(Marshal.GetLastWin32Error());
+            }
+        }
+        finally
+        {
+            _ = LocalFree(securityDescriptor);
+        }
+    }
+
+    [DllImport("advapi32.dll", CharSet = CharSet.Unicode, SetLastError = true)]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    private static extern bool ConvertStringSecurityDescriptorToSecurityDescriptor(
+        string stringSecurityDescriptor,
+        uint stringSecurityDescriptorRevision,
+        out IntPtr securityDescriptor,
+        out uint securityDescriptorSize);
+
+    [DllImport("advapi32.dll", CharSet = CharSet.Unicode, SetLastError = true)]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    private static extern bool SetFileSecurity(
+        string fileName,
+        uint securityInformation,
+        IntPtr securityDescriptor);
+
+    [DllImport("kernel32.dll")]
+    private static extern IntPtr LocalFree(IntPtr memory);
 
     private static bool HasDesiredSecurity(string folder, string ownerSid)
     {
