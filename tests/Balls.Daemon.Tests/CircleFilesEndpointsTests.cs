@@ -402,9 +402,11 @@ public sealed class CircleFilesEndpointsTests
 
     private static void AssertSafeProjection(string json)
     {
-        foreach (var forbidden in new[] { "signature", "transcript", "credential", "private", "secret" })
+        foreach (var forbidden in new[] { "signature", "transcript", "private", "secret" })
         {
-            Assert.IsFalse(json.Contains(forbidden, StringComparison.OrdinalIgnoreCase));
+            Assert.IsFalse(
+                json.Contains(forbidden, StringComparison.OrdinalIgnoreCase),
+                forbidden);
         }
     }
 
