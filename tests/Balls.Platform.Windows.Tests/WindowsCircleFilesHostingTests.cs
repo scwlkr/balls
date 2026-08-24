@@ -283,8 +283,9 @@ public sealed class WindowsCircleFilesHostingTests
     [TestMethod]
     public async Task Helper_exit_before_pipe_connection_is_not_reported_as_consent_timeout()
     {
+        var pipeName = $"bx-{Guid.NewGuid():N}"[..19];
         await using var pipe = new NamedPipeServerStream(
-            $"balls-helper-exit-{Guid.NewGuid():N}",
+            pipeName,
             PipeDirection.InOut,
             1,
             PipeTransmissionMode.Byte,
