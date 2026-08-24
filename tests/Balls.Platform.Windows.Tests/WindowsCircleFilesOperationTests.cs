@@ -119,6 +119,41 @@ public sealed class WindowsCircleFilesOperationTests
         Assert.AreEqual(0, operations.RolledBack.Count);
     }
 
+    [TestMethod]
+    public async Task Host_removal_is_busy_before_confirmation_and_never_deletes_the_folder_step()
+    {
+        var operations = new StubRemovalOperations(openSessionCount: 1);
+
+        var busy = await new WindowsCircleFilesHostRemovalOperation(operations, operations)
+            .ExecuteAsync(Plan, terminateOpenSessions: false, CancellationToken.None);
+        Assert.AreEqual(CircleFilesCleanupStatus.Busy, busy.Status);
+        Assert.AreEqual(0, operations.RolledBack.Count);
+
+        var removed = await new WindowsCircleFilesHostRemovalOperation(operations, operations)
+            .ExecuteAsync(Plan, terminateOpenSessions: true, CancellationToken.None);
+        Assert.AreEqual(CircleFilesCleanupStatus.Removed, removed.Status);
+        CollectionAssert.AreEqual(
+            new[]
+            {
+                WindowsCircleFilesOperationStep.PrivateFirewallRule,
+                WindowsCircleFilesOperationStep.EncryptedShare,
+                WindowsCircleFilesOperationStep.OwnershipMarker,
+                WindowsCircleFilesOperationStep.FolderAcl,
+            },
+            operations.RolledBack.ToArray());
+        Assert.AreEqual(1, operations.PreserveFolderRollbackCount);
+
+        var substituted = new StubRemovalOperations(openSessionCount: 1);
+        substituted.States[WindowsCircleFilesOperationStep.EncryptedShare] =
+            WindowsCircleFilesOwnedState.Collision;
+        var collision = await Assert.ThrowsExactlyAsync<CircleFilesHostingException>(
+            () => new WindowsCircleFilesHostRemovalOperation(substituted, substituted)
+                .ExecuteAsync(Plan, terminateOpenSessions: true, CancellationToken.None).AsTask());
+        Assert.AreEqual("hosting_resource_collision", collision.Code);
+        Assert.AreEqual(0, substituted.TerminationCount);
+        Assert.AreEqual(0, substituted.RolledBack.Count);
+    }
+
     private sealed class StubOperations : IWindowsCircleFilesOperations
     {
         public Dictionary<WindowsCircleFilesOperationStep, WindowsCircleFilesOwnedState> States { get; } =
@@ -162,6 +197,78 @@ public sealed class WindowsCircleFilesOperationTests
             CancellationToken cancellationToken)
         {
             cancellationToken.ThrowIfCancellationRequested();
+            RolledBack.Add(step);
+            States[step] = WindowsCircleFilesOwnedState.Missing;
+            return ValueTask.CompletedTask;
+        }
+
+        public ValueTask RollbackFolderAclPreservingFolderAsync(
+            WindowsCircleFilesHelperPlan plan,
+            CancellationToken cancellationToken) =>
+            RollbackAsync(plan, WindowsCircleFilesOperationStep.FolderAcl, cancellationToken);
+    }
+
+    private sealed class StubRemovalOperations :
+        IWindowsCircleFilesOperations,
+        IWindowsCircleFilesHostSessionOperations
+    {
+        private int openSessionCount;
+
+        internal StubRemovalOperations(int openSessionCount)
+        {
+            this.openSessionCount = openSessionCount;
+            States = Enum.GetValues<WindowsCircleFilesOperationStep>()
+                .ToDictionary(step => step, _ => WindowsCircleFilesOwnedState.Owned);
+        }
+
+        internal Dictionary<WindowsCircleFilesOperationStep, WindowsCircleFilesOwnedState> States
+        { get; }
+
+        internal List<WindowsCircleFilesOperationStep> RolledBack { get; } = [];
+
+        internal int TerminationCount { get; private set; }
+
+        internal int PreserveFolderRollbackCount { get; private set; }
+
+        public ValueTask<int> CountOpenSessionsAsync(
+            WindowsCircleFilesHelperPlan plan,
+            CancellationToken cancellationToken) => ValueTask.FromResult(openSessionCount);
+
+        public ValueTask TerminateOpenSessionsAsync(
+            WindowsCircleFilesHelperPlan plan,
+            CancellationToken cancellationToken)
+        {
+            TerminationCount++;
+            openSessionCount = 0;
+            return ValueTask.CompletedTask;
+        }
+
+        public ValueTask RollbackFolderAclPreservingFolderAsync(
+            WindowsCircleFilesHelperPlan plan,
+            CancellationToken cancellationToken)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            PreserveFolderRollbackCount++;
+            RolledBack.Add(WindowsCircleFilesOperationStep.FolderAcl);
+            States[WindowsCircleFilesOperationStep.FolderAcl] = WindowsCircleFilesOwnedState.Missing;
+            return ValueTask.CompletedTask;
+        }
+
+        public ValueTask<WindowsCircleFilesOwnedState> InspectAsync(
+            WindowsCircleFilesHelperPlan plan,
+            WindowsCircleFilesOperationStep step,
+            CancellationToken cancellationToken) => ValueTask.FromResult(States[step]);
+
+        public ValueTask ApplyAsync(
+            WindowsCircleFilesHelperPlan plan,
+            WindowsCircleFilesOperationStep step,
+            CancellationToken cancellationToken) => throw new NotSupportedException();
+
+        public ValueTask RollbackAsync(
+            WindowsCircleFilesHelperPlan plan,
+            WindowsCircleFilesOperationStep step,
+            CancellationToken cancellationToken)
+        {
             RolledBack.Add(step);
             States[step] = WindowsCircleFilesOwnedState.Missing;
             return ValueTask.CompletedTask;

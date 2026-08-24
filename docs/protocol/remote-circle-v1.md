@@ -328,6 +328,10 @@ must occur before invitation, authority, membership, or message state changes.
   revocation.
 - Invitation consumption and resulting admission commit atomically. An identical retry may return
   the prior response; it cannot create another membership.
+- Circle Files grant revocation in this milestone is a local Owner-authorized state transition and
+  Windows-provider cleanup contract. Remote v1 does not yet replicate that proof or promise
+  multi-Anchor/offline convergence; future authorization on the authoritative local daemon fails
+  closed immediately, while already-open SMB sessions use the separate explicit termination path.
 
 ## Executable evidence
 

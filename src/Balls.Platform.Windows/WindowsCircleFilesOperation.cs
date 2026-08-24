@@ -36,6 +36,22 @@ internal interface IWindowsCircleFilesOperations
         WindowsCircleFilesHelperPlan plan,
         WindowsCircleFilesOperationStep step,
         CancellationToken cancellationToken);
+
+    ValueTask RollbackFolderAclPreservingFolderAsync(
+        WindowsCircleFilesHelperPlan plan,
+        CancellationToken cancellationToken);
+}
+
+internal interface IWindowsCircleFilesHostSessionOperations
+{
+    ValueTask<int> CountOpenSessionsAsync(
+        WindowsCircleFilesHelperPlan plan,
+        CancellationToken cancellationToken);
+
+    ValueTask TerminateOpenSessionsAsync(
+        WindowsCircleFilesHelperPlan plan,
+        CancellationToken cancellationToken);
+
 }
 
 internal sealed class WindowsCircleFilesOperation(IWindowsCircleFilesOperations operations)
@@ -172,4 +188,119 @@ internal sealed class WindowsCircleFilesOperation(IWindowsCircleFilesOperations 
         new(
             "hosting_resource_collision",
             "A required Windows resource exists but is not owned by this contribution operation.");
+}
+
+internal sealed class WindowsCircleFilesHostRemovalOperation(
+    IWindowsCircleFilesOperations operations,
+    IWindowsCircleFilesHostSessionOperations sessions)
+{
+    private static readonly WindowsCircleFilesOperationStep[] RemovalSteps =
+        Enum.GetValues<WindowsCircleFilesOperationStep>().Reverse().ToArray();
+
+    internal async ValueTask<CircleFilesCleanupExecution> ExecuteAsync(
+        WindowsCircleFilesHelperPlan plan,
+        bool terminateOpenSessions,
+        CancellationToken cancellationToken)
+    {
+        var states = await InspectAllAsync(plan, cancellationToken).ConfigureAwait(false);
+        if (states.Any(value => value.Value != WindowsCircleFilesOwnedState.Missing
+                && value.Value != WindowsCircleFilesOwnedState.Owned))
+        {
+            throw new CircleFilesHostingException(
+                "hosting_resource_collision",
+                "A Windows hosting resource is not exactly owned by this retired contribution.");
+        }
+
+        if (states.All(value => value.Value == WindowsCircleFilesOwnedState.Missing))
+        {
+            return new CircleFilesCleanupExecution(
+                CircleFilesCleanupStatus.AlreadyRemoved,
+                0);
+        }
+
+        var openSessions = await CountOpenSessionsAsync(plan, cancellationToken)
+            .ConfigureAwait(false);
+        if (openSessions > 0 && !terminateOpenSessions)
+        {
+            return new CircleFilesCleanupExecution(CircleFilesCleanupStatus.Busy, openSessions);
+        }
+
+        if (openSessions > 0)
+        {
+            await sessions.TerminateOpenSessionsAsync(plan, cancellationToken).ConfigureAwait(false);
+            if (await CountOpenSessionsAsync(plan, cancellationToken).ConfigureAwait(false) != 0)
+            {
+                return new CircleFilesCleanupExecution(CircleFilesCleanupStatus.Partial, openSessions);
+            }
+        }
+
+        try
+        {
+            foreach (var step in RemovalSteps)
+            {
+                if (states[step] == WindowsCircleFilesOwnedState.Owned)
+                {
+                    if (step == WindowsCircleFilesOperationStep.FolderAcl)
+                    {
+                        await operations.RollbackFolderAclPreservingFolderAsync(
+                            plan,
+                            cancellationToken).ConfigureAwait(false);
+                    }
+                    else
+                    {
+                        await operations.RollbackAsync(plan, step, cancellationToken)
+                            .ConfigureAwait(false);
+                    }
+                    if (await operations.InspectAsync(plan, step, cancellationToken)
+                            .ConfigureAwait(false) != WindowsCircleFilesOwnedState.Missing)
+                    {
+                        return new CircleFilesCleanupExecution(
+                            CircleFilesCleanupStatus.Partial,
+                            openSessions);
+                    }
+                }
+            }
+        }
+        catch (OperationCanceledException)
+        {
+            throw;
+        }
+        catch (Exception)
+        {
+            return new CircleFilesCleanupExecution(CircleFilesCleanupStatus.Partial, openSessions);
+        }
+
+        return new CircleFilesCleanupExecution(CircleFilesCleanupStatus.Removed, openSessions);
+    }
+
+    private async ValueTask<Dictionary<WindowsCircleFilesOperationStep, WindowsCircleFilesOwnedState>>
+        InspectAllAsync(
+            WindowsCircleFilesHelperPlan plan,
+            CancellationToken cancellationToken)
+    {
+        var states = new Dictionary<WindowsCircleFilesOperationStep, WindowsCircleFilesOwnedState>();
+        foreach (var step in RemovalSteps)
+        {
+            states[step] = await operations.InspectAsync(plan, step, cancellationToken)
+                .ConfigureAwait(false);
+        }
+
+        return states;
+    }
+
+    private async ValueTask<int> CountOpenSessionsAsync(
+        WindowsCircleFilesHelperPlan plan,
+        CancellationToken cancellationToken)
+    {
+        var count = await sessions.CountOpenSessionsAsync(plan, cancellationToken)
+            .ConfigureAwait(false);
+        if (count is < 0 or > 1_000)
+        {
+            throw new CircleFilesHostingException(
+                "hosting_session_inspection_failed",
+                "Windows returned an invalid or unbounded SMB session count.");
+        }
+
+        return count;
+    }
 }

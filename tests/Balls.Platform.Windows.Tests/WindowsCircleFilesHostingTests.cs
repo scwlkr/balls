@@ -1,3 +1,5 @@
+using System.Diagnostics;
+using System.IO.Pipes;
 using System.Net;
 using System.Runtime.Versioning;
 using System.Security.Cryptography;
@@ -137,10 +139,74 @@ public sealed class WindowsCircleFilesHostingTests
         StringAssert.Contains(script, "-Profile Private");
         StringAssert.Contains(script, "-RemoteAddress LocalSubnet");
         StringAssert.Contains(script, "-Service LanmanServer");
+        StringAssert.Contains(script, "FileServer-ServerManager-SMB-TCP-In");
+        StringAssert.Contains(script, "Restore-ServerManagerSmbFirewallBaseline");
+        StringAssert.Contains(script, "CanRestoreServerManagerSmbFirewall");
+        StringAssert.Contains(script, "built-in smb firewall baseline changed");
+        StringAssert.Contains(script, "NetSecurity\\Disable-NetFirewallRule -ErrorAction Stop");
+        StringAssert.Contains(script, "Close-SmbOpenFile -FileId");
         StringAssert.Contains(script, "Translate([System.Security.Principal.NTAccount])");
         Assert.IsFalse(script.Contains("Invoke-Expression", StringComparison.OrdinalIgnoreCase));
         Assert.IsFalse(script.Contains("ScriptBlock", StringComparison.OrdinalIgnoreCase));
+        Assert.IsFalse(script.Contains("Close-SmbSession", StringComparison.OrdinalIgnoreCase));
         Assert.IsFalse(script.Contains("-Profile Public", StringComparison.OrdinalIgnoreCase));
+
+        var createShareBlock = ExtractCommandBlock(script, "CreateShare", "RemoveShare");
+        StringAssert.Contains(createShareBlock, "Restore-ServerManagerSmbFirewallBaseline");
+        var removeShareBlock = ExtractCommandBlock(script, "RemoveShare", "InspectFirewall");
+        Assert.IsTrue(
+            removeShareBlock.IndexOf(
+                "Restore-ServerManagerSmbFirewallBaseline",
+                StringComparison.Ordinal)
+            < removeShareBlock.IndexOf("Remove-SmbShare", StringComparison.Ordinal));
+    }
+
+    [TestMethod]
+    public async Task Fixed_mutation_scripts_parse_in_Windows_PowerShell()
+    {
+        if (!OperatingSystem.IsWindows())
+        {
+            Assert.Inconclusive("The fixed hosting script requires Windows PowerShell.");
+            return;
+        }
+
+        foreach (var mutationScript in new[]
+        {
+            WindowsCircleFilesPowerShell.Script,
+            WindowsCircleFilesGrantPowerShell.Script,
+        })
+        {
+            using var fixedScript = WindowsProtectedPowerShellScript.Create(mutationScript);
+            var escapedPath = fixedScript.Path.Replace("'", "''", StringComparison.Ordinal);
+            var parser =
+                "$tokens=$null;$errors=$null;"
+                + "$null=[Management.Automation.Language.Parser]::ParseFile('"
+                + escapedPath
+                + "',[ref]$tokens,[ref]$errors);"
+                + "if($errors.Count -ne 0){exit 1}";
+            var startInfo = new ProcessStartInfo
+            {
+                FileName = Path.Combine(
+                    Environment.GetFolderPath(Environment.SpecialFolder.System),
+                    "WindowsPowerShell",
+                    "v1.0",
+                    "powershell.exe"),
+                WorkingDirectory = fixedScript.DirectoryPath,
+                UseShellExecute = false,
+                CreateNoWindow = true,
+            };
+            startInfo.ArgumentList.Add("-NoLogo");
+            startInfo.ArgumentList.Add("-NoProfile");
+            startInfo.ArgumentList.Add("-NonInteractive");
+            startInfo.ArgumentList.Add("-Command");
+            startInfo.ArgumentList.Add(parser);
+            using var process = Process.Start(startInfo);
+            Assert.IsNotNull(process);
+
+            await process.WaitForExitAsync();
+
+            Assert.AreEqual(0, process.ExitCode);
+        }
     }
 
     [TestMethod]
@@ -155,8 +221,18 @@ public sealed class WindowsCircleFilesHostingTests
                 WindowsCircleFilesPowerShellCommand.InspectFirewall,
                 WindowsCircleFilesPowerShellCommand.CreateFirewall,
                 WindowsCircleFilesPowerShellCommand.RemoveFirewall,
+                WindowsCircleFilesPowerShellCommand.CountOpenSessions,
+                WindowsCircleFilesPowerShellCommand.TerminateOpenSessions,
             },
             Enum.GetValues<WindowsCircleFilesPowerShellCommand>());
+    }
+
+    private static string ExtractCommandBlock(string script, string command, string nextCommand)
+    {
+        var start = script.IndexOf($"'{command}' {{", StringComparison.Ordinal);
+        var end = script.IndexOf($"'{nextCommand}' {{", start, StringComparison.Ordinal);
+        Assert.IsTrue(start >= 0 && end > start);
+        return script[start..end];
     }
 
     [TestMethod]
@@ -202,6 +278,35 @@ public sealed class WindowsCircleFilesHostingTests
                 new string('x', 100),
                 maximumBytes: 20,
             CancellationToken.None).AsTask());
+    }
+
+    [TestMethod]
+    public async Task Helper_exit_before_pipe_connection_is_not_reported_as_consent_timeout()
+    {
+        var pipeName = $"bx-{Guid.NewGuid():N}"[..19];
+        await using var pipe = new NamedPipeServerStream(
+            pipeName,
+            PipeDirection.InOut,
+            1,
+            PipeTransmissionMode.Byte,
+            PipeOptions.Asynchronous);
+        var startInfo = new ProcessStartInfo
+        {
+            FileName = OperatingSystem.IsWindows() ? "cmd.exe" : "/bin/sh",
+            UseShellExecute = false,
+        };
+        startInfo.ArgumentList.Add(OperatingSystem.IsWindows() ? "/c" : "-c");
+        startInfo.ArgumentList.Add("exit 9");
+        using var helper = Process.Start(startInfo);
+        Assert.IsNotNull(helper);
+
+        var exception = await Assert.ThrowsExactlyAsync<CircleFilesHostingException>(
+            () => WindowsCircleFilesHelperProcess.WaitForConnectionAsync(
+                pipe,
+                helper,
+                CancellationToken.None));
+
+        Assert.AreEqual("hosting_helper_unavailable", exception.Code);
     }
 
     [TestMethod]

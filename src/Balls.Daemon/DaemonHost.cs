@@ -155,7 +155,15 @@ public static class DaemonHost
                 circleApplication,
                 filesApplication,
                 store,
-                host.CircleFilesMemberMapping);
+                store,
+                host.CircleFilesMemberMapping,
+                TimeProvider.System);
+            var filesLifecycleApplication = new CircleFilesLifecycleApplication(
+                filesApplication,
+                store,
+                store,
+                host.CircleFilesLifecycle,
+                TimeProvider.System);
             var browserAccess = new BrowserAccessBroker(
                 TimeProvider.System,
                 launchLifetime: TimeSpan.FromMinutes(1),
@@ -570,6 +578,79 @@ public static class DaemonHost
                     }
                 })
                 .Produces<MemberAccessGrantResponse>(StatusCodes.Status201Created)
+                .Produces<ErrorResponse>(StatusCodes.Status400BadRequest)
+                .Produces<ErrorResponse>(StatusCodes.Status404NotFound)
+                .Produces<ErrorResponse>(StatusCodes.Status409Conflict);
+            application.MapPost(
+                ControlRoutes.Circles + "/{circleId}/files/contributions/{contributionId}/grants/{grantId}/revoke",
+                (string circleId, string contributionId, string grantId,
+                    RevokeMemberAccessGrantRequest request, CancellationToken token) =>
+                    CircleFilesLifecycleEndpoints.RevokeGrantAsync(
+                        filesLifecycleApplication,
+                        circleId,
+                        contributionId,
+                        grantId,
+                        request,
+                        token))
+                .Produces<MemberAccessGrantRevocationResponse>(StatusCodes.Status200OK)
+                .Produces<ErrorResponse>(StatusCodes.Status400BadRequest)
+                .Produces<ErrorResponse>(StatusCodes.Status404NotFound)
+                .Produces<ErrorResponse>(StatusCodes.Status409Conflict);
+            application.MapPost(
+                ControlRoutes.Circles + "/{circleId}/files/contributions/{contributionId}/grants/{grantId}/cleanup/preview",
+                (string circleId, string contributionId, string grantId,
+                    PreviewCircleFilesGrantCleanupRequest request, CancellationToken token) =>
+                    CircleFilesLifecycleEndpoints.PreviewGrantCleanupAsync(
+                        filesLifecycleApplication,
+                        circleId,
+                        contributionId,
+                        grantId,
+                        request,
+                        token))
+                .Produces<CircleFilesGrantCleanupPlanResponse>(StatusCodes.Status200OK)
+                .Produces<ErrorResponse>(StatusCodes.Status400BadRequest)
+                .Produces<ErrorResponse>(StatusCodes.Status404NotFound)
+                .Produces<ErrorResponse>(StatusCodes.Status409Conflict);
+            application.MapPost(
+                ControlRoutes.Circles + "/{circleId}/files/contributions/{contributionId}/grants/{grantId}/cleanup/apply",
+                (string circleId, string contributionId, string grantId,
+                    ApplyCircleFilesGrantCleanupRequest request, CancellationToken token) =>
+                    CircleFilesLifecycleEndpoints.ApplyGrantCleanupAsync(
+                        filesLifecycleApplication,
+                        circleId,
+                        contributionId,
+                        grantId,
+                        request,
+                        token))
+                .Produces<CircleFilesGrantCleanupResultResponse>(StatusCodes.Status200OK)
+                .Produces<ErrorResponse>(StatusCodes.Status400BadRequest)
+                .Produces<ErrorResponse>(StatusCodes.Status404NotFound)
+                .Produces<ErrorResponse>(StatusCodes.Status409Conflict);
+            application.MapPost(
+                ControlRoutes.Circles + "/{circleId}/files/contributions/{contributionId}/host/remove/preview",
+                (string circleId, string contributionId,
+                    PreviewCircleFilesHostRemovalRequest request, CancellationToken token) =>
+                    CircleFilesLifecycleEndpoints.PreviewHostRemovalAsync(
+                        filesLifecycleApplication,
+                        circleId,
+                        contributionId,
+                        request,
+                        token))
+                .Produces<CircleFilesHostRemovalPlanResponse>(StatusCodes.Status200OK)
+                .Produces<ErrorResponse>(StatusCodes.Status400BadRequest)
+                .Produces<ErrorResponse>(StatusCodes.Status404NotFound)
+                .Produces<ErrorResponse>(StatusCodes.Status409Conflict);
+            application.MapPost(
+                ControlRoutes.Circles + "/{circleId}/files/contributions/{contributionId}/host/remove/apply",
+                (string circleId, string contributionId,
+                    ApplyCircleFilesHostRemovalRequest request, CancellationToken token) =>
+                    CircleFilesLifecycleEndpoints.ApplyHostRemovalAsync(
+                        filesLifecycleApplication,
+                        circleId,
+                        contributionId,
+                        request,
+                        token))
+                .Produces<CircleFilesHostRemovalResultResponse>(StatusCodes.Status200OK)
                 .Produces<ErrorResponse>(StatusCodes.Status400BadRequest)
                 .Produces<ErrorResponse>(StatusCodes.Status404NotFound)
                 .Produces<ErrorResponse>(StatusCodes.Status409Conflict);

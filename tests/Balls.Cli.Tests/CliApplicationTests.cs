@@ -104,7 +104,7 @@ public sealed class CliApplicationTests
         Assert.AreEqual(string.Empty, misplacedOutput.ToString());
         Assert.AreEqual(
             "balls: --output must be either 'text' or 'json'." + Environment.NewLine
-                + "commands: ui | status | circle create | circle join | circle list | member list | node list | invitation create | invitation redeem | message send | message list | files readiness | files contribution create/list | files grant create/list/credential-preview/credential-apply | files host preview/apply | files mapping preview/map/inspect/unmap"
+                + "commands: ui | status | circle create | circle join | circle list | member list | node list | invitation create | invitation redeem | message send | message list | files readiness | files contribution create/list | files grant create/list/credential-preview/credential-apply/revoke/cleanup-preview/cleanup-apply | files host preview/apply/remove-preview/remove-apply | files mapping preview/map/inspect/unmap"
                 + Environment.NewLine,
             unsupportedError.ToString());
         StringAssert.StartsWith(misplacedError.ToString(), "balls: unknown command.");
@@ -209,6 +209,31 @@ public sealed class CliApplicationTests
         StringAssert.Contains(preview, "Drive: M:");
         StringAssert.Contains(preview, "Available: M:, N:");
         StringAssert.Contains(mapped, "password remains protected");
+        Assert.IsFalse(preview.Contains(new string('b', 64), StringComparison.Ordinal));
+    }
+
+    [TestMethod]
+    public void Circle_Files_cleanup_output_requires_explicit_session_confirmation_and_preserves_folder()
+    {
+        var plan = new CircleFilesGrantCleanupPlanResponse(
+            1,
+            new string('a', 64),
+            "windows-smb-3.1.1-v1",
+            @"C:\BallsShares\Example",
+            "balls-example",
+            "BallsG-abcdef0123456",
+            new string('b', 64),
+            1,
+            ["Remove exact owned grant state."]);
+
+        var preview = CliOutput.RenderFilesGrantCleanupPlan(plan);
+        var busy = CliOutput.RenderFilesGrantCleanupResult(
+            new CircleFilesGrantCleanupResultResponse("busy", 2, plan));
+
+        StringAssert.Contains(preview, "--terminate-open-sessions true");
+        StringAssert.Contains(preview, @"Folder preserved: C:\BallsShares\Example");
+        StringAssert.Contains(busy, "Grant cleanup: busy");
+        StringAssert.Contains(busy, "Open sessions: 2");
         Assert.IsFalse(preview.Contains(new string('b', 64), StringComparison.Ordinal));
     }
 
@@ -420,6 +445,28 @@ public sealed class CliApplicationTests
         Assert.AreEqual(grant.Id, structuredGrants.Grants[0].Id);
         Assert.AreEqual(string.Empty, createContribution.StandardError);
         Assert.AreEqual(string.Empty, createGrant.StandardError);
+
+        var revoke = await RunAsync(
+            pipeName,
+            "--output",
+            "json",
+            "files",
+            "grant",
+            "revoke",
+            "--circle",
+            circleId,
+            "--contribution",
+            contribution.Id,
+            "--grant",
+            grant.Id,
+            "--generation",
+            grant.Generation.ToString(System.Globalization.CultureInfo.InvariantCulture),
+            "--request-id",
+            "0198d000-4000-7000-8000-000000000003");
+        var revoked = DeserializeResult<MemberAccessGrantRevocationResponse>(revoke.StandardOutput);
+        Assert.AreEqual(CliExitCodes.Success, revoke.ExitCode);
+        Assert.AreEqual("revoked", revoked.Status);
+        Assert.AreEqual(grant.Id, revoked.GrantId);
     }
 
     [TestMethod]

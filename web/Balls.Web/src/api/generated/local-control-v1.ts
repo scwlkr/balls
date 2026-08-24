@@ -765,6 +765,354 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  "/control/v1/circles/{circleId}/files/contributions/{contributionId}/grants/{grantId}/revoke": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    post: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path: {
+          circleId: string;
+          contributionId: string;
+          grantId: string;
+        };
+        cookie?: never;
+      };
+      requestBody: {
+        content: {
+          "application/json": components["schemas"]["RevokeMemberAccessGrantRequest"];
+        };
+      };
+      responses: {
+        /** @description OK */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["MemberAccessGrantRevocationResponse"];
+          };
+        };
+        /** @description Bad Request */
+        400: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["ErrorResponse"];
+          };
+        };
+        /** @description Not Found */
+        404: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["ErrorResponse"];
+          };
+        };
+        /** @description Conflict */
+        409: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["ErrorResponse"];
+          };
+        };
+      };
+    };
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/control/v1/circles/{circleId}/files/contributions/{contributionId}/grants/{grantId}/cleanup/preview": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    post: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path: {
+          circleId: string;
+          contributionId: string;
+          grantId: string;
+        };
+        cookie?: never;
+      };
+      requestBody: {
+        content: {
+          "application/json": components["schemas"]["PreviewCircleFilesGrantCleanupRequest"];
+        };
+      };
+      responses: {
+        /** @description OK */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["CircleFilesGrantCleanupPlanResponse"];
+          };
+        };
+        /** @description Bad Request */
+        400: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["ErrorResponse"];
+          };
+        };
+        /** @description Not Found */
+        404: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["ErrorResponse"];
+          };
+        };
+        /** @description Conflict */
+        409: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["ErrorResponse"];
+          };
+        };
+      };
+    };
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/control/v1/circles/{circleId}/files/contributions/{contributionId}/grants/{grantId}/cleanup/apply": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    post: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path: {
+          circleId: string;
+          contributionId: string;
+          grantId: string;
+        };
+        cookie?: never;
+      };
+      requestBody: {
+        content: {
+          "application/json": components["schemas"]["ApplyCircleFilesGrantCleanupRequest"];
+        };
+      };
+      responses: {
+        /** @description OK */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["CircleFilesGrantCleanupResultResponse"];
+          };
+        };
+        /** @description Bad Request */
+        400: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["ErrorResponse"];
+          };
+        };
+        /** @description Not Found */
+        404: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["ErrorResponse"];
+          };
+        };
+        /** @description Conflict */
+        409: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["ErrorResponse"];
+          };
+        };
+      };
+    };
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/control/v1/circles/{circleId}/files/contributions/{contributionId}/host/remove/preview": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    post: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path: {
+          circleId: string;
+          contributionId: string;
+        };
+        cookie?: never;
+      };
+      requestBody: {
+        content: {
+          "application/json": components["schemas"]["PreviewCircleFilesHostRemovalRequest"];
+        };
+      };
+      responses: {
+        /** @description OK */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["CircleFilesHostRemovalPlanResponse"];
+          };
+        };
+        /** @description Bad Request */
+        400: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["ErrorResponse"];
+          };
+        };
+        /** @description Not Found */
+        404: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["ErrorResponse"];
+          };
+        };
+        /** @description Conflict */
+        409: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["ErrorResponse"];
+          };
+        };
+      };
+    };
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/control/v1/circles/{circleId}/files/contributions/{contributionId}/host/remove/apply": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    post: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path: {
+          circleId: string;
+          contributionId: string;
+        };
+        cookie?: never;
+      };
+      requestBody: {
+        content: {
+          "application/json": components["schemas"]["ApplyCircleFilesHostRemovalRequest"];
+        };
+      };
+      responses: {
+        /** @description OK */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["CircleFilesHostRemovalResultResponse"];
+          };
+        };
+        /** @description Bad Request */
+        400: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["ErrorResponse"];
+          };
+        };
+        /** @description Not Found */
+        404: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["ErrorResponse"];
+          };
+        };
+        /** @description Conflict */
+        409: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["ErrorResponse"];
+          };
+        };
+      };
+    };
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   "/control/v1/circles/{circleId}/files/contributions/{contributionId}/grants/{grantId}/credential/preview": {
     parameters: {
       query?: never;
@@ -1974,9 +2322,19 @@ export interface paths {
 export type webhooks = Record<string, never>;
 export interface components {
   schemas: {
+    ApplyCircleFilesGrantCleanupRequest: {
+      folderPath: string;
+      planId: string;
+      terminateOpenSessions: boolean;
+    };
     ApplyCircleFilesGrantCredentialRequest: {
       folderPath: string;
       planId: string;
+    };
+    ApplyCircleFilesHostRemovalRequest: {
+      folderPath: string;
+      planId: string;
+      terminateOpenSessions: boolean;
     };
     ApplyCircleFilesHostRequest: {
       folderPath: string;
@@ -2017,6 +2375,25 @@ export interface components {
       /** Format: date-time */
       authorizedAtUtc: string;
     };
+    CircleFilesGrantCleanupPlanResponse: {
+      /** Format: int32 */
+      contractVersion: number | string;
+      planId: string;
+      provider: string;
+      folderPath: string;
+      shareName: string;
+      accountName: string;
+      ownershipId: string;
+      /** Format: int64 */
+      generation: number | string;
+      actions: string[];
+    };
+    CircleFilesGrantCleanupResultResponse: {
+      status: string;
+      /** Format: int32 */
+      openSessionCount: number | string;
+      plan: components["schemas"]["CircleFilesGrantCleanupPlanResponse"];
+    };
     CircleFilesGrantCredentialApplyResponse: {
       status: string;
       plan: components["schemas"]["CircleFilesGrantCredentialPlanResponse"];
@@ -2050,6 +2427,23 @@ export interface components {
       ownershipId: string;
       targetExists: boolean;
       actions: string[];
+    };
+    CircleFilesHostRemovalPlanResponse: {
+      /** Format: int32 */
+      contractVersion: number | string;
+      planId: string;
+      provider: string;
+      folderPath: string;
+      shareName: string;
+      firewallRuleName: string;
+      ownershipId: string;
+      actions: string[];
+    };
+    CircleFilesHostRemovalResultResponse: {
+      status: string;
+      /** Format: int32 */
+      openSessionCount: number | string;
+      plan: components["schemas"]["CircleFilesHostRemovalPlanResponse"];
     };
     CircleFilesMemberMappingInspectionResponse: {
       status: string;
@@ -2191,6 +2585,15 @@ export interface components {
       /** Format: date-time */
       authorizedAtUtc: string;
     };
+    MemberAccessGrantRevocationResponse: {
+      requestId: string;
+      grantId: string;
+      /** Format: int64 */
+      revokedGeneration: number | string;
+      /** Format: date-time */
+      revokedAtUtc: string;
+      status: string;
+    };
     MemberListResponse: {
       circleId: string;
       members: components["schemas"]["MemberResponse"][];
@@ -2212,7 +2615,13 @@ export interface components {
       /** Format: date-time */
       createdAtUtc: string;
     };
+    PreviewCircleFilesGrantCleanupRequest: {
+      folderPath: string;
+    };
     PreviewCircleFilesGrantCredentialRequest: {
+      folderPath: string;
+    };
+    PreviewCircleFilesHostRemovalRequest: {
       folderPath: string;
     };
     PreviewCircleFilesHostRequest: {
@@ -2230,6 +2639,11 @@ export interface components {
       invitationId: string;
       redemptionId: string;
       status: string;
+    };
+    RevokeMemberAccessGrantRequest: {
+      requestId: string;
+      /** Format: int64 */
+      expectedGeneration: number | string;
     };
     SendCircleMessageRequest: {
       requestId: string;

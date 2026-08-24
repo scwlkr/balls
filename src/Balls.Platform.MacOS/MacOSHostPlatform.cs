@@ -25,7 +25,8 @@ public static class MacOSHostPlatform
             new UnsupportedCircleFilesReadinessInspector(),
             new UnsupportedCircleFilesHostProvisioner(),
             new UnsupportedCircleFilesGrantCredentialProvisioner(),
-            new UnsupportedCircleFilesMemberMapper());
+            new UnsupportedCircleFilesMemberMapper(),
+            new UnsupportedCircleFilesLifecycleManager());
     }
 
     public static string GetDefaultStateDirectory()

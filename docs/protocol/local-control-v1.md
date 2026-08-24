@@ -2,7 +2,8 @@
 
 **Status:** implemented through provider-neutral Circle Files contribution and Access Grant
 definition, read-only Windows SMB readiness, dedicated Windows folder hosting, limited per-grant
-Windows SMB credential provisioning, and exact unelevated Windows Explorer mapping.
+Windows SMB credential provisioning, exact unelevated Windows Explorer mapping, generation-bound
+grant revocation, and ownership-proven provider cleanup.
 
 This is the versioned, machine-local contract between `balls` or another local integration and
 `ballsd`. It is not a Node-to-Node or Circle replication protocol.
@@ -129,6 +130,9 @@ material. Selecting JSON output for this interactive command is a usage error.
 | Circle Files grant credential apply | `status` (`applied` or `already-applied`) and the unchanged public plan; no password or protected secret |
 | Circle Files mapping plan | contract version, deterministic `planId`, numeric private endpoint, exact UNC/credential target/drive/friendly name/ownership ID, available drive letters, and ordered actions |
 | Circle Files mapping inspect/apply | `status` plus the public mapping plan; no password or protected secret |
+| Access Grant revocation | request/grant IDs, exact revoked generation/time, and `revoked`; no proof material |
+| Grant cleanup plan/result | deterministic exact-owned plan; `removed`, `already-removed`, `busy`, or `partial` plus bounded open-session count |
+| Host removal plan/result | deterministic share/firewall/metadata cleanup plan with the same bounded outcomes; folder contents are preserved |
 | Error | `code`, `message` |
 
 The v1 Member roles are `owner` and `member`. Contribution lifecycles are `defined`, `active`, and
@@ -319,6 +323,29 @@ Unmap uses non-forced persistent removal and deletes the label and credential on
 ownership fields still match. The CLI commands are `balls files mapping
 preview|map|inspect|unmap`; only `map` accepts `--plan`.
 
+### Circle Files revocation and cleanup
+
+`POST .../grants/{grantId}/revoke` requires a canonical request UUID and positive
+`expectedGeneration`. It commits the exact dual-signed revocation before returning; every future
+active credential/mapping authorization then fails closed. Mapping `unmap` remains available so an
+already-revoked client can remove its exact owned mapping. Unmap records a durable `requested`
+event before mutation and an `unmapped`, `already-unmapped`, refused, failed, or cancelled outcome;
+an interrupted request remains visible for idempotent retry.
+
+`POST .../grants/{grantId}/cleanup/preview` accepts `folderPath` and requires the persisted
+revocation plus exact protected provider binding. `cleanup/apply` additionally requires the
+deterministic `planId`. With `terminateOpenSessions=false`, exact open grant sessions return `busy`
+without mutation. A second explicit apply with `terminateOpenSessions=true` is accepted only when
+the latest completed audit outcome for that exact operation is `busy`, and may terminate only the
+exact grant account's sessions. Changed or ambiguous ownership returns conflict before session
+termination or resource removal.
+
+`POST .../host/remove/preview` and `/remove/apply` use the same two-step session contract. They are
+refused until all grants are revoked and every issued grant credential is removed. Host removal
+closes only exact open-file handles under the contribution and never closes their containing SMB
+sessions. It targets only the recorded Balls share, firewall rule, marker, and journal; it never
+deletes the contributed folder or user files. `partial` remains restart/retry state, not success.
+
 ### `POST /control/v1/circles/{circleId}/invitations`
 
 Creates a canonical single-use Circle invitation. The request is
@@ -380,6 +407,9 @@ protected local IPC; it is not reachable from the browser listener.
 | `GET /control/v1/files/readiness` | `200` with the local Node's ordered Circle Files readiness report |
 | `GET /control/v1/circles/{circleId}/files/contributions` | `200` with stable ordered Contribution projections |
 | `GET /control/v1/circles/{circleId}/files/contributions/{contributionId}/grants` | `200` with stable ordered Access Grant projections |
+| `POST .../grants/{grantId}/revoke` | `200` after exact-generation revocation commits |
+| `POST .../grants/{grantId}/cleanup/preview` / `cleanup/apply` | deterministic preview and bounded lifecycle outcome |
+| `POST .../host/remove/preview` / `remove/apply` | deterministic final host cleanup preview and bounded lifecycle outcome |
 
 Lists are returned in stable creation/identifier order as defined by the local store. An unknown
 Circle returns `404 Not Found`.
@@ -440,9 +470,9 @@ Handled application errors use this shape:
 | 409 | `creation_request_conflict` |
 | 409 | `admission_attempt_conflict` |
 | 409 | `message_request_conflict`, `conflict` |
-| 409 | `circle_files_contribution_request_conflict`, `circle_files_grant_request_conflict`, `circle_files_grant_exists` |
+| 409 | `circle_files_contribution_request_conflict`, `circle_files_grant_request_conflict`, `circle_files_grant_exists`, `circle_files_grant_generation_changed` |
 | 409 | `hosting_plan_changed`, `hosting_prerequisites_not_ready`, `hosting_folder_not_empty`, `hosting_ownership_collision`, `hosting_resource_collision`, `hosting_helper_unavailable`, `hosting_helper_authentication_failed`, `hosting_helper_invalid_response`, `hosting_identity_unavailable`, `hosting_consent_cancelled`, `hosting_consent_timeout`, `hosting_apply_failed`, `hosting_recovery_incomplete` |
-| 409 | `grant_plan_changed`, `grant_resource_collision`, `grant_apply_failed`, `circle_files_provider_credential_conflict` |
+| 409 | `grant_plan_changed`, `grant_cleanup_plan_changed`, `host_removal_plan_changed`, `grant_resource_collision`, `grant_apply_failed`, `circle_files_provider_credential_conflict`, `circle_files_grants_remain`, `circle_files_provider_credentials_remain` |
 | 409 | `mapping_plan_changed`, `mapping_drive_collision`, `mapping_credential_collision`, `mapping_label_collision`, `mapping_resource_collision`, `mapping_share_identity_mismatch`, `mapping_recovery_incomplete` |
 | 409 | `replayed` |
 | 502 | `connection_failed`, authenticated remote-channel errors |
@@ -456,7 +486,8 @@ v1 does not expose invitation/join, message-authoring, Circle Files readiness, h
 or grant-credential provisioning to the browser. The local API and CLI implement the exact
 dedicated-host operation, one limited account/ACL operation per Access Grant, and explicit mapping.
 They do not enable SMB features or policy, start services, change network profiles or global firewall policy,
-adopt existing folders with content, delete user files, activate/revoke Contributions or grants,
-rotate/revoke provider credentials, synchronize or replicate content, add version history/trash,
+adopt existing folders with content, delete user files, activate/revoke Contributions, rotate
+provider credentials, securely erase protected recovery material, synchronize or replicate content,
+add version history/trash,
 discover peers, automatically choose/replace drive letters, share credentials between Members, or
 add automatic/multiple-Anchor behavior.

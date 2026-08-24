@@ -112,9 +112,20 @@ public sealed class WindowsCircleFilesHostProvisioner : ICircleFilesHostProvisio
         CircleFilesHostRequest request,
         CancellationToken cancellationToken) => PrepareAsync(request, cancellationToken);
 
+    internal ValueTask<WindowsCircleFilesHelperPlan> PrepareForRemovalAsync(
+        CircleFilesHostRequest request,
+        CancellationToken cancellationToken) =>
+        PrepareAsync(
+            request,
+            cancellationToken,
+            requireReadiness: false,
+            allowOwnedContent: true);
+
     private async ValueTask<WindowsCircleFilesHelperPlan> PrepareAsync(
         CircleFilesHostRequest request,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        bool requireReadiness = true,
+        bool allowOwnedContent = false)
     {
         ArgumentNullException.ThrowIfNull(request);
         ValidateCanonicalId(request.CircleId, "Circle");
@@ -135,12 +146,15 @@ public sealed class WindowsCircleFilesHostProvisioner : ICircleFilesHostProvisio
                 "The contribution authorization binding is invalid.");
         }
 
-        var report = await readiness.InspectAsync(cancellationToken).ConfigureAwait(false);
-        if (report.Status != CircleFilesReadinessStatus.Ready)
+        if (requireReadiness)
         {
-            throw new CircleFilesHostingException(
-                "hosting_prerequisites_not_ready",
-                "Windows SMB hosting prerequisites are not ready.");
+            var report = await readiness.InspectAsync(cancellationToken).ConfigureAwait(false);
+            if (report.Status != CircleFilesReadinessStatus.Ready)
+            {
+                throw new CircleFilesHostingException(
+                    "hosting_prerequisites_not_ready",
+                    "Windows SMB hosting prerequisites are not ready.");
+            }
         }
 
         var fullPath = ValidatePath(request.FolderPath);
@@ -192,7 +206,7 @@ public sealed class WindowsCircleFilesHostProvisioner : ICircleFilesHostProvisio
                         planId,
                         fullPath,
                         environment.CurrentUserSid);
-                if (entries.Count != 0 && !recoverable)
+                if (entries.Count != 0 && !recoverable && !allowOwnedContent)
                 {
                     throw new CircleFilesHostingException(
                         "hosting_folder_not_empty",
@@ -471,7 +485,10 @@ internal sealed class WindowsElevatedCircleFilesHelperClient : IWindowsCircleFil
         timeout.CancelAfter(ApprovalTimeout);
         try
         {
-            await pipe.WaitForConnectionAsync(timeout.Token).ConfigureAwait(false);
+            await WindowsCircleFilesHelperProcess.WaitForConnectionAsync(
+                pipe,
+                helper,
+                timeout.Token).ConfigureAwait(false);
             if (!WindowsNamedPipeProcessIdentity.TryGetClientProcessId(pipe, out var clientPid)
                 || clientPid != helper.Id)
             {
@@ -521,12 +538,40 @@ internal sealed class WindowsElevatedCircleFilesHelperClient : IWindowsCircleFil
 internal sealed record WindowsCircleFilesHelperResponse(
     string? Status,
     string? ErrorCode,
-    string Message);
+    string Message,
+    int OpenSessionCount = 0);
 
 internal sealed record WindowsCircleFilesHelperEnvelope(
     string Operation,
     WindowsCircleFilesHelperPlan? Host,
-    WindowsCircleFilesGrantHelperPlan? Grant);
+    WindowsCircleFilesGrantHelperPlan? Grant,
+    WindowsCircleFilesGrantCleanupHelperPlan? GrantCleanup = null,
+    WindowsCircleFilesHostRemovalHelperPlan? HostRemoval = null);
+
+internal static class WindowsCircleFilesHelperProcess
+{
+    internal static async Task WaitForConnectionAsync(
+        NamedPipeServerStream pipe,
+        Process helper,
+        CancellationToken cancellationToken)
+    {
+        var connection = pipe.WaitForConnectionAsync(cancellationToken);
+        var exit = helper.WaitForExitAsync(cancellationToken);
+        var completed = await Task.WhenAny(connection, exit).ConfigureAwait(false);
+        if (completed == exit)
+        {
+            await exit.ConfigureAwait(false);
+            if (!pipe.IsConnected)
+            {
+                throw new CircleFilesHostingException(
+                    "hosting_helper_unavailable",
+                    "The Windows Circle Files helper exited before connecting.");
+            }
+        }
+
+        await connection.ConfigureAwait(false);
+    }
+}
 
 internal static class WindowsCircleFilesHelperProtocol
 {
@@ -745,6 +790,108 @@ public static class WindowsCircleFilesHelperCommand
                         }
                     }
 
+                    if (envelope.Operation == "grant-remove"
+                        && envelope.GrantCleanup is { } grantCleanup)
+                    {
+                        try
+                        {
+                            if (grantCleanup.OwnerSid != daemonUserSid
+                                || grantCleanup.Secret.Length is < 24 or > 128)
+                            {
+                                await WriteErrorAsync(
+                                    pipe,
+                                    "hosting_helper_authentication_failed",
+                                    helperToken).ConfigureAwait(false);
+                                return 4;
+                            }
+
+                            WindowsCircleFilesGrantAuthorizationVerifier.ValidateCleanup(
+                                grantCleanup.Request);
+                            var hostVerifier = CreateHostVerifier(daemonUserSid);
+                            var grantVerifier = new WindowsCircleFilesGrantCredentialProvisioner(
+                                hostVerifier,
+                                new RejectNestedGrantHelper());
+                            var verifier = new WindowsCircleFilesLifecycleManager(
+                                hostVerifier,
+                                grantVerifier,
+                                new RejectLifecycleHelper());
+                            var recomputed = await verifier.PrepareGrantForHelperAsync(
+                                grantCleanup.Request,
+                                grantCleanup.Secret,
+                                grantCleanup.TerminateOpenSessions,
+                                helperToken).ConfigureAwait(false);
+                            if (!GrantCleanupPlansEqual(grantCleanup, recomputed))
+                            {
+                                await WriteErrorAsync(
+                                    pipe,
+                                    "hosting_helper_authentication_failed",
+                                    helperToken).ConfigureAwait(false);
+                                return 4;
+                            }
+
+                            var operations = new WindowsCircleFilesGrantSystemOperations();
+                            var result = await new WindowsCircleFilesGrantRemovalOperation(
+                                    operations,
+                                    operations)
+                                .ExecuteAsync(
+                                    recomputed.GrantPlan,
+                                    recomputed.TerminateOpenSessions,
+                                    helperToken).ConfigureAwait(false);
+                            await WriteCleanupAsync(pipe, result, helperToken).ConfigureAwait(false);
+                            return 0;
+                        }
+                        finally
+                        {
+                            CryptographicOperations.ZeroMemory(grantCleanup.Secret);
+                        }
+                    }
+
+                    if (envelope.Operation == "host-remove"
+                        && envelope.HostRemoval is { } hostRemoval)
+                    {
+                        if (hostRemoval.OwnerSid != daemonUserSid)
+                        {
+                            await WriteErrorAsync(
+                                pipe,
+                                "hosting_helper_authentication_failed",
+                                helperToken).ConfigureAwait(false);
+                            return 4;
+                        }
+
+                        WindowsCircleFilesHostAuthorizationVerifier.Validate(hostRemoval.Request);
+                        var hostVerifier = CreateHostVerifier(daemonUserSid);
+                        var grantVerifier = new WindowsCircleFilesGrantCredentialProvisioner(
+                            hostVerifier,
+                            new RejectNestedGrantHelper());
+                        var verifier = new WindowsCircleFilesLifecycleManager(
+                            hostVerifier,
+                            grantVerifier,
+                            new RejectLifecycleHelper());
+                        var recomputed = await verifier.PrepareHostForHelperAsync(
+                            hostRemoval.Request,
+                            hostRemoval.TerminateOpenSessions,
+                            helperToken).ConfigureAwait(false);
+                        if (!HostRemovalPlansEqual(hostRemoval, recomputed))
+                        {
+                            await WriteErrorAsync(
+                                pipe,
+                                "hosting_helper_authentication_failed",
+                                helperToken).ConfigureAwait(false);
+                            return 4;
+                        }
+
+                        var operations = new WindowsCircleFilesSystemOperations();
+                        var result = await new WindowsCircleFilesHostRemovalOperation(
+                                operations,
+                                operations)
+                            .ExecuteAsync(
+                                recomputed.HostPlan,
+                                recomputed.TerminateOpenSessions,
+                                helperToken).ConfigureAwait(false);
+                        await WriteCleanupAsync(pipe, result, helperToken).ConfigureAwait(false);
+                        return 0;
+                    }
+
                     await WriteErrorAsync(pipe, "hosting_helper_authentication_failed", helperToken)
                         .ConfigureAwait(false);
                     return 4;
@@ -775,6 +922,10 @@ public static class WindowsCircleFilesHelperCommand
         if (envelope.Grant is { } sensitiveGrant)
         {
             CryptographicOperations.ZeroMemory(sensitiveGrant.Secret);
+        }
+        if (envelope.GrantCleanup is { } sensitiveCleanup)
+        {
+            CryptographicOperations.ZeroMemory(sensitiveCleanup.Secret);
         }
     }
 
@@ -810,6 +961,56 @@ public static class WindowsCircleFilesHelperCommand
         && received.PublicPlan.Generation == recomputed.PublicPlan.Generation
         && received.PublicPlan.Actions.SequenceEqual(recomputed.PublicPlan.Actions, StringComparer.Ordinal)
         && CryptographicOperations.FixedTimeEquals(received.Secret, recomputed.Secret);
+
+    internal static bool GrantCleanupPlansEqual(
+        WindowsCircleFilesGrantCleanupHelperPlan received,
+        WindowsCircleFilesGrantCleanupHelperPlan recomputed) =>
+        received.OwnerSid == recomputed.OwnerSid
+        && received.TerminateOpenSessions == recomputed.TerminateOpenSessions
+        && GrantCleanupRequestsEqual(received.Request, recomputed.Request)
+        && GrantPlansEqual(received.GrantPlan, recomputed.GrantPlan)
+        && received.PublicPlan.ContractVersion == recomputed.PublicPlan.ContractVersion
+        && received.PublicPlan.PlanId == recomputed.PublicPlan.PlanId
+        && received.PublicPlan.Provider == recomputed.PublicPlan.Provider
+        && received.PublicPlan.FolderPath.Equals(
+            recomputed.PublicPlan.FolderPath,
+            StringComparison.OrdinalIgnoreCase)
+        && received.PublicPlan.ShareName == recomputed.PublicPlan.ShareName
+        && received.PublicPlan.AccountName == recomputed.PublicPlan.AccountName
+        && received.PublicPlan.OwnershipId == recomputed.PublicPlan.OwnershipId
+        && received.PublicPlan.Generation == recomputed.PublicPlan.Generation
+        && received.PublicPlan.Actions.SequenceEqual(recomputed.PublicPlan.Actions, StringComparer.Ordinal)
+        && CryptographicOperations.FixedTimeEquals(received.Secret, recomputed.Secret);
+
+    internal static bool HostRemovalPlansEqual(
+        WindowsCircleFilesHostRemovalHelperPlan received,
+        WindowsCircleFilesHostRemovalHelperPlan recomputed) =>
+        received.OwnerSid == recomputed.OwnerSid
+        && received.TerminateOpenSessions == recomputed.TerminateOpenSessions
+        && HostRequestsEqual(received.Request, recomputed.Request)
+        && PlansEqual(received.HostPlan, recomputed.HostPlan)
+        && received.PublicPlan.ContractVersion == recomputed.PublicPlan.ContractVersion
+        && received.PublicPlan.PlanId == recomputed.PublicPlan.PlanId
+        && received.PublicPlan.Provider == recomputed.PublicPlan.Provider
+        && received.PublicPlan.FolderPath.Equals(
+            recomputed.PublicPlan.FolderPath,
+            StringComparison.OrdinalIgnoreCase)
+        && received.PublicPlan.ShareName == recomputed.PublicPlan.ShareName
+        && received.PublicPlan.FirewallRuleName == recomputed.PublicPlan.FirewallRuleName
+        && received.PublicPlan.OwnershipId == recomputed.PublicPlan.OwnershipId
+        && received.PublicPlan.Actions.SequenceEqual(recomputed.PublicPlan.Actions, StringComparer.Ordinal);
+
+    private static bool GrantCleanupRequestsEqual(
+        CircleFilesGrantCleanupRequest received,
+        CircleFilesGrantCleanupRequest recomputed) =>
+        GrantRequestsEqual(received.Grant, recomputed.Grant)
+        && received.Revocation.RequestId == recomputed.Revocation.RequestId
+        && received.Revocation.CircleId == recomputed.Revocation.CircleId
+        && received.Revocation.ContributionId == recomputed.Revocation.ContributionId
+        && received.Revocation.GrantId == recomputed.Revocation.GrantId
+        && received.Revocation.RevokedGeneration == recomputed.Revocation.RevokedGeneration
+        && received.Revocation.AuthorizationDigest == recomputed.Revocation.AuthorizationDigest
+        && ProofsEqual(received.Revocation.Authorization, recomputed.Revocation.Authorization);
 
     private static bool GrantRequestsEqual(
         CircleFilesGrantCredentialRequest received,
@@ -890,6 +1091,27 @@ public static class WindowsCircleFilesHelperCommand
             MaximumMessageBytes,
             cancellationToken).ConfigureAwait(false);
 
+    private static async Task WriteCleanupAsync(
+        Stream pipe,
+        CircleFilesCleanupExecution result,
+        CancellationToken cancellationToken) =>
+        await WindowsCircleFilesHelperProtocol.WriteAsync(
+            pipe,
+            new WindowsCircleFilesHelperResponse(
+                result.Status switch
+                {
+                    CircleFilesCleanupStatus.Removed => "removed",
+                    CircleFilesCleanupStatus.AlreadyRemoved => "already-removed",
+                    CircleFilesCleanupStatus.Busy => "busy",
+                    CircleFilesCleanupStatus.Partial => "partial",
+                    _ => throw new ArgumentOutOfRangeException(nameof(result)),
+                },
+                null,
+                "The exact Circle Files cleanup operation completed.",
+                result.OpenSessionCount),
+            MaximumMessageBytes,
+            cancellationToken).ConfigureAwait(false);
+
     private sealed class RejectNestedHelper : IWindowsCircleFilesHelperClient
     {
         public ValueTask<CircleFilesHostApplyStatus> ApplyAsync(
@@ -904,5 +1126,18 @@ public static class WindowsCircleFilesHelperCommand
             WindowsCircleFilesGrantHelperPlan plan,
             CancellationToken cancellationToken) =>
             ValueTask.FromException<CircleFilesGrantCredentialApplyStatus>(new InvalidOperationException());
+    }
+
+    private sealed class RejectLifecycleHelper : IWindowsCircleFilesLifecycleHelperClient
+    {
+        public ValueTask<CircleFilesCleanupExecution> RemoveGrantAsync(
+            WindowsCircleFilesGrantCleanupHelperPlan plan,
+            CancellationToken cancellationToken) =>
+            ValueTask.FromException<CircleFilesCleanupExecution>(new InvalidOperationException());
+
+        public ValueTask<CircleFilesCleanupExecution> RemoveHostAsync(
+            WindowsCircleFilesHostRemovalHelperPlan plan,
+            CancellationToken cancellationToken) =>
+            ValueTask.FromException<CircleFilesCleanupExecution>(new InvalidOperationException());
     }
 }

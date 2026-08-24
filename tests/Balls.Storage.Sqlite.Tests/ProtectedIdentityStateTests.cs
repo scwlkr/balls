@@ -436,6 +436,8 @@ public sealed class ProtectedIdentityStateTests
         command.CommandText =
             """
             PRAGMA foreign_keys = OFF;
+            DROP TABLE circle_files_lifecycle_audit_events;
+            DROP TABLE circle_files_access_grant_revocations;
             DROP TABLE circle_files_provider_credentials;
             DROP TABLE circle_files_access_grants;
             DROP TABLE circle_files_contributions;
@@ -488,6 +490,8 @@ public sealed class ProtectedIdentityStateTests
         command.CommandText =
             """
             PRAGMA foreign_keys = OFF;
+            DROP TABLE circle_files_lifecycle_audit_events;
+            DROP TABLE circle_files_access_grant_revocations;
             DROP TABLE circle_files_provider_credentials;
             DROP TABLE circle_files_access_grants;
             DROP TABLE circle_files_contributions;
@@ -542,6 +546,8 @@ public sealed class ProtectedIdentityStateTests
         command.CommandText =
             """
             PRAGMA foreign_keys = OFF;
+            DROP TABLE circle_files_lifecycle_audit_events;
+            DROP TABLE circle_files_access_grant_revocations;
             DROP TABLE circle_files_provider_credentials;
             DROP TABLE circle_files_access_grants;
             DROP TABLE circle_files_contributions;

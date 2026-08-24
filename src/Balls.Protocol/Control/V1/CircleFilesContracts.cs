@@ -58,6 +58,60 @@ public sealed record PreviewCircleFilesGrantCredentialRequest(string FolderPath)
 
 public sealed record ApplyCircleFilesGrantCredentialRequest(string FolderPath, string PlanId);
 
+public sealed record RevokeMemberAccessGrantRequest(string RequestId, long ExpectedGeneration);
+
+public sealed record MemberAccessGrantRevocationResponse(
+    string RequestId,
+    string GrantId,
+    long RevokedGeneration,
+    DateTimeOffset RevokedAtUtc,
+    string Status);
+
+public sealed record PreviewCircleFilesGrantCleanupRequest(string FolderPath);
+
+public sealed record ApplyCircleFilesGrantCleanupRequest(
+    string FolderPath,
+    string PlanId,
+    bool TerminateOpenSessions);
+
+public sealed record CircleFilesGrantCleanupPlanResponse(
+    int ContractVersion,
+    string PlanId,
+    string Provider,
+    string FolderPath,
+    string ShareName,
+    string AccountName,
+    string OwnershipId,
+    long Generation,
+    IReadOnlyList<string> Actions);
+
+public sealed record CircleFilesGrantCleanupResultResponse(
+    string Status,
+    int OpenSessionCount,
+    CircleFilesGrantCleanupPlanResponse Plan);
+
+public sealed record PreviewCircleFilesHostRemovalRequest(string FolderPath);
+
+public sealed record ApplyCircleFilesHostRemovalRequest(
+    string FolderPath,
+    string PlanId,
+    bool TerminateOpenSessions);
+
+public sealed record CircleFilesHostRemovalPlanResponse(
+    int ContractVersion,
+    string PlanId,
+    string Provider,
+    string FolderPath,
+    string ShareName,
+    string FirewallRuleName,
+    string OwnershipId,
+    IReadOnlyList<string> Actions);
+
+public sealed record CircleFilesHostRemovalResultResponse(
+    string Status,
+    int OpenSessionCount,
+    CircleFilesHostRemovalPlanResponse Plan);
+
 public sealed record CircleFilesGrantCredentialPlanResponse(
     int ContractVersion,
     string PlanId,

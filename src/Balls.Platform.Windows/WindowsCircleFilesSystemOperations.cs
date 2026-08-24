@@ -1,5 +1,6 @@
 using System.ComponentModel;
 using System.Diagnostics;
+using System.Runtime.InteropServices;
 using System.Runtime.Versioning;
 using System.Security.AccessControl;
 using System.Security.Principal;
@@ -10,9 +11,12 @@ using Balls.Platform;
 namespace Balls.Platform.Windows;
 
 [SupportedOSPlatform("windows")]
-internal sealed class WindowsCircleFilesSystemOperations : IWindowsCircleFilesOperations
+internal sealed class WindowsCircleFilesSystemOperations :
+    IWindowsCircleFilesOperations,
+    IWindowsCircleFilesHostSessionOperations
 {
     internal const string JournalFileName = ".balls-operation-v1.json";
+    internal const string FirewallRecoveryFileName = ".balls-firewall-recovery-v1.json";
     private readonly WindowsCircleFilesPowerShell powerShell = new();
 
     public async ValueTask<WindowsCircleFilesOwnedState> InspectAsync(
@@ -53,7 +57,12 @@ internal sealed class WindowsCircleFilesSystemOperations : IWindowsCircleFilesOp
                 ApplyMarker(plan);
                 break;
             case WindowsCircleFilesOperationStep.EncryptedShare:
-                await powerShell.CreateShareAsync(plan, cancellationToken).ConfigureAwait(false);
+                PrepareFirewallRecovery(plan);
+                await powerShell.CreateShareAsync(
+                    plan,
+                    canRestoreServerManagerSmbFirewall: true,
+                    cancellationToken).ConfigureAwait(false);
+                CompleteFirewallRecovery(plan);
                 break;
             case WindowsCircleFilesOperationStep.PrivateFirewallRule:
                 await powerShell.CreateFirewallAsync(plan, cancellationToken).ConfigureAwait(false);
@@ -74,17 +83,44 @@ internal sealed class WindowsCircleFilesSystemOperations : IWindowsCircleFilesOp
                 await powerShell.RemoveFirewallAsync(plan, cancellationToken).ConfigureAwait(false);
                 break;
             case WindowsCircleFilesOperationStep.EncryptedShare:
-                await powerShell.RemoveShareAsync(plan, cancellationToken).ConfigureAwait(false);
+                var canRestoreServerManagerSmbFirewall = HasOwnedFirewallRecovery(plan);
+                await powerShell.RemoveShareAsync(
+                    plan,
+                    canRestoreServerManagerSmbFirewall,
+                    cancellationToken).ConfigureAwait(false);
+                if (canRestoreServerManagerSmbFirewall)
+                {
+                    CompleteFirewallRecovery(plan);
+                }
                 break;
             case WindowsCircleFilesOperationStep.OwnershipMarker:
                 RemoveMarker(plan);
                 break;
             case WindowsCircleFilesOperationStep.FolderAcl:
-                RollbackFolderAcl(plan);
+                RollbackFolderAcl(plan, preserveFolder: false);
                 break;
             default:
                 throw new ArgumentOutOfRangeException(nameof(step));
         }
+    }
+
+    public ValueTask<int> CountOpenSessionsAsync(
+        WindowsCircleFilesHelperPlan plan,
+        CancellationToken cancellationToken) =>
+        powerShell.CountOpenSessionsAsync(plan, cancellationToken);
+
+    public ValueTask TerminateOpenSessionsAsync(
+        WindowsCircleFilesHelperPlan plan,
+        CancellationToken cancellationToken) =>
+        powerShell.TerminateOpenSessionsAsync(plan, cancellationToken);
+
+    public ValueTask RollbackFolderAclPreservingFolderAsync(
+        WindowsCircleFilesHelperPlan plan,
+        CancellationToken cancellationToken)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        RollbackFolderAcl(plan, preserveFolder: true);
+        return ValueTask.CompletedTask;
     }
 
     private static WindowsCircleFilesOwnedState InspectFolderAcl(WindowsCircleFilesHelperPlan plan)
@@ -102,6 +138,12 @@ internal sealed class WindowsCircleFilesSystemOperations : IWindowsCircleFilesOp
         }
 
         var currentSddl = GetCurrentSddl(folder);
+        var firewallRecoveryPath = Path.Combine(folder, FirewallRecoveryFileName);
+        if (File.Exists(firewallRecoveryPath)
+            && !HasOwnedFirewallRecovery(plan))
+        {
+            return WindowsCircleFilesOwnedState.Collision;
+        }
         if (HasDesiredSecurity(folder, plan.OwnerSid)
             && HasDesiredFileSecurity(
                 Path.Combine(folder, JournalFileName),
@@ -230,7 +272,9 @@ internal sealed class WindowsCircleFilesSystemOperations : IWindowsCircleFilesOp
         File.Delete(Path.Combine(plan.PublicPlan.FolderPath, WindowsCircleFilesOwnershipMarker.FileName));
     }
 
-    private static void RollbackFolderAcl(WindowsCircleFilesHelperPlan plan)
+    private static void RollbackFolderAcl(
+        WindowsCircleFilesHelperPlan plan,
+        bool preserveFolder)
     {
         var journal = ReadJournal(plan)
             ?? throw new CircleFilesHostingException(
@@ -246,15 +290,27 @@ internal sealed class WindowsCircleFilesSystemOperations : IWindowsCircleFilesOp
                 "The folder ACL changed and was left untouched.");
         }
 
-        if (journal.TargetExisted)
+        var firewallRecoveryPath = Path.Combine(folder, FirewallRecoveryFileName);
+        if (File.Exists(firewallRecoveryPath))
         {
-            var security = new DirectorySecurity();
-            security.SetSecurityDescriptorSddlForm(journal.PreMutationSddl);
-            new DirectoryInfo(folder).SetAccessControl(security);
+            if (!HasOwnedFirewallRecovery(plan))
+            {
+                throw new CircleFilesHostingException(
+                    "hosting_ownership_collision",
+                    "The firewall recovery witness changed and was left untouched.");
+            }
+            File.Delete(firewallRecoveryPath);
         }
+
+        RestoreSecurityDescriptor(folder, journal.PreMutationSddl);
 
         var journalPath = Path.Combine(folder, JournalFileName);
         File.Delete(journalPath);
+        if (preserveFolder)
+        {
+            return;
+        }
+
         foreach (var directory in journal.CreatedDirectories)
         {
             if (!Directory.Exists(directory)
@@ -288,6 +344,101 @@ internal sealed class WindowsCircleFilesSystemOperations : IWindowsCircleFilesOp
                 AccessControlSections.Owner | AccessControlSections.Group | AccessControlSections.Access)
             .GetSecurityDescriptorSddlForm(
                 AccessControlSections.Owner | AccessControlSections.Group | AccessControlSections.Access);
+
+    internal static void PrepareFirewallRecovery(WindowsCircleFilesHelperPlan plan)
+    {
+        var path = Path.Combine(plan.PublicPlan.FolderPath, FirewallRecoveryFileName);
+        if (File.Exists(path))
+        {
+            if (HasOwnedFirewallRecovery(plan))
+            {
+                return;
+            }
+            throw new CircleFilesHostingException(
+                "hosting_ownership_collision",
+                "The firewall recovery witness changed and was left untouched.");
+        }
+
+        WriteCreateNew(path, CreateFirewallRecoveryContent(plan));
+        ApplyFileSecurity(path, plan.OwnerSid);
+    }
+
+    internal static void CompleteFirewallRecovery(WindowsCircleFilesHelperPlan plan)
+    {
+        if (!HasOwnedFirewallRecovery(plan))
+        {
+            throw new CircleFilesHostingException(
+                "hosting_ownership_collision",
+                "The firewall recovery witness changed and was left untouched.");
+        }
+        File.Delete(Path.Combine(plan.PublicPlan.FolderPath, FirewallRecoveryFileName));
+    }
+
+    internal static bool HasOwnedFirewallRecovery(WindowsCircleFilesHelperPlan plan)
+    {
+        var path = Path.Combine(plan.PublicPlan.FolderPath, FirewallRecoveryFileName);
+        return File.Exists(path)
+            && string.Equals(
+                File.ReadAllText(path),
+                CreateFirewallRecoveryContent(plan),
+                StringComparison.Ordinal)
+            && HasDesiredFileSecurity(path, plan.OwnerSid);
+    }
+
+    private static string CreateFirewallRecoveryContent(WindowsCircleFilesHelperPlan plan) =>
+        JsonSerializer.Serialize(new WindowsCircleFilesFirewallRecovery(
+            CircleFilesHostingContract.Version,
+            plan.PublicPlan.OwnershipId,
+            plan.PublicPlan.PlanId,
+            plan.PublicPlan.ShareName)) + "\n";
+
+    private static void RestoreSecurityDescriptor(string folder, string sddl)
+    {
+        if (!ConvertStringSecurityDescriptorToSecurityDescriptor(
+                sddl,
+                stringSecurityDescriptorRevision: 1,
+                out var securityDescriptor,
+                out _))
+        {
+            throw new Win32Exception(Marshal.GetLastWin32Error());
+        }
+
+        try
+        {
+            const uint ownerSecurityInformation = 0x00000001;
+            const uint groupSecurityInformation = 0x00000002;
+            const uint daclSecurityInformation = 0x00000004;
+            if (!SetFileSecurity(
+                    folder,
+                    ownerSecurityInformation | groupSecurityInformation | daclSecurityInformation,
+                    securityDescriptor))
+            {
+                throw new Win32Exception(Marshal.GetLastWin32Error());
+            }
+        }
+        finally
+        {
+            _ = LocalFree(securityDescriptor);
+        }
+    }
+
+    [DllImport("advapi32.dll", CharSet = CharSet.Unicode, SetLastError = true)]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    private static extern bool ConvertStringSecurityDescriptorToSecurityDescriptor(
+        string stringSecurityDescriptor,
+        uint stringSecurityDescriptorRevision,
+        out IntPtr securityDescriptor,
+        out uint securityDescriptorSize);
+
+    [DllImport("advapi32.dll", CharSet = CharSet.Unicode, SetLastError = true)]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    private static extern bool SetFileSecurity(
+        string fileName,
+        uint securityInformation,
+        IntPtr securityDescriptor);
+
+    [DllImport("kernel32.dll")]
+    private static extern IntPtr LocalFree(IntPtr memory);
 
     private static bool HasDesiredSecurity(string folder, string ownerSid)
     {
@@ -453,6 +604,12 @@ internal sealed class WindowsCircleFilesSystemOperations : IWindowsCircleFilesOp
         bool TargetExisted,
         string PreMutationSddl,
         IReadOnlyList<string> CreatedDirectories);
+
+    private sealed record WindowsCircleFilesFirewallRecovery(
+        int ContractVersion,
+        string OwnershipId,
+        string PlanId,
+        string ShareName);
 }
 
 [SupportedOSPlatform("windows")]
@@ -471,19 +628,23 @@ internal sealed class WindowsCircleFilesPowerShell
 
     internal async ValueTask CreateShareAsync(
         WindowsCircleFilesHelperPlan plan,
+        bool canRestoreServerManagerSmbFirewall,
         CancellationToken cancellationToken) =>
         _ = await InvokeAsync(
             WindowsCircleFilesPowerShellCommand.CreateShare,
             plan,
-            cancellationToken).ConfigureAwait(false);
+            cancellationToken,
+            canRestoreServerManagerSmbFirewall).ConfigureAwait(false);
 
     internal async ValueTask RemoveShareAsync(
         WindowsCircleFilesHelperPlan plan,
+        bool canRestoreServerManagerSmbFirewall,
         CancellationToken cancellationToken) =>
         _ = await InvokeAsync(
             WindowsCircleFilesPowerShellCommand.RemoveShare,
             plan,
-            cancellationToken).ConfigureAwait(false);
+            cancellationToken,
+            canRestoreServerManagerSmbFirewall).ConfigureAwait(false);
 
     internal async ValueTask<WindowsCircleFilesOwnedState> InspectFirewallAsync(
         WindowsCircleFilesHelperPlan plan,
@@ -509,6 +670,25 @@ internal sealed class WindowsCircleFilesPowerShell
             plan,
             cancellationToken).ConfigureAwait(false);
 
+    internal async ValueTask<int> CountOpenSessionsAsync(
+        WindowsCircleFilesHelperPlan plan,
+        CancellationToken cancellationToken)
+    {
+        using var document = JsonDocument.Parse(await InvokeAsync(
+            WindowsCircleFilesPowerShellCommand.CountOpenSessions,
+            plan,
+            cancellationToken).ConfigureAwait(false));
+        return document.RootElement.GetProperty("Count").GetInt32();
+    }
+
+    internal async ValueTask TerminateOpenSessionsAsync(
+        WindowsCircleFilesHelperPlan plan,
+        CancellationToken cancellationToken) =>
+        _ = await InvokeAsync(
+            WindowsCircleFilesPowerShellCommand.TerminateOpenSessions,
+            plan,
+            cancellationToken).ConfigureAwait(false);
+
     private static WindowsCircleFilesOwnedState ParseState(string json)
     {
         using var document = JsonDocument.Parse(json);
@@ -525,7 +705,8 @@ internal sealed class WindowsCircleFilesPowerShell
     private static async Task<string> InvokeAsync(
         WindowsCircleFilesPowerShellCommand command,
         WindowsCircleFilesHelperPlan plan,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        bool canRestoreServerManagerSmbFirewall = false)
     {
         var executable = Path.Combine(
             Environment.GetFolderPath(Environment.SpecialFolder.System),
@@ -560,6 +741,8 @@ internal sealed class WindowsCircleFilesPowerShell
                 WindowsCircleFilesPowerShellCommand.InspectFirewall => "InspectFirewall",
                 WindowsCircleFilesPowerShellCommand.CreateFirewall => "CreateFirewall",
                 WindowsCircleFilesPowerShellCommand.RemoveFirewall => "RemoveFirewall",
+                WindowsCircleFilesPowerShellCommand.CountOpenSessions => "CountOpenSessions",
+                WindowsCircleFilesPowerShellCommand.TerminateOpenSessions => "TerminateOpenSessions",
                 _ => throw new ArgumentOutOfRangeException(nameof(command)),
             },
             Path = plan.PublicPlan.FolderPath,
@@ -567,6 +750,7 @@ internal sealed class WindowsCircleFilesPowerShell
             plan.PublicPlan.FirewallRuleName,
             Description = $"Balls owned v1 {plan.PublicPlan.OwnershipId}",
             OwnerSid = plan.OwnerSid,
+            CanRestoreServerManagerSmbFirewall = canRestoreServerManagerSmbFirewall,
         });
         return await RunAsync(startInfo, input, cancellationToken).ConfigureAwait(false);
     }
@@ -623,15 +807,43 @@ internal sealed class WindowsCircleFilesPowerShell
             return 'Collision'
         }
 
+        function Restore-ServerManagerSmbFirewallBaseline {
+            $rule = NetSecurity\Get-NetFirewallRule -Name 'FileServer-ServerManager-SMB-TCP-In' -ErrorAction SilentlyContinue
+            if ($null -ne $rule -and [string]$rule.Enabled -eq 'True') {
+                if (-not [bool]$request.CanRestoreServerManagerSmbFirewall) { throw 'built-in smb firewall baseline changed' }
+                $rule | NetSecurity\Disable-NetFirewallRule -ErrorAction Stop
+            }
+        }
+
+        function Test-OwnedOpenPath([string]$path) {
+            $root = ([string]$request.Path).TrimEnd('\')
+            return $path.Equals($root, [System.StringComparison]::OrdinalIgnoreCase) -or $path.StartsWith($root + '\', [System.StringComparison]::OrdinalIgnoreCase)
+        }
+
+        function Get-OwnedOpenFiles {
+            $shareState = Get-ShareState
+            if ($shareState -eq 'Missing') { return @() }
+            if ($shareState -ne 'Owned') { throw 'share ownership changed' }
+            $allOpen = @(SmbShare\Get-SmbOpenFile -IncludeHidden -ErrorAction Stop | Microsoft.PowerShell.Utility\Select-Object -First 1001)
+            if ($allOpen.Count -gt 1000) { throw 'open file inspection exceeded limit' }
+            return @($allOpen | Where-Object { Test-OwnedOpenPath ([string]$_.Path) })
+        }
+
         switch ([string]$request.Command) {
             'InspectShare' { $state = Get-ShareState }
             'CreateShare' {
                 if ((Get-ShareState) -ne 'Missing') { throw 'share collision' }
+                $serverManagerSmbRuleName = 'FileServer-ServerManager-SMB-TCP-In'
+                $serverManagerSmbRule = NetSecurity\Get-NetFirewallRule -Name $serverManagerSmbRuleName -ErrorAction SilentlyContinue
+                $serverManagerSmbRuleWasEnabled = $null -ne $serverManagerSmbRule -and [string]$serverManagerSmbRule.Enabled -eq 'True'
+                if ($serverManagerSmbRuleWasEnabled) { throw 'unsafe built-in public smb rule enabled' }
                 SmbShare\New-SmbShare -Name ([string]$request.ShareName) -Path ([string]$request.Path) -Description $description -FullAccess $ownerAccount -EncryptData $true -FolderEnumerationMode AccessBased -CachingMode None -ErrorAction Stop | Out-Null
+                Restore-ServerManagerSmbFirewallBaseline
                 $state = Get-ShareState
             }
             'RemoveShare' {
                 if ((Get-ShareState) -ne 'Owned') { throw 'share ownership changed' }
+                Restore-ServerManagerSmbFirewallBaseline
                 SmbShare\Remove-SmbShare -Name ([string]$request.ShareName) -Force -ErrorAction Stop
                 $state = 'Missing'
             }
@@ -646,9 +858,12 @@ internal sealed class WindowsCircleFilesPowerShell
                 NetSecurity\Remove-NetFirewallRule -Name ([string]$request.FirewallRuleName) -ErrorAction Stop
                 $state = 'Missing'
             }
+            'CountOpenSessions' { $count = @(@(Get-OwnedOpenFiles) | Select-Object -ExpandProperty SessionId -Unique).Count }
+            'TerminateOpenSessions' { @(Get-OwnedOpenFiles) | ForEach-Object { SmbShare\Close-SmbOpenFile -FileId $_.FileId -Force -ErrorAction Stop }; $count = @(@(Get-OwnedOpenFiles) | Select-Object -ExpandProperty SessionId -Unique).Count }
             default { throw 'unsupported command' }
         }
-        [PSCustomObject]@{ State = $state } | Microsoft.PowerShell.Utility\ConvertTo-Json -Compress
+        $result = if ($null -ne $count) { [PSCustomObject]@{ Count = [int]$count } } else { [PSCustomObject]@{ State = $state } }
+        $result | Microsoft.PowerShell.Utility\ConvertTo-Json -Compress
         """;
 }
 
@@ -660,4 +875,6 @@ internal enum WindowsCircleFilesPowerShellCommand
     InspectFirewall,
     CreateFirewall,
     RemoveFirewall,
+    CountOpenSessions,
+    TerminateOpenSessions,
 }
