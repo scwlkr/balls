@@ -427,7 +427,7 @@ public sealed partial class SqliteLocalStateStore
                            open_session_count, occurred_at_utc
                     FROM circle_files_lifecycle_audit_events
                     WHERE circle_id = $circle_id
-                    ORDER BY occurred_at_utc, event_id;
+                    ORDER BY rowid;
                     """;
                 command.Parameters.AddWithValue("$circle_id", circleId.ToString());
                 await using var reader = await command.ExecuteReaderAsync(token).ConfigureAwait(false);

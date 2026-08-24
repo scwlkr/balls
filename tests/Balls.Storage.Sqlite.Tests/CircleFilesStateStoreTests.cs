@@ -337,6 +337,16 @@ public sealed class CircleFilesStateStoreTests
                         "removed",
                         0,
                         Now));
+                await store.RecordCircleFilesLifecycleAuditEventAsync(
+                    new CircleFilesLifecycleAuditEvent(
+                        Guid.Parse("0198d000-2000-7000-8000-0000000000a0"),
+                        circleId,
+                        contributionId,
+                        grantId,
+                        "grant-cleanup",
+                        "already-removed",
+                        0,
+                        Now));
             }
 
             await using (var reopened = await SqliteLocalStateStore.OpenAsync(
@@ -355,9 +365,11 @@ public sealed class CircleFilesStateStoreTests
                 Assert.IsNotNull(cleanup);
                 CollectionAssert.AreEqual(secret, cleanup.Secret.ToArray());
                 var events = await reopened.ListCircleFilesLifecycleAuditEventsAsync(circleId);
-                Assert.AreEqual(1, events.Count);
-                Assert.AreEqual("grant-cleanup", events.Single().Operation);
-                Assert.AreEqual("removed", events.Single().Outcome);
+                Assert.AreEqual(2, events.Count);
+                Assert.IsTrue(events.All(value => value.Operation == "grant-cleanup"));
+                CollectionAssert.AreEqual(
+                    new[] { "removed", "already-removed" },
+                    events.Select(value => value.Outcome).ToArray());
             }
 
             var databasePath = Path.Combine(directory.Path, "balls.db");
