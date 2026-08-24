@@ -17,9 +17,9 @@
   confirmation, bound counts to 1,000, recover injected partial cleanup on retry, and refuse hostile
   substitution before session termination or rollback.
 - A Windows-gated ACL/marker integration test writes 4,096 deterministic user bytes, removes exact
-  Balls metadata, and verifies the contributed folder and bytes remain unchanged. It was skipped on
-  this Linux run and remains unobserved here. A second Windows-gated case covers preservation when
-  the contributed folder is empty.
+  Balls metadata, and verifies the contributed folder and bytes remain unchanged. A second
+  Windows-gated case covers preservation when the contributed folder is empty and verifies exact
+  pre-mutation owner, group, DACL, and inheritance-control restoration.
 - Local-control and CLI contracts expose revoke, cleanup preview/apply, explicit session
   confirmation, final host removal, and no secret/proof fields. The committed OpenAPI document and
   generated web client were refreshed from the running daemon.
@@ -33,14 +33,19 @@ dotnet test tests/Balls.Cli.Tests/Balls.Cli.Tests.csproj --configuration Release
 ```
 
 `dotnet run --project eng/Balls.Verify --configuration Release -- full` passed on Linux: locked
-restore, format and generated-client checks, zero-warning Release build, 252 passed .NET tests
-(50 platform-gated skips), web lint/typecheck, 10 component tests, production build, and one
-Playwright daemon-restart journey. Windows-only execution remains scoped below.
+restore, format and generated-client checks, zero-warning Release build, 253 passed .NET tests
+(51 platform-gated skips), web lint/typecheck, 10 component tests, production build, and one
+Playwright daemon-restart journey.
 
 ## Windows lab status
 
-The canonical two-Windows-VM gate from `docs/windows-development-lab.md` has not been observed from
-this Linux workspace. Therefore this record does **not** claim live future-auth denial, open-session
-termination, injected partial recovery, hostile on-machine substitution, or two-VM before/after
-hash proof. Run machine-local `Test-BallsCircleFilesRevocation.Guest.ps1` against the exact landed
-commit and append its structured evidence before #62 acceptance.
+The owned Windows 11 VM verified product commit `2ee22c09e7185d0f901a826e0d6d810801624e21`
+from a SHA-256-checked source archive using .NET SDK 10.0.400. The focused run passed 5 Core
+revocation tests, 10 SQLite restart/audit tests, and all 42 Windows lifecycle and OS-integration
+tests with zero skips. That execution caught and drove fixes for Windows SQLite file sharing and
+exact SDDL control-flag restoration before the final green run.
+
+Only one Windows Node is currently available. Therefore this record does **not** claim the required
+two-Windows-Node live proof of future-auth denial, open-session termination, injected partial
+recovery, hostile on-machine substitution, or before/after user-file hashes. Supply a second owned
+Windows Node and run the canonical gate from `docs/windows-development-lab.md` before closing #61.
