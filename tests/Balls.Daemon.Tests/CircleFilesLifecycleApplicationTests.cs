@@ -68,6 +68,73 @@ public sealed class CircleFilesLifecycleApplicationTests
     }
 
     [TestMethod]
+    public async Task Unknown_lifecycle_targets_fail_before_audit_insert()
+    {
+        using var directory = new TemporaryDirectory();
+        await using var store = await SqliteLocalStateStore.OpenAsync(
+            directory.Path,
+            PassthroughProtector.Instance);
+        var time = new FixedTimeProvider(Now);
+        var circle = await new CircleApplication(store, time, "Alice-PC").CreateCircleAsync(
+            new CreateCircleCommand(
+                new CreationRequestId(Guid.CreateVersion7()),
+                "Example Studio",
+                "Alice"));
+        var files = new CircleFilesApplication(store, store, time);
+        var contribution = await files.CreateContributionAsync(
+            new CreateCircleFilesContributionCommand(
+                new CircleFilesContributionRequestId(Guid.CreateVersion7()),
+                circle.Circle.Id,
+                "Project Files"));
+        var application = new CircleFilesLifecycleApplication(
+            files,
+            store,
+            store,
+            new UnsupportedCircleFilesLifecycleManager(),
+            time);
+        var unknownContributionId = CircleFilesContributionId.New();
+        var unknownCircleId = CircleId.New();
+        var grantId = MemberAccessGrantId.New();
+
+        await Assert.ThrowsExactlyAsync<LocalStateException>(() => application.RevokeGrantAsync(
+            circle.Circle.Id,
+            unknownContributionId,
+            grantId,
+            new MemberAccessGrantRevocationRequestId(Guid.CreateVersion7()),
+            1,
+            CancellationToken.None));
+        await Assert.ThrowsExactlyAsync<LocalStateException>(() => application.RemoveGrantAsync(
+            circle.Circle.Id,
+            unknownContributionId,
+            grantId,
+            @"C:\BallsShares\Example",
+            new string('a', 64),
+            terminateOpenSessions: false,
+            CancellationToken.None));
+        await Assert.ThrowsExactlyAsync<LocalStateException>(() => application.RemoveHostAsync(
+            circle.Circle.Id,
+            unknownContributionId,
+            @"C:\BallsShares\Example",
+            new string('b', 64),
+            terminateOpenSessions: false,
+            CancellationToken.None));
+        await Assert.ThrowsExactlyAsync<LocalStateException>(() => application.RemoveHostAsync(
+            unknownCircleId,
+            contribution.Id,
+            @"C:\BallsShares\Example",
+            new string('c', 64),
+            terminateOpenSessions: false,
+            CancellationToken.None));
+
+        Assert.AreEqual(
+            0,
+            (await store.ListCircleFilesLifecycleAuditEventsAsync(circle.Circle.Id)).Count);
+        Assert.AreEqual(
+            0,
+            (await store.ListCircleFilesLifecycleAuditEventsAsync(unknownCircleId)).Count);
+    }
+
+    [TestMethod]
     public async Task Exact_unmap_audit_survives_restart_and_records_idempotent_retry()
     {
         using var directory = new TemporaryDirectory();

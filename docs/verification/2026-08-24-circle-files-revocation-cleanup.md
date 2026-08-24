@@ -37,7 +37,7 @@ dotnet test tests/Balls.Cli.Tests/Balls.Cli.Tests.csproj --configuration Release
 ```
 
 `dotnet run --project eng/Balls.Verify --configuration Release -- full` passed on Linux: locked
-restore, format and generated-client checks, zero-warning Release build, 255 passed .NET tests
+restore, format and generated-client checks, zero-warning Release build, 256 passed .NET tests
 (54 platform-gated skips), web lint/typecheck, 10 component tests, production build, and one
 Playwright daemon-restart journey.
 

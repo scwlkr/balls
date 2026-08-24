@@ -24,6 +24,10 @@ internal sealed class CircleFilesLifecycleApplication(
         await mutationGate.WaitAsync(cancellationToken).ConfigureAwait(false);
         try
         {
+            await ValidateAuditTargetAsync(
+                circleId,
+                contributionId,
+                cancellationToken).ConfigureAwait(false);
             return await ExecuteAuditedAsync(
                 circleId,
                 contributionId,
@@ -86,6 +90,10 @@ internal sealed class CircleFilesLifecycleApplication(
         await mutationGate.WaitAsync(cancellationToken).ConfigureAwait(false);
         try
         {
+            await ValidateAuditTargetAsync(
+                circleId,
+                contributionId,
+                cancellationToken).ConfigureAwait(false);
             return await ExecuteAuditedAsync(
                 circleId,
                 contributionId,
@@ -174,6 +182,10 @@ internal sealed class CircleFilesLifecycleApplication(
         await mutationGate.WaitAsync(cancellationToken).ConfigureAwait(false);
         try
         {
+            await ValidateAuditTargetAsync(
+                circleId,
+                contributionId,
+                cancellationToken).ConfigureAwait(false);
             return await ExecuteAuditedAsync(
                 circleId,
                 contributionId,
@@ -328,6 +340,22 @@ internal sealed class CircleFilesLifecycleApplication(
             folderPath,
             CircleFilesHostAuthorizationDigest.Compute(proof),
             proof);
+    }
+
+    private async Task ValidateAuditTargetAsync(
+        CircleId circleId,
+        CircleFilesContributionId contributionId,
+        CancellationToken cancellationToken)
+    {
+        var exists = (await files.ListContributionsAsync(circleId, cancellationToken)
+                .ConfigureAwait(false))
+            .Any(value => value.Id == contributionId);
+        if (!exists)
+        {
+            throw new LocalStateException(
+                "circle_files_contribution_not_found",
+                "The requested Circle Files contribution was not found.");
+        }
     }
 
     private static void EnsureExactBinding(
