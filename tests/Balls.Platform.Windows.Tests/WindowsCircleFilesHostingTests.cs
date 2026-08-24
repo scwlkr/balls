@@ -155,6 +155,8 @@ public sealed class WindowsCircleFilesHostingTests
                 WindowsCircleFilesPowerShellCommand.InspectFirewall,
                 WindowsCircleFilesPowerShellCommand.CreateFirewall,
                 WindowsCircleFilesPowerShellCommand.RemoveFirewall,
+                WindowsCircleFilesPowerShellCommand.CountOpenSessions,
+                WindowsCircleFilesPowerShellCommand.TerminateOpenSessions,
             },
             Enum.GetValues<WindowsCircleFilesPowerShellCommand>());
     }

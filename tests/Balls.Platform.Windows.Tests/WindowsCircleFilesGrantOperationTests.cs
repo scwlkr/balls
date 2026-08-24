@@ -96,15 +96,73 @@ public sealed class WindowsCircleFilesGrantOperationTests
     }
 
     [TestMethod]
+    public async Task Grant_removal_requires_a_second_open_session_confirmation_and_recovers_partials()
+    {
+        var busy = new StubRemovalOperations(openSessionCount: 2);
+        var first = await new WindowsCircleFilesGrantRemovalOperation(busy, busy)
+            .ExecuteAsync(Plan, terminateOpenSessions: false, CancellationToken.None);
+
+        Assert.AreEqual(CircleFilesCleanupStatus.Busy, first.Status);
+        Assert.AreEqual(2, first.OpenSessionCount);
+        Assert.AreEqual(0, busy.TerminationCount);
+        Assert.AreEqual(0, busy.RolledBack.Count);
+
+        var confirmed = await new WindowsCircleFilesGrantRemovalOperation(busy, busy)
+            .ExecuteAsync(Plan, terminateOpenSessions: true, CancellationToken.None);
+
+        Assert.AreEqual(CircleFilesCleanupStatus.Removed, confirmed.Status);
+        Assert.AreEqual(2, confirmed.OpenSessionCount);
+        Assert.AreEqual(1, busy.TerminationCount);
+        CollectionAssert.AreEqual(
+            Enum.GetValues<WindowsCircleFilesGrantOperationStep>().Reverse().ToArray(),
+            busy.RolledBack.ToArray());
+
+        var partial = new StubRemovalOperations(openSessionCount: 0)
+        {
+            FailRollbackOn = WindowsCircleFilesGrantOperationStep.FolderAcl,
+        };
+        var partialResult = await new WindowsCircleFilesGrantRemovalOperation(partial, partial)
+            .ExecuteAsync(Plan, terminateOpenSessions: false, CancellationToken.None);
+        Assert.AreEqual(CircleFilesCleanupStatus.Partial, partialResult.Status);
+        CollectionAssert.AreEqual(
+            new[] { WindowsCircleFilesGrantOperationStep.ShareAccess },
+            partial.RolledBack.ToArray());
+
+        partial.FailRollbackOn = null;
+        var recovered = await new WindowsCircleFilesGrantRemovalOperation(partial, partial)
+            .ExecuteAsync(Plan, terminateOpenSessions: false, CancellationToken.None);
+        Assert.AreEqual(CircleFilesCleanupStatus.Removed, recovered.Status);
+        Assert.IsTrue(partial.States.Values.All(value => value == WindowsCircleFilesOwnedState.Missing));
+
+        var substituted = new StubRemovalOperations(openSessionCount: 1);
+        substituted.States[WindowsCircleFilesGrantOperationStep.LocalAccount] =
+            WindowsCircleFilesOwnedState.Collision;
+        var collision = await Assert.ThrowsExactlyAsync<CircleFilesHostingException>(
+            () => new WindowsCircleFilesGrantRemovalOperation(substituted, substituted)
+                .ExecuteAsync(Plan, terminateOpenSessions: true, CancellationToken.None).AsTask());
+        Assert.AreEqual("grant_resource_collision", collision.Code);
+        Assert.AreEqual(0, substituted.TerminationCount);
+        Assert.AreEqual(0, substituted.RolledBack.Count);
+    }
+
+    [TestMethod]
     public void Elevated_grant_authorization_binds_exact_signed_grant_and_script_is_closed()
     {
-        var request = CreateAuthorizedRequest();
+        var (request, cleanup) = CreateAuthorizedRequests();
         WindowsCircleFilesGrantAuthorizationVerifier.Validate(request);
+        WindowsCircleFilesGrantAuthorizationVerifier.ValidateCleanup(cleanup);
 
         var tampered = request with { MemberId = Guid.NewGuid().ToString("D") };
         var error = Assert.ThrowsExactly<CircleFilesHostingException>(
             () => WindowsCircleFilesGrantAuthorizationVerifier.Validate(tampered));
         Assert.AreEqual("grant_authorization_invalid", error.Code);
+        var tamperedCleanup = cleanup with
+        {
+            Revocation = cleanup.Revocation with { RevokedGeneration = 2 },
+        };
+        var cleanupError = Assert.ThrowsExactly<CircleFilesHostingException>(
+            () => WindowsCircleFilesGrantAuthorizationVerifier.ValidateCleanup(tamperedCleanup));
+        Assert.AreEqual("grant_authorization_invalid", cleanupError.Code);
 
         var script = WindowsCircleFilesGrantPowerShell.Script;
         Assert.IsTrue(script.Length + 512 < 32_767);
@@ -122,6 +180,8 @@ public sealed class WindowsCircleFilesGrantOperationTests
         StringAssert.Contains(script, "InjectAccountFailure");
         StringAssert.Contains(script, "Grant-SmbShareAccess");
         StringAssert.Contains(script, "GrantMarkersValid");
+        StringAssert.Contains(script, "Select-Object -First 1001");
+        StringAssert.Contains(script, "Close-SmbSession -SessionId");
         StringAssert.Contains(script, "BlockedOwned");
         StringAssert.Contains(script, "$expectedTarget");
         StringAssert.Contains(script, "$user.SID.Translate([System.Security.Principal.NTAccount]).Value");
@@ -371,7 +431,8 @@ public sealed class WindowsCircleFilesGrantOperationTests
             System.Text.Encoding.UTF8.GetBytes("Aa2!provider-secret-that-never-leaks"));
     }
 
-    private static CircleFilesGrantCredentialRequest CreateAuthorizedRequest()
+    private static (CircleFilesGrantCredentialRequest Grant, CircleFilesGrantCleanupRequest Cleanup)
+        CreateAuthorizedRequests()
     {
         var circleId = new CircleId(Guid.Parse("019d2a6b-1b66-7d38-9c35-8d64ca8f8901"));
         var contributionId = new CircleFilesContributionId(
@@ -419,13 +480,41 @@ public sealed class WindowsCircleFilesGrantOperationTests
             grant);
         var hostProof = CreateProof(contributionTranscript, memberKey, rootKey, memberCredential, rootCredential);
         var grantProof = CreateProof(grantTranscript, memberKey, rootKey, memberCredential, rootCredential);
+        var revocation = new MemberAccessGrantRevocation(
+            new MemberAccessGrantRevocationRequestId(
+                Guid.Parse("019d2a6b-1b66-7d38-9c35-8d64ca8f8910")),
+            circleId,
+            contributionId,
+            grantId,
+            1,
+            at,
+            unsignedAuthorization);
+        var revocationTranscript = CircleFilesAuthorizationTranscript.EncodeGrantRevocation(revocation);
+        var revocationProof = CreateProof(
+            revocationTranscript,
+            memberKey,
+            rootKey,
+            memberCredential,
+            rootCredential);
         var host = new CircleFilesHostRequest(
             circleId.ToString(), contributionId.ToString(), providerId.ToString(), nodeId.ToString(),
             "Files", @"C:\BallsShares\Files",
             CircleFilesHostAuthorizationDigest.Compute(hostProof), hostProof);
-        return new CircleFilesGrantCredentialRequest(
+        var grantRequest = new CircleFilesGrantCredentialRequest(
             host, grantId.ToString(), targetId.ToString(), "read-write", 1,
             CircleFilesHostAuthorizationDigest.Compute(grantProof), grantProof);
+        return (
+            grantRequest,
+            new CircleFilesGrantCleanupRequest(
+                grantRequest,
+                new CircleFilesGrantRevocationProof(
+                    revocation.RequestId.ToString(),
+                    circleId.ToString(),
+                    contributionId.ToString(),
+                    grantId.ToString(),
+                    1,
+                    CircleFilesHostAuthorizationDigest.Compute(revocationProof),
+                    revocationProof)));
     }
 
     private static CircleFilesHostAuthorizationProof CreateProof(
@@ -481,6 +570,67 @@ public sealed class WindowsCircleFilesGrantOperationTests
             WindowsCircleFilesGrantOperationStep step,
             CancellationToken cancellationToken)
         {
+            RolledBack.Add(step);
+            States[step] = WindowsCircleFilesOwnedState.Missing;
+            return ValueTask.CompletedTask;
+        }
+    }
+
+    private sealed class StubRemovalOperations :
+        IWindowsCircleFilesGrantOperations,
+        IWindowsCircleFilesGrantSessionOperations
+    {
+        private int openSessionCount;
+
+        internal StubRemovalOperations(int openSessionCount)
+        {
+            this.openSessionCount = openSessionCount;
+            States = Enum.GetValues<WindowsCircleFilesGrantOperationStep>()
+                .ToDictionary(value => value, _ => WindowsCircleFilesOwnedState.Owned);
+        }
+
+        internal Dictionary<WindowsCircleFilesGrantOperationStep, WindowsCircleFilesOwnedState> States
+        { get; }
+
+        internal WindowsCircleFilesGrantOperationStep? FailRollbackOn { get; set; }
+
+        internal int TerminationCount { get; private set; }
+
+        internal List<WindowsCircleFilesGrantOperationStep> RolledBack { get; } = [];
+
+        public ValueTask<int> CountOpenSessionsAsync(
+            WindowsCircleFilesGrantHelperPlan plan,
+            CancellationToken cancellationToken) => ValueTask.FromResult(openSessionCount);
+
+        public ValueTask TerminateOpenSessionsAsync(
+            WindowsCircleFilesGrantHelperPlan plan,
+            CancellationToken cancellationToken)
+        {
+            TerminationCount++;
+            openSessionCount = 0;
+            return ValueTask.CompletedTask;
+        }
+
+        public ValueTask<WindowsCircleFilesOwnedState> InspectAsync(
+            WindowsCircleFilesGrantHelperPlan plan,
+            WindowsCircleFilesGrantOperationStep step,
+            CancellationToken cancellationToken) => ValueTask.FromResult(States[step]);
+
+        public ValueTask ApplyAsync(
+            WindowsCircleFilesGrantHelperPlan plan,
+            WindowsCircleFilesGrantOperationStep step,
+            CancellationToken cancellationToken) => throw new NotSupportedException();
+
+        public ValueTask RollbackAsync(
+            WindowsCircleFilesGrantHelperPlan plan,
+            WindowsCircleFilesGrantOperationStep step,
+            CancellationToken cancellationToken)
+        {
+            if (step == FailRollbackOn)
+            {
+                throw new InvalidOperationException("injected partial cleanup");
+            }
+
             RolledBack.Add(step);
             States[step] = WindowsCircleFilesOwnedState.Missing;
             return ValueTask.CompletedTask;

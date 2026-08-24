@@ -46,6 +46,11 @@ public sealed class CircleFilesProviderCredentialMaterial : IDisposable
     public override string ToString() => "Circle Files provider credential (redacted)";
 }
 
+public sealed record CircleFilesProviderCredentialState(
+    CircleFilesProviderCredentialBinding Binding,
+    bool IsActive,
+    bool IsRemoved);
+
 public interface ICircleFilesProviderCredentialStore
 {
     Task<CircleFilesProviderCredentialBinding?> GetActiveCircleFilesProviderCredentialBindingAsync(
@@ -56,12 +61,24 @@ public interface ICircleFilesProviderCredentialStore
         string grantId,
         CancellationToken cancellationToken = default);
 
+    Task<CircleFilesProviderCredentialState?> GetCircleFilesProviderCredentialStateAsync(
+        string grantId,
+        CancellationToken cancellationToken = default);
+
+    Task<CircleFilesProviderCredentialMaterial?> GetCircleFilesProviderCredentialForCleanupAsync(
+        string grantId,
+        CancellationToken cancellationToken = default);
+
     Task<CircleFilesProviderCredentialMaterial> PrepareCircleFilesProviderCredentialAsync(
         CircleFilesProviderCredentialBinding binding,
         ReadOnlyMemory<byte> candidateSecret,
         CancellationToken cancellationToken = default);
 
     Task CompleteCircleFilesProviderCredentialAsync(
+        CircleFilesProviderCredentialBinding binding,
+        CancellationToken cancellationToken = default);
+
+    Task CompleteCircleFilesProviderCredentialRemovalAsync(
         CircleFilesProviderCredentialBinding binding,
         CancellationToken cancellationToken = default);
 }

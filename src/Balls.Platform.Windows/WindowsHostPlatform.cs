@@ -27,7 +27,8 @@ public static class WindowsHostPlatform
             new WindowsSmbReadinessInspector(),
             new WindowsCircleFilesHostProvisioner(),
             new WindowsCircleFilesGrantCredentialProvisioner(),
-            new WindowsCircleFilesMemberMapper());
+            new WindowsCircleFilesMemberMapper(),
+            new WindowsCircleFilesLifecycleManager());
     }
 
     private sealed class WindowsLocalStatePreparer : ILocalStatePreparer

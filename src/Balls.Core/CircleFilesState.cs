@@ -34,6 +34,11 @@ public readonly record struct MemberAccessGrantId(Guid Value)
     public override string ToString() => Value.ToString("D");
 }
 
+public readonly record struct MemberAccessGrantRevocationRequestId(Guid Value)
+{
+    public override string ToString() => Value.ToString("D");
+}
+
 public enum CircleFilesContributionLifecycle
 {
     Defined = 1,
@@ -98,6 +103,25 @@ public sealed record MemberAccessGrant(
     DateTimeOffset CreatedAtUtc,
     CircleFilesOwnerAuthorization Authorization);
 
+public sealed record MemberAccessGrantRevocation(
+    MemberAccessGrantRevocationRequestId RequestId,
+    CircleId CircleId,
+    CircleFilesContributionId ContributionId,
+    MemberAccessGrantId GrantId,
+    long RevokedGeneration,
+    DateTimeOffset RevokedAtUtc,
+    CircleFilesOwnerAuthorization Authorization);
+
+public sealed record RevokedMemberAccessGrant(
+    MemberAccessGrant Grant,
+    MemberAccessGrantRevocation Revocation);
+
+public sealed record AuthorizedRevokedMemberAccessGrant(
+    RevokedMemberAccessGrant Revoked,
+    CircleFilesContribution Contribution,
+    PublicIdentityCredential OwnerMemberCredential,
+    PublicIdentityCredential CircleAuthorityCredential);
+
 public sealed record CircleFilesAuthorizationContext(
     CircleId CircleId,
     MemberId MemberId,
@@ -118,6 +142,34 @@ public sealed record CreateMemberAccessGrantCommand(
     CircleFilesContributionId ContributionId,
     MemberId MemberId,
     MemberAccessMode Access);
+
+public sealed record RevokeMemberAccessGrantCommand(
+    MemberAccessGrantRevocationRequestId RequestId,
+    CircleId CircleId,
+    CircleFilesContributionId ContributionId,
+    MemberAccessGrantId GrantId,
+    long ExpectedGeneration);
+
+public sealed record CircleFilesLifecycleAuditEvent(
+    Guid EventId,
+    CircleId CircleId,
+    CircleFilesContributionId ContributionId,
+    MemberAccessGrantId? GrantId,
+    string Operation,
+    string Outcome,
+    int OpenSessionCount,
+    DateTimeOffset OccurredAtUtc);
+
+public interface ICircleFilesLifecycleAuditStore
+{
+    Task RecordCircleFilesLifecycleAuditEventAsync(
+        CircleFilesLifecycleAuditEvent auditEvent,
+        CancellationToken cancellationToken = default);
+
+    Task<IReadOnlyList<CircleFilesLifecycleAuditEvent>> ListCircleFilesLifecycleAuditEventsAsync(
+        CircleId circleId,
+        CancellationToken cancellationToken = default);
+}
 
 public interface ICircleFilesStateStore
 {
@@ -148,12 +200,25 @@ public interface ICircleFilesStateStore
         CircleId circleId,
         CircleFilesContributionId contributionId,
         CancellationToken cancellationToken = default);
+
+    Task<RevokedMemberAccessGrant?> GetAccessGrantRevocationAsync(
+        CircleId circleId,
+        CircleFilesContributionId contributionId,
+        MemberAccessGrantId grantId,
+        CancellationToken cancellationToken = default);
+
+    Task<RevokedMemberAccessGrant> RevokeAccessGrantAsync(
+        MemberAccessGrantRevocationRequestId requestId,
+        MemberAccessGrant revokedGrant,
+        MemberAccessGrantRevocation revocation,
+        CancellationToken cancellationToken = default);
 }
 
 public static class CircleFilesAuthorizationTranscript
 {
     private const string ContributionDomain = "balls-circle-files-contribution-create-v1";
     private const string GrantDomain = "balls-circle-files-access-grant-create-v1";
+    private const string GrantRevocationDomain = "balls-circle-files-access-grant-revoke-v1";
 
     public static byte[] EncodeContribution(
         CircleFilesContributionRequestId requestId,
@@ -192,6 +257,22 @@ public static class CircleFilesAuthorizationTranscript
         WriteGuid(output, grant.Authorization.OwnerMemberId.Value);
         WriteInt64(output, grant.Authorization.AuthorityGeneration);
         WriteInt64(output, grant.Authorization.AuthorizedAtUtc.ToUnixTimeSeconds());
+        return output.ToArray();
+    }
+
+    public static byte[] EncodeGrantRevocation(MemberAccessGrantRevocation revocation)
+    {
+        using var output = new MemoryStream();
+        WriteString(output, GrantRevocationDomain);
+        WriteGuid(output, revocation.RequestId.Value);
+        WriteGuid(output, revocation.CircleId.Value);
+        WriteGuid(output, revocation.ContributionId.Value);
+        WriteGuid(output, revocation.GrantId.Value);
+        WriteInt64(output, revocation.RevokedGeneration);
+        WriteInt64(output, revocation.RevokedAtUtc.ToUnixTimeSeconds());
+        WriteGuid(output, revocation.Authorization.OwnerMemberId.Value);
+        WriteInt64(output, revocation.Authorization.AuthorityGeneration);
+        WriteInt64(output, revocation.Authorization.AuthorizedAtUtc.ToUnixTimeSeconds());
         return output.ToArray();
     }
 

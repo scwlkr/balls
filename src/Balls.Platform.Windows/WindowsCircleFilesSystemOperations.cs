@@ -10,7 +10,9 @@ using Balls.Platform;
 namespace Balls.Platform.Windows;
 
 [SupportedOSPlatform("windows")]
-internal sealed class WindowsCircleFilesSystemOperations : IWindowsCircleFilesOperations
+internal sealed class WindowsCircleFilesSystemOperations :
+    IWindowsCircleFilesOperations,
+    IWindowsCircleFilesHostSessionOperations
 {
     internal const string JournalFileName = ".balls-operation-v1.json";
     private readonly WindowsCircleFilesPowerShell powerShell = new();
@@ -86,6 +88,16 @@ internal sealed class WindowsCircleFilesSystemOperations : IWindowsCircleFilesOp
                 throw new ArgumentOutOfRangeException(nameof(step));
         }
     }
+
+    public ValueTask<int> CountOpenSessionsAsync(
+        WindowsCircleFilesHelperPlan plan,
+        CancellationToken cancellationToken) =>
+        powerShell.CountOpenSessionsAsync(plan, cancellationToken);
+
+    public ValueTask TerminateOpenSessionsAsync(
+        WindowsCircleFilesHelperPlan plan,
+        CancellationToken cancellationToken) =>
+        powerShell.TerminateOpenSessionsAsync(plan, cancellationToken);
 
     private static WindowsCircleFilesOwnedState InspectFolderAcl(WindowsCircleFilesHelperPlan plan)
     {
@@ -509,6 +521,25 @@ internal sealed class WindowsCircleFilesPowerShell
             plan,
             cancellationToken).ConfigureAwait(false);
 
+    internal async ValueTask<int> CountOpenSessionsAsync(
+        WindowsCircleFilesHelperPlan plan,
+        CancellationToken cancellationToken)
+    {
+        using var document = JsonDocument.Parse(await InvokeAsync(
+            WindowsCircleFilesPowerShellCommand.CountOpenSessions,
+            plan,
+            cancellationToken).ConfigureAwait(false));
+        return document.RootElement.GetProperty("Count").GetInt32();
+    }
+
+    internal async ValueTask TerminateOpenSessionsAsync(
+        WindowsCircleFilesHelperPlan plan,
+        CancellationToken cancellationToken) =>
+        _ = await InvokeAsync(
+            WindowsCircleFilesPowerShellCommand.TerminateOpenSessions,
+            plan,
+            cancellationToken).ConfigureAwait(false);
+
     private static WindowsCircleFilesOwnedState ParseState(string json)
     {
         using var document = JsonDocument.Parse(json);
@@ -560,6 +591,8 @@ internal sealed class WindowsCircleFilesPowerShell
                 WindowsCircleFilesPowerShellCommand.InspectFirewall => "InspectFirewall",
                 WindowsCircleFilesPowerShellCommand.CreateFirewall => "CreateFirewall",
                 WindowsCircleFilesPowerShellCommand.RemoveFirewall => "RemoveFirewall",
+                WindowsCircleFilesPowerShellCommand.CountOpenSessions => "CountOpenSessions",
+                WindowsCircleFilesPowerShellCommand.TerminateOpenSessions => "TerminateOpenSessions",
                 _ => throw new ArgumentOutOfRangeException(nameof(command)),
             },
             Path = plan.PublicPlan.FolderPath,
@@ -623,6 +656,26 @@ internal sealed class WindowsCircleFilesPowerShell
             return 'Collision'
         }
 
+        function Test-OwnedOpenPath([string]$path) {
+            $root = ([string]$request.Path).TrimEnd('\')
+            return $path.Equals($root, [System.StringComparison]::OrdinalIgnoreCase) -or $path.StartsWith($root + '\', [System.StringComparison]::OrdinalIgnoreCase)
+        }
+
+        function Get-OwnedSessions {
+            $shareState = Get-ShareState
+            if ($shareState -eq 'Missing') { return @() }
+            if ($shareState -ne 'Owned') { throw 'share ownership changed' }
+            $allOpen = @(SmbShare\Get-SmbOpenFile -IncludeHidden -ErrorAction Stop | Microsoft.PowerShell.Utility\Select-Object -First 1001)
+            if ($allOpen.Count -gt 1000) { throw 'open file inspection exceeded limit' }
+            $sessionIds = @($allOpen | Where-Object { Test-OwnedOpenPath ([string]$_.Path) } | Select-Object -ExpandProperty SessionId -Unique)
+            if ($sessionIds.Count -gt 1000) { throw 'session inspection exceeded limit' }
+            foreach ($sessionId in $sessionIds) {
+                $sessionOpen = @(SmbShare\Get-SmbOpenFile -SessionId $sessionId -IncludeHidden -ErrorAction Stop | Microsoft.PowerShell.Utility\Select-Object -First 1001)
+                if ($sessionOpen.Count -gt 1000 -or @($sessionOpen | Where-Object { -not (Test-OwnedOpenPath ([string]$_.Path)) }).Count -ne 0) { throw 'session scope collision' }
+            }
+            return @(foreach ($sessionId in $sessionIds) { SmbShare\Get-SmbSession -SessionId $sessionId -ErrorAction Stop })
+        }
+
         switch ([string]$request.Command) {
             'InspectShare' { $state = Get-ShareState }
             'CreateShare' {
@@ -646,9 +699,11 @@ internal sealed class WindowsCircleFilesPowerShell
                 NetSecurity\Remove-NetFirewallRule -Name ([string]$request.FirewallRuleName) -ErrorAction Stop
                 $state = 'Missing'
             }
+            'CountOpenSessions' { $count = @(Get-OwnedSessions).Count }
+            'TerminateOpenSessions' { $ownedSessions = @(Get-OwnedSessions); foreach ($session in $ownedSessions) { SmbShare\Close-SmbSession -SessionId $session.SessionId -Force -ErrorAction Stop }; $count = @(Get-OwnedSessions).Count }
             default { throw 'unsupported command' }
         }
-        [PSCustomObject]@{ State = $state } | Microsoft.PowerShell.Utility\ConvertTo-Json -Compress
+        if ($null -ne $count) { [PSCustomObject]@{ Count = [int]$count } } else { [PSCustomObject]@{ State = $state } } | Microsoft.PowerShell.Utility\ConvertTo-Json -Compress
         """;
 }
 
@@ -660,4 +715,6 @@ internal enum WindowsCircleFilesPowerShellCommand
     InspectFirewall,
     CreateFirewall,
     RemoveFirewall,
+    CountOpenSessions,
+    TerminateOpenSessions,
 }

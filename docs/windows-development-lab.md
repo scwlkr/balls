@@ -106,6 +106,7 @@ Invoke each applicable script through `Invoke-BallsDevGuestScript.ps1`:
 | Generated client, component tests, real Playwright Chromium journey | `Test-BallsVmBrowser.Guest.ps1` | `C:\BallsLab\browser-smoke\latest-result.json` |
 | Read-only Windows SMB readiness contracts, real adapter, structured CLI, and no-mutation snapshot | `Test-BallsVmSmbReadiness.Guest.ps1` | `C:\BallsLab\smb-readiness\latest-result.json` |
 | Dedicated Circle folder clean apply/retry, hostile paths, collisions, and injected rollback | machine-local `Test-BallsCircleFilesHelper.Guest.ps1` | structured PowerShell Direct result captured in the dated verification record |
+| Circle Files revoke/cleanup, future-auth denial, busy confirmation, partial retry, hostile substitution, and byte preservation | machine-local `Test-BallsCircleFilesRevocation.Guest.ps1` | structured PowerShell Direct result plus before/after hashes captured in the dated verification record |
 | Launch the unsigned Balls browser UI for interactive review | `Launch-BallsVmUi.Guest.ps1` | `Get-BallsVmUiLaunchStatus.Guest.ps1` reports daemon and Chrome state |
 | Historical `0.2.0-alpha.1` release download and installer proof | `Test-BallsVmReleaseInstaller.Guest.ps1` | `C:\BallsLab\release-installer\0.2.0-alpha.1\installer-result.json` |
 

@@ -9,6 +9,7 @@ internal static class WindowsCircleFilesGrantAuthorizationVerifier
 {
     private const string GrantDomain = "balls-circle-files-access-grant-create-v1";
     private const string ContributionDomain = "balls-circle-files-contribution-create-v1";
+    private const string GrantRevocationDomain = "balls-circle-files-access-grant-revoke-v1";
     private static readonly UTF8Encoding StrictUtf8 = new(false, true);
 
     internal static void Validate(CircleFilesGrantCredentialRequest request)
@@ -28,6 +29,42 @@ internal static class WindowsCircleFilesGrantAuthorizationVerifier
             || !CredentialsEqual(request.Authorization.CircleAuthorityCredential, request.Host.Authorization.CircleAuthorityCredential)
             || !Verify(request.Authorization.MemberCredential, request.Authorization.Transcript, request.Authorization.MemberSignature)
             || !Verify(request.Authorization.CircleAuthorityCredential, request.Authorization.Transcript, request.Authorization.CircleAuthoritySignature))
+        {
+            throw Invalid();
+        }
+    }
+
+    internal static void ValidateCleanup(CircleFilesGrantCleanupRequest request)
+    {
+        Validate(request.Grant);
+        var revocation = ReadRevocation(request.Revocation.Authorization.Transcript);
+        if (request.Revocation.RequestId != revocation.RequestId
+            || request.Revocation.CircleId != request.Grant.Host.CircleId
+            || request.Revocation.CircleId != revocation.CircleId
+            || request.Revocation.ContributionId != request.Grant.Host.ContributionId
+            || request.Revocation.ContributionId != revocation.ContributionId
+            || request.Revocation.GrantId != request.Grant.GrantId
+            || request.Revocation.GrantId != revocation.GrantId
+            || request.Revocation.RevokedGeneration != request.Grant.Generation
+            || request.Revocation.RevokedGeneration != revocation.Generation
+            || !string.Equals(
+                request.Revocation.AuthorizationDigest,
+                CircleFilesHostAuthorizationDigest.Compute(request.Revocation.Authorization),
+                StringComparison.Ordinal)
+            || !CredentialsEqual(
+                request.Revocation.Authorization.MemberCredential,
+                request.Grant.Authorization.MemberCredential)
+            || !CredentialsEqual(
+                request.Revocation.Authorization.CircleAuthorityCredential,
+                request.Grant.Authorization.CircleAuthorityCredential)
+            || !Verify(
+                request.Revocation.Authorization.MemberCredential,
+                request.Revocation.Authorization.Transcript,
+                request.Revocation.Authorization.MemberSignature)
+            || !Verify(
+                request.Revocation.Authorization.CircleAuthorityCredential,
+                request.Revocation.Authorization.Transcript,
+                request.Revocation.Authorization.CircleAuthoritySignature))
         {
             throw Invalid();
         }
@@ -136,6 +173,47 @@ internal static class WindowsCircleFilesGrantAuthorizationVerifier
             return (
                 grant.ToString("D"), circle.ToString("D"), contribution.ToString("D"),
                 member.ToString("D"), access, generation, owner.ToString("D"), authorityGeneration);
+        }
+        catch (Exception exception) when (exception is InvalidDataException or DecoderFallbackException)
+        {
+            throw Invalid();
+        }
+    }
+
+    private static (string RequestId, string CircleId, string ContributionId, string GrantId,
+        long Generation) ReadRevocation(byte[] transcript)
+    {
+        try
+        {
+            ReadOnlySpan<byte> remaining = transcript;
+            if (ReadString(ref remaining) != GrantRevocationDomain)
+            {
+                throw new InvalidDataException();
+            }
+            var request = ReadGuid(ref remaining);
+            var circle = ReadGuid(ref remaining);
+            var contribution = ReadGuid(ref remaining);
+            var grant = ReadGuid(ref remaining);
+            var generation = ReadInt64(ref remaining);
+            _ = ReadInt64(ref remaining);
+            _ = ReadGuid(ref remaining);
+            _ = ReadInt64(ref remaining);
+            _ = ReadInt64(ref remaining);
+            if (request == Guid.Empty
+                || circle == Guid.Empty
+                || contribution == Guid.Empty
+                || grant == Guid.Empty
+                || generation <= 0
+                || !remaining.IsEmpty)
+            {
+                throw new InvalidDataException();
+            }
+            return (
+                request.ToString("D"),
+                circle.ToString("D"),
+                contribution.ToString("D"),
+                grant.ToString("D"),
+                generation);
         }
         catch (Exception exception) when (exception is InvalidDataException or DecoderFallbackException)
         {

@@ -78,6 +78,42 @@ public sealed partial class SqliteLocalStateStore : ICircleFilesProviderCredenti
             },
             cancellationToken);
 
+    public Task<CircleFilesProviderCredentialState?> GetCircleFilesProviderCredentialStateAsync(
+        string grantId,
+        CancellationToken cancellationToken = default) =>
+        ExecuteLockedAsync(
+            async token =>
+            {
+                ValidateGrantId(grantId);
+                var existing = await ReadProviderCredentialAsync(grantId, null, token)
+                    .ConfigureAwait(false);
+                return existing is null
+                    ? null
+                    : new CircleFilesProviderCredentialState(
+                        existing.Value.Binding,
+                        IsActive: existing.Value.Lifecycle == 2,
+                        IsRemoved: existing.Value.Lifecycle == 3);
+            },
+            cancellationToken);
+
+    public Task<CircleFilesProviderCredentialMaterial?> GetCircleFilesProviderCredentialForCleanupAsync(
+        string grantId,
+        CancellationToken cancellationToken = default) =>
+        ExecuteLockedAsync(
+            async token =>
+            {
+                ValidateGrantId(grantId);
+                var existing = await ReadProviderCredentialAsync(grantId, null, token)
+                    .ConfigureAwait(false);
+                if (existing is null || existing.Value.Lifecycle is not (2 or 3)) return null;
+                return new CircleFilesProviderCredentialMaterial(
+                    existing.Value.Binding,
+                    UnprotectProviderSecret(existing.Value.Scheme, existing.Value.Protected),
+                    isNew: false,
+                    isActive: existing.Value.Lifecycle == 2);
+            },
+            cancellationToken);
+
     public Task<CircleFilesProviderCredentialMaterial> PrepareCircleFilesProviderCredentialAsync(
         CircleFilesProviderCredentialBinding binding,
         ReadOnlyMemory<byte> candidateSecret,
@@ -168,6 +204,39 @@ public sealed partial class SqliteLocalStateStore : ICircleFilesProviderCredenti
                     UPDATE circle_files_provider_credentials
                     SET lifecycle = 2
                     WHERE grant_id = $grant_id AND lifecycle IN (1, 2);
+                    """;
+                command.Parameters.AddWithValue("$grant_id", binding.GrantId);
+                if (await command.ExecuteNonQueryAsync(token).ConfigureAwait(false) != 1)
+                {
+                    throw new LocalStateException(
+                        "circle_files_provider_credential_conflict",
+                        "The Windows provider credential state changed unexpectedly.");
+                }
+
+                await transaction.CommitAsync(token).ConfigureAwait(false);
+            },
+            cancellationToken);
+
+    public Task CompleteCircleFilesProviderCredentialRemovalAsync(
+        CircleFilesProviderCredentialBinding binding,
+        CancellationToken cancellationToken = default) =>
+        ExecuteLockedAsync(
+            async token =>
+            {
+                using var transaction = connection.BeginTransaction();
+                var existing = await ReadProviderCredentialAsync(binding.GrantId, transaction, token)
+                    .ConfigureAwait(false)
+                    ?? throw new LocalStateException(
+                        "circle_files_provider_credential_missing",
+                        "The Windows provider credential state is missing.");
+                EnsureEquivalentProviderCredential(binding, existing.Binding);
+                using var command = connection.CreateCommand();
+                command.Transaction = transaction;
+                command.CommandText =
+                    """
+                    UPDATE circle_files_provider_credentials
+                    SET lifecycle = 3
+                    WHERE grant_id = $grant_id AND lifecycle IN (2, 3);
                     """;
                 command.Parameters.AddWithValue("$grant_id", binding.GrantId);
                 if (await command.ExecuteNonQueryAsync(token).ConfigureAwait(false) != 1)
@@ -288,6 +357,14 @@ public sealed partial class SqliteLocalStateStore : ICircleFilesProviderCredenti
             || value.Generation <= 0)
         {
             throw new ArgumentException("The provider credential binding is invalid.", nameof(value));
+        }
+    }
+
+    private static void ValidateGrantId(string grantId)
+    {
+        if (!Guid.TryParseExact(grantId, "D", out _))
+        {
+            throw new ArgumentException("Grant ID must be a canonical UUID.", nameof(grantId));
         }
     }
 

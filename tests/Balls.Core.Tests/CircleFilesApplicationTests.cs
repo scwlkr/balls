@@ -139,6 +139,76 @@ public sealed class CircleFilesApplicationTests
     }
 
     [TestMethod]
+    public async Task Owner_revokes_the_exact_grant_generation_before_future_authorization()
+    {
+        using var memberKey = ECDsa.Create(ECCurve.NamedCurves.nistP256);
+        using var rootKey = ECDsa.Create(ECCurve.NamedCurves.nistP256);
+        using var anchorKey = ECDsa.Create(ECCurve.NamedCurves.nistP256);
+        var context = new CircleFilesAuthorizationContext(
+            CircleId,
+            OwnerId,
+            MemberRole.Owner,
+            IdentityCryptography.CreateCredential(IdentityKeyRole.Member, memberKey),
+            NodeId,
+            4,
+            IdentityCryptography.CreateCredential(IdentityKeyRole.CircleAuthority, rootKey));
+        var state = new InMemoryCircleFilesStateStore(context, memberKey);
+        var identities = new TestIdentityAuthorityStore(
+            new CircleAuthorityIdentity(
+                CircleId,
+                4,
+                context.RootCredential,
+                IdentityCryptography.CreateCredential(IdentityKeyRole.Anchor, anchorKey)),
+            rootKey);
+        var application = new CircleFilesApplication(
+            state,
+            identities,
+            new FixedTimeProvider(Now));
+        var contribution = await application.CreateContributionAsync(
+            new CreateCircleFilesContributionCommand(
+                new CircleFilesContributionRequestId(
+                    Guid.Parse("0198d000-1000-7000-8000-000000000009")),
+                CircleId,
+                "Project Files"));
+        var grant = await application.CreateAccessGrantAsync(
+            new CreateMemberAccessGrantCommand(
+                new MemberAccessGrantRequestId(
+                    Guid.Parse("0198d000-1000-7000-8000-000000000010")),
+                CircleId,
+                contribution.Id,
+                OwnerId,
+                MemberAccessMode.ReadWrite));
+
+        var revoked = await application.RevokeAccessGrantAsync(
+            new RevokeMemberAccessGrantCommand(
+                new MemberAccessGrantRevocationRequestId(
+                    Guid.Parse("0198d000-1000-7000-8000-000000000011")),
+                CircleId,
+                contribution.Id,
+                grant.Id,
+                ExpectedGeneration: 1));
+
+        Assert.AreEqual(MemberAccessGrantLifecycle.Revoked, revoked.Grant.Lifecycle);
+        Assert.AreEqual(1, revoked.Grant.Generation);
+        Assert.AreEqual(1, revoked.Revocation.RevokedGeneration);
+        Assert.AreEqual(Now, revoked.Revocation.RevokedAtUtc);
+        Assert.IsTrue(IdentityCryptography.Verify(
+            revoked.Revocation.Authorization.Transcript,
+            revoked.Revocation.Authorization.MemberSignature,
+            context.MemberCredential));
+        Assert.IsTrue(IdentityCryptography.Verify(
+            revoked.Revocation.Authorization.Transcript,
+            revoked.Revocation.Authorization.CircleAuthoritySignature,
+            context.RootCredential));
+        var error = await Assert.ThrowsExactlyAsync<LocalStateException>(
+            () => application.GetAuthorizedLocalAccessGrantAsync(
+                CircleId,
+                contribution.Id,
+                grant.Id));
+        Assert.AreEqual("circle_files_grant_authorization_failed", error.Code);
+    }
+
+    [TestMethod]
     public async Task Non_owner_cannot_authorize_a_contribution_mutation()
     {
         using var memberKey = ECDsa.Create(ECCurve.NamedCurves.nistP256);
@@ -233,6 +303,8 @@ public sealed class CircleFilesApplicationTests
 
         internal List<MemberAccessGrant> Grants { get; } = [];
 
+        internal List<RevokedMemberAccessGrant> Revocations { get; } = [];
+
         internal int MemberSignatureCount { get; private set; }
 
         public Task<CircleFilesAuthorizationContext?> GetAuthorizationContextAsync(
@@ -281,6 +353,30 @@ public sealed class CircleFilesApplicationTests
             Task.FromResult<IReadOnlyList<MemberAccessGrant>>(
                 Grants.Where(value =>
                     value.CircleId == circleId && value.ContributionId == contributionId).ToArray());
+
+        public Task<RevokedMemberAccessGrant?> GetAccessGrantRevocationAsync(
+            CircleId circleId,
+            CircleFilesContributionId contributionId,
+            MemberAccessGrantId grantId,
+            CancellationToken cancellationToken = default) =>
+            Task.FromResult<RevokedMemberAccessGrant?>(
+                Revocations.SingleOrDefault(value =>
+                    value.Grant.CircleId == circleId
+                    && value.Grant.ContributionId == contributionId
+                    && value.Grant.Id == grantId));
+
+        public Task<RevokedMemberAccessGrant> RevokeAccessGrantAsync(
+            MemberAccessGrantRevocationRequestId requestId,
+            MemberAccessGrant revokedGrant,
+            MemberAccessGrantRevocation revocation,
+            CancellationToken cancellationToken = default)
+        {
+            var index = Grants.FindIndex(value => value.Id == revokedGrant.Id);
+            Grants[index] = revokedGrant;
+            var result = new RevokedMemberAccessGrant(revokedGrant, revocation);
+            Revocations.Add(result);
+            return Task.FromResult(result);
+        }
     }
 
     private sealed class TestIdentityAuthorityStore(

@@ -98,10 +98,18 @@ public sealed class WindowsCircleFilesGrantCredentialProvisioner :
         CancellationToken cancellationToken) =>
         await PrepareAsync(request, secret, cancellationToken).ConfigureAwait(false);
 
+    internal async ValueTask<WindowsCircleFilesGrantHelperPlan> PrepareForRemovalAsync(
+        CircleFilesGrantCredentialRequest request,
+        byte[] secret,
+        CancellationToken cancellationToken) =>
+        await PrepareAsync(request, secret, cancellationToken, forRemoval: true)
+            .ConfigureAwait(false);
+
     private async ValueTask<WindowsCircleFilesGrantHelperPlan> PrepareAsync(
         CircleFilesGrantCredentialRequest request,
         byte[] secret,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        bool forRemoval = false)
     {
         ArgumentNullException.ThrowIfNull(request);
         ValidateCanonicalId(request.GrantId);
@@ -118,8 +126,11 @@ public sealed class WindowsCircleFilesGrantCredentialProvisioner :
             throw InvalidAuthorization();
         }
 
-        var hostPlan = await hosting.PrepareForHelperAsync(request.Host, cancellationToken)
-            .ConfigureAwait(false);
+        var hostPlan = forRemoval
+            ? await hosting.PrepareForRemovalAsync(request.Host, cancellationToken)
+                .ConfigureAwait(false)
+            : await hosting.PrepareForHelperAsync(request.Host, cancellationToken)
+                .ConfigureAwait(false);
         var ownershipId = WindowsCircleFilesHostProvisioner.HashCanonical(
             "balls-windows-smb-grant-ownership-v1",
             request.Host.CircleId,
@@ -207,6 +218,17 @@ internal interface IWindowsCircleFilesGrantOperations
     ValueTask RollbackAsync(
         WindowsCircleFilesGrantHelperPlan plan,
         WindowsCircleFilesGrantOperationStep step,
+        CancellationToken cancellationToken);
+}
+
+internal interface IWindowsCircleFilesGrantSessionOperations
+{
+    ValueTask<int> CountOpenSessionsAsync(
+        WindowsCircleFilesGrantHelperPlan plan,
+        CancellationToken cancellationToken);
+
+    ValueTask TerminateOpenSessionsAsync(
+        WindowsCircleFilesGrantHelperPlan plan,
         CancellationToken cancellationToken);
 }
 
@@ -326,6 +348,114 @@ internal sealed class WindowsCircleFilesGrantOperation(IWindowsCircleFilesGrantO
     private static CircleFilesHostingException Collision() => new(
         "grant_resource_collision",
         "A Windows account or permission exists but is not exactly owned by this Access Grant.");
+}
+
+internal sealed class WindowsCircleFilesGrantRemovalOperation(
+    IWindowsCircleFilesGrantOperations operations,
+    IWindowsCircleFilesGrantSessionOperations sessions)
+{
+    private static readonly WindowsCircleFilesGrantOperationStep[] RemovalSteps =
+        Enum.GetValues<WindowsCircleFilesGrantOperationStep>().Reverse().ToArray();
+
+    internal async ValueTask<CircleFilesCleanupExecution> ExecuteAsync(
+        WindowsCircleFilesGrantHelperPlan plan,
+        bool terminateOpenSessions,
+        CancellationToken cancellationToken)
+    {
+        var states = await InspectAllAsync(plan, cancellationToken).ConfigureAwait(false);
+        if (states.Any(value => value.Value is WindowsCircleFilesOwnedState.Collision
+                or WindowsCircleFilesOwnedState.Blocked))
+        {
+            throw new CircleFilesHostingException(
+                "grant_resource_collision",
+                "A Windows account or permission is not exactly owned by this revoked Access Grant.");
+        }
+
+        if (states.All(value => value.Value == WindowsCircleFilesOwnedState.Missing))
+        {
+            return new CircleFilesCleanupExecution(
+                CircleFilesCleanupStatus.AlreadyRemoved,
+                0);
+        }
+
+        var openSessions = await CountOpenSessionsAsync(plan, cancellationToken)
+            .ConfigureAwait(false);
+        if (openSessions > 0 && !terminateOpenSessions)
+        {
+            return new CircleFilesCleanupExecution(CircleFilesCleanupStatus.Busy, openSessions);
+        }
+
+        if (openSessions > 0)
+        {
+            await sessions.TerminateOpenSessionsAsync(plan, cancellationToken).ConfigureAwait(false);
+            if (await CountOpenSessionsAsync(plan, cancellationToken).ConfigureAwait(false) != 0)
+            {
+                return new CircleFilesCleanupExecution(CircleFilesCleanupStatus.Partial, openSessions);
+            }
+        }
+
+        try
+        {
+            foreach (var step in RemovalSteps)
+            {
+                if (states[step] is WindowsCircleFilesOwnedState.Owned
+                    or WindowsCircleFilesOwnedState.BlockedOwned
+                    or WindowsCircleFilesOwnedState.Recoverable)
+                {
+                    await operations.RollbackAsync(plan, step, cancellationToken)
+                        .ConfigureAwait(false);
+                    if (await operations.InspectAsync(plan, step, cancellationToken)
+                            .ConfigureAwait(false) != WindowsCircleFilesOwnedState.Missing)
+                    {
+                        return new CircleFilesCleanupExecution(
+                            CircleFilesCleanupStatus.Partial,
+                            openSessions);
+                    }
+                }
+            }
+        }
+        catch (OperationCanceledException)
+        {
+            throw;
+        }
+        catch (Exception)
+        {
+            return new CircleFilesCleanupExecution(CircleFilesCleanupStatus.Partial, openSessions);
+        }
+
+        return new CircleFilesCleanupExecution(CircleFilesCleanupStatus.Removed, openSessions);
+    }
+
+    private async ValueTask<Dictionary<WindowsCircleFilesGrantOperationStep, WindowsCircleFilesOwnedState>>
+        InspectAllAsync(
+            WindowsCircleFilesGrantHelperPlan plan,
+            CancellationToken cancellationToken)
+    {
+        var states = new Dictionary<WindowsCircleFilesGrantOperationStep, WindowsCircleFilesOwnedState>();
+        foreach (var step in RemovalSteps)
+        {
+            states[step] = await operations.InspectAsync(plan, step, cancellationToken)
+                .ConfigureAwait(false);
+        }
+
+        return states;
+    }
+
+    private async ValueTask<int> CountOpenSessionsAsync(
+        WindowsCircleFilesGrantHelperPlan plan,
+        CancellationToken cancellationToken)
+    {
+        var count = await sessions.CountOpenSessionsAsync(plan, cancellationToken)
+            .ConfigureAwait(false);
+        if (count is < 0 or > 1_000)
+        {
+            throw new CircleFilesHostingException(
+                "grant_session_inspection_failed",
+                "Windows returned an invalid or unbounded SMB session count.");
+        }
+
+        return count;
+    }
 }
 
 [SupportedOSPlatform("windows")]

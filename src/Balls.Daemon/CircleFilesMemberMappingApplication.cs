@@ -103,13 +103,65 @@ internal sealed class CircleFilesMemberMappingApplication(
         await mutationGate.WaitAsync(cancellationToken).ConfigureAwait(false);
         try
         {
-            var request = await CreateRequestAsync(
+            var request = await CreateUnmapRequestAsync(
                 circleId, contributionId, grantId, endpoint, driveLetter, cancellationToken)
                 .ConfigureAwait(false);
             var result = await mapper.UnmapAsync(request, cancellationToken).ConfigureAwait(false);
             return new CircleFilesMemberMappingResultResponse(result.Status, ToResponse(result.Plan));
         }
         finally { mutationGate.Release(); }
+    }
+
+    private async Task<CircleFilesMemberMappingRequest> CreateUnmapRequestAsync(
+        CircleId circleId,
+        CircleFilesContributionId contributionId,
+        MemberAccessGrantId grantId,
+        string endpoint,
+        string driveLetter,
+        CancellationToken cancellationToken)
+    {
+        var normalizedDrive = ValidateAndNormalizeRequest(endpoint, driveLetter);
+        AuthorizedMemberAccessGrant authorized;
+        try
+        {
+            var revoked = await files.GetAuthorizedRevokedLocalAccessGrantAsync(
+                circleId,
+                contributionId,
+                grantId,
+                cancellationToken).ConfigureAwait(false);
+            authorized = new AuthorizedMemberAccessGrant(
+                revoked.Revoked.Grant,
+                revoked.Contribution,
+                revoked.OwnerMemberCredential,
+                revoked.CircleAuthorityCredential);
+        }
+        catch (LocalStateException exception) when (exception.Code == "circle_files_grant_not_revoked")
+        {
+            authorized = await files.GetAuthorizedLocalAccessGrantAsync(
+                circleId,
+                contributionId,
+                grantId,
+                cancellationToken).ConfigureAwait(false);
+        }
+
+        var circle = await circles.GetCircleAsync(circleId, cancellationToken).ConfigureAwait(false)
+            ?? throw new LocalStateException("circle_not_found", "The requested Circle is not known.");
+        var state = await store.GetCircleFilesProviderCredentialStateAsync(
+            grantId.ToString(),
+            cancellationToken).ConfigureAwait(false)
+            ?? throw new LocalStateException(
+                "circle_files_provider_credential_missing",
+                "The exact Windows grant credential record is unavailable for unmapping.");
+        return CreateRequest(
+            circleId,
+            contributionId,
+            grantId,
+            endpoint,
+            normalizedDrive,
+            authorized,
+            circle,
+            state.Binding,
+            isActive: true);
     }
 
     private async Task<CircleFilesMemberMappingRequest> CreateRequestAsync(

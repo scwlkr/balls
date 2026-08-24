@@ -24,7 +24,8 @@ public static class LinuxHostPlatform
             new UnsupportedCircleFilesReadinessInspector(),
             new UnsupportedCircleFilesHostProvisioner(),
             new UnsupportedCircleFilesGrantCredentialProvisioner(),
-            new UnsupportedCircleFilesMemberMapper());
+            new UnsupportedCircleFilesMemberMapper(),
+            new UnsupportedCircleFilesLifecycleManager());
     }
 
     private sealed class LinuxSystemBrowserLauncher : ISystemBrowserLauncher

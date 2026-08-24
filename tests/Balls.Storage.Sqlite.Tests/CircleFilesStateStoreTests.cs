@@ -81,6 +81,96 @@ public sealed class CircleFilesStateStoreTests
     }
 
     [TestMethod]
+    public async Task Grant_revocation_is_atomic_idempotent_and_restart_stable()
+    {
+        using var directory = new TemporaryDirectory();
+        CircleId circleId;
+        CircleFilesContributionId contributionId;
+        MemberAccessGrantId grantId;
+        var requestId = new MemberAccessGrantRevocationRequestId(
+            Guid.Parse("0198d000-2000-7000-8000-000000000013"));
+
+        await using (var store = await SqliteLocalStateStore.OpenAsync(
+                         directory.Path,
+                         TestPrivateMaterialProtector.Instance))
+        {
+            var circles = new CircleApplication(store, new FixedTimeProvider(Now), "Alice-PC");
+            var circle = await circles.CreateCircleAsync(
+                new CreateCircleCommand(
+                    new CreationRequestId(
+                        Guid.Parse("0198d000-2000-7000-8000-000000000010")),
+                    "Revocation Circle",
+                    "Alice"));
+            circleId = circle.Circle.Id;
+            var files = new CircleFilesApplication(store, store, new FixedTimeProvider(Now));
+            var contribution = await files.CreateContributionAsync(
+                new CreateCircleFilesContributionCommand(
+                    new CircleFilesContributionRequestId(
+                        Guid.Parse("0198d000-2000-7000-8000-000000000011")),
+                    circleId,
+                    "Revocation Files"));
+            contributionId = contribution.Id;
+            var grant = await files.CreateAccessGrantAsync(
+                new CreateMemberAccessGrantCommand(
+                    new MemberAccessGrantRequestId(
+                        Guid.Parse("0198d000-2000-7000-8000-000000000012")),
+                    circleId,
+                    contributionId,
+                    circle.Members.Single().Id,
+                    MemberAccessMode.ReadWrite));
+            grantId = grant.Id;
+
+            var revoked = await files.RevokeAccessGrantAsync(
+                new RevokeMemberAccessGrantCommand(
+                    requestId,
+                    circleId,
+                    contributionId,
+                    grantId,
+                    grant.Generation));
+            Assert.AreEqual(MemberAccessGrantLifecycle.Revoked, revoked.Grant.Lifecycle);
+            Assert.AreEqual(requestId, revoked.Revocation.RequestId);
+        }
+
+        await using var reopened = await SqliteLocalStateStore.OpenAsync(
+            directory.Path,
+            TestPrivateMaterialProtector.Instance);
+        var filesAfterRestart = new CircleFilesApplication(
+            reopened,
+            reopened,
+            new FixedTimeProvider(Now.AddMinutes(5)));
+        var retry = await filesAfterRestart.RevokeAccessGrantAsync(
+            new RevokeMemberAccessGrantCommand(
+                requestId,
+                circleId,
+                contributionId,
+                grantId,
+                ExpectedGeneration: 1));
+
+        Assert.AreEqual(MemberAccessGrantLifecycle.Revoked, retry.Grant.Lifecycle);
+        Assert.AreEqual(Now, retry.Revocation.RevokedAtUtc);
+        var persisted = await reopened.GetAccessGrantRevocationAsync(
+            circleId,
+            contributionId,
+            grantId);
+        Assert.IsNotNull(persisted);
+        AssertGrant(retry.Grant, persisted.Grant);
+        Assert.AreEqual(retry.Revocation.RequestId, persisted.Revocation.RequestId);
+        Assert.AreEqual(retry.Revocation.CircleId, persisted.Revocation.CircleId);
+        Assert.AreEqual(retry.Revocation.ContributionId, persisted.Revocation.ContributionId);
+        Assert.AreEqual(retry.Revocation.GrantId, persisted.Revocation.GrantId);
+        Assert.AreEqual(
+            retry.Revocation.RevokedGeneration,
+            persisted.Revocation.RevokedGeneration);
+        Assert.AreEqual(retry.Revocation.RevokedAtUtc, persisted.Revocation.RevokedAtUtc);
+        AssertAuthorization(
+            retry.Revocation.Authorization,
+            persisted.Revocation.Authorization);
+        Assert.AreEqual(
+            MemberAccessGrantLifecycle.Revoked,
+            (await reopened.ListAccessGrantsAsync(circleId, contributionId)).Single().Lifecycle);
+    }
+
+    [TestMethod]
     public async Task Provider_credential_is_protected_restart_stable_and_conflicting_reuse_fails()
     {
         using var directory = new TemporaryDirectory();
@@ -181,6 +271,159 @@ public sealed class CircleFilesStateStoreTests
     }
 
     [TestMethod]
+    public async Task Removed_provider_credential_and_redacted_lifecycle_audit_survive_restart()
+    {
+        using var directory = new TemporaryDirectory();
+        CircleId circleId;
+        CircleFilesContributionId contributionId;
+        MemberAccessGrantId grantId;
+        CircleFilesProviderCredentialBinding binding;
+        var secret = Encoding.UTF8.GetBytes("Aa2!cleanup-secret-that-remains-protected");
+        try
+        {
+            await using (var store = await SqliteLocalStateStore.OpenAsync(
+                             directory.Path,
+                             TestPrivateMaterialProtector.Instance))
+            {
+                var circle = await new CircleApplication(
+                        store,
+                        new FixedTimeProvider(Now),
+                        "Owner-PC")
+                    .CreateCircleAsync(new CreateCircleCommand(
+                        new CreationRequestId(
+                            Guid.Parse("0198d000-2000-7000-8000-0000000000a1")),
+                        "Cleanup Circle",
+                        "Owner"));
+                circleId = circle.Circle.Id;
+                var files = new CircleFilesApplication(store, store, new FixedTimeProvider(Now));
+                var contribution = await files.CreateContributionAsync(
+                    new CreateCircleFilesContributionCommand(
+                        new CircleFilesContributionRequestId(
+                            Guid.Parse("0198d000-2000-7000-8000-0000000000a2")),
+                        circleId,
+                        "Cleanup Files"));
+                contributionId = contribution.Id;
+                var grant = await files.CreateAccessGrantAsync(
+                    new CreateMemberAccessGrantCommand(
+                        new MemberAccessGrantRequestId(
+                            Guid.Parse("0198d000-2000-7000-8000-0000000000a3")),
+                        circleId,
+                        contributionId,
+                        circle.Members.Single().Id,
+                        MemberAccessMode.ReadOnly));
+                grantId = grant.Id;
+                binding = new CircleFilesProviderCredentialBinding(
+                    grantId.ToString(),
+                    circleId.ToString(),
+                    contributionId.ToString(),
+                    grant.MemberId.ToString(),
+                    "windows-smb-3.1.1-v1",
+                    "BallsG-abcdef0123456",
+                    new string('a', 64),
+                    "read-only",
+                    grant.Generation);
+                using var prepared = await store.PrepareCircleFilesProviderCredentialAsync(
+                    binding,
+                    secret);
+                await store.CompleteCircleFilesProviderCredentialAsync(binding);
+                await store.CompleteCircleFilesProviderCredentialRemovalAsync(binding);
+                await store.RecordCircleFilesLifecycleAuditEventAsync(
+                    new CircleFilesLifecycleAuditEvent(
+                        Guid.Parse("0198d000-2000-7000-8000-0000000000a4"),
+                        circleId,
+                        contributionId,
+                        grantId,
+                        "grant-cleanup",
+                        "removed",
+                        0,
+                        Now));
+            }
+
+            await using var reopened = await SqliteLocalStateStore.OpenAsync(
+                directory.Path,
+                TestPrivateMaterialProtector.Instance);
+            Assert.IsNull(await reopened.GetActiveCircleFilesProviderCredentialAsync(
+                grantId.ToString()));
+            var state = await reopened.GetCircleFilesProviderCredentialStateAsync(
+                grantId.ToString());
+            Assert.IsNotNull(state);
+            Assert.IsTrue(state.IsRemoved);
+            Assert.IsFalse(state.IsActive);
+            using var cleanup = await reopened.GetCircleFilesProviderCredentialForCleanupAsync(
+                grantId.ToString());
+            Assert.IsNotNull(cleanup);
+            CollectionAssert.AreEqual(secret, cleanup.Secret.ToArray());
+            var events = await reopened.ListCircleFilesLifecycleAuditEventsAsync(circleId);
+            Assert.AreEqual(1, events.Count);
+            Assert.AreEqual("grant-cleanup", events.Single().Operation);
+            Assert.AreEqual("removed", events.Single().Outcome);
+
+            var databasePath = Path.Combine(directory.Path, "balls.db");
+            var databaseBytes = await File.ReadAllBytesAsync(databasePath);
+            Assert.IsFalse(Encoding.UTF8.GetString(databaseBytes).Contains(
+                Encoding.UTF8.GetString(secret),
+                StringComparison.Ordinal));
+        }
+        finally
+        {
+            CryptographicOperations.ZeroMemory(secret);
+        }
+    }
+
+    [TestMethod]
+    public async Task Version_seven_lifecycle_migration_is_atomic_and_restartable()
+    {
+        using var directory = new TemporaryDirectory();
+        await using (var store = await SqliteLocalStateStore.OpenAsync(
+                         directory.Path,
+                         TestPrivateMaterialProtector.Instance))
+        {
+        }
+
+        var databasePath = Path.Combine(directory.Path, "balls.db");
+        await using (var connection = new SqliteConnection($"Data Source={databasePath};Pooling=False"))
+        {
+            await connection.OpenAsync();
+            using (var downgrade = connection.CreateCommand())
+            {
+                downgrade.CommandText =
+                    """
+                    PRAGMA foreign_keys = OFF;
+                    DROP TABLE circle_files_lifecycle_audit_events;
+                    DROP TABLE circle_files_access_grant_revocations;
+                    PRAGMA user_version = 7;
+                    PRAGMA foreign_keys = ON;
+                    """;
+                await downgrade.ExecuteNonQueryAsync();
+            }
+
+            await Assert.ThrowsExactlyAsync<InvalidOperationException>(
+                () => SqliteLocalStateStore.ExecuteV7ToV8MigrationAsync(
+                    connection,
+                    _ => throw new InvalidOperationException("injected"),
+                    CancellationToken.None));
+            using var inspect = connection.CreateCommand();
+            inspect.CommandText =
+                """
+                SELECT (SELECT user_version FROM pragma_user_version),
+                       (SELECT COUNT(*) FROM sqlite_master
+                        WHERE type='table' AND name IN (
+                            'circle_files_access_grant_revocations',
+                            'circle_files_lifecycle_audit_events'));
+                """;
+            await using var reader = await inspect.ExecuteReaderAsync();
+            Assert.IsTrue(await reader.ReadAsync());
+            Assert.AreEqual(7L, reader.GetInt64(0));
+            Assert.AreEqual(0L, reader.GetInt64(1));
+        }
+
+        await using var reopened = await SqliteLocalStateStore.OpenAsync(
+            directory.Path,
+            TestPrivateMaterialProtector.Instance);
+        Assert.AreEqual(SqliteLocalStateStore.CurrentSchemaVersion, await ReadVersionAsync(databasePath));
+    }
+
+    [TestMethod]
     public async Task Version_six_provider_credential_migration_is_atomic_and_restartable()
     {
         using var directory = new TemporaryDirectory();
@@ -198,6 +441,8 @@ public sealed class CircleFilesStateStoreTests
                 downgrade.CommandText =
                     """
                     PRAGMA foreign_keys = OFF;
+                    DROP TABLE circle_files_lifecycle_audit_events;
+                    DROP TABLE circle_files_access_grant_revocations;
                     DROP TABLE circle_files_provider_credentials;
                     PRAGMA user_version = 6;
                     PRAGMA foreign_keys = ON;
@@ -254,6 +499,8 @@ public sealed class CircleFilesStateStoreTests
                 downgrade.CommandText =
                     """
                     PRAGMA foreign_keys = OFF;
+                    DROP TABLE circle_files_lifecycle_audit_events;
+                    DROP TABLE circle_files_access_grant_revocations;
                     DROP TABLE circle_files_provider_credentials;
                     DROP TABLE circle_files_access_grants;
                     DROP TABLE circle_files_contributions;
@@ -311,6 +558,8 @@ public sealed class CircleFilesStateStoreTests
             using var command = connection.CreateCommand();
             command.CommandText =
                 """
+                DROP TABLE circle_files_lifecycle_audit_events;
+                DROP TABLE circle_files_access_grant_revocations;
                 DROP TABLE circle_files_provider_credentials;
                 DROP TABLE circle_files_access_grants;
                 DROP TABLE circle_files_contributions;
@@ -362,6 +611,8 @@ public sealed class CircleFilesStateStoreTests
             {
                 downgrade.CommandText =
                     """
+                    DROP TABLE circle_files_lifecycle_audit_events;
+                    DROP TABLE circle_files_access_grant_revocations;
                     DROP TABLE circle_files_provider_credentials;
                     DROP TABLE circle_files_access_grants;
                     DROP TABLE circle_files_contributions;

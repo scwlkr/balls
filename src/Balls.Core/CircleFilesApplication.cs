@@ -174,6 +174,92 @@ public sealed class CircleFilesApplication(
         CancellationToken cancellationToken = default) =>
         state.ListAccessGrantsAsync(circleId, contributionId, cancellationToken);
 
+    public async Task<RevokedMemberAccessGrant> RevokeAccessGrantAsync(
+        RevokeMemberAccessGrantCommand command,
+        CancellationToken cancellationToken = default)
+    {
+        if (command.RequestId.Value == Guid.Empty
+            || command.CircleId.Value == Guid.Empty
+            || command.ContributionId.Value == Guid.Empty
+            || command.GrantId.Value == Guid.Empty
+            || command.ExpectedGeneration <= 0)
+        {
+            throw new InputValidationException(
+                "invalid_request_id",
+                "Circle, contribution, grant, revocation request, and generation must be valid.");
+        }
+
+        var context = await GetOwnerAuthorizationContextAsync(command.CircleId, cancellationToken)
+            .ConfigureAwait(false);
+        var contribution = await GetAuthorizedLocalContributionAsync(
+            command.CircleId,
+            command.ContributionId,
+            cancellationToken).ConfigureAwait(false);
+        var grant = (await state.ListAccessGrantsAsync(
+                command.CircleId,
+                command.ContributionId,
+                cancellationToken).ConfigureAwait(false))
+            .SingleOrDefault(value => value.Id == command.GrantId)
+            ?? throw new LocalStateException(
+                "circle_files_grant_not_found",
+                "The requested Circle Files Access Grant was not found.");
+        ValidateGrantAuthorization(grant, contribution);
+        if (grant.Generation != command.ExpectedGeneration)
+        {
+            throw new LocalStateConflictException(
+                "circle_files_grant_generation_changed",
+                "The Access Grant generation changed before revocation.");
+        }
+
+        if (grant.Lifecycle == MemberAccessGrantLifecycle.Revoked)
+        {
+            var existing = await state.GetAccessGrantRevocationAsync(
+                command.CircleId,
+                command.ContributionId,
+                command.GrantId,
+                cancellationToken).ConfigureAwait(false)
+                ?? throw new LocalStateException(
+                    "circle_files_revocation_missing",
+                    "The revoked Access Grant is missing its authorization record.");
+            ValidateRevocationAuthorization(existing, contribution, command.ExpectedGeneration);
+            return existing;
+        }
+
+        if (grant.Lifecycle is not (MemberAccessGrantLifecycle.Defined
+            or MemberAccessGrantLifecycle.Active))
+        {
+            throw new LocalStateConflictException(
+                "circle_files_grant_generation_changed",
+                "The Access Grant cannot be revoked from its current lifecycle.");
+        }
+
+        var now = GetCurrentTimestamp();
+        var unsignedAuthorization = CreateUnsignedAuthorization(context, now);
+        var unsignedRevocation = new MemberAccessGrantRevocation(
+            command.RequestId,
+            command.CircleId,
+            command.ContributionId,
+            command.GrantId,
+            command.ExpectedGeneration,
+            now,
+            unsignedAuthorization);
+        var transcript = CircleFilesAuthorizationTranscript.EncodeGrantRevocation(unsignedRevocation);
+        var revocation = unsignedRevocation with
+        {
+            Authorization = await AuthorizeAsync(
+                command.CircleId,
+                context,
+                unsignedAuthorization,
+                transcript,
+                cancellationToken).ConfigureAwait(false),
+        };
+        return await state.RevokeAccessGrantAsync(
+            command.RequestId,
+            grant with { Lifecycle = MemberAccessGrantLifecycle.Revoked },
+            revocation,
+            cancellationToken).ConfigureAwait(false);
+    }
+
     public async Task<AuthorizedMemberAccessGrant> GetAuthorizedLocalAccessGrantAsync(
         CircleId circleId,
         CircleFilesContributionId contributionId,
@@ -192,10 +278,56 @@ public sealed class CircleFilesApplication(
             ?? throw new LocalStateException(
                 "circle_files_grant_not_found",
                 "The requested Circle Files Access Grant was not found.");
+        if (grant.Lifecycle != MemberAccessGrantLifecycle.Defined)
+        {
+            throw new LocalStateException(
+                "circle_files_grant_authorization_failed",
+                "The Circle Files Access Grant authorization is invalid or stale.");
+        }
+
+        ValidateGrantAuthorization(grant, contribution);
+
+        return new AuthorizedMemberAccessGrant(
+            grant,
+            contribution.Contribution,
+            contribution.MemberCredential,
+            contribution.CircleAuthorityCredential);
+    }
+
+    public async Task<AuthorizedRevokedMemberAccessGrant> GetAuthorizedRevokedLocalAccessGrantAsync(
+        CircleId circleId,
+        CircleFilesContributionId contributionId,
+        MemberAccessGrantId grantId,
+        CancellationToken cancellationToken = default)
+    {
+        var contribution = await GetAuthorizedLocalContributionAsync(
+            circleId,
+            contributionId,
+            cancellationToken).ConfigureAwait(false);
+        var revoked = await state.GetAccessGrantRevocationAsync(
+            circleId,
+            contributionId,
+            grantId,
+            cancellationToken).ConfigureAwait(false)
+            ?? throw new LocalStateException(
+                "circle_files_grant_not_revoked",
+                "Revoke the exact Access Grant generation before removing provider state.");
+        ValidateGrantAuthorization(revoked.Grant, contribution);
+        ValidateRevocationAuthorization(revoked, contribution, revoked.Grant.Generation);
+        return new AuthorizedRevokedMemberAccessGrant(
+            revoked,
+            contribution.Contribution,
+            contribution.MemberCredential,
+            contribution.CircleAuthorityCredential);
+    }
+
+    private static void ValidateGrantAuthorization(
+        MemberAccessGrant grant,
+        AuthorizedCircleFilesContribution contribution)
+    {
         var authorization = grant.Authorization;
-        if (grant.CircleId != circleId
-            || grant.ContributionId != contributionId
-            || grant.Lifecycle != MemberAccessGrantLifecycle.Defined
+        if (grant.CircleId != contribution.Contribution.CircleId
+            || grant.ContributionId != contribution.Contribution.Id
             || grant.Generation <= 0
             || authorization.OwnerMemberId != contribution.Contribution.Authorization.OwnerMemberId
             || authorization.AuthorityGeneration
@@ -214,12 +346,42 @@ public sealed class CircleFilesApplication(
                 "circle_files_grant_authorization_failed",
                 "The Circle Files Access Grant authorization is invalid or stale.");
         }
+    }
 
-        return new AuthorizedMemberAccessGrant(
-            grant,
-            contribution.Contribution,
-            contribution.MemberCredential,
-            contribution.CircleAuthorityCredential);
+    private static void ValidateRevocationAuthorization(
+        RevokedMemberAccessGrant revoked,
+        AuthorizedCircleFilesContribution contribution,
+        long expectedGeneration)
+    {
+        var revocation = revoked.Revocation;
+        var authorization = revocation.Authorization;
+        var expectedTranscript = CircleFilesAuthorizationTranscript.EncodeGrantRevocation(revocation);
+        if (revoked.Grant.Lifecycle != MemberAccessGrantLifecycle.Revoked
+            || revoked.Grant.Generation != expectedGeneration
+            || revocation.CircleId != revoked.Grant.CircleId
+            || revocation.ContributionId != revoked.Grant.ContributionId
+            || revocation.GrantId != revoked.Grant.Id
+            || revocation.RevokedGeneration != expectedGeneration
+            || authorization.OwnerMemberId != contribution.Contribution.Authorization.OwnerMemberId
+            || authorization.AuthorityGeneration
+                != contribution.Contribution.Authorization.AuthorityGeneration
+            || authorization.Transcript.Length == 0
+            || !CryptographicOperations.FixedTimeEquals(
+                authorization.Transcript,
+                expectedTranscript)
+            || !IdentityCryptography.Verify(
+                authorization.Transcript,
+                authorization.MemberSignature,
+                contribution.MemberCredential)
+            || !IdentityCryptography.Verify(
+                authorization.Transcript,
+                authorization.CircleAuthoritySignature,
+                contribution.CircleAuthorityCredential))
+        {
+            throw new LocalStateException(
+                "circle_files_revocation_authorization_failed",
+                "The Access Grant revocation authorization is invalid or stale.");
+        }
     }
 
     private async Task<CircleFilesAuthorizationContext> GetOwnerAuthorizationContextAsync(

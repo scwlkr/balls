@@ -478,12 +478,11 @@ Member, or conflicting retry fails before partial state. Local-control and CLI p
 only public object, lifecycle, and authorizing-Member metadata; signatures, transcripts, private
 authority, and provider credential material stay behind the Core-owned persistence seam.
 
-The browser adapter reuses the same application queries for read-only contribution and Access
-Grant lists and has no Circle Files mutation route in this slice. Protected local control and the
-CLI can preview/apply both the dedicated Windows host operation and one exact limited credential
-operation for a persisted Member Access Grant. Credential delivery/mapping, provider lifecycle
-transitions, rotation, and revocation remain separate adapters and tickets built on these IDs and
-grants.
+The browser adapter reuses the same application queries for contribution and Access Grant lists.
+Protected local control and the CLI expose host, credential, mapping, exact-generation revocation,
+and ownership-proven cleanup operations. Revocation is committed with a dual-signed generation-
+bound proof before provider cleanup begins; every later active authorization query rejects that
+grant. Rotation and multi-Anchor lifecycle replication remain separate work.
 
 Windows SMB readiness is an implemented read-only host capability behind
 `ICircleFilesReadinessInspector` in `Balls.Platform`. `Balls.Platform.Windows` supplies the SMB
@@ -570,6 +569,22 @@ process restart; foreign account, marker, folder ACL, or share ACL state fails c
   back only that grant's exact share/folder entries and owned prefix in reverse order, preserving
   other marker-backed Member grants. This includes externally terminated account creation with zero
   or all four LSA rights; cleanup removes only an expected-rights subset before deleting the account.
+
+Lifecycle removal is a separate preview/apply seam behind `ICircleFilesLifecycleManager`. The
+daemon requires the exact persisted revocation proof and credential binding before an elevated
+grant cleanup can inspect or mutate Windows. Cleanup proves every recorded account, marker, ACL
+entry, share entry, share, firewall rule, and operation journal before removal; substituted or
+ambiguous evidence refuses mutation. Open SMB sessions return `busy` with a bounded count.
+Termination requires a second explicit request and targets only the exact grant account, or for
+final host removal, sessions whose open files all remain inside the exact contribution path.
+Partial results remain retryable from persisted state.
+
+Host cleanup is allowed only after every grant is revoked and every issued provider credential is
+marked removed. It removes the exact firewall rule, encrypted share, protected ownership marker,
+and operation journal, but never deletes the contributed folder or user files. Lifecycle outcomes
+are appended to a redacted SQLite audit containing only object IDs, stable operation/outcome tokens,
+bounded session counts, and timestamps. Successful credential removal disables future credential
+authorization while retaining DPAPI-protected recovery material; secure deletion is not claimed.
 
 For the files-first v1, the Windows provider uses SMB 3.1.1 with SMB1 and guest access disabled,
 signing and encryption required, and one limited provider credential per Member Access Grant. A

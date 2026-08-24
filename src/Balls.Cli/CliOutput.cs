@@ -136,6 +136,55 @@ internal static class CliOutput
                 response.Grants.Select(value =>
                     $"{value.Id}\t{value.MemberId}\t{value.Access}\t{value.Lifecycle}\tgeneration {value.Generation}"));
 
+    internal static string RenderRevokedFilesGrant(MemberAccessGrantRevocationResponse response) =>
+        string.Join(
+            Environment.NewLine,
+            $"Revoked Access Grant: {response.GrantId}",
+            $"Generation: {response.RevokedGeneration}",
+            $"Revoked: {response.RevokedAtUtc:O}");
+
+    internal static string RenderFilesGrantCleanupPlan(
+        CircleFilesGrantCleanupPlanResponse response) =>
+        string.Join(
+            Environment.NewLine,
+            new[]
+            {
+                "Windows grant cleanup preview:",
+                $"Account: {response.AccountName}",
+                $"Folder preserved: {response.FolderPath}",
+                $"Plan ID: {response.PlanId}",
+                "Apply once without session termination; if busy, repeat with --terminate-open-sessions true.",
+            }.Concat(response.Actions.Select(action => $"- {action}")));
+
+    internal static string RenderFilesGrantCleanupResult(
+        CircleFilesGrantCleanupResultResponse response) =>
+        string.Join(
+            Environment.NewLine,
+            $"Grant cleanup: {response.Status}",
+            $"Open sessions: {response.OpenSessionCount}",
+            $"Folder preserved: {response.Plan.FolderPath}");
+
+    internal static string RenderFilesHostRemovalPlan(
+        CircleFilesHostRemovalPlanResponse response) =>
+        string.Join(
+            Environment.NewLine,
+            new[]
+            {
+                "Circle Files host removal preview:",
+                $"Folder preserved: {response.FolderPath}",
+                $"Share removed: {response.ShareName}",
+                $"Plan ID: {response.PlanId}",
+                "Apply once without session termination; if busy, repeat with --terminate-open-sessions true.",
+            }.Concat(response.Actions.Select(action => $"- {action}")));
+
+    internal static string RenderFilesHostRemovalResult(
+        CircleFilesHostRemovalResultResponse response) =>
+        string.Join(
+            Environment.NewLine,
+            $"Host removal: {response.Status}",
+            $"Open sessions: {response.OpenSessionCount}",
+            $"Folder preserved: {response.Plan.FolderPath}");
+
     internal static string RenderFilesHostPlan(CircleFilesHostPlanResponse response) =>
         string.Join(
             Environment.NewLine,

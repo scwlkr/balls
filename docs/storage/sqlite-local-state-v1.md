@@ -1,8 +1,9 @@
 # SQLite Local State
 
-**Status:** schema v7 implemented for local records, protected cryptographic authority,
+**Status:** schema v8 implemented for local records, protected cryptographic authority,
 invitations, persisted Circle admission, the first durable Circle message, and provider-neutral
-Circle Files contribution/grant authorization plus protected Windows provider credentials.
+Circle Files contribution/grant authorization, grant revocation, lifecycle audit, and protected
+Windows provider credentials.
 
 This database belongs to one `ballsd` instance. It preserves local Node identity and the Circles
 known to that daemon. It is a storage adapter, not the eventual replicated Circle state model.
@@ -25,7 +26,7 @@ persistent filesystem. See
 ## Database identity and open sequence
 
 - SQLite `application_id`: `0x42414C53` (`BALS`).
-- SQLite `user_version`: `7`.
+- SQLite `user_version`: `8`.
 - Connection mode: read/write/create, private cache, pooling disabled.
 
 The store reads identity and schema metadata before applying persistent configuration. A database
@@ -73,7 +74,9 @@ timestamps use round-trip ISO 8601 format.
 | `circle_messages` | Per-Circle ordered accepted message, canonical request digest, exact signed request, and Anchor-signed receipt; unique message UUID and Circle sequence |
 | `circle_files_contributions` | Provider-neutral whole-folder Contribution ID, request ID, provider/hosting Node identity, lifecycle/generation, and exact Owner-Member/current-root authorization proof |
 | `circle_files_access_grants` | One Member Access Grant per Contribution/Member with whole-folder access, lifecycle/generation, request identity, and exact dual-signed Owner authorization proof |
-| `circle_files_provider_credentials` | One exact provider credential binding per Access Grant: Circle, Contribution, Member, provider, account/ownership IDs, access, generation, pending/active lifecycle, protection scheme, protected secret, and creation time |
+| `circle_files_provider_credentials` | One exact provider credential binding per Access Grant: Circle, Contribution, Member, provider, account/ownership IDs, access, generation, pending/active/removed lifecycle, protection scheme, protected secret, and creation time |
+| `circle_files_access_grant_revocations` | One immutable exact-generation revocation per Access Grant with request identity, time, and dual-signed Owner/current-root proof |
+| `circle_files_lifecycle_audit_events` | Append-only redacted lifecycle outcomes with Circle/Contribution, typed subject ID, stable operation/outcome tokens, bounded session count, and time |
 
 `nodes` is deliberately broader than `local_node`: admitted remote Nodes share the catalog without
 redefining the daemon's singleton identity. A joined Node stores public Circle trust and its signed
@@ -108,6 +111,9 @@ receipt but does not gain private root/Anchor authority or redefine itself as th
 - Grant creation first proves that its Contribution and Member belong to the same Circle, then
   atomically stores whole-folder access plus the same dual-signed authorization metadata. A bad
   Member/contribution, duplicate grant, or constraint failure leaves no partial grant.
+- Grant revocation atomically changes only the expected generation to `revoked` and inserts its
+  immutable dual-signed proof. Exact retry returns that record; changed generation or request reuse
+  changes nothing.
 - Credential preparation validates the complete grant/provider binding and transactionally inserts
   one pending DPAPI-protected random secret before elevation. Exact retry returns the same
   unprotected material only to the in-process helper path; a changed binding or duplicate identity
@@ -115,6 +121,10 @@ receipt but does not gain private root/Anchor authority or redefine itself as th
   survives restart so recovery reuses the same password rather than creating conflicting accounts.
   The daemon serializes the complete protected preparation, elevated helper, and completion sequence
   so concurrent exact apply requests cannot treat another request's resources as their rollback prefix.
+- Cleanup advances the exact provider binding to `removed` only after the platform reports
+  `removed` or `already-removed`. Busy/partial outcomes retain protected recovery material across
+  restart, while active credential authorization returns nothing after removal. Lifecycle audit
+  inserts contain no proof, secret, subprocess output, or free-form diagnostic text.
 - A repeated creation request with equivalent normalized input returns the original Circle. A
   conflicting reuse fails with `creation_request_conflict`.
 - Store operations are serialized within the process. Disposal waits for the active operation and
@@ -136,11 +146,12 @@ receipt but does not gain private root/Anchor authority or redefine itself as th
 Migrations run one boundary at a time and transactionally: v1 adds protected Node/Circle authority
 (v2), v2 adds transport and invitation state (v3), v3 adds public Circle trust and admission
 state (v4), v4 adds local Member authorship plus persistent message/replay state (v5), v5 adds
-provider-neutral Circle Files contributions and Member Access Grants (v6), and v6 adds protected
-Circle Files provider credentials (v7). Each step records its
+provider-neutral Circle Files contributions and Member Access Grants (v6), v6 adds protected
+Circle Files provider credentials (v7), and v7 adds grant revocations plus lifecycle audit (v8).
+Each step records its
 own target version, so interruption between steps resumes from the last complete schema. A
 protection or database failure rolls back that schema version and every generated row; injected
-failure after the v7 DDL leaves version 6 and the credential table absent, and the next successful
+failure after the v8 DDL leaves version 7 and both lifecycle tables absent, and the next successful
 start performs one complete migration. Protected credentials and public
 Circle trust are validated on every open and are never silently regenerated when unreadable.
 

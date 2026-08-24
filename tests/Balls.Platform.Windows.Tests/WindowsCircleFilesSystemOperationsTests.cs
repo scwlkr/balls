@@ -11,8 +11,14 @@ namespace Balls.Platform.Windows.Tests;
 public sealed class WindowsCircleFilesSystemOperationsTests
 {
     [TestMethod]
-    public async Task Folder_acl_is_recognized_as_exact_owned_state_and_rolls_back_cleanly()
+    public async Task Host_metadata_removal_preserves_contributed_folder_and_exact_user_file_bytes()
     {
+        if (!OperatingSystem.IsWindows())
+        {
+            Assert.Inconclusive("Windows ACL integration requires Windows.");
+            return;
+        }
+
         var root = Path.Combine(Path.GetTempPath(), "balls-hosting-tests", Guid.NewGuid().ToString("N"));
         var folder = Path.Combine(root, "CircleFiles");
         Directory.CreateDirectory(root);
@@ -57,6 +63,11 @@ public sealed class WindowsCircleFilesSystemOperationsTests
                 plan,
                 WindowsCircleFilesOperationStep.OwnershipMarker,
                 CancellationToken.None);
+            var userBytes = Enumerable.Range(0, 4096)
+                .Select(index => (byte)(index % 251))
+                .ToArray();
+            var userFile = Path.Combine(folder, "user-model.bin");
+            await File.WriteAllBytesAsync(userFile, userBytes);
             Assert.AreEqual(
                 WindowsCircleFilesOwnedState.Owned,
                 await operations.InspectAsync(
@@ -94,7 +105,10 @@ public sealed class WindowsCircleFilesSystemOperationsTests
                 plan,
                 WindowsCircleFilesOperationStep.FolderAcl,
                 CancellationToken.None);
-            Assert.IsFalse(Directory.Exists(folder));
+            Assert.IsTrue(Directory.Exists(folder));
+            Assert.IsTrue(File.Exists(userFile));
+            CollectionAssert.AreEqual(userBytes, await File.ReadAllBytesAsync(userFile));
+            Assert.IsFalse(File.Exists(markerPath));
         }
         finally
         {

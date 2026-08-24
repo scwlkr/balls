@@ -109,7 +109,8 @@ public static class CliApplication
             TimeSpan? timeout = tokens.Count >= 3
                 && tokens[0] == "files"
                 && ((tokens[1] == "host" && tokens[2] == "apply")
-                    || (tokens[1] == "grant" && tokens[2] == "credential-apply"))
+                    || (tokens[1] == "host" && tokens[2] == "remove-apply")
+                    || (tokens[1] == "grant" && tokens[2] is "credential-apply" or "cleanup-apply"))
                 ? TimeSpan.FromMinutes(2.5)
                 : null;
             client = host.LocalControlClient.CreateClient(localControlEndpoint, timeout);
@@ -516,6 +517,12 @@ public static class CliApplication
                     client, tokens, outputFormat, standardOutput, standardError, cancellationToken),
                 ("grant", "credential-apply") => ApplyFilesGrantCredentialAsync(
                     client, tokens, outputFormat, standardOutput, standardError, cancellationToken),
+                ("grant", "revoke") => RevokeFilesGrantAsync(
+                    client, tokens, outputFormat, standardOutput, standardError, cancellationToken),
+                ("grant", "cleanup-preview") => PreviewFilesGrantCleanupAsync(
+                    client, tokens, outputFormat, standardOutput, standardError, cancellationToken),
+                ("grant", "cleanup-apply") => ApplyFilesGrantCleanupAsync(
+                    client, tokens, outputFormat, standardOutput, standardError, cancellationToken),
                 ("mapping", "preview") => PreviewFilesMappingAsync(
                     client, tokens, outputFormat, standardOutput, standardError, cancellationToken),
                 ("mapping", "map") => MapFilesMappingAsync(
@@ -527,6 +534,10 @@ public static class CliApplication
                 ("host", "preview") => PreviewFilesHostAsync(
                     client, tokens, outputFormat, standardOutput, standardError, cancellationToken),
                 ("host", "apply") => ApplyFilesHostAsync(
+                    client, tokens, outputFormat, standardOutput, standardError, cancellationToken),
+                ("host", "remove-preview") => PreviewFilesHostRemovalAsync(
+                    client, tokens, outputFormat, standardOutput, standardError, cancellationToken),
+                ("host", "remove-apply") => ApplyFilesHostRemovalAsync(
                     client, tokens, outputFormat, standardOutput, standardError, cancellationToken),
                 _ => WriteUsageErrorAsync(standardError, outputFormat, "unknown files command."),
             }
@@ -744,6 +755,183 @@ public static class CliApplication
             CliOutput.RenderFilesGrants);
         return CliExitCodes.Success;
     }
+
+    private static async Task<int> RevokeFilesGrantAsync(
+        HttpClient client,
+        IReadOnlyList<string> tokens,
+        CliOutputFormat outputFormat,
+        TextWriter output,
+        TextWriter error,
+        CancellationToken cancellationToken)
+    {
+        if (!TryParseNamedOptions(
+                tokens,
+                3,
+                ["--circle", "--contribution", "--grant", "--generation", "--request-id"],
+                out var options,
+                out var parseError)
+            || !options.TryGetValue("--circle", out var circleId)
+            || !options.TryGetValue("--contribution", out var contributionId)
+            || !options.TryGetValue("--grant", out var grantId)
+            || !options.TryGetValue("--generation", out var generationText)
+            || !long.TryParse(
+                generationText,
+                System.Globalization.NumberStyles.None,
+                System.Globalization.CultureInfo.InvariantCulture,
+                out var generation)
+            || generation <= 0)
+        {
+            return await WriteUsageErrorAsync(
+                error,
+                outputFormat,
+                parseError ?? "usage: balls files grant revoke --circle <circle-id> --contribution <contribution-id> --grant <grant-id> --generation <positive-number> [--request-id <uuid>].");
+        }
+
+        using var response = await client.PostAsJsonAsync(
+            ControlRoutes.CircleFilesGrantRevoke(circleId, contributionId, grantId),
+            new RevokeMemberAccessGrantRequest(
+                options.GetValueOrDefault("--request-id") ?? Guid.CreateVersion7().ToString("D"),
+                generation),
+            ControlJson.Options,
+            cancellationToken).ConfigureAwait(false);
+        var result = await ReadResponseAsync<MemberAccessGrantRevocationResponse>(
+            response,
+            outputFormat,
+            error,
+            cancellationToken).ConfigureAwait(false);
+        if (result.Value is null) return result.ExitCode;
+        await WriteResultAsync(output, outputFormat, result.Value, CliOutput.RenderRevokedFilesGrant);
+        return CliExitCodes.Success;
+    }
+
+    private static async Task<int> PreviewFilesGrantCleanupAsync(
+        HttpClient client,
+        IReadOnlyList<string> tokens,
+        CliOutputFormat outputFormat,
+        TextWriter output,
+        TextWriter error,
+        CancellationToken cancellationToken)
+    {
+        if (!TryParseGrantCleanupOptions(
+                tokens,
+                includeApply: false,
+                out var values,
+                out var parseError))
+        {
+            return await WriteUsageErrorAsync(error, outputFormat, parseError!);
+        }
+
+        using var response = await client.PostAsJsonAsync(
+            ControlRoutes.CircleFilesGrantCleanupPreview(
+                values.CircleId,
+                values.ContributionId,
+                values.GrantId),
+            new PreviewCircleFilesGrantCleanupRequest(values.FolderPath),
+            ControlJson.Options,
+            cancellationToken).ConfigureAwait(false);
+        var result = await ReadResponseAsync<CircleFilesGrantCleanupPlanResponse>(
+            response,
+            outputFormat,
+            error,
+            cancellationToken).ConfigureAwait(false);
+        if (result.Value is null) return result.ExitCode;
+        await WriteResultAsync(
+            output,
+            outputFormat,
+            result.Value,
+            CliOutput.RenderFilesGrantCleanupPlan);
+        return CliExitCodes.Success;
+    }
+
+    private static async Task<int> ApplyFilesGrantCleanupAsync(
+        HttpClient client,
+        IReadOnlyList<string> tokens,
+        CliOutputFormat outputFormat,
+        TextWriter output,
+        TextWriter error,
+        CancellationToken cancellationToken)
+    {
+        if (!TryParseGrantCleanupOptions(
+                tokens,
+                includeApply: true,
+                out var values,
+                out var parseError))
+        {
+            return await WriteUsageErrorAsync(error, outputFormat, parseError!);
+        }
+
+        using var response = await client.PostAsJsonAsync(
+            ControlRoutes.CircleFilesGrantCleanupApply(
+                values.CircleId,
+                values.ContributionId,
+                values.GrantId),
+            new ApplyCircleFilesGrantCleanupRequest(
+                values.FolderPath,
+                values.PlanId!,
+                values.TerminateOpenSessions),
+            ControlJson.Options,
+            cancellationToken).ConfigureAwait(false);
+        var result = await ReadResponseAsync<CircleFilesGrantCleanupResultResponse>(
+            response,
+            outputFormat,
+            error,
+            cancellationToken).ConfigureAwait(false);
+        if (result.Value is null) return result.ExitCode;
+        await WriteResultAsync(
+            output,
+            outputFormat,
+            result.Value,
+            CliOutput.RenderFilesGrantCleanupResult);
+        return CliExitCodes.Success;
+    }
+
+    private static bool TryParseGrantCleanupOptions(
+        IReadOnlyList<string> tokens,
+        bool includeApply,
+        out FilesGrantCleanupOptions values,
+        out string? parseError)
+    {
+        var allowed = includeApply
+            ? new[]
+            {
+                "--circle", "--contribution", "--grant", "--path", "--plan",
+                "--terminate-open-sessions",
+            }
+            : ["--circle", "--contribution", "--grant", "--path"];
+        if (TryParseNamedOptions(tokens, 3, allowed, out var options, out parseError)
+            && options.TryGetValue("--circle", out var circleId)
+            && options.TryGetValue("--contribution", out var contributionId)
+            && options.TryGetValue("--grant", out var grantId)
+            && options.TryGetValue("--path", out var folderPath)
+            && (!includeApply || options.TryGetValue("--plan", out _))
+            && TryParseConfirmation(options, includeApply, out var terminateOpenSessions))
+        {
+            values = new FilesGrantCleanupOptions(
+                circleId,
+                contributionId,
+                grantId,
+                folderPath,
+                options.GetValueOrDefault("--plan"),
+                terminateOpenSessions);
+            return true;
+        }
+
+        values = new FilesGrantCleanupOptions("", "", "", "", null, false);
+        parseError ??=
+            "usage: balls files grant cleanup-"
+            + (includeApply
+                ? "apply --circle <circle-id> --contribution <contribution-id> --grant <grant-id> --path <absolute-local-path> --plan <plan-id> [--terminate-open-sessions true]."
+                : "preview --circle <circle-id> --contribution <contribution-id> --grant <grant-id> --path <absolute-local-path>.");
+        return false;
+    }
+
+    private sealed record FilesGrantCleanupOptions(
+        string CircleId,
+        string ContributionId,
+        string GrantId,
+        string FolderPath,
+        string? PlanId,
+        bool TerminateOpenSessions);
 
     private static async Task<int> PreviewFilesHostAsync(
         HttpClient client,
@@ -1050,6 +1238,131 @@ public static class CliApplication
 
         await WriteResultAsync(output, outputFormat, result.Value, CliOutput.RenderAppliedFilesHost);
         return CliExitCodes.Success;
+    }
+
+    private static Task<int> PreviewFilesHostRemovalAsync(
+        HttpClient client,
+        IReadOnlyList<string> tokens,
+        CliOutputFormat outputFormat,
+        TextWriter output,
+        TextWriter error,
+        CancellationToken cancellationToken) =>
+        RunFilesHostRemovalAsync(
+            client,
+            tokens,
+            apply: false,
+            outputFormat,
+            output,
+            error,
+            cancellationToken);
+
+    private static Task<int> ApplyFilesHostRemovalAsync(
+        HttpClient client,
+        IReadOnlyList<string> tokens,
+        CliOutputFormat outputFormat,
+        TextWriter output,
+        TextWriter error,
+        CancellationToken cancellationToken) =>
+        RunFilesHostRemovalAsync(
+            client,
+            tokens,
+            apply: true,
+            outputFormat,
+            output,
+            error,
+            cancellationToken);
+
+    private static async Task<int> RunFilesHostRemovalAsync(
+        HttpClient client,
+        IReadOnlyList<string> tokens,
+        bool apply,
+        CliOutputFormat outputFormat,
+        TextWriter output,
+        TextWriter error,
+        CancellationToken cancellationToken)
+    {
+        var allowed = apply
+            ? new[] { "--circle", "--contribution", "--path", "--plan", "--terminate-open-sessions" }
+            : ["--circle", "--contribution", "--path"];
+        if (!TryParseNamedOptions(tokens, 3, allowed, out var options, out var parseError)
+            || !options.TryGetValue("--circle", out var circleId)
+            || !options.TryGetValue("--contribution", out var contributionId)
+            || !options.TryGetValue("--path", out var folderPath)
+            || apply && !options.TryGetValue("--plan", out _)
+            || !TryParseConfirmation(options, apply, out var terminateOpenSessions))
+        {
+            return await WriteUsageErrorAsync(
+                error,
+                outputFormat,
+                parseError ?? "usage: balls files host remove-"
+                    + (apply
+                        ? "apply --circle <circle-id> --contribution <contribution-id> --path <absolute-local-path> --plan <plan-id> [--terminate-open-sessions true]."
+                        : "preview --circle <circle-id> --contribution <contribution-id> --path <absolute-local-path>."));
+        }
+
+        if (!apply)
+        {
+            using var response = await client.PostAsJsonAsync(
+                ControlRoutes.CircleFilesHostRemovalPreview(circleId, contributionId),
+                new PreviewCircleFilesHostRemovalRequest(folderPath),
+                ControlJson.Options,
+                cancellationToken).ConfigureAwait(false);
+            var result = await ReadResponseAsync<CircleFilesHostRemovalPlanResponse>(
+                response,
+                outputFormat,
+                error,
+                cancellationToken).ConfigureAwait(false);
+            if (result.Value is null) return result.ExitCode;
+            await WriteResultAsync(
+                output,
+                outputFormat,
+                result.Value,
+                CliOutput.RenderFilesHostRemovalPlan);
+            return CliExitCodes.Success;
+        }
+
+        using (var response = await client.PostAsJsonAsync(
+                   ControlRoutes.CircleFilesHostRemovalApply(circleId, contributionId),
+                   new ApplyCircleFilesHostRemovalRequest(
+                       folderPath,
+                       options["--plan"],
+                       terminateOpenSessions),
+                   ControlJson.Options,
+                   cancellationToken).ConfigureAwait(false))
+        {
+            var result = await ReadResponseAsync<CircleFilesHostRemovalResultResponse>(
+                response,
+                outputFormat,
+                error,
+                cancellationToken).ConfigureAwait(false);
+            if (result.Value is null) return result.ExitCode;
+            await WriteResultAsync(
+                output,
+                outputFormat,
+                result.Value,
+                CliOutput.RenderFilesHostRemovalResult);
+            return CliExitCodes.Success;
+        }
+    }
+
+    private static bool TryParseConfirmation(
+        IReadOnlyDictionary<string, string> options,
+        bool allowed,
+        out bool terminateOpenSessions)
+    {
+        terminateOpenSessions = false;
+        if (!options.TryGetValue("--terminate-open-sessions", out var value))
+        {
+            return true;
+        }
+
+        if (!allowed || !string.Equals(value, "true", StringComparison.Ordinal))
+        {
+            return false;
+        }
+
+        terminateOpenSessions = true;
+        return true;
     }
 
     private static async Task<int> CreateInvitationAsync(
@@ -1768,7 +2081,7 @@ public static class CliApplication
         if (outputFormat == CliOutputFormat.Text)
         {
             await error.WriteLineAsync(
-                "commands: ui | status | circle create | circle join | circle list | member list | node list | invitation create | invitation redeem | message send | message list | files readiness | files contribution create/list | files grant create/list/credential-preview/credential-apply | files host preview/apply | files mapping preview/map/inspect/unmap");
+                "commands: ui | status | circle create | circle join | circle list | member list | node list | invitation create | invitation redeem | message send | message list | files readiness | files contribution create/list | files grant create/list/credential-preview/credential-apply/revoke/cleanup-preview/cleanup-apply | files host preview/apply/remove-preview/remove-apply | files mapping preview/map/inspect/unmap");
         }
 
         return CliExitCodes.UsageError;

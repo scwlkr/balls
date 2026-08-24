@@ -175,10 +175,12 @@ public sealed class CircleFilesEndpointsTests
         var pipeName = $"balls-tests-{Guid.NewGuid():N}";
         var grantProvisioner = new StubGrantCredentialProvisioner();
         var memberMapper = new StubMemberMapper();
+        var lifecycle = new StubLifecycleManager();
         var host = WindowsHostPlatform.Create() with
         {
             CircleFilesGrantCredentials = grantProvisioner,
             CircleFilesMemberMapping = memberMapper,
+            CircleFilesLifecycle = lifecycle,
         };
         await using var daemon = await DaemonHost.StartAsync(
             new DaemonOptions(directory.Path, pipeName, "Alice-PC"),
@@ -304,6 +306,60 @@ public sealed class CircleFilesEndpointsTests
         {
             var json = await response.Content.ReadAsStringAsync();
             Assert.IsFalse(json.Contains("secret", StringComparison.OrdinalIgnoreCase));
+            Assert.IsFalse(json.Contains("password", StringComparison.OrdinalIgnoreCase));
+        }
+
+        using var revokeResponse = await client.PostAsJsonAsync(
+            ControlRoutes.CircleFilesGrantRevoke(circle.Circle.Id, contribution.Id, grant.Id),
+            new RevokeMemberAccessGrantRequest(
+                "0198d000-3000-7000-8000-000000000094",
+                grant.Generation),
+            ControlJson.Options);
+        var revokedJson = await revokeResponse.Content.ReadAsStringAsync();
+        using var rejectedPreview = await client.PostAsJsonAsync(
+            ControlRoutes.CircleFilesMemberMappingPreview(
+                circle.Circle.Id, contribution.Id, grant.Id),
+            new PreviewCircleFilesMemberMappingRequest("192.168.50.10", "M"),
+            ControlJson.Options);
+        using var postRevokeUnmap = await client.PostAsJsonAsync(
+            ControlRoutes.CircleFilesMemberMappingUnmap(
+                circle.Circle.Id, contribution.Id, grant.Id),
+            new UnmapCircleFilesMemberMappingRequest("192.168.50.10", "M"),
+            ControlJson.Options);
+        using var cleanupPreviewResponse = await client.PostAsJsonAsync(
+            ControlRoutes.CircleFilesGrantCleanupPreview(
+                circle.Circle.Id, contribution.Id, grant.Id),
+            new PreviewCircleFilesGrantCleanupRequest(folder),
+            ControlJson.Options);
+        var cleanupPlan = await cleanupPreviewResponse.Content
+            .ReadFromJsonAsync<CircleFilesGrantCleanupPlanResponse>(ControlJson.Options);
+        Assert.IsNotNull(cleanupPlan);
+        using var busyResponse = await client.PostAsJsonAsync(
+            ControlRoutes.CircleFilesGrantCleanupApply(
+                circle.Circle.Id, contribution.Id, grant.Id),
+            new ApplyCircleFilesGrantCleanupRequest(folder, cleanupPlan.PlanId, false),
+            ControlJson.Options);
+        var busy = await busyResponse.Content
+            .ReadFromJsonAsync<CircleFilesGrantCleanupResultResponse>(ControlJson.Options);
+        using var removeResponse = await client.PostAsJsonAsync(
+            ControlRoutes.CircleFilesGrantCleanupApply(
+                circle.Circle.Id, contribution.Id, grant.Id),
+            new ApplyCircleFilesGrantCleanupRequest(folder, cleanupPlan.PlanId, true),
+            ControlJson.Options);
+        var removedJson = await removeResponse.Content.ReadAsStringAsync();
+        var removed = System.Text.Json.JsonSerializer
+            .Deserialize<CircleFilesGrantCleanupResultResponse>(removedJson, ControlJson.Options);
+
+        Assert.AreEqual(HttpStatusCode.OK, revokeResponse.StatusCode);
+        Assert.AreEqual(HttpStatusCode.BadRequest, rejectedPreview.StatusCode);
+        Assert.AreEqual(HttpStatusCode.OK, postRevokeUnmap.StatusCode);
+        Assert.AreEqual("busy", busy?.Status);
+        Assert.AreEqual(1, busy?.OpenSessionCount);
+        Assert.AreEqual("removed", removed?.Status);
+        Assert.AreEqual(2, lifecycle.RemoveGrantCalls);
+        foreach (var json in new[] { revokedJson, removedJson })
+        {
+            AssertSafeProjection(json);
             Assert.IsFalse(json.Contains("password", StringComparison.OrdinalIgnoreCase));
         }
     }
@@ -480,6 +536,86 @@ public sealed class CircleFilesEndpointsTests
                 new string('f', 64),
                 ["M", "N"],
                 ["Map exact share."]);
+    }
+
+    private sealed class StubLifecycleManager : ICircleFilesLifecycleManager
+    {
+        internal int RemoveGrantCalls { get; private set; }
+
+        public ValueTask<CircleFilesGrantCleanupPlan> PreviewGrantCleanupAsync(
+            CircleFilesGrantCleanupRequest request,
+            CancellationToken cancellationToken)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            return ValueTask.FromResult(GrantPlan(request));
+        }
+
+        public ValueTask<CircleFilesGrantCleanupResult> RemoveGrantAsync(
+            CircleFilesGrantCleanupRequest request,
+            string expectedPlanId,
+            ReadOnlyMemory<byte> secret,
+            bool terminateOpenSessions,
+            CancellationToken cancellationToken)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            Assert.IsTrue(secret.Length >= 24);
+            var plan = GrantPlan(request);
+            Assert.AreEqual(expectedPlanId, plan.PlanId);
+            RemoveGrantCalls++;
+            return ValueTask.FromResult(new CircleFilesGrantCleanupResult(
+                terminateOpenSessions
+                    ? CircleFilesCleanupStatus.Removed
+                    : CircleFilesCleanupStatus.Busy,
+                terminateOpenSessions ? 0 : 1,
+                plan));
+        }
+
+        public ValueTask<CircleFilesHostRemovalPlan> PreviewHostRemovalAsync(
+            CircleFilesHostRequest request,
+            CancellationToken cancellationToken)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            return ValueTask.FromResult(HostPlan(request));
+        }
+
+        public ValueTask<CircleFilesHostRemovalResult> RemoveHostAsync(
+            CircleFilesHostRequest request,
+            string expectedPlanId,
+            bool terminateOpenSessions,
+            CancellationToken cancellationToken)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            var plan = HostPlan(request);
+            Assert.AreEqual(expectedPlanId, plan.PlanId);
+            return ValueTask.FromResult(new CircleFilesHostRemovalResult(
+                CircleFilesCleanupStatus.Removed,
+                0,
+                plan));
+        }
+
+        private static CircleFilesGrantCleanupPlan GrantPlan(
+            CircleFilesGrantCleanupRequest request) =>
+            new(
+                1,
+                new string('1', 64),
+                CircleFilesReadinessProviders.WindowsSmb311,
+                request.Grant.Host.FolderPath,
+                "balls-test",
+                "BallsG-abcdef0123456",
+                new string('d', 64),
+                request.Grant.Generation,
+                ["Remove exact owned grant state."]);
+
+        private static CircleFilesHostRemovalPlan HostPlan(CircleFilesHostRequest request) =>
+            new(
+                1,
+                new string('2', 64),
+                CircleFilesReadinessProviders.WindowsSmb311,
+                request.FolderPath,
+                "balls-test",
+                "Balls-SMB-test",
+                new string('b', 64),
+                ["Remove exact owned host state."]);
     }
 
     private sealed class TemporaryDirectory : IDisposable

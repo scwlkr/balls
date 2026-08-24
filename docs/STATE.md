@@ -39,7 +39,8 @@ Status: implementation. Trusted Circle is owner-accepted and published as
 provider-neutral contribution and Access Grant foundation. #57 adds the read-only Windows SMB
 readiness gate. #58 adds the dedicated owned-folder hosting helper. #59 adds one protected limited
 Windows credential and exact ACL per Access Grant; #60 adds explicit persistent Explorer mapping.
-#61 is the next frontier, while #62 remains dependency-blocked.
+#61 implements generation-bound revocation and ownership-proven cleanup; #62 remains
+dependency-blocked pending its verified landing.
 
 Exit outcome: two Windows Members can add, remove, rename, and edit files in the same persistent
 Explorer-mapped folder over a private LAN. Circle contribution and authorization drive a
@@ -246,7 +247,11 @@ Active frontier:
   exact unmap through the shared application/API/CLI/browser path. Collision, bounded offline,
   wrong-share, real reboot, authenticated SMB I/O, redaction, and zero-residual cleanup evidence
   is in the [Windows Explorer mapping record](verification/2026-08-22-windows-explorer-mapping.md).
-- [#61](https://github.com/scwlkr/balls/issues/61) is the next frontier after #60 lands.
+- [#61 — Revoke Circle Files grants and remove only Balls-owned infrastructure](https://github.com/scwlkr/balls/issues/61)
+  adds atomic exact-generation revocation, fail-closed future authorization, busy/confirm session
+  handling, restart-safe exact-owned grant/host cleanup, and redacted lifecycle audit. Local focused
+  evidence is in the [revocation and cleanup record](verification/2026-08-24-circle-files-revocation-cleanup.md);
+  the two-Windows-VM acceptance row remains explicitly pending there.
 - [#62](https://github.com/scwlkr/balls/issues/62) remains dependency-blocked.
 
 ## Working rules
