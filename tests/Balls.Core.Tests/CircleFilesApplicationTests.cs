@@ -179,6 +179,17 @@ public sealed class CircleFilesApplicationTests
                 OwnerId,
                 MemberAccessMode.ReadWrite));
 
+        var invalid = await Assert.ThrowsExactlyAsync<InputValidationException>(() =>
+            application.RevokeAccessGrantAsync(
+                new RevokeMemberAccessGrantCommand(
+                    new MemberAccessGrantRevocationRequestId(
+                        Guid.Parse("0198d000-1000-7000-8000-000000000011")),
+                    CircleId,
+                    contribution.Id,
+                    grant.Id,
+                    ExpectedGeneration: 0)));
+        Assert.AreEqual("invalid_request_id", invalid.Code);
+
         var revoked = await application.RevokeAccessGrantAsync(
             new RevokeMemberAccessGrantCommand(
                 new MemberAccessGrantRevocationRequestId(

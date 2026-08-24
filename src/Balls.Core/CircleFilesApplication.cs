@@ -178,16 +178,7 @@ public sealed class CircleFilesApplication(
         RevokeMemberAccessGrantCommand command,
         CancellationToken cancellationToken = default)
     {
-        if (command.RequestId.Value == Guid.Empty
-            || command.CircleId.Value == Guid.Empty
-            || command.ContributionId.Value == Guid.Empty
-            || command.GrantId.Value == Guid.Empty
-            || command.ExpectedGeneration <= 0)
-        {
-            throw new InputValidationException(
-                "invalid_request_id",
-                "Circle, contribution, grant, revocation request, and generation must be valid.");
-        }
+        ValidateRevokeCommand(command);
 
         var context = await GetOwnerAuthorizationContextAsync(command.CircleId, cancellationToken)
             .ConfigureAwait(false);
@@ -258,6 +249,20 @@ public sealed class CircleFilesApplication(
             grant with { Lifecycle = MemberAccessGrantLifecycle.Revoked },
             revocation,
             cancellationToken).ConfigureAwait(false);
+    }
+
+    private static void ValidateRevokeCommand(RevokeMemberAccessGrantCommand command)
+    {
+        if (command.RequestId.Value == Guid.Empty
+            || command.CircleId.Value == Guid.Empty
+            || command.ContributionId.Value == Guid.Empty
+            || command.GrantId.Value == Guid.Empty
+            || command.ExpectedGeneration <= 0)
+        {
+            throw new InputValidationException(
+                "invalid_request_id",
+                "Circle, contribution, grant, revocation request, and generation must be valid.");
+        }
     }
 
     public async Task<AuthorizedMemberAccessGrant> GetAuthorizedLocalAccessGrantAsync(
