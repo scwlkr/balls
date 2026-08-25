@@ -49,6 +49,45 @@ function Save-VerifiedAsset {
     return $path
 }
 
+function Assert-PackageIdentity {
+    param(
+        [Parameter(Mandatory)] [string] $PackagePath,
+        [Parameter(Mandatory)] [string] $Tag,
+        [Parameter(Mandatory)] [string] $Commit
+    )
+
+    $archive = $null
+    $entryStream = $null
+    $reader = $null
+    try {
+        $archive = [IO.Compression.ZipFile]::OpenRead($PackagePath)
+        $manifestEntries = @($archive.Entries | Where-Object { $_.FullName -ceq 'canary.json' })
+        if ($manifestEntries.Count -ne 1 -or $manifestEntries[0].Length -gt 65536) {
+            throw 'The Windows package does not contain one bounded Canary manifest.'
+        }
+
+        $entryStream = $manifestEntries[0].Open()
+        $reader = [IO.StreamReader]::new($entryStream)
+        $packageManifest = $reader.ReadToEnd() | ConvertFrom-Json
+        if ([string] $packageManifest.platform -cne 'windows' -or
+            [string] $packageManifest.version -cne $Tag -or
+            [string] $packageManifest.commit -cne $Commit) {
+            throw 'The Windows package identity does not match the accepted Alpha manifest.'
+        }
+    }
+    finally {
+        if ($null -ne $reader) {
+            $reader.Dispose()
+        }
+        elseif ($null -ne $entryStream) {
+            $entryStream.Dispose()
+        }
+        if ($null -ne $archive) {
+            $archive.Dispose()
+        }
+    }
+}
+
 if (-not $IsWindows) {
     throw 'This Balls Alpha bootstrap is Windows-only.'
 }
@@ -72,7 +111,8 @@ if ($delivery.delivery -ne 'package') {
     throw 'The Alpha manifest does not contain a Windows package.'
 }
 $tagPattern = [Regex]::Escape($tag)
-Assert-ManifestAsset $delivery.archive $tag "^balls-$tagPattern-canary-windows-x64-[0-9a-f]{12}\.zip$"
+$commitPrefix = [Regex]::Escape($commit.Substring(0, 12))
+Assert-ManifestAsset $delivery.archive $tag "^balls-$tagPattern-canary-windows-x64-$commitPrefix\.zip$"
 Assert-ManifestAsset $delivery.checksum $tag "^$([Regex]::Escape([string] $delivery.archive.name))\.sha256$"
 Assert-ManifestAsset $delivery.installer $tag '^Install-BallsCanary\.ps1$'
 
@@ -82,6 +122,7 @@ try {
     $packagePath = Save-VerifiedAsset $delivery.archive $temporaryRoot
     $checksumPath = Save-VerifiedAsset $delivery.checksum $temporaryRoot
     $installerPath = Save-VerifiedAsset $delivery.installer $temporaryRoot
+    Assert-PackageIdentity $packagePath $tag $commit
 
     Write-Output "Verified Balls $tag ($($commit.Substring(0, 12)))."
     Write-Output 'The current Alpha is unsigned. No Windows policy is bypassed.'

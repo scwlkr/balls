@@ -65,6 +65,10 @@ test("pins the accepted Alpha and every packaged asset by SHA-256", async () => 
   for (const platform of ["windows-x64", "linux-x64"]) {
     const delivery = manifest.platforms[platform];
     assert.equal(delivery.delivery, "package");
+    assert.match(
+      delivery.archive.name,
+      new RegExp(`${manifest.release.commit.slice(0, 12)}\\.zip$`),
+    );
     for (const asset of [
       delivery.archive,
       delivery.checksum,
@@ -91,10 +95,14 @@ test("bootstraps verify local files without pipe-to-shell or policy bypasses", a
 
   assert.match(powershell, /Get-FileHash/);
   assert.match(powershell, /Install-BallsCanary\\?\.ps1/);
+  assert.match(powershell, /packageManifest\.commit/);
+  assert.match(powershell, /commit\.Substring\(0, 12\)/);
   assert.doesNotMatch(powershell, /Invoke-Expression|\biex\b|ExecutionPolicy/i);
 
   assert.match(linux, /sha256sum/);
   assert.match(linux, /Install-BallsCanary\\?\.sh/);
+  assert.match(linux, /package_manifest\.get\("commit"\)/);
+  assert.match(linux, /re\.escape\(commit\[:12\]\)/);
   assert.doesNotMatch(linux, /curl[^\n]*\|/);
 
   assert.match(macos, /git .*rev-parse HEAD/);

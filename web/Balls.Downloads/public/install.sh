@@ -56,9 +56,10 @@ if delivery.get("delivery") != "package":
     raise SystemExit("The Alpha manifest does not contain a Linux package.")
 
 assets = (delivery.get("archive", {}), delivery.get("checksum", {}), delivery.get("installer", {}))
+commit_prefix = re.escape(commit[:12])
 name_patterns = (
-    rf"balls-{re.escape(tag)}-canary-linux-x64-[0-9a-f]{{12}}\.zip",
-    rf"balls-{re.escape(tag)}-canary-linux-x64-[0-9a-f]{{12}}\.zip\.sha256",
+    rf"balls-{re.escape(tag)}-canary-linux-x64-{commit_prefix}\.zip",
+    rf"balls-{re.escape(tag)}-canary-linux-x64-{commit_prefix}\.zip\.sha256",
     r"Install-BallsCanary\.sh",
 )
 prefix = f"/scwlkr/balls/releases/download/{tag}/"
@@ -116,6 +117,27 @@ download_verified() {
 download_verified "$archive_name" "$archive_url" "$archive_hash"
 download_verified "$checksum_name" "$checksum_url" "$checksum_hash"
 download_verified "$installer_name" "$installer_url" "$installer_hash"
+
+python3 - "$temporary_root/$archive_name" "$tag" "$commit" <<'PY'
+import json
+import sys
+import zipfile
+
+archive_path, tag, commit = sys.argv[1:]
+with zipfile.ZipFile(archive_path) as package:
+    manifest_entries = [entry for entry in package.infolist() if entry.filename == "canary.json"]
+    if len(manifest_entries) != 1 or manifest_entries[0].file_size > 65536:
+        raise SystemExit("The Linux package does not contain one bounded Canary manifest.")
+    with package.open(manifest_entries[0]) as stream:
+        package_manifest = json.load(stream)
+
+if (
+    package_manifest.get("platform") != "linux"
+    or package_manifest.get("version") != tag
+    or package_manifest.get("commit") != commit
+):
+    raise SystemExit("The Linux package identity does not match the accepted Alpha manifest.")
+PY
 
 echo "Verified Balls $tag (${commit:0:12})."
 echo "The current Alpha is unsigned. No system trust policy is bypassed."

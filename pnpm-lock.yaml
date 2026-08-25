@@ -26,6 +26,9 @@ importers:
       '@openai/sites-vite-plugin':
         specifier: 0.1.0
         version: 0.1.0(vite@8.0.13(@types/node@22.19.19)(esbuild@0.27.3)(terser@5.50.0))
+      '@playwright/test':
+        specifier: 1.62.1
+        version: 1.62.1
       '@types/node':
         specifier: 22.19.19
         version: 22.19.19

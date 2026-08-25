@@ -70,35 +70,19 @@ a {
   text-decoration: none;
 }
 
+.brand-definitions {
+  position: absolute;
+  overflow: hidden;
+}
+
 .brand-mark {
+  --brand-core: var(--carbon);
+  --brand-signal: var(--signal);
+
   display: block;
   width: 2.75rem;
   height: 2.75rem;
   overflow: visible;
-}
-
-.brand-mark g {
-  fill: none;
-  stroke-linecap: round;
-  stroke-linejoin: round;
-}
-
-.brand-mark path {
-  stroke: currentcolor;
-  stroke-width: 3.5;
-}
-
-.brand-mark circle {
-  fill: currentcolor;
-  stroke: none;
-}
-
-.brand-mark-core {
-  color: var(--carbon);
-}
-
-.brand-mark-signal {
-  color: var(--signal);
 }
 
 .masthead nav {
@@ -543,8 +527,8 @@ footer {
   color: var(--paper);
 }
 
-.footer-brand .brand-mark-core {
-  color: var(--paper);
+.footer-brand .brand-mark {
+  --brand-core: var(--paper);
 }
 
 footer p,

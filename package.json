@@ -9,6 +9,7 @@
   "scripts": {
     "downloads:build": "pnpm --dir web/Balls.Downloads build",
     "downloads:dev": "pnpm --dir web/Balls.Downloads dev",
+    "downloads:e2e": "pnpm --dir web/Balls.Downloads e2e",
     "downloads:format": "pnpm --dir web/Balls.Downloads format",
     "downloads:format:check": "pnpm --dir web/Balls.Downloads format:check",
     "downloads:lint": "pnpm --dir web/Balls.Downloads lint",

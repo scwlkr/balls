@@ -14,7 +14,7 @@ export default defineConfig(async () => {
       cloudflare({
         viteEnvironment: { name: "server" },
         config: {
-          main: "./worker/index.js",
+          main: "./worker/index.ts",
           assets: { binding: "ASSETS" },
         },
       }),

@@ -221,6 +221,7 @@ internal static class VerificationPlanner
                 new VerificationStep(Pnpm(repositoryRoot, "web:e2e")),
                 new VerificationStep(Pnpm(repositoryRoot, "downloads:build")),
                 new VerificationStep(Pnpm(repositoryRoot, "downloads:test")),
+                new VerificationStep(Pnpm(repositoryRoot, "downloads:e2e")),
             ]);
     }
 

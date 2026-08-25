@@ -33,6 +33,55 @@
     <meta name="twitter:image" content="https://balls.wlkrlabs.com/og.png" />
   </head>
   <body>
+    <svg
+      class="brand-definitions"
+      width="0"
+      height="0"
+      aria-hidden="true"
+      focusable="false"
+    >
+      <defs>
+        <symbol id="balls-brand-mark" viewBox="0 0 64 64">
+          <g
+            class="brand-mark-core"
+            fill="none"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+          >
+            <path
+              d="m10 18 19-11 18 11M10 18v22l19 11M29 7v44"
+              stroke="var(--brand-core)"
+              stroke-width="3.5"
+            />
+            <path
+              d="m10 18 19 11 18-11M10 40l19-11m-19 11 19 11"
+              stroke="var(--brand-core)"
+              stroke-width="3.5"
+            />
+            <circle cx="10" cy="18" r="4.5" fill="var(--brand-core)" />
+            <circle cx="29" cy="7" r="4.5" fill="var(--brand-core)" />
+            <circle cx="47" cy="18" r="4.5" fill="var(--brand-core)" />
+            <circle cx="10" cy="40" r="4.5" fill="var(--brand-core)" />
+            <circle cx="29" cy="29" r="4.5" fill="var(--brand-core)" />
+            <circle cx="29" cy="51" r="4.5" fill="var(--brand-core)" />
+          </g>
+          <g
+            class="brand-mark-signal"
+            fill="none"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+          >
+            <path
+              d="m29 51 20-11V29"
+              stroke="var(--brand-signal)"
+              stroke-width="3.5"
+            />
+            <circle cx="49" cy="40" r="4.5" fill="var(--brand-signal)" />
+            <circle cx="49" cy="29" r="4.5" fill="var(--brand-signal)" />
+          </g>
+        </symbol>
+      </defs>
+    </svg>
     <div class="site-shell">
       <header class="masthead">
         <a class="brand" href="#top" aria-label="Balls downloads home">
@@ -42,21 +91,7 @@
             aria-hidden="true"
             focusable="false"
           >
-            <g class="brand-mark-core">
-              <path d="m10 18 19-11 18 11M10 18v22l19 11M29 7v44" />
-              <path d="m10 18 19 11 18-11M10 40l19-11m-19 11 19 11" />
-              <circle cx="10" cy="18" r="4.5" />
-              <circle cx="29" cy="7" r="4.5" />
-              <circle cx="47" cy="18" r="4.5" />
-              <circle cx="10" cy="40" r="4.5" />
-              <circle cx="29" cy="29" r="4.5" />
-              <circle cx="29" cy="51" r="4.5" />
-            </g>
-            <g class="brand-mark-signal">
-              <path d="m29 51 20-11V29" />
-              <circle cx="49" cy="40" r="4.5" />
-              <circle cx="49" cy="29" r="4.5" />
-            </g>
+            <use href="#balls-brand-mark"></use>
           </svg>
           <span>balls</span>
         </a>
@@ -302,21 +337,7 @@ bash ./get-balls-source.sh</code></pre>
             aria-hidden="true"
             focusable="false"
           >
-            <g class="brand-mark-core">
-              <path d="m10 18 19-11 18 11M10 18v22l19 11M29 7v44" />
-              <path d="m10 18 19 11 18-11M10 40l19-11m-19 11 19 11" />
-              <circle cx="10" cy="18" r="4.5" />
-              <circle cx="29" cy="7" r="4.5" />
-              <circle cx="47" cy="18" r="4.5" />
-              <circle cx="10" cy="40" r="4.5" />
-              <circle cx="29" cy="29" r="4.5" />
-              <circle cx="29" cy="51" r="4.5" />
-            </g>
-            <g class="brand-mark-signal">
-              <path d="m29 51 20-11V29" />
-              <circle cx="49" cy="40" r="4.5" />
-              <circle cx="49" cy="29" r="4.5" />
-            </g>
+            <use href="#balls-brand-mark"></use>
           </svg>
           <span>balls</span>
         </a>
