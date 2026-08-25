@@ -171,7 +171,10 @@ PowerShell, SMB, network, firewall, and process error output is never returned.
 The Windows check order is `windows-platform`, `smb-server`, `smb-dialect`, `smb1`, `guest-access`,
 `signing`, `encryption`, `private-network`, and `firewall-scope`. One `not-ready` check makes the
 aggregate `not-ready`; otherwise any `unknown` check makes it `unknown`. Inspection failure is
-represented as a deterministic `unknown` report. The equivalent CLI is:
+represented as a deterministic `unknown` report. `guest-access` evaluates whether the SMB server's
+required signing, rejection of unencrypted access, and per-share encryption support preclude guest
+access to the Balls-hosted share. It does not reject or mutate unrelated outbound SMB client guest
+settings or existing file-server connections. The equivalent CLI is:
 
 ```text
 balls files readiness

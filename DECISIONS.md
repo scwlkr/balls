@@ -209,9 +209,11 @@ adapter; native shells are deferred until a proven OS-specific need appears. See
 The first supported release focuses on Circle creation/join, Member and Node visibility, the local
 browser UI and CLI, and one secure Windows Explorer Circle Files provider. The immediate company
 pilot requires the invited non-Owner Member to receive actual authorized access on a separate
-Windows computer without manually handling provider credentials. One Anchor may be authoritative
-without automatic failover. Rich chat, replication, macOS polish, AI, Apps, and compute remain
-later milestones. See [`ADR 0005`](docs/decisions/0005-files-first-v1.md) and
+Windows computer without manually handling provider credentials. The Balls-hosted share rejects
+guest access through required server signing, per-share encryption, and explicit Member account
+authorization; unrelated existing outbound SMB client connections remain untouched. One Anchor may
+be authoritative without automatic failover. Rich chat, replication, macOS polish, AI, Apps, and
+compute remain later milestones. See [`ADR 0005`](docs/decisions/0005-files-first-v1.md) and
 [`ADR 0008`](docs/decisions/0008-company-first-lan-pilot.md).
 
 ### Development and release model

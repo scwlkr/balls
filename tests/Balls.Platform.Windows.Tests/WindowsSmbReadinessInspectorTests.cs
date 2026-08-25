@@ -76,7 +76,6 @@ public sealed class WindowsSmbReadinessInspectorTests
             (root => root["SmbServer"]!["EnableSMB2Protocol"] = false, "smb2_disabled"),
             (root => root["SmbServer"]!["Smb2DialectMax"] = "SMB302", "smb311_unavailable"),
             (root => root["SmbServer"]!["EnableSMB1Protocol"] = true, "smb1_enabled"),
-            (root => root["SmbClient"]!["EnableInsecureGuestLogons"] = true, "insecure_guest_enabled"),
             (root => root["SmbServer"]!["RequireSecuritySignature"] = false, "smb_signing_not_required"),
             (root => root["SmbServer"]!["RejectUnencryptedAccess"] = false, "unencrypted_access_accepted"),
             (root => root["SmbServer"]!["ShareEncryptionSupported"] = false, "share_encryption_unavailable"),
@@ -111,10 +110,78 @@ public sealed class WindowsSmbReadinessInspectorTests
     }
 
     [TestMethod]
+    [DataRow(true)]
+    [DataRow(false)]
+    public async Task Outbound_client_guest_policy_does_not_change_circle_share_protection(bool enableInsecureGuestLogons)
+    {
+        var root = JsonNode.Parse(ReadyObservation)!.AsObject();
+        root["SmbClient"]!["EnableInsecureGuestLogons"] = enableInsecureGuestLogons;
+        var inspector = new WindowsSmbReadinessInspector(new StubJsonSource(root.ToJsonString()));
+
+        var report = await inspector.InspectAsync(CancellationToken.None);
+        var guestAccess = report.Checks.Single(check => check.Id == "guest-access");
+
+        Assert.AreEqual(CircleFilesReadinessStatus.Ready, report.Status);
+        Assert.AreEqual(CircleFilesReadinessStatus.Ready, guestAccess.Status);
+        Assert.AreEqual("guest_access_precluded", guestAccess.Code);
+    }
+
+    [TestMethod]
+    public async Task Missing_outbound_client_observation_does_not_block_a_secure_circle_share()
+    {
+        var root = JsonNode.Parse(ReadyObservation)!.AsObject();
+        root.Remove("SmbClient");
+        var inspector = new WindowsSmbReadinessInspector(new StubJsonSource(root.ToJsonString()));
+
+        var report = await inspector.InspectAsync(CancellationToken.None);
+        var guestAccess = report.Checks.Single(check => check.Id == "guest-access");
+
+        Assert.AreEqual(CircleFilesReadinessStatus.Ready, report.Status);
+        Assert.AreEqual(CircleFilesReadinessStatus.Ready, guestAccess.Status);
+        Assert.AreEqual("guest_access_precluded", guestAccess.Code);
+    }
+
+    [TestMethod]
+    [DataRow("RequireSecuritySignature")]
+    [DataRow("RejectUnencryptedAccess")]
+    [DataRow("ShareEncryptionSupported")]
+    public async Task Missing_server_guest_protection_fails_closed(string serverProperty)
+    {
+        var root = JsonNode.Parse(ReadyObservation)!.AsObject();
+        root["SmbServer"]!.AsObject().Remove(serverProperty);
+        var inspector = new WindowsSmbReadinessInspector(new StubJsonSource(root.ToJsonString()));
+
+        var report = await inspector.InspectAsync(CancellationToken.None);
+        var guestAccess = report.Checks.Single(check => check.Id == "guest-access");
+
+        Assert.AreEqual(CircleFilesReadinessStatus.Unknown, report.Status);
+        Assert.AreEqual(CircleFilesReadinessStatus.Unknown, guestAccess.Status);
+        Assert.AreEqual("guest_access_controls_unknown", guestAccess.Code);
+    }
+
+    [TestMethod]
+    [DataRow("RequireSecuritySignature")]
+    [DataRow("RejectUnencryptedAccess")]
+    [DataRow("ShareEncryptionSupported")]
+    public async Task Disabled_server_guest_protection_fails_closed(string serverProperty)
+    {
+        var root = JsonNode.Parse(ReadyObservation)!.AsObject();
+        root["SmbServer"]![serverProperty] = false;
+        var inspector = new WindowsSmbReadinessInspector(new StubJsonSource(root.ToJsonString()));
+
+        var report = await inspector.InspectAsync(CancellationToken.None);
+        var guestAccess = report.Checks.Single(check => check.Id == "guest-access");
+
+        Assert.AreEqual(CircleFilesReadinessStatus.NotReady, report.Status);
+        Assert.AreEqual(CircleFilesReadinessStatus.NotReady, guestAccess.Status);
+        Assert.AreEqual("guest_access_not_precluded", guestAccess.Code);
+    }
+
+    [TestMethod]
     public async Task Missing_forward_unknown_and_malformed_observations_remain_unknown()
     {
         var missing = JsonNode.Parse(ReadyObservation)!.AsObject();
-        missing.Remove("SmbClient");
+        missing["SmbServer"]!.AsObject().Remove("RequireSecuritySignature");
         var forwardUnknown = JsonNode.Parse(ReadyObservation)!.AsObject();
         forwardUnknown["SmbServer"]!["Smb2DialectMax"] = "SMB400";
 

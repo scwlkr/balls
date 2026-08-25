@@ -119,10 +119,11 @@ the Circle Files product model.
 journey; #62 remains the final milestone/release acceptance gate after that product outcome is
 honestly verified.
 
-**Provider contract:** SMB1 and guest access are disabled; signing and encryption are required;
-TCP 445 is never public. Access begins with `Read/write` or `Read-only` at the whole-folder level.
-SMB preserves application-requested locks; Balls does not promise universal single-writer behavior
-for arbitrary applications.
+**Provider contract:** SMB1 is disabled; the Balls-hosted share excludes guest access and requires
+signing, encryption, and an authorized Member account; TCP 445 is never public. Existing unrelated
+outbound SMB client sessions remain untouched. Access begins with `Read/write` or `Read-only` at
+the whole-folder level. SMB preserves application-requested locks; Balls does not promise
+universal single-writer behavior for arbitrary applications.
 
 **Boundary:** one live folder on one Node; no sync, replication, conflict merge, version history,
 or Balls-managed trash. Independent backup is required. Cleanup never deletes user files or the

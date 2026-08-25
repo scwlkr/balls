@@ -46,6 +46,17 @@ providers, AI, and Circle Apps remain outside this pilot.
   do not have to be disabled to satisfy a mistaken port-only classification.
 - The exact read-only firewall applicability predicate passed all 12 safe/unsafe synthetic cases
   under real Windows PowerShell 5.1 on the isolated recipient guest.
+- A Public-only inbound TCP 445 block is accepted only when its effective rule, port, application,
+  service, address, interface, dynamic scope, and security filters cover all public SMB traffic.
+  A Private/Any-profile block, incomplete or ambiguous scope, or authenticated allow-rule bypass
+  remains unsafe; unrelated existing firewall rules are never modified by inspection. A dormant
+  Public-only rule is accepted only when its sole inactive reason is the currently connected
+  Private profile. The exact broad-block and bypass predicates passed 26 cases under real Windows
+  PowerShell 5.1.
+- The stable `guest-access` check applies to the Balls-hosted SMB server/share: required server
+  signing, rejection of unencrypted access, and per-share encryption support exclude unauthenticated
+  guest sessions. An unrelated outbound SMB client connection does not grant guest access to the
+  Circle share and is never disabled or mutated by readiness inspection.
 
 The repository fast gate passed on Linux with the pinned Node version:
 
@@ -91,13 +102,21 @@ preserved. Linux host firewall rules are likewise not changed implicitly: a runn
 listener alone does not prove that another physical LAN computer can pass an active inbound
 firewall. Physical-workstation access must be explicitly observed before being claimed.
 
-The real working Windows guest initially reported `not-ready`: insecure SMB guest logons were
-enabled, and existing Public/Any inbound firewall rules could admit SMB. A dedicated new-folder
-hosting preview correctly refused that unsafe configuration without creating a folder or share.
-The existing guest-logon configuration was independently shown to support an active guest-only
-host share with open handles while Revit remained running. Changing that unrelated global client
-setting would interrupt real existing work. No existing rule or guest-logon policy was changed
-without explicit administrator approval.
+Before the approved server/client boundary correction, the real working Windows guest reported
+`not-ready` for unrelated outbound guest access and for existing Public/Any inbound firewall rules
+that could admit SMB. A dedicated new-folder hosting preview correctly refused to proceed without
+creating a folder or share. The existing outbound guest setting was independently shown to support
+an active guest-only host share with open handles while Revit was running. Disabling that unrelated
+client setting would interrupt real existing work; the approved correction instead verifies that
+the Balls-hosted share itself excludes guest access. No existing rule or guest-logon policy was
+changed without explicit administrator approval.
+
+After redeploying only the isolated Balls daemon with the approved provider correction, the real
+working Windows guest returned `guest-access: ready` with code `guest_access_precluded` while its
+existing guest-only host share and open handles remained available. The only remaining readiness
+failure was the independently observed Public-capable SMB firewall scope. The existing isolated
+Circle, both Members, and the protected cross-device file-synchronization route remained usable
+after that daemon-only restart.
 
 ## Not implied by this record
 

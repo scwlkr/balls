@@ -60,7 +60,7 @@ public sealed class WindowsSmbReadinessInspector : ICircleFilesReadinessInspecto
             EvaluateSmbServer(observation.Services, observation.SmbServer),
             EvaluateDialect(observation.SmbServer),
             EvaluateSmb1(observation.SmbServer),
-            EvaluateGuestAccess(observation.SmbClient),
+            EvaluateGuestAccess(observation.SmbServer),
             EvaluateSigning(observation.SmbServer),
             EvaluateEncryption(observation.SmbServer),
             EvaluatePrivateNetwork(observation.Network),
@@ -135,13 +135,33 @@ public sealed class WindowsSmbReadinessInspector : ICircleFilesReadinessInspecto
             null => Unknown(CheckIds.Smb1, "smb1_state_unknown", "Windows did not report whether SMB 1 hosting is enabled."),
         };
 
-    private static CircleFilesReadinessCheck EvaluateGuestAccess(WindowsSmbClientObservation? client) =>
-        client?.EnableInsecureGuestLogons switch
+    private static CircleFilesReadinessCheck EvaluateGuestAccess(WindowsSmbServerObservation? server)
+    {
+        if (server?.RequireSecuritySignature is false
+            || server?.RejectUnencryptedAccess is false
+            || server?.ShareEncryptionSupported is false)
         {
-            false => Ready(CheckIds.GuestAccess, "insecure_guest_disabled", "Insecure SMB guest logons are disabled."),
-            true => NotReady(CheckIds.GuestAccess, "insecure_guest_enabled", "Insecure SMB guest logons must be disabled."),
-            null => Unknown(CheckIds.GuestAccess, "insecure_guest_state_unknown", "Windows did not report the insecure guest logon policy."),
-        };
+            return NotReady(
+                CheckIds.GuestAccess,
+                "guest_access_not_precluded",
+                "The SMB server must require signing and reject unencrypted access to encrypted Circle shares.");
+        }
+
+        if (server?.RequireSecuritySignature is null
+            || server.RejectUnencryptedAccess is null
+            || server.ShareEncryptionSupported is null)
+        {
+            return Unknown(
+                CheckIds.GuestAccess,
+                "guest_access_controls_unknown",
+                "Windows did not report all server controls needed to prevent guest access to Circle shares.");
+        }
+
+        return Ready(
+            CheckIds.GuestAccess,
+            "guest_access_precluded",
+            "Required signing and encrypted Circle shares prevent unauthenticated guest access.");
+    }
 
     private static CircleFilesReadinessCheck EvaluateSigning(WindowsSmbServerObservation? server) =>
         server?.RequireSecuritySignature switch

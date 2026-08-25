@@ -498,15 +498,22 @@ forward-unknown, timed-out, or failed observations become deterministic redacted
 rather than raw command output.
 
 The report evaluates the supported Windows generation, running SMB server with SMB 2/3 enabled,
-SMB 3.1.1 availability, SMB1 disabled, insecure guest logons disabled, server signing required,
-share encryption enforceability with an approved SMB 3.1.1 cipher, a connected Private network,
-and enabled Private/Public firewall profiles whose default inbound action is Block. It
+SMB 3.1.1 availability, SMB1 disabled, guest access precluded on the Balls-hosted share, server
+signing required, share encryption enforceability with an approved SMB 3.1.1 cipher, a connected
+Private network, and enabled Private/Public firewall profiles whose default inbound action is
+Block. Guest exclusion follows from the server's required signing, rejection of unencrypted
+access, and support for the exact encrypted, explicitly authorized share; unrelated outbound SMB
+client guest settings are never changed or treated as Circle-share authorization. It
 conservatively rejects an enabled Public/Any-profile inbound allow rule whose protocol/port filter
 can include TCP 445 unless an explicit unrelated executable or non-SMB service filter proves that
-the rule cannot target the SMB server. Missing or ambiguous application/service bindings remain
-unsafe. Any unsafe observation makes the aggregate `not-ready`; otherwise an unknown observation
-makes it `unknown`. Inspection never changes a feature, policy, service, profile, folder, share,
-account, ACL, rule, or mapping.
+the rule cannot target the SMB server. One independently verified, unrestricted, Public-only TCP
+445 block can safely override otherwise applicable allow rules without modifying unrelated
+applications; authenticated block-bypass rules, incomplete block coverage, and missing or
+ambiguous application/service bindings remain unsafe. A Public-only rule may be dormant solely
+because the currently connected network is Private; any other inactive reason fails closed. Any
+unsafe observation makes the aggregate `not-ready`; otherwise an unknown observation makes it
+`unknown`. Inspection never changes a feature, policy, service, profile, folder, share, account,
+ACL, rule, or mapping.
 
 The Windows hosting adapter implements version 1 of one exact privileged operation: provision the
 dedicated folder, encrypted SMB share, and Private-profile-only firewall rule for an authorized
@@ -594,10 +601,11 @@ An interrupted request remains visible and is resolved by the idempotent retry. 
 credential removal disables future credential
 authorization while retaining DPAPI-protected recovery material; secure deletion is not claimed.
 
-For the files-first v1, the Windows provider uses SMB 3.1.1 with SMB1 and guest access disabled,
-signing and encryption required, and one limited provider credential per Member Access Grant. A
-narrow privileged helper owns exact share, account, ACL, and firewall mutations; normal daemon,
-browser, CLI, and Explorer work remains unelevated.
+For the files-first v1, the Windows provider uses SMB 3.1.1 with SMB1 disabled, guest access
+excluded from its exact encrypted share, signing and encryption required, and one limited provider
+credential per Member Access Grant. Existing unrelated outbound SMB client sessions remain
+untouched. A narrow privileged helper owns exact share, account, ACL, and firewall mutations;
+normal daemon, browser, CLI, and Explorer work remains unelevated.
 
 The provider preserves application-requested SMB share modes and locks. It does not claim that an
 arbitrary application becomes single-writer. The first certified matrix covers Windows 11 File
