@@ -987,6 +987,9 @@ public static class DaemonHost
                 messageQueries,
                 filesApplication,
                 filesMemberMappingApplication,
+                invitationApplication,
+                admissionApplication,
+                options.AdmissionListenEndpoint,
                 browserAccess);
 
             await application.StartAsync(cancellationToken).ConfigureAwait(false);

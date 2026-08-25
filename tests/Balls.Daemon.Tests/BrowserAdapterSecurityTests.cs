@@ -1,6 +1,7 @@
 using System.Net;
 using System.Net.Http.Json;
 using System.Net.NetworkInformation;
+using System.Net.Sockets;
 using System.Text;
 using System.Text.RegularExpressions;
 using Balls.Daemon;
@@ -245,6 +246,127 @@ public sealed partial class BrowserAdapterSecurityTests
     }
 
     [TestMethod]
+    public async Task Browser_invitation_requires_antiforgery_and_a_shareable_private_address()
+    {
+        using var directory = new TemporaryDirectory();
+        var admissionEndpoint = AllocateLoopbackEndpoint();
+        await using var daemon = await StartDaemonAsync(directory.Path, admissionEndpoint);
+        using var ipcClient = CreateIpcClient(GetEndpoint(directory.Path));
+        using var createCircleResponse = await ipcClient.PostAsJsonAsync(
+            ControlRoutes.Circles,
+            new CreateCircleRequest(
+                "0198d000-6000-7000-8000-000000000001",
+                "Invitation Circle",
+                "Alice"),
+            ControlJson.Options);
+        var circle = await createCircleResponse.Content.ReadFromJsonAsync<CircleDetailsResponse>(
+            ControlJson.Options);
+        Assert.IsNotNull(circle);
+        var launch = await IssueLaunchAsync(ipcClient);
+        var browserBaseUri = GetBrowserBaseUri(launch);
+        using var browserClient = CreateBrowserClient(browserBaseUri);
+        var authenticated = await ExchangeAsync(browserClient, launch);
+        var route = BrowserRoutes.CircleInvitations(circle.Circle.Id);
+
+        using var missingAntiforgery = CreateJsonRequest(
+            HttpMethod.Post,
+            route,
+            new CreateBrowserCircleInvitationRequest(60, "192.168.1.20"),
+            GetOrigin(browserBaseUri),
+            authenticated.Cookie);
+        using var missingAntiforgeryResponse = await browserClient.SendAsync(missingAntiforgery);
+
+        using var loopbackRequest = CreateJsonRequest(
+            HttpMethod.Post,
+            route,
+            new CreateBrowserCircleInvitationRequest(60, null),
+            GetOrigin(browserBaseUri),
+            authenticated.Cookie,
+            authenticated.Session.AntiforgeryToken);
+        using var loopbackResponse = await browserClient.SendAsync(loopbackRequest);
+
+        using var publicRequest = CreateJsonRequest(
+            HttpMethod.Post,
+            route,
+            new CreateBrowserCircleInvitationRequest(60, "8.8.8.8"),
+            GetOrigin(browserBaseUri),
+            authenticated.Cookie,
+            authenticated.Session.AntiforgeryToken);
+        using var publicResponse = await browserClient.SendAsync(publicRequest);
+
+        using var privateRequest = CreateJsonRequest(
+            HttpMethod.Post,
+            route,
+            new CreateBrowserCircleInvitationRequest(60, "192.168.1.20"),
+            GetOrigin(browserBaseUri),
+            authenticated.Cookie,
+            authenticated.Session.AntiforgeryToken);
+        using var privateResponse = await browserClient.SendAsync(privateRequest);
+        var invitation = await privateResponse.Content.ReadFromJsonAsync<BrowserCircleInvitationResponse>(
+            ControlJson.Options);
+
+        Assert.AreEqual(HttpStatusCode.Forbidden, missingAntiforgeryResponse.StatusCode);
+        Assert.AreEqual(HttpStatusCode.BadRequest, loopbackResponse.StatusCode);
+        Assert.AreEqual(HttpStatusCode.BadRequest, publicResponse.StatusCode);
+        Assert.AreEqual(HttpStatusCode.Created, privateResponse.StatusCode);
+        Assert.IsNotNull(invitation);
+        Assert.AreEqual(circle.Circle.Id, invitation.CircleId);
+        Assert.AreEqual(
+            $"192.168.1.20:{IPEndPoint.Parse(admissionEndpoint).Port}",
+            invitation.Endpoint);
+        Assert.IsNotEmpty(invitation.Package);
+    }
+
+    [TestMethod]
+    public async Task Browser_join_accepts_the_existing_signed_invitation_over_authenticated_transport()
+    {
+        using var ownerDirectory = new TemporaryDirectory();
+        using var memberDirectory = new TemporaryDirectory();
+        var admissionEndpoint = AllocateLoopbackEndpoint();
+        await using var owner = await StartDaemonAsync(ownerDirectory.Path, admissionEndpoint);
+        await using var member = await StartDaemonAsync(memberDirectory.Path);
+        using var ownerClient = CreateIpcClient(GetEndpoint(ownerDirectory.Path));
+        using var memberClient = CreateIpcClient(GetEndpoint(memberDirectory.Path));
+        using var createCircleResponse = await ownerClient.PostAsJsonAsync(
+            ControlRoutes.Circles,
+            new CreateCircleRequest(
+                "0198d000-6000-7000-8000-000000000002",
+                "Joined Circle",
+                "Alice"),
+            ControlJson.Options);
+        var circle = await createCircleResponse.Content.ReadFromJsonAsync<CircleDetailsResponse>(
+            ControlJson.Options);
+        Assert.IsNotNull(circle);
+        using var issueResponse = await ownerClient.PostAsJsonAsync(
+            ControlRoutes.CircleInvitations(circle.Circle.Id),
+            new CreateInvitationRequest(60),
+            ControlJson.Options);
+        var invitation = await issueResponse.Content.ReadFromJsonAsync<CreateInvitationResponse>(
+            ControlJson.Options);
+        Assert.IsNotNull(invitation);
+        var launch = await IssueLaunchAsync(memberClient);
+        var browserBaseUri = GetBrowserBaseUri(launch);
+        using var browserClient = CreateBrowserClient(browserBaseUri);
+        var authenticated = await ExchangeAsync(browserClient, launch);
+
+        using var join = CreateJsonRequest(
+            HttpMethod.Post,
+            BrowserRoutes.CircleJoin,
+            new JoinCircleRequest(invitation.Package, admissionEndpoint, "Bob"),
+            GetOrigin(browserBaseUri),
+            authenticated.Cookie,
+            authenticated.Session.AntiforgeryToken);
+        using var response = await browserClient.SendAsync(join);
+        var joined = await response.Content.ReadFromJsonAsync<CircleDetailsResponse>(ControlJson.Options);
+
+        Assert.AreEqual(HttpStatusCode.OK, response.StatusCode);
+        Assert.IsNotNull(joined);
+        Assert.AreEqual(circle.Circle.Id, joined.Circle.Id);
+        Assert.HasCount(2, joined.Members);
+        Assert.IsTrue(joined.Members.Any(person => person.DisplayName == "Bob"));
+    }
+
+    [TestMethod]
     public async Task Browser_request_body_is_bounded_before_capability_processing()
     {
         using var directory = new TemporaryDirectory();
@@ -326,13 +448,25 @@ public sealed partial class BrowserAdapterSecurityTests
         }
     }
 
-    private static async Task<DaemonInstance> StartDaemonAsync(string root)
+    private static async Task<DaemonInstance> StartDaemonAsync(
+        string root,
+        string? admissionListenEndpoint = null)
     {
         return await DaemonHost.StartAsync(
             new DaemonOptions(
                 Path.Combine(root, "state"),
                 GetEndpoint(root),
-                "Browser-PC"));
+                "Browser-PC",
+                admissionListenEndpoint));
+    }
+
+    private static string AllocateLoopbackEndpoint()
+    {
+        var listener = new TcpListener(IPAddress.Loopback, 0);
+        listener.Start();
+        var endpoint = (IPEndPoint)listener.LocalEndpoint;
+        listener.Stop();
+        return endpoint.ToString();
     }
 
     private static HttpClient CreateIpcClient(string endpoint)

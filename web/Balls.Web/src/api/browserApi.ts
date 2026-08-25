@@ -10,6 +10,8 @@ import type {
   CircleFilesMemberMappingPlanDto,
   CircleFilesMemberMappingInspectionDto,
   CircleFilesMemberMappingResultDto,
+  BrowserInvitationDto,
+  JoinCircleDto,
 } from "./localControl";
 
 interface ErrorDto {
@@ -26,6 +28,15 @@ export interface BrowserApi {
   createCircle(
     name: string,
     ownerDisplayName: string,
+  ): Promise<CircleDetailsDto>;
+  createInvitation(
+    circleId: string,
+    hostAddress?: string,
+  ): Promise<BrowserInvitationDto>;
+  joinCircle(
+    packageValue: string,
+    endpoint: string,
+    memberDisplayName: string,
   ): Promise<CircleDetailsDto>;
   listFilesContributions(
     circleId: string,
@@ -118,6 +129,31 @@ class FetchBrowserApi implements BrowserApi {
     });
   }
 
+  createInvitation(circleId: string, hostAddress?: string) {
+    return this.authenticatedRequest<BrowserInvitationDto>(
+      `/browser/v1/circles/${encodeURIComponent(circleId)}/invitations`,
+      { validForMinutes: 60, hostAddress: hostAddress?.trim() || null },
+      "Run balls ui again to invite someone.",
+    );
+  }
+
+  joinCircle(
+    packageValue: string,
+    endpoint: string,
+    memberDisplayName: string,
+  ) {
+    const request = {
+      package: packageValue,
+      endpoint,
+      memberDisplayName,
+    } satisfies JoinCircleDto;
+    return this.authenticatedRequest<CircleDetailsDto>(
+      "/browser/v1/circles/join",
+      request,
+      "Run balls ui again to join a Circle.",
+    );
+  }
+
   listFilesContributions(circleId: string) {
     return this.request<CircleFilesContributionListDto>(
       `/browser/v1/circles/${encodeURIComponent(circleId)}/files/contributions`,
@@ -202,17 +238,26 @@ class FetchBrowserApi implements BrowserApi {
     operation: "preview" | "map" | "inspect" | "unmap",
     body: Record<string, string>,
   ) {
-    if (!this.antiforgeryToken) {
-      throw new Error("Run balls ui again to change an Explorer mapping.");
-    }
-    return this.request<T>(
+    return this.authenticatedRequest<T>(
       `/browser/v1/circles/${encodeURIComponent(circleId)}/files/contributions/${encodeURIComponent(contributionId)}/grants/${encodeURIComponent(grantId)}/mapping/${operation}`,
-      {
-        method: "POST",
-        body: JSON.stringify(body),
-        headers: { "X-Balls-Antiforgery": this.antiforgeryToken },
-      },
+      body,
+      "Run balls ui again to change an Explorer mapping.",
     );
+  }
+
+  private authenticatedRequest<T>(
+    path: string,
+    body: object,
+    missingSessionMessage: string,
+  ) {
+    if (!this.antiforgeryToken) {
+      throw new Error(missingSessionMessage);
+    }
+    return this.request<T>(path, {
+      method: "POST",
+      body: JSON.stringify(body),
+      headers: { "X-Balls-Antiforgery": this.antiforgeryToken },
+    });
   }
 
   private async request<T>(path: string, init: RequestInit = {}): Promise<T> {

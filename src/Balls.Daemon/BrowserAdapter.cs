@@ -146,6 +146,9 @@ internal static class BrowserAdapter
         CircleMessageQueryApplication messageQueries,
         CircleFilesApplication filesApplication,
         CircleFilesMemberMappingApplication filesMemberMappingApplication,
+        InvitationApplication invitationApplication,
+        TrustedCircleAdmissionApplication admissionApplication,
+        string? admissionListenEndpoint,
         BrowserAccessBroker access)
     {
         application.MapPost(
@@ -205,6 +208,28 @@ internal static class BrowserAdapter
                     return new CircleListResponse(circles.Select(ToSummary).ToArray());
                 })
             .Produces<CircleListResponse>(StatusCodes.Status200OK);
+        application.MapPost(
+                BrowserRoutes.CircleJoin,
+                (JoinCircleRequest request, CancellationToken token) =>
+                    BrowserInvitationEndpoints.JoinAsync(admissionApplication, request, token))
+            .Produces<CircleDetailsResponse>(StatusCodes.Status200OK)
+            .Produces<ErrorResponse>(StatusCodes.Status400BadRequest)
+            .Produces<ErrorResponse>(StatusCodes.Status409Conflict)
+            .Produces<ErrorResponse>(StatusCodes.Status502BadGateway);
+        application.MapPost(
+                BrowserRoutes.Circles + "/{circleId}/invitations",
+                (string circleId, CreateBrowserCircleInvitationRequest request, CancellationToken token) =>
+                    BrowserInvitationEndpoints.CreateAsync(
+                        invitationApplication,
+                        admissionListenEndpoint,
+                        circleId,
+                        request,
+                        token))
+            .Produces<BrowserCircleInvitationResponse>(StatusCodes.Status201Created)
+            .Produces<ErrorResponse>(StatusCodes.Status400BadRequest)
+            .Produces<ErrorResponse>(StatusCodes.Status403Forbidden)
+            .Produces<ErrorResponse>(StatusCodes.Status404NotFound)
+            .Produces<ErrorResponse>(StatusCodes.Status409Conflict);
         application.MapPost(
                 BrowserRoutes.Circles,
                 async (CreateCircleRequest request, CancellationToken token) =>
