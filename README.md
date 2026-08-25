@@ -110,14 +110,17 @@ protected Unix-domain sockets; see the developer workflow for their platform def
 Every successful `main` commit publishes two short-lived workflow artifacts from the exact commit
 that passed CI:
 
-- a runnable `windows-x64` development Canary containing `balls`, `ballsd`, identity metadata,
-  and SHA-256 checksums;
+- a self-contained `windows-x64` development Canary containing `balls`, `ballsd`, its required
+  .NET runtime, identity metadata, and SHA-256 checksums;
 - a runnable `linux-x64` development Canary using protected XDG state and a same-user Unix-domain
   socket.
 
 Download the artifacts from the latest successful
-[`CI` workflow](https://github.com/scwlkr/balls/actions/workflows/ci.yml). After extracting
-the downloaded Windows workflow artifact, install and start it with one command:
+[`CI` workflow](https://github.com/scwlkr/balls/actions/workflows/ci.yml). Extract the Windows
+workflow artifact, then extract its included Canary archive and double-click **Open Balls.cmd**.
+The local workspace opens in your browser without installing .NET or PowerShell 7.
+
+For a checksum-verifying developer installation, run:
 
 ```powershell
 pwsh -File .\Install-BallsCanary.ps1 -PackagePath .\balls-*-canary-windows-x64-*.zip

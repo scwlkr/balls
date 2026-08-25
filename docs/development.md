@@ -142,9 +142,12 @@ Canaries. Artifact names have this deterministic shape:
 balls-<version>-canary-<windows|linux>-x64-<12-character-commit>
 ```
 
-Download and extract the Windows workflow artifact. From that directory, this one command verifies
-the archive checksum and every packaged file, installs the version, starts `ballsd`, and confirms
-readiness through `balls status`:
+Download and extract the Windows workflow artifact, then extract the Canary archive it contains.
+Double-click **Open Balls.cmd** to start the local pilot Node and open its Circle workspace. The
+Windows package includes its own .NET runtime and does not require PowerShell 7.
+
+For a checksum-verifying developer installation, this command verifies the archive and every
+packaged file, installs the version, starts `ballsd`, and confirms readiness through `balls status`:
 
 ```powershell
 pwsh -File .\Install-BallsCanary.ps1 -PackagePath .\balls-*-canary-windows-x64-*.zip

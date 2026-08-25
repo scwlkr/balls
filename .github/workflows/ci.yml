@@ -214,8 +214,10 @@ jobs:
           $outputDirectory = Join-Path $canaryRoot 'output'
 
           dotnet restore Balls.slnx --locked-mode
-          dotnet publish src/Balls.Cli/Balls.Cli.csproj --configuration Release --no-restore --output $cliDirectory
-          dotnet publish src/Balls.Daemon/Balls.Daemon.csproj --configuration Release --no-restore --output $daemonDirectory
+          dotnet restore src/Balls.Cli/Balls.Cli.csproj --runtime win-x64 -p:NuGetLockFilePath=obj/packages.win-x64.lock.json
+          dotnet restore src/Balls.Daemon/Balls.Daemon.csproj --runtime win-x64 -p:NuGetLockFilePath=obj/packages.win-x64.lock.json
+          dotnet publish src/Balls.Cli/Balls.Cli.csproj --configuration Release --runtime win-x64 --self-contained true --no-restore --output $cliDirectory
+          dotnet publish src/Balls.Daemon/Balls.Daemon.csproj --configuration Release --runtime win-x64 --self-contained true --no-restore --output $daemonDirectory
           dotnet run --project eng/Balls.Canary --configuration Release --no-restore -- package `
             --repository-root . `
             --cli-directory $cliDirectory `
