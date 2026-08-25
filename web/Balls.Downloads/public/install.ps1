@@ -96,6 +96,16 @@ if ([Runtime.InteropServices.RuntimeInformation]::OSArchitecture -ne
     throw 'The published Balls Windows Alpha requires x64 Windows.'
 }
 
+$dotnet = Get-Command dotnet -CommandType Application -ErrorAction SilentlyContinue
+if ($null -eq $dotnet) {
+    throw 'The published Balls Windows Alpha requires the ASP.NET Core 10 runtime.'
+}
+$installedRuntimes = @(& $dotnet.Source --list-runtimes 2>$null)
+if ($LASTEXITCODE -ne 0 -or
+    @($installedRuntimes | Where-Object { $_ -match '^Microsoft\.AspNetCore\.App\s+10\.' }).Count -eq 0) {
+    throw 'The published Balls Windows Alpha requires the ASP.NET Core 10 runtime.'
+}
+
 $manifest = Invoke-RestMethod -Uri $ManifestUri
 if ($manifest.schemaVersion -ne 1 -or $manifest.channel -ne 'alpha') {
     throw 'The Balls Alpha manifest has an unsupported schema or channel.'
