@@ -50,6 +50,30 @@ test("presents one stable command for every supported delivery lane", async () =
   assert.doesNotMatch(html, /codex-preview/i);
 });
 
+test("enforces the public security policy through the Worker", async () => {
+  const response = await render();
+
+  assert.equal(
+    response.headers.get("content-security-policy"),
+    "default-src 'self'; base-uri 'none'; connect-src 'self'; font-src 'self'; form-action 'none'; frame-ancestors 'none'; img-src 'self'; object-src 'none'; script-src 'self'; style-src 'self'",
+  );
+  assert.equal(
+    response.headers.get("cross-origin-opener-policy"),
+    "same-origin",
+  );
+  assert.equal(
+    response.headers.get("permissions-policy"),
+    "clipboard-write=(self)",
+  );
+  assert.equal(response.headers.get("referrer-policy"), "no-referrer");
+  assert.equal(
+    response.headers.get("strict-transport-security"),
+    "max-age=31536000; includeSubDomains",
+  );
+  assert.equal(response.headers.get("x-content-type-options"), "nosniff");
+  assert.equal(response.headers.get("x-frame-options"), "DENY");
+});
+
 test("pins the accepted Alpha and every packaged asset by SHA-256", async () => {
   const manifest = JSON.parse(
     await readFile(new URL("public/channels/alpha.json", siteRoot), "utf8"),
@@ -112,7 +136,6 @@ test("bootstraps verify local files without pipe-to-shell or policy bypasses", a
 
 test("copies the public channel and bootstrap files into the deployment", async () => {
   for (const path of [
-    "_headers",
     "channels/alpha.json",
     "install.ps1",
     "install.sh",
