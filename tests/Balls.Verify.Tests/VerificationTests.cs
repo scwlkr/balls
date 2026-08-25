@@ -58,24 +58,29 @@ public sealed class VerificationTests
 
         Assert.AreEqual(1, CountDotnetVerb(plan, "restore"));
         Assert.AreEqual(1, CountDotnetVerb(plan, "build"));
-        Assert.AreEqual(13, plan.Steps.Count);
-        Assert.AreEqual(TestCountRule.RequireZero, plan.Steps[8].TestCountRule);
+        Assert.AreEqual(18, plan.Steps.Count);
+        Assert.AreEqual(TestCountRule.RequireZero, plan.Steps[11].TestCountRule);
         CollectionAssert.Contains(
-            plan.Steps[9].Command.Arguments.ToArray(),
+            plan.Steps[12].Command.Arguments.ToArray(),
             "(TestCategory=Unit|TestCategory=Contract|TestCategory=ProcessIntegration)");
         CollectionAssert.DoesNotContain(
-            plan.Steps[9].Command.Arguments.ToArray(),
+            plan.Steps[12].Command.Arguments.ToArray(),
             "TestCategory=OSIntegration");
         CollectionAssert.AreEqual(
             new[]
             {
                 "web:generate:check",
                 "web:format:check",
+                "downloads:format:check",
                 "web:lint",
+                "downloads:lint",
                 "web:typecheck",
+                "downloads:typecheck",
                 "web:test",
                 "web:build",
                 "web:e2e",
+                "downloads:build",
+                "downloads:test",
             },
             PnpmScripts(plan));
     }
@@ -88,17 +93,17 @@ public sealed class VerificationTests
             "C:/repo",
             "C:/results");
 
-        Assert.AreEqual(13, plan.Steps.Count);
+        Assert.AreEqual(18, plan.Steps.Count);
         CollectionAssert.AreEqual(
             new[] { "restore", "format", "build", "test", "test" },
             plan.Steps
                 .Where(step => step.Command.FileName == "dotnet")
                 .Select(step => step.Command.Arguments[0])
                 .ToArray());
-        Assert.AreEqual(TestCountRule.RequireZero, plan.Steps[8].TestCountRule);
-        CollectionAssert.DoesNotContain(plan.Steps[9].Command.Arguments.ToArray(), "--filter");
-        CollectionAssert.Contains(plan.Steps[9].Command.Arguments.ToArray(), "--no-build");
-        CollectionAssert.Contains(plan.Steps[9].Command.Arguments.ToArray(), "--no-restore");
+        Assert.AreEqual(TestCountRule.RequireZero, plan.Steps[11].TestCountRule);
+        CollectionAssert.DoesNotContain(plan.Steps[12].Command.Arguments.ToArray(), "--filter");
+        CollectionAssert.Contains(plan.Steps[12].Command.Arguments.ToArray(), "--no-build");
+        CollectionAssert.Contains(plan.Steps[12].Command.Arguments.ToArray(), "--no-restore");
     }
 
     [TestMethod]
@@ -172,7 +177,9 @@ public sealed class VerificationTests
                 step.Command.FileName == "pnpm"
                 || step.Command.Arguments.Contains("pnpm", StringComparer.Ordinal))
             .Select(step => step.Command.Arguments[^1])
-            .Where(argument => argument.StartsWith("web:", StringComparison.Ordinal))
+            .Where(argument =>
+                argument.StartsWith("web:", StringComparison.Ordinal)
+                || argument.StartsWith("downloads:", StringComparison.Ordinal))
             .ToArray();
 
     private static void WriteTrx(string directory, string fileName, int total)

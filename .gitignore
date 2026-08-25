@@ -13,6 +13,8 @@ node_modules/
 web/Balls.Web/dist/
 web/Balls.Web/coverage/
 web/Balls.Web/test-results/
+web/Balls.Downloads/.wrangler/
+web/Balls.Downloads/dist/
 
 # Local Balls state
 .balls-state

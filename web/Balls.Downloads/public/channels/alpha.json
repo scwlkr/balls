@@ -1,0 +1,54 @@
+{
+  "schemaVersion": 1,
+  "channel": "alpha",
+  "release": {
+    "tag": "0.3.0-alpha.1",
+    "commit": "8dc39455ac432c6f295a86fad3a765d4f70a1fe9",
+    "publishedAt": "2026-08-21T22:25:14Z",
+    "url": "https://github.com/scwlkr/balls/releases/tag/0.3.0-alpha.1",
+    "unsigned": true
+  },
+  "platforms": {
+    "windows-x64": {
+      "delivery": "package",
+      "archive": {
+        "name": "balls-0.3.0-alpha.1-canary-windows-x64-8dc39455ac43.zip",
+        "url": "https://github.com/scwlkr/balls/releases/download/0.3.0-alpha.1/balls-0.3.0-alpha.1-canary-windows-x64-8dc39455ac43.zip",
+        "sha256": "8d7f4c5d02a4ae17787d7617ff6a75394b35c898efa7d55be8c63d51fb049ae1"
+      },
+      "checksum": {
+        "name": "balls-0.3.0-alpha.1-canary-windows-x64-8dc39455ac43.zip.sha256",
+        "url": "https://github.com/scwlkr/balls/releases/download/0.3.0-alpha.1/balls-0.3.0-alpha.1-canary-windows-x64-8dc39455ac43.zip.sha256",
+        "sha256": "8e40ffad729b51bb62b3b4323dd6f564f3c81605ae844acb17c36c4532c9034d"
+      },
+      "installer": {
+        "name": "Install-BallsCanary.ps1",
+        "url": "https://github.com/scwlkr/balls/releases/download/0.3.0-alpha.1/Install-BallsCanary.ps1",
+        "sha256": "bef520f4d8cdd71e4af50707f209059740c1d962e84be12572c65ba4dd8b88d7"
+      }
+    },
+    "linux-x64": {
+      "delivery": "package",
+      "archive": {
+        "name": "balls-0.3.0-alpha.1-canary-linux-x64-8dc39455ac43.zip",
+        "url": "https://github.com/scwlkr/balls/releases/download/0.3.0-alpha.1/balls-0.3.0-alpha.1-canary-linux-x64-8dc39455ac43.zip",
+        "sha256": "ab09f8795f4ef9f6ef31b7fcd606b889a62aab0daca68a488a8f0a710ac2f0fe"
+      },
+      "checksum": {
+        "name": "balls-0.3.0-alpha.1-canary-linux-x64-8dc39455ac43.zip.sha256",
+        "url": "https://github.com/scwlkr/balls/releases/download/0.3.0-alpha.1/balls-0.3.0-alpha.1-canary-linux-x64-8dc39455ac43.zip.sha256",
+        "sha256": "13d5f47daaf4f9b9b3ca1c6b23934b31af2f7f6719418800809b60ac3b983e64"
+      },
+      "installer": {
+        "name": "Install-BallsCanary.sh",
+        "url": "https://github.com/scwlkr/balls/releases/download/0.3.0-alpha.1/Install-BallsCanary.sh",
+        "sha256": "ceb75e206b0366172bfdce976d16a87d7328d6ddf62f6194cd1521d373277226"
+      }
+    },
+    "macos-arm64": {
+      "delivery": "source-only",
+      "repository": "https://github.com/scwlkr/balls.git",
+      "documentation": "https://github.com/scwlkr/balls/blob/main/docs/development.md#run-the-local-slice-on-macos"
+    }
+  }
+}
