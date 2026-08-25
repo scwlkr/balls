@@ -148,6 +148,16 @@ internal sealed class StaticWindowsPowerShellJsonSource : IWindowsPowerShellJson
                 return [string]@($Security)[0].OverrideBlockRules -ne 'False'
             }
 
+            function Select-BallsInboundFirewallRules {
+                param([AllowNull()][object]$Rules, [AllowNull()][string]$Action)
+                if ($Action -notin @('Allow', 'Block')) { throw 'Windows returned an unsupported inbound firewall rule action.' }
+                foreach ($rule in @($Rules)) {
+                    $ruleAction = [string]$rule.Action
+                    if ($ruleAction -notin @('Allow', 'Block')) { throw 'Windows returned an unsupported inbound firewall rule action.' }
+                    if ($ruleAction -eq $Action) { $rule }
+                }
+            }
+
             try {
                 $currentVersion = Microsoft.PowerShell.Management\Get-ItemProperty -LiteralPath 'HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion' -ErrorAction Stop
                 $system = [PSCustomObject]@{
@@ -202,9 +212,12 @@ internal sealed class StaticWindowsPowerShellJsonSource : IWindowsPowerShellJson
             try {
                 $privateFirewall = NetSecurity\Get-NetFirewallProfile -Name 'Private' -PolicyStore ActiveStore -ErrorAction Stop
                 $publicFirewall = NetSecurity\Get-NetFirewallProfile -Name 'Public' -PolicyStore ActiveStore -ErrorAction Stop
+                $inboundFirewallRules = @(NetSecurity\Get-NetFirewallRule -PolicyStore ActiveStore -Enabled True -Direction Inbound -ErrorAction Stop)
+                $inboundFirewallAllowRules = @(Select-BallsInboundFirewallRules -Rules $inboundFirewallRules -Action 'Allow')
+                $inboundFirewallBlockRules = @(Select-BallsInboundFirewallRules -Rules $inboundFirewallRules -Action 'Block')
                 $publicSmbInboundAllowRules = 0
                 $publicSmbInboundBlockBypass = $false
-                foreach ($rule in @(NetSecurity\Get-NetFirewallRule -PolicyStore ActiveStore -Enabled True -Direction Inbound -Action Allow -ErrorAction Stop)) {
+                foreach ($rule in $inboundFirewallAllowRules) {
                     $profiles = @(([string]$rule.Profile -split ',') | ForEach-Object { $_.Trim() })
                     if (($profiles -notcontains 'Any') -and ($profiles -notcontains 'Public')) { continue }
 
@@ -251,7 +264,7 @@ internal sealed class StaticWindowsPowerShellJsonSource : IWindowsPowerShellJson
 
                 if ($publicSmbInboundAllowRules -gt 0 -and -not $publicSmbInboundBlockBypass) {
                     $broadPublicSmbBlocks = 0
-                    foreach ($rule in @(NetSecurity\Get-NetFirewallRule -PolicyStore ActiveStore -Enabled True -Direction Inbound -Action Block -ErrorAction Stop)) {
+                    foreach ($rule in $inboundFirewallBlockRules) {
                         if ([string]$rule.Profile -ne 'Public') { continue }
                         $ports = @($rule | NetSecurity\Get-NetFirewallPortFilter -ErrorAction Stop)
                         if ($ports.Count -ne 1 -or [string]$ports[0].Protocol -notin @('TCP', '6') -or @($ports[0].LocalPort).Count -ne 1 -or [string]@($ports[0].LocalPort)[0] -ne '445') { continue }

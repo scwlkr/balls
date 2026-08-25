@@ -34,6 +34,7 @@ public sealed class WindowsPowerShellInspectionTests
         StringAssert.Contains(script, "Test-BallsSmbFirewallApplicability");
         StringAssert.Contains(script, "Test-BallsSmbFirewallBroadPublicBlock");
         StringAssert.Contains(script, "Test-BallsSmbFirewallBlockBypass");
+        StringAssert.Contains(script, "Select-BallsInboundFirewallRules");
         StringAssert.Contains(script, "OverrideBlockRules");
         StringAssert.Contains(script, "RemoteDynamicKeywordAddresses");
         StringAssert.Contains(script, "ProfileInactive");
@@ -48,6 +49,11 @@ public sealed class WindowsPowerShellInspectionTests
         Assert.IsFalse(script.Contains("Invoke-Expression", StringComparison.OrdinalIgnoreCase));
         Assert.IsFalse(script.Contains("$args", StringComparison.OrdinalIgnoreCase));
         Assert.IsFalse(script.Contains("$input", StringComparison.OrdinalIgnoreCase));
+
+        const string inboundFirewallInventory =
+            "NetSecurity\\Get-NetFirewallRule -PolicyStore ActiveStore -Enabled True -Direction Inbound -ErrorAction Stop";
+        Assert.AreEqual(1, script.Split(inboundFirewallInventory, StringSplitOptions.None).Length - 1);
+        Assert.IsFalse(script.Contains("-Direction Inbound -Action", StringComparison.OrdinalIgnoreCase));
     }
 
     [TestMethod]
@@ -219,6 +225,60 @@ public sealed class WindowsPowerShellProcessTests
             CancellationToken.None);
 
         Assert.AreEqual("12", output);
+    }
+
+    [TestMethod]
+    public async Task Inbound_firewall_inventory_handles_missing_block_rules_and_rejects_unknown_actions()
+    {
+        if (!OperatingSystem.IsWindows())
+        {
+            Assert.Inconclusive("The Windows PowerShell firewall inventory requires Windows.");
+            return;
+        }
+
+        var inspection = StaticWindowsPowerShellJsonSource.GetScript(
+            WindowsPowerShellQuery.SmbReadiness);
+        var start = inspection.IndexOf(
+            "function Select-BallsInboundFirewallRules",
+            StringComparison.Ordinal);
+        var end = inspection.IndexOf("\n\n", start, StringComparison.Ordinal);
+        Assert.IsGreaterThanOrEqualTo(0, start);
+        Assert.IsGreaterThan(start, end);
+        var command = inspection[start..end] +
+            """
+
+            $allow = [PSCustomObject]@{ Action = 'Allow'; Name = 'allow' }
+            $block = [PSCustomObject]@{ Action = 'Block'; Name = 'block' }
+            $allowOnly = @($allow)
+            if (@(Select-BallsInboundFirewallRules -Rules $allowOnly -Action 'Allow').Count -ne 1) { throw 'An existing allow rule was lost.' }
+            if (@(Select-BallsInboundFirewallRules -Rules $allowOnly -Action 'Block').Count -ne 0) { throw 'A missing block rule was fabricated.' }
+            if (@(Select-BallsInboundFirewallRules -Rules @($allow, $block) -Action 'Block').Count -ne 1) { throw 'An existing block rule was lost.' }
+
+            $unknownRejected = $false
+            try {
+                @(Select-BallsInboundFirewallRules -Rules @($allow, [PSCustomObject]@{ Action = 'NotConfigured' }) -Action 'Allow') | Out-Null
+            } catch {
+                $unknownRejected = $_.Exception.Message -eq 'Windows returned an unsupported inbound firewall rule action.'
+            }
+            if (-not $unknownRejected) { throw 'An unknown firewall rule action was accepted.' }
+
+            $selectionRejected = $false
+            try {
+                @(Select-BallsInboundFirewallRules -Rules $allowOnly -Action 'NotConfigured') | Out-Null
+            } catch {
+                $selectionRejected = $_.Exception.Message -eq 'Windows returned an unsupported inbound firewall rule action.'
+            }
+            if (-not $selectionRejected) { throw 'An unknown firewall selection action was accepted.' }
+
+            [Console]::Out.Write('5')
+            """;
+        var output = await BoundedWindowsInspectionProcessRunner.RunAsync(
+            CreatePowerShellStartInfo(command),
+            TimeSpan.FromSeconds(5),
+            1024,
+            CancellationToken.None);
+
+        Assert.AreEqual("5", output);
     }
 
     [TestMethod]

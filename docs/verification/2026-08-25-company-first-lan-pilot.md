@@ -57,6 +57,12 @@ providers, AI, and Circle Apps remain outside this pilot.
   signing, rejection of unencrypted access, and per-share encryption support exclude unauthenticated
   guest sessions. An unrelated outbound SMB client connection does not grant guest access to the
   Circle share and is never disabled or mutated by readiness inspection.
+- A real working Windows VM exposed a read-only firewall inventory edge case: asking PowerShell
+  for enabled inbound `Block` rules throws `ObjectNotFound` when all enabled inbound rules are
+  `Allow`. The observer now retrieves the enabled inbound inventory once, separates exact Allow
+  and Block actions in memory, and fails closed on unknown actions or real inventory failures.
+  The exact selector and its five allow-only/zero-block/mixed/invalid-action cases passed under
+  real Windows PowerShell 5.1; focused platform tests passed without mutating firewall policy.
 
 The repository fast gate passed on Linux with the pinned Node version:
 
@@ -115,6 +121,14 @@ authorized Windows guest remains available for genuine product testing; built-in
 or plain SMB checks on the physical laptop do not establish Balls acceptance. The owner explicitly
 selected the existing disposable Windows guest as the immediate boss simulator and deferred
 physical-device product testing until its administrator can legitimately address the block.
+
+After returning to the owner-approved two-VM route, the existing isolated Circle still had its two
+persisted Members and Nodes; the existing disposable guest again completed an authenticated
+mutual-TLS browser synchronization against the owner's running Windows daemon. It correctly
+received zero grants because the defined project contribution had not yet been hosted and no
+limited Member account had been provisioned. Read-only inventory showed zero enabled inbound
+Block rules and an active existing mapped-drive workload. Revit, that unrelated mapped drive,
+the owner daemon, firewall policy, and VM configuration were not interrupted or changed.
 
 The Linux workstation's existing LocalSend installation and already approved LocalSend firewall
 rule can offer the nonsecret self-contained Windows package through its normal browser-link
