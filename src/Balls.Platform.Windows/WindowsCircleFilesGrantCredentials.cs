@@ -257,6 +257,43 @@ internal sealed class WindowsCircleFilesGrantOperation(IWindowsCircleFilesGrantO
             await RollbackAsync(plan, states, cancellationToken).ConfigureAwait(false);
             throw Collision();
         }
+        if (states[WindowsCircleFilesGrantOperationStep.GrantMarker]
+                == WindowsCircleFilesOwnedState.Recoverable
+            && states.Where(value => value.Key != WindowsCircleFilesGrantOperationStep.GrantMarker)
+                .All(value => value.Value == WindowsCircleFilesOwnedState.Owned))
+        {
+            try
+            {
+                await operations.ApplyAsync(
+                    plan,
+                    WindowsCircleFilesGrantOperationStep.GrantMarker,
+                    cancellationToken).ConfigureAwait(false);
+                if (await operations.InspectAsync(
+                        plan,
+                        WindowsCircleFilesGrantOperationStep.GrantMarker,
+                        cancellationToken).ConfigureAwait(false)
+                    != WindowsCircleFilesOwnedState.Owned)
+                {
+                    throw Collision();
+                }
+
+                return CircleFilesGrantCredentialApplyStatus.Applied;
+            }
+            catch (OperationCanceledException)
+            {
+                throw;
+            }
+            catch (CircleFilesHostingException)
+            {
+                throw;
+            }
+            catch (Exception)
+            {
+                throw new CircleFilesHostingException(
+                    "grant_apply_failed",
+                    "Windows could not restore the exact Member share witness.");
+            }
+        }
         if (states.All(value => value.Value == WindowsCircleFilesOwnedState.Owned))
         {
             return CircleFilesGrantCredentialApplyStatus.AlreadyApplied;

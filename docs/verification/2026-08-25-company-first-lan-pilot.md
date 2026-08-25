@@ -63,6 +63,23 @@ providers, AI, and Circle Apps remain outside this pilot.
   and Block actions in memory, and fails closed on unknown actions or real inventory failures.
   The exact selector and its five allow-only/zero-block/mixed/invalid-action cases passed under
   real Windows PowerShell 5.1; focused platform tests passed without mutating firewall policy.
+- Deploying the complete firewall observer to the real Owner VM also exposed Windows' 32,767-
+  character `CreateProcess` command-line limit: the unchanged fixed observer encoded to a
+  33,708-character command and made every readiness check fail closed. Removing only leading
+  indentation from each existing script line reduced the exact command to approximately 30,232
+  characters without changing its content, execution mode, policy, timeout, or security checks.
+  A platform-independent regression bounds the complete encoded command before Windows execution.
+- Genuine cross-VM mapping exposed a contradiction hidden by same-user and fake-mapper tests:
+  the encrypted SMB share correctly uses access-based enumeration, while its host and grant
+  ownership markers correctly grant access only to the Owner and LocalSystem. An invited Member
+  cannot see those private markers, so the previous filename-based identity check always rejected
+  a legitimate remote mapping. A separate bounded grant-specific witness now carries only public
+  identity fields plus a domain-separated HMAC-SHA256 proof bound to the protected provider
+  credential. Its ACL is protected at file creation and grants only the exact Member read access,
+  while Owner and LocalSystem retain full control. The original private markers and access-based
+  enumeration remain unchanged. Missing, altered, oversized, cross-grant, wrong-generation, and
+  wrong-secret witnesses fail closed; an existing otherwise-owned grant can repair only its
+  missing witness without replacing its account or share permissions.
 
 The repository fast gate passed on Linux with the pinned Node version:
 
@@ -129,6 +146,68 @@ received zero grants because the defined project contribution had not yet been h
 limited Member account had been provisioned. Read-only inventory showed zero enabled inbound
 Block rules and an active existing mapped-drive workload. Revit, that unrelated mapped drive,
 the owner daemon, firewall policy, and VM configuration were not interrupted or changed.
+
+With the owner's explicit authorization, one local inbound TCP 445 Block rule restricted exactly
+to the Public profile was added to the working Windows VM. Its unrestricted scope and dormant
+`ProfileInactive` status were verified while the connected network remained Private. The existing
+SMB client guest setting and guest-only `Z:` share were not changed. All nine readiness checks
+then passed, and the regular typed elevated helper created the dedicated new `C:\BallsProjects`
+folder and encryption-required `balls-01a039487405` share. Its initial share ACL contained only
+the Owner, and its protected folder ACL contained only the Owner and LocalSystem.
+
+The existing Windows VM reported effective PowerShell execution policy `Restricted`, with every
+policy scope `Undefined`. The grant helper's protected local `-File` script correctly refused to
+run under that policy; the failed attempt created no account or ACL entry. After separate explicit
+owner authorization, only that Owner's `CurrentUser` policy was temporarily set to `RemoteSigned`
+for the exact pending grant operation and then restored to `Undefined`. Independent readback
+confirmed all five scopes returned to `Undefined` and effective policy returned to `Restricted`.
+No process bypass flag, alternate execution path, machine-wide policy change, or managed-policy
+override was used.
+
+The approved grant operation created exactly one existing-Member account. The encrypted share
+then contained only Owner `Full` and that account's `Change` access; the protected folder ACL
+contained only Owner/LocalSystem `Full` plus that account's `Modify` access. The disposable
+Windows VM subsequently completed a real authenticated browser/mutual-TLS synchronization with
+`importedGrantCount=1`, importing only that Member's protected provider credential. The Owner VM
+already had `EnableLUA=0`; therefore its standard `runas` helper elevated automatically and no
+visible administrator consent dialog or user click was observed or claimed. The disposable guest
+also had `EnableLUA=0` and an administrator-capable account; running its daemon in the existing
+interactive Explorer session proves session-correct mapping, not a genuine standard-user token.
+
+After the private-marker/access-based-enumeration conflict was reproduced on the actual two
+Windows guests, both daemons were updated in place at their existing approved executable paths.
+The existing Boss grant was reconciled without replacing its limited account or share access.
+Its new 511-byte authenticated witness was independently observed with a protected ACL granting
+only Owner and LocalSystem `FullControl` and the exact Boss account `Read`; both original private
+markers remained Owner/LocalSystem-only, and the share retained access-based enumeration.
+The Owner's temporary execution-policy setting was again restored to `CurrentUser=Undefined` and
+effective `Restricted` immediately after the authorized helper completed.
+
+The actual disposable Windows guest then mapped `P:` to
+`\\172.18.0.4\balls-01a039487405` through its existing interactive Explorer session and verified
+the exact authenticated grant witness over the remote share. Windows negotiated SMB 3.1.1 with
+`Encrypted=True`. Its data-share connection reported `Signed=False` while the separate IPC
+connection reported `Signed=True`: this is expected because
+[SMB encryption supersedes separate signing while providing the same tamper protection](https://learn.microsoft.com/en-us/windows-server/storage/file-server/configure-smb-client-require-encryption).
+The Owner's signing-required policy and share-level encryption requirement remained enabled.
+The Boss read and edited an Owner-created file, then created, edited, and renamed a second file
+through `P:`; the Owner independently read both exact final contents from `C:\BallsProjects`.
+The Boss daemon was then stopped and restarted through its existing same-user interactive task;
+the restarted process remained in Explorer's Session 1, retained its protected grant and Circle
+identity, and the product's mapping-inspection command independently confirmed the same persistent
+`P:` drive and encrypted SMB connection. This is real encrypted cross-VM Windows file access and
+restart persistence, not a fake mapper or loopback-only proof. The interactive-session account
+remains administrator-capable, and the actual mapping request was issued through the CLI rather
+than an observed click on the browser's guided mapping button. The user later explicitly authorized
+interruption of work on the Owner VM; its unrelated guest `Z:` share remained connected.
+
+The complete self-contained Windows pilot archive was rebuilt from the same corrected daemon and
+helper already running on both guests, then replaced the previous stale local-transfer copy. The
+99,887,103-byte archive contains the current authenticated-witness/compacted-observer platform
+assembly, self-contained CLI and daemon, full adjacent Windows helper, browser assets, and root
+`Open Balls.cmd` launcher. Its SHA-256 is
+`ae1b3e4922977f6833ebb696bf999338b48c7c9f22de5681015dde322076759f`. No GitHub release or public
+artifact was published; this is the local, manually transferable development package.
 
 The Linux workstation's existing LocalSend installation and already approved LocalSend firewall
 rule can offer the nonsecret self-contained Windows package through its normal browser-link

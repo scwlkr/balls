@@ -3,6 +3,7 @@ using System.Diagnostics;
 using System.Runtime.InteropServices;
 using System.Runtime.Versioning;
 using System.Security.AccessControl;
+using System.Security.Cryptography;
 using System.Security.Principal;
 using System.Text;
 using System.Text.Json;
@@ -102,17 +103,24 @@ internal sealed partial class WindowsCircleFilesGrantSystemOperations : IWindows
             plan.PublicPlan.FolderPath,
             $".balls-grant-{plan.Request.GrantId}-g{plan.Request.Generation}-v1.json");
 
+    private static string WitnessPath(WindowsCircleFilesGrantHelperPlan plan) =>
+        Path.Combine(
+            plan.PublicPlan.FolderPath,
+            WindowsCircleFilesShareWitness.GetFileName(plan.Request.GrantId, plan.Request.Generation));
+
     private static WindowsCircleFilesOwnedState InspectMarker(WindowsCircleFilesGrantHelperPlan plan)
     {
         var path = MarkerPath(plan);
         if (!File.Exists(path))
         {
-            return WindowsCircleFilesOwnedState.Missing;
+            return File.Exists(WitnessPath(plan))
+                ? WindowsCircleFilesOwnedState.Collision
+                : WindowsCircleFilesOwnedState.Missing;
         }
         try
         {
             var marker = JsonSerializer.Deserialize<WindowsCircleFilesGrantMarker>(File.ReadAllText(path));
-            return marker is not null
+            var privateMarkerOwned = marker is not null
                 && marker.ContractVersion == CircleFilesGrantCredentialContract.Version
                 && marker.OwnershipId == plan.PublicPlan.OwnershipId
                 && marker.PlanId == plan.PublicPlan.PlanId
@@ -125,11 +133,27 @@ internal sealed partial class WindowsCircleFilesGrantSystemOperations : IWindows
                 && marker.AccountName == plan.PublicPlan.AccountName
                 && marker.FolderPath.Equals(plan.PublicPlan.FolderPath, StringComparison.OrdinalIgnoreCase)
                 && marker.HostBaselineSddl.Length is > 0 and <= 8192
-                && HasProtectedOwnerSystemFileAcl(path, plan.OwnerSid)
-                    ? WindowsCircleFilesOwnedState.Owned
-                    : WindowsCircleFilesOwnedState.Collision;
+                && HasProtectedOwnerSystemFileAcl(path, plan.OwnerSid);
+            if (!privateMarkerOwned)
+            {
+                return WindowsCircleFilesOwnedState.Collision;
+            }
+
+            var witness = WitnessPath(plan);
+            if (!File.Exists(witness))
+            {
+                return WindowsCircleFilesOwnedState.Recoverable;
+            }
+
+            return HasExactShareWitness(plan, witness)
+                ? WindowsCircleFilesOwnedState.Owned
+                : WindowsCircleFilesOwnedState.Collision;
         }
-        catch (Exception exception) when (exception is JsonException or IOException or ArgumentException)
+        catch (Exception exception) when (exception is JsonException
+            or IOException
+            or ArgumentException
+            or UnauthorizedAccessException
+            or IdentityNotMappedException)
         {
             return WindowsCircleFilesOwnedState.Collision;
         }
@@ -137,7 +161,24 @@ internal sealed partial class WindowsCircleFilesGrantSystemOperations : IWindows
 
     private static void ApplyMarker(WindowsCircleFilesGrantHelperPlan plan)
     {
-        if (InspectMarker(plan) != WindowsCircleFilesOwnedState.Missing)
+        var state = InspectMarker(plan);
+        if (state == WindowsCircleFilesOwnedState.Recoverable)
+        {
+            if (!TryReadValidatedMarkers(plan, out var ownedMarkers)
+                || !HasExactFolderSecurity(
+                    GetDirectorySddl(plan.PublicPlan.FolderPath),
+                    plan.OwnerSid,
+                    ownedMarkers,
+                    requireAllGrants: true))
+            {
+                throw Collision("The existing grant resources changed before its witness could be restored.");
+            }
+
+            WriteShareWitness(plan);
+            return;
+        }
+
+        if (state != WindowsCircleFilesOwnedState.Missing)
         {
             throw new InvalidOperationException("The grant marker already exists.");
         }
@@ -180,6 +221,227 @@ internal sealed partial class WindowsCircleFilesGrantSystemOperations : IWindows
             plan.OwnerSid,
             injectPartialWriteFailure,
             injectAclFailure);
+        try
+        {
+            WriteShareWitness(plan);
+        }
+        catch
+        {
+            TryRemoveCreatedMarker(path, content);
+            throw;
+        }
+    }
+
+    private static void WriteShareWitness(WindowsCircleFilesGrantHelperPlan plan)
+    {
+        var path = WitnessPath(plan);
+        var accountSid = GetGrantAccountSid(plan);
+        var security = CreateShareWitnessSecurity(plan.OwnerSid, accountSid);
+        var content = WindowsCircleFilesShareWitness.CreateForGrant(plan);
+        var created = false;
+        try
+        {
+            using (var stream = CreateExclusiveWitnessStream(path, security))
+            {
+                created = true;
+                try
+                {
+                    stream.Write(content);
+                    stream.Flush(flushToDisk: true);
+                }
+                catch (Exception writeException)
+                {
+                    try
+                    {
+                        MarkOpenFileForDeletion(stream.SafeFileHandle);
+                    }
+                    catch (Exception cleanupException)
+                    {
+                        throw new IOException(
+                            "The share witness write failed and its protected-handle cleanup also failed.",
+                            new AggregateException(writeException, cleanupException));
+                    }
+
+                    throw;
+                }
+            }
+
+            if (!HasExactShareWitness(plan, path))
+            {
+                throw Collision("The exact Member share witness could not be verified.");
+            }
+        }
+        catch
+        {
+            if (created)
+            {
+                TryRemoveCreatedWitness(path, content, plan.OwnerSid, accountSid);
+            }
+
+            throw;
+        }
+        finally
+        {
+            CryptographicOperations.ZeroMemory(content);
+        }
+    }
+
+    private static FileStream CreateExclusiveWitnessStream(string path, FileSecurity security)
+    {
+        var descriptor = security.GetSecurityDescriptorBinaryForm();
+        var descriptorPointer = Marshal.AllocHGlobal(descriptor.Length);
+        var attributesPointer = Marshal.AllocHGlobal(Marshal.SizeOf<NativeSecurityAttributes>());
+        try
+        {
+            Marshal.Copy(descriptor, 0, descriptorPointer, descriptor.Length);
+            Marshal.StructureToPtr(
+                new NativeSecurityAttributes
+                {
+                    Length = (uint)Marshal.SizeOf<NativeSecurityAttributes>(),
+                    SecurityDescriptor = descriptorPointer,
+                    InheritHandle = false,
+                },
+                attributesPointer,
+                fDeleteOld: false);
+            var handle = CreateFile(
+                path,
+                GenericWriteAccess | DeleteAccess,
+                shareMode: 0,
+                attributesPointer,
+                CreateNewDisposition,
+                FileAttributeNormal,
+                templateFile: IntPtr.Zero);
+            if (handle.IsInvalid)
+            {
+                var error = Marshal.GetLastWin32Error();
+                handle.Dispose();
+                throw new Win32Exception(error, "Could not create the protected Member share witness.");
+            }
+
+            return new FileStream(handle, FileAccess.Write);
+        }
+        finally
+        {
+            Marshal.FreeHGlobal(attributesPointer);
+            Marshal.FreeHGlobal(descriptorPointer);
+            CryptographicOperations.ZeroMemory(descriptor);
+        }
+    }
+
+    private static bool HasExactShareWitness(WindowsCircleFilesGrantHelperPlan plan, string path)
+    {
+        var file = new FileInfo(path);
+        if (!file.Exists
+            || (file.Attributes & FileAttributes.ReparsePoint) != 0
+            || file.Length is <= 0 or > WindowsCircleFilesShareWitness.MaximumBytes
+            || !HasExactShareWitnessSecurity(path, plan.OwnerSid, GetGrantAccountSid(plan)))
+        {
+            return false;
+        }
+
+        var expected = WindowsCircleFilesShareWitness.CreateForGrant(plan);
+        var observed = File.ReadAllBytes(path);
+        try
+        {
+            return CryptographicOperations.FixedTimeEquals(observed, expected);
+        }
+        finally
+        {
+            CryptographicOperations.ZeroMemory(expected);
+            CryptographicOperations.ZeroMemory(observed);
+        }
+    }
+
+    private static SecurityIdentifier GetGrantAccountSid(WindowsCircleFilesGrantHelperPlan plan) =>
+        (SecurityIdentifier)new NTAccount(Environment.MachineName, plan.PublicPlan.AccountName)
+            .Translate(typeof(SecurityIdentifier));
+
+    internal static FileSecurity CreateShareWitnessSecurity(string ownerSid, SecurityIdentifier accountSid)
+    {
+        var owner = new SecurityIdentifier(ownerSid);
+        var system = new SecurityIdentifier(WellKnownSidType.LocalSystemSid, null);
+        if (owner.Equals(accountSid) || system.Equals(accountSid))
+        {
+            throw Collision("The Member share witness account is not a distinct limited principal.");
+        }
+
+        var security = new FileSecurity();
+        security.SetAccessRuleProtection(isProtected: true, preserveInheritance: false);
+        security.SetOwner(owner);
+        security.AddAccessRule(new FileSystemAccessRule(
+            owner,
+            FileSystemRights.FullControl,
+            AccessControlType.Allow));
+        security.AddAccessRule(new FileSystemAccessRule(
+            system,
+            FileSystemRights.FullControl,
+            AccessControlType.Allow));
+        security.AddAccessRule(new FileSystemAccessRule(
+            accountSid,
+            FileSystemRights.Read | FileSystemRights.Synchronize,
+            AccessControlType.Allow));
+        return security;
+    }
+
+    private static bool HasExactShareWitnessSecurity(
+        string path,
+        string ownerSid,
+        SecurityIdentifier accountSid)
+    {
+        var security = new FileInfo(path).GetAccessControl(AccessControlSections.All);
+        if (!security.AreAccessRulesProtected
+            || security.GetOwner(typeof(SecurityIdentifier)) is not SecurityIdentifier owner
+            || owner.Value != ownerSid)
+        {
+            return false;
+        }
+
+        var expected = new Dictionary<string, FileSystemRights>(StringComparer.Ordinal)
+        {
+            [ownerSid] = FileSystemRights.FullControl,
+            [new SecurityIdentifier(WellKnownSidType.LocalSystemSid, null).Value] =
+                FileSystemRights.FullControl,
+            [accountSid.Value] = FileSystemRights.Read | FileSystemRights.Synchronize,
+        };
+        var rules = security.GetAccessRules(true, false, typeof(SecurityIdentifier))
+            .Cast<FileSystemAccessRule>().ToArray();
+        return rules.Length == expected.Count
+            && rules.All(rule => rule.AccessControlType == AccessControlType.Allow
+                && !rule.IsInherited
+                && rule.IdentityReference is SecurityIdentifier principal
+                && expected.Remove(principal.Value, out var rights)
+                && rule.FileSystemRights == rights)
+            && expected.Count == 0;
+    }
+
+    private static void TryRemoveCreatedWitness(
+        string path,
+        ReadOnlySpan<byte> expectedContent,
+        string ownerSid,
+        SecurityIdentifier accountSid)
+    {
+        try
+        {
+            if (File.Exists(path)
+                && HasExactShareWitnessSecurity(path, ownerSid, accountSid)
+                && CryptographicOperations.FixedTimeEquals(File.ReadAllBytes(path), expectedContent))
+            {
+                File.Delete(path);
+            }
+        }
+        catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
+        {
+        }
+    }
+
+    [StructLayout(LayoutKind.Sequential)]
+    private struct NativeSecurityAttributes
+    {
+        public uint Length;
+        public IntPtr SecurityDescriptor;
+
+        [MarshalAs(UnmanagedType.Bool)]
+        public bool InheritHandle;
     }
 
     internal static void WriteProtectedMarkerFile(
@@ -316,10 +578,17 @@ internal sealed partial class WindowsCircleFilesGrantSystemOperations : IWindows
 
     private static void RemoveMarker(WindowsCircleFilesGrantHelperPlan plan)
     {
-        if (InspectMarker(plan) != WindowsCircleFilesOwnedState.Owned)
+        var state = InspectMarker(plan);
+        if (state is not (WindowsCircleFilesOwnedState.Owned or WindowsCircleFilesOwnedState.Recoverable))
         {
             throw Collision("The grant marker changed and was left untouched.");
         }
+
+        if (state == WindowsCircleFilesOwnedState.Owned)
+        {
+            File.Delete(WitnessPath(plan));
+        }
+
         File.Delete(MarkerPath(plan));
     }
 
@@ -345,7 +614,7 @@ internal sealed partial class WindowsCircleFilesGrantSystemOperations : IWindows
                 : WindowsCircleFilesOwnedState.Collision;
         }
 
-        if (markerState != WindowsCircleFilesOwnedState.Owned)
+        if (markerState is not (WindowsCircleFilesOwnedState.Owned or WindowsCircleFilesOwnedState.Recoverable))
         {
             return WindowsCircleFilesOwnedState.Collision;
         }

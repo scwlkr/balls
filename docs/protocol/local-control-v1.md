@@ -323,8 +323,13 @@ The endpoint is a canonical numeric private/loopback IPv4 address. The daemon de
 share, account, credential target, marker names, and friendly Circle name from current authorized
 state and the active DPAPI-protected grant credential. Map stores that credential in the current
 user's Credential Manager, creates a persistent `CONNECT_UPDATE_PROFILE` drive without elevation,
-then verifies authenticated directory access and the two exact protected marker names through the
-mapped share before setting the Explorer label. Marker contents remain unreadable to the grant.
+then reads one bounded grant-specific witness through the mapped share before setting the Explorer
+label. The witness contains only public grant identity fields and an HMAC-SHA256 proof keyed by
+the exact protected provider credential; its protected ACL gives the exact grant account read
+access without allowing mutation. Verification binds the Circle, Contribution, provider, grant,
+Member, account, ownership, access, and generation and rejects missing, malformed, oversized,
+cross-grant, or altered witnesses. The separate host and grant ownership markers remain readable
+only to the Owner and LocalSystem and stay hidden from Members by SMB access-based enumeration.
 Unmap uses non-forced persistent removal and deletes the label and credential only when all exact
 ownership fields still match. The CLI commands are `balls files mapping
 preview|map|inspect|unmap`; only `map` accepts `--plan`.

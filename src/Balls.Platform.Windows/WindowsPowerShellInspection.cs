@@ -38,7 +38,7 @@ internal sealed class StaticWindowsPowerShellJsonSource : IWindowsPowerShellJson
         WindowsPowerShellQuery query,
         CancellationToken cancellationToken)
     {
-        var script = GetScript(query);
+        var script = GetCompactScript(query);
         cancellationToken.ThrowIfCancellationRequested();
 
         var executable = Path.Combine(
@@ -73,6 +73,11 @@ internal sealed class StaticWindowsPowerShellJsonSource : IWindowsPowerShellJson
             MaximumOutputCharacters,
             cancellationToken).ConfigureAwait(false);
     }
+
+    internal static string GetCompactScript(WindowsPowerShellQuery query) =>
+        string.Join('\n', GetScript(query)
+            .Split('\n')
+            .Select(static line => line.TrimStart(' ', '\t')));
 
     internal static string GetScript(WindowsPowerShellQuery query) => query switch
     {

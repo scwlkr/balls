@@ -567,17 +567,26 @@ contain that material.
 The helper creates one grant-owned local account with no group membership, no expiry, and exactly
 four deny-logon rights (interactive, remote interactive, batch, and service). It adds one inherited
 whole-folder ACL (`ReadAndExecute` or `Modify`, never `FullControl`) and one matching encrypted-share
-  allow entry (`Read` or `Change`). Each protected grant marker records the full ownership binding and
-  the exact host Owner/System baseline SDDL. Preflight derives the complete folder/share ACL from all
-  protected markers, so multiple Member grants coexist while deny entries, wrong rights, reduced
-  Owner access, orphan SIDs, and unmarked principals fail closed. It also rejects known broad Windows
-  token principals on every other non-special share. After account
+allow entry (`Read` or `Change`). Each protected grant marker records the full ownership binding and
+the exact host Owner/System baseline SDDL. The encrypted share uses access-based enumeration, so
+these private Owner/System-only markers are intentionally invisible to the Member. A separate,
+bounded grant-specific witness contains only public identity fields and an HMAC-SHA256 proof
+derived from the exact protected provider credential. Its protected ACL grants only the Owner and
+LocalSystem full control and the exact grant account read access. The Member verifies the complete
+Circle, Contribution, provider, grant, Member, account, ownership, access, and generation binding
+in constant time before accepting the mapped share; it never receives access to the private
+ownership markers. Preflight derives the complete folder/share ACL from all protected markers, so
+multiple Member grants coexist while deny entries, wrong rights, reduced Owner access, orphan SIDs,
+and unmarked principals fail closed. It also rejects known broad Windows token principals on every
+other non-special share. After account
 creation it derives the actual network-logon token groups, so custom/nested group access blocks the
 grant and rolls the exact owned prefix back. Exact retry reuses the same protected credential across
-process restart; foreign account, marker, folder ACL, or share ACL state fails closed. Failure rolls
-  back only that grant's exact share/folder entries and owned prefix in reverse order, preserving
-  other marker-backed Member grants. This includes externally terminated account creation with zero
-  or all four LSA rights; cleanup removes only an expected-rights subset before deleting the account.
+process restart; foreign account, marker, witness, folder ACL, or share ACL state fails closed. An
+otherwise complete legacy grant can reconcile only its missing exact witness without replacing its
+account or access. Failure rolls back only that grant's exact share/folder entries, witness, and
+owned prefix in reverse order, preserving other marker-backed Member grants. This includes
+externally terminated account creation with zero or all four LSA rights; cleanup removes only an
+expected-rights subset before deleting the account.
 
 Lifecycle removal is a separate preview/apply seam behind `ICircleFilesLifecycleManager`. The
 daemon requires the exact persisted revocation proof and credential binding before an elevated

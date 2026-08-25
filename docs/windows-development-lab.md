@@ -35,6 +35,15 @@ docker network inspect windows_default --format '{{.Name}} {{.Driver}}'
   interface and the exact approved admission/SMB ports; never expose public SMB.
 - Keep guest passwords, SSH private keys, provider credentials, and signed-in application state
   out of command output, repository files, evidence, and issue comments.
+- Check the Owner's effective PowerShell execution policy before privileged grant provisioning.
+  The current grant helper invokes a protected local script with `-File`, which default
+  `Restricted` policy legitimately refuses. A temporary Owner-only `CurrentUser=RemoteSigned`
+  setting requires explicit owner approval, immediate guaranteed restoration to the exact prior
+  value, and independent post-run verification; never use a bypass flag, another execution path,
+  or change machine-wide or managed policy.
+- Record the actual `EnableLUA` setting before describing administrator approval. On a VM with
+  existing UAC disabled, the normal elevated helper can complete without displaying a consent
+  prompt; do not claim that the user saw or accepted a dialog.
 - Treat the Hyper-V instructions below as historical Windows-host evidence. They do not describe
   the current Linux workstation or authorize creating nested Windows/Hyper-V infrastructure.
 

@@ -57,6 +57,21 @@ public sealed class WindowsPowerShellInspectionTests
     }
 
     [TestMethod]
+    public void Encoded_readiness_query_fits_the_Windows_process_command_line_limit()
+    {
+        var script = StaticWindowsPowerShellJsonSource.GetCompactScript(
+            WindowsPowerShellQuery.SmbReadiness);
+        var encodedCommand = Convert.ToBase64String(Encoding.Unicode.GetBytes(script));
+        const string executable = @"C:\Windows\System32\WindowsPowerShell\v1.0\powershell.exe";
+        var commandLine = $"\"{executable}\" -NoLogo -NoProfile -NonInteractive -EncodedCommand {encodedCommand}";
+
+        Assert.IsTrue(
+            commandLine.Length + 1 < 31_000,
+            $"The Windows readiness command requires {commandLine.Length + 1} characters.");
+        Assert.AreEqual(script, Encoding.Unicode.GetString(Convert.FromBase64String(encodedCommand)));
+    }
+
+    [TestMethod]
     public async Task Query_refuses_values_outside_the_allow_list_before_starting_a_process()
     {
         var source = new StaticWindowsPowerShellJsonSource();

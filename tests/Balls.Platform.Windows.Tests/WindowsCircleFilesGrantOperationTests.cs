@@ -96,6 +96,123 @@ public sealed class WindowsCircleFilesGrantOperationTests
     }
 
     [TestMethod]
+    public async Task Existing_owned_grant_reconciles_only_its_missing_member_witness()
+    {
+        var existing = new StubOperations();
+        foreach (var step in Enum.GetValues<WindowsCircleFilesGrantOperationStep>())
+        {
+            existing.States[step] = WindowsCircleFilesOwnedState.Owned;
+        }
+
+        existing.States[WindowsCircleFilesGrantOperationStep.GrantMarker] =
+            WindowsCircleFilesOwnedState.Recoverable;
+
+        var status = await new WindowsCircleFilesGrantOperation(existing)
+            .ExecuteAsync(Plan, CancellationToken.None);
+
+        Assert.AreEqual(CircleFilesGrantCredentialApplyStatus.Applied, status);
+        CollectionAssert.AreEqual(
+            new[] { WindowsCircleFilesGrantOperationStep.GrantMarker },
+            existing.Applied.ToArray());
+        Assert.AreEqual(0, existing.RolledBack.Count);
+        Assert.IsTrue(existing.States.Values.All(value => value == WindowsCircleFilesOwnedState.Owned));
+    }
+
+    [TestMethod]
+    public void Share_witness_binds_exact_grant_identity_and_never_contains_its_password()
+    {
+        var request = new CircleFilesMemberMappingRequest(
+            Plan.Request.Host.CircleId,
+            Plan.Request.Host.ContributionId,
+            Plan.Request.Host.ProviderId,
+            Plan.Request.GrantId,
+            Plan.Request.MemberId,
+            Plan.PublicPlan.AccountName,
+            Plan.PublicPlan.OwnershipId,
+            Plan.Request.Access,
+            Plan.Request.Generation,
+            "HH",
+            "192.168.1.20",
+            "P");
+        var ownerWitness = WindowsCircleFilesShareWitness.CreateForGrant(Plan);
+        var memberWitness = WindowsCircleFilesShareWitness.CreateForMapping(request, Plan.Secret);
+
+        CollectionAssert.AreEqual(ownerWitness, memberWitness);
+        Assert.IsTrue(WindowsCircleFilesShareWitness.IsValid(ownerWitness, request, Plan.Secret));
+        Assert.IsFalse(System.Text.Encoding.UTF8.GetString(ownerWitness).Contains(
+            System.Text.Encoding.UTF8.GetString(Plan.Secret),
+            StringComparison.Ordinal));
+        Assert.AreEqual(
+            $".balls-witness-{Plan.Request.GrantId}-g1-v1.json",
+            WindowsCircleFilesShareWitness.GetFileName(request.GrantId, request.Generation));
+
+        var tampered = ownerWitness.ToArray();
+        tampered[^2] ^= 1;
+        Assert.IsFalse(WindowsCircleFilesShareWitness.IsValid(tampered, request, Plan.Secret));
+        Assert.IsFalse(WindowsCircleFilesShareWitness.IsValid(
+            [.. ownerWitness, (byte)'\n'],
+            request,
+            Plan.Secret));
+        Assert.IsFalse(WindowsCircleFilesShareWitness.IsValid(
+            ownerWitness,
+            request with { GrantId = "019d2a6b-1b66-7d38-9c35-8d64ca8f8911" },
+            Plan.Secret));
+        Assert.IsFalse(WindowsCircleFilesShareWitness.IsValid(
+            ownerWitness,
+            request with { MemberId = "019d2a6b-1b66-7d38-9c35-8d64ca8f8912" },
+            Plan.Secret));
+        Assert.IsFalse(WindowsCircleFilesShareWitness.IsValid(
+            ownerWitness,
+            request with { GrantOwnershipId = new string('0', 64) },
+            Plan.Secret));
+        Assert.IsFalse(WindowsCircleFilesShareWitness.IsValid(
+            ownerWitness,
+            request with { Access = "read-only" },
+            Plan.Secret));
+        Assert.IsFalse(WindowsCircleFilesShareWitness.IsValid(
+            ownerWitness,
+            request with { Generation = 2 },
+            Plan.Secret));
+
+        var wrongSecret = Plan.Secret.ToArray();
+        try
+        {
+            wrongSecret[0] ^= 1;
+            Assert.IsFalse(WindowsCircleFilesShareWitness.IsValid(ownerWitness, request, wrongSecret));
+        }
+        finally
+        {
+            CryptographicOperations.ZeroMemory(wrongSecret);
+        }
+    }
+
+    [TestMethod]
+    public void Member_witness_acl_grants_only_the_exact_member_read_access()
+    {
+        if (!OperatingSystem.IsWindows())
+        {
+            Assert.Inconclusive("The protected Member share witness ACL requires Windows.");
+            return;
+        }
+
+        var owner = WindowsIdentity.GetCurrent().User!;
+        var member = new SecurityIdentifier(WellKnownSidType.BuiltinUsersSid, null);
+        var security = WindowsCircleFilesGrantSystemOperations.CreateShareWitnessSecurity(owner.Value, member);
+        var rules = security.GetAccessRules(true, false, typeof(SecurityIdentifier))
+            .Cast<FileSystemAccessRule>().ToArray();
+
+        Assert.IsTrue(security.AreAccessRulesProtected);
+        Assert.AreEqual(3, rules.Length);
+        var memberRule = rules.Single(rule => member.Equals(rule.IdentityReference));
+        Assert.AreEqual(AccessControlType.Allow, memberRule.AccessControlType);
+        Assert.AreEqual(FileSystemRights.Read | FileSystemRights.Synchronize, memberRule.FileSystemRights);
+        Assert.IsFalse(memberRule.FileSystemRights.HasFlag(FileSystemRights.Write));
+        Assert.IsFalse(memberRule.FileSystemRights.HasFlag(FileSystemRights.Modify));
+        Assert.IsTrue(rules.Where(rule => !member.Equals(rule.IdentityReference))
+            .All(rule => rule.FileSystemRights == FileSystemRights.FullControl));
+    }
+
+    [TestMethod]
     public async Task Grant_removal_requires_a_second_open_session_confirmation_and_recovers_partials()
     {
         var busy = new StubRemovalOperations(openSessionCount: 2);
