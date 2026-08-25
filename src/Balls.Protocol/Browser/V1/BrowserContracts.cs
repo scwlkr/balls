@@ -18,6 +18,11 @@ public static class BrowserRoutes
         return $"{Circle(circleId)}/messages";
     }
 
+    public static string CircleViewer(string circleId)
+    {
+        return $"{Circle(circleId)}/viewer";
+    }
+
     public static string CircleInvitations(string circleId)
     {
         return $"{Circle(circleId)}/invitations";
@@ -26,6 +31,11 @@ public static class BrowserRoutes
     public static string CircleFilesContributions(string circleId)
     {
         return $"{Circle(circleId)}/files/contributions";
+    }
+
+    public static string CircleFilesSync(string circleId)
+    {
+        return $"{Circle(circleId)}/files/sync";
     }
 
     public static string CircleFilesAccessGrants(string circleId, string contributionId)
@@ -59,4 +69,11 @@ public sealed record BrowserCircleInvitationResponse(
     string InvitationId,
     DateTimeOffset ExpiresAtUtc,
     string Package,
-    string Endpoint);
+    string Endpoint,
+    string SyncEndpoint);
+
+public sealed record BrowserCircleViewerResponse(string MemberId, string Role);
+
+public sealed record SyncBrowserCircleFilesRequest(string Endpoint);
+
+public sealed record BrowserCircleFilesSyncResponse(string CircleId, int ImportedGrantCount);

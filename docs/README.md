@@ -64,3 +64,4 @@ Use this directory for ADRs, threat models, protocol specifications, milestone d
 - [`verification/2026-08-21-trusted-circle.md`](verification/2026-08-21-trusted-circle.md) — Trusted Circle release-candidate, security, exact-artifact, and owner-decision evidence.
 - [`verification/2026-08-21-macos-developer-node.md`](verification/2026-08-21-macos-developer-node.md) — physical Apple-Silicon state/IPC, process, browser, fast-gate evidence, and explicit remaining gaps.
 - [`verification/2026-08-21-browser-brand-workspace.md`](verification/2026-08-21-browser-brand-workspace.md) — canonical brandmark, responsive Circle interactions, accessibility, and reviewed browser-state screenshots.
+- [`verification/2026-08-25-company-first-lan-pilot.md`](verification/2026-08-25-company-first-lan-pilot.md) — two-person invitation, authorized Member-only files, self-contained Windows package, and honest Windows/LAN proof boundaries.

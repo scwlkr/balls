@@ -11,6 +11,7 @@ import type {
   CircleDetailsDto,
   CircleMessageDto,
   CircleSummaryDto,
+  CircleViewerDto,
   StatusDto,
 } from "./api/localControl";
 import { BrandMark } from "./components/BrandMark";
@@ -26,6 +27,7 @@ interface WorkspaceState {
   status: StatusDto;
   circles: CircleSummaryDto[];
   selected: CircleDetailsDto | null;
+  viewer: CircleViewerDto | null;
   messages: CircleMessageDto[];
 }
 
@@ -44,6 +46,9 @@ export function App({ api = browserApi }: AppProps) {
   const [error, setError] = useState<string | null>(initialError);
   const [busy, setBusy] = useState(false);
   const [fileHosts, setFileHosts] = useState<Record<string, string>>({});
+  const [fileSyncEndpoints, setFileSyncEndpoints] = useState<
+    Record<string, string>
+  >({});
 
   useEffect(() => {
     if (started.current) return;
@@ -63,17 +68,19 @@ export function App({ api = browserApi }: AppProps) {
           api.getStatus(),
           api.listCircles(),
         ]);
-        const [selected, messageList] = circleList.circles[0]
+        const [selected, messageList, viewer] = circleList.circles[0]
           ? await Promise.all([
               api.getCircle(circleList.circles[0].id),
               api.getMessages(circleList.circles[0].id),
+              api.getViewer(circleList.circles[0].id),
             ])
-          : [null, null];
+          : [null, null, null];
         if (active) {
           setWorkspace({
             status,
             circles: circleList.circles,
             selected,
+            viewer,
             messages: messageList?.messages ?? [],
           });
         }
@@ -96,10 +103,12 @@ export function App({ api = browserApi }: AppProps) {
     setError(null);
     try {
       const selected = await api.createCircle(name, owner);
+      const viewer = await api.getViewer(selected.circle.id);
       setWorkspace({
         ...workspace,
         circles: mergeCircle(workspace.circles, selected.circle),
         selected,
+        viewer,
         messages: [],
       });
     } catch (reason) {
@@ -114,11 +123,17 @@ export function App({ api = browserApi }: AppProps) {
     setBusy(true);
     setError(null);
     try {
-      const [selected, messageList] = await Promise.all([
+      const [selected, messageList, viewer] = await Promise.all([
         api.getCircle(circleId),
         api.getMessages(circleId),
+        api.getViewer(circleId),
       ]);
-      setWorkspace({ ...workspace, selected, messages: messageList.messages });
+      setWorkspace({
+        ...workspace,
+        selected,
+        viewer,
+        messages: messageList.messages,
+      });
     } catch (reason) {
       setError(toMessage(reason));
     } finally {
@@ -141,18 +156,28 @@ export function App({ api = browserApi }: AppProps) {
         invitation.endpoint,
         name,
       );
+      const viewer = await api.getViewer(selected.circle.id);
       const host = invitationHostAddress(invitation.endpoint);
       if (host) {
         setFileHosts((current) => ({ ...current, [selected.circle.id]: host }));
+        setFileSyncEndpoints((current) => ({
+          ...current,
+          [selected.circle.id]: invitation.syncEndpoint,
+        }));
         window.sessionStorage.setItem(
           `balls:file-host:${selected.circle.id}`,
           host,
+        );
+        window.sessionStorage.setItem(
+          `balls:file-sync:${selected.circle.id}`,
+          invitation.syncEndpoint,
         );
       }
       setWorkspace({
         ...workspace,
         circles: mergeCircle(workspace.circles, selected.circle),
         selected,
+        viewer,
         messages: [],
       });
     } catch (reason) {
@@ -195,6 +220,7 @@ export function App({ api = browserApi }: AppProps) {
               error={error}
               busy={busy}
               fileHosts={fileHosts}
+              fileSyncEndpoints={fileSyncEndpoints}
               onCreate={createCircle}
               onJoin={joinCircle}
               onSelect={selectCircle}
@@ -247,6 +273,7 @@ interface WorkspaceProps {
   error: string | null;
   busy: boolean;
   fileHosts: Record<string, string>;
+  fileSyncEndpoints: Record<string, string>;
   onCreate: (event: FormEvent<HTMLFormElement>) => void;
   onJoin: (event: FormEvent<HTMLFormElement>) => void;
   onSelect: (circleId: string) => void;
@@ -258,6 +285,7 @@ function Workspace({
   error,
   busy,
   fileHosts,
+  fileSyncEndpoints,
   onCreate,
   onJoin,
   onSelect,
@@ -311,11 +339,13 @@ function Workspace({
         </p>
       ) : null}
 
-      {dashboard ? (
+      {dashboard && workspace.viewer ? (
         <CircleWorkspace
           api={api}
           dashboard={dashboard}
           fileHost={fileHosts[dashboard.circle.id]}
+          fileSyncEndpoint={fileSyncEndpoints[dashboard.circle.id]}
+          viewer={workspace.viewer}
           messages={workspace.messages}
         />
       ) : (
@@ -328,11 +358,15 @@ function Workspace({
 function CircleWorkspace({
   dashboard,
   fileHost,
+  fileSyncEndpoint,
+  viewer,
   messages,
   api,
 }: {
   dashboard: DashboardSnapshot;
   fileHost?: string;
+  fileSyncEndpoint?: string;
+  viewer: CircleViewerDto;
   messages: CircleMessageDto[];
   api: BrowserApi;
 }) {
@@ -367,17 +401,23 @@ function CircleWorkspace({
         </dl>
       </section>
       <CircleTopology circle={circle} />
-      {circle.nodes[0]?.id === dashboard.localNode.id ? (
+      {viewer.role === "owner" ? (
         <InvitationPanel api={api} circleId={circle.id} />
       ) : null}
       <FilesMappingPanel
         key={circle.id}
         api={api}
         dashboard={dashboard}
+        viewer={viewer}
         circleId={circle.id}
         initialEndpoint={
           fileHost ??
           window.sessionStorage.getItem(`balls:file-host:${circle.id}`) ??
+          ""
+        }
+        syncEndpoint={
+          fileSyncEndpoint ??
+          window.sessionStorage.getItem(`balls:file-sync:${circle.id}`) ??
           ""
         }
       />
@@ -495,13 +535,17 @@ function InvitationPanel({
 function FilesMappingPanel({
   api,
   dashboard,
+  viewer,
   circleId,
   initialEndpoint,
+  syncEndpoint,
 }: {
   api: BrowserApi;
   dashboard: DashboardSnapshot;
+  viewer: CircleViewerDto;
   circleId: string;
   initialEndpoint: string;
+  syncEndpoint: string;
 }) {
   const [contributions, setContributions] = useState<
     Awaited<ReturnType<BrowserApi["listFilesContributions"]>>["contributions"]
@@ -525,6 +569,7 @@ function FilesMappingPanel({
   const [mappingStatus, setMappingStatus] = useState<string | null>(null);
   const [panelError, setPanelError] = useState<string | null>(null);
   const [panelBusy, setPanelBusy] = useState(false);
+  const [refreshRequest, setRefreshRequest] = useState(0);
   const guided = initialEndpoint.length > 0;
   const memberNames = new Map(
     dashboard.circle.members.map((member) => [member.id, member.name]),
@@ -532,28 +577,70 @@ function FilesMappingPanel({
 
   useEffect(() => {
     let active = true;
-    void api
-      .listFilesContributions(circleId)
-      .then(async (result) => {
+    let timer: ReturnType<typeof window.setTimeout> | undefined;
+    let attempt = 0;
+    const shouldSynchronize =
+      viewer.role === "member" && syncEndpoint.length > 0;
+
+    function retry() {
+      if (!active || !shouldSynchronize || attempt >= 15) return;
+      const delay = Math.min(1000 * 2 ** attempt, 15000);
+      attempt += 1;
+      timer = window.setTimeout(() => void load(), delay);
+    }
+
+    async function load() {
+      try {
+        if (shouldSynchronize) {
+          await api.syncFiles(circleId, syncEndpoint);
+          if (!active) return;
+        }
+
+        const result = await api.listFilesContributions(circleId);
         if (!active) return;
         setContributions(result.contributions);
         const first = result.contributions[0];
         setContributionId(first?.id ?? "");
-        if (first) {
-          const grantList = await api.listFilesGrants(circleId, first.id);
-          if (active) {
-            setGrants(grantList.grants);
-            setGrantId(grantList.grants[0]?.id ?? "");
+        if (!first) {
+          retry();
+          return;
+        }
+
+        const grantList = await api.listFilesGrants(circleId, first.id);
+        if (active) {
+          const available = grantList.grants.filter(
+            (grant) =>
+              viewer.role === "owner" || grant.memberId === viewer.memberId,
+          );
+          setGrants(available);
+          setGrantId(available[0]?.id ?? "");
+          if (available.length === 0) {
+            retry();
           }
         }
-      })
-      .catch((reason) => {
-        if (active) setPanelError(toMessage(reason));
-      });
+      } catch (reason) {
+        if (!active) return;
+        if (shouldSynchronize && attempt < 15) {
+          retry();
+        } else {
+          setPanelError(toMessage(reason));
+        }
+      }
+    }
+
+    void load();
     return () => {
       active = false;
+      if (timer !== undefined) window.clearTimeout(timer);
     };
-  }, [api, circleId]);
+  }, [
+    api,
+    circleId,
+    refreshRequest,
+    syncEndpoint,
+    viewer.memberId,
+    viewer.role,
+  ]);
 
   async function chooseContribution(value: string) {
     setContributionId(value);
@@ -564,8 +651,12 @@ function FilesMappingPanel({
     if (!value) return;
     try {
       const result = await api.listFilesGrants(circleId, value);
-      setGrants(result.grants);
-      setGrantId(result.grants[0]?.id ?? "");
+      const available = result.grants.filter(
+        (grant) =>
+          viewer.role === "owner" || grant.memberId === viewer.memberId,
+      );
+      setGrants(available);
+      setGrantId(available[0]?.id ?? "");
     } catch (reason) {
       setPanelError(toMessage(reason));
     }
@@ -724,9 +815,26 @@ function FilesMappingPanel({
         <p>The limited password stays inside this device.</p>
       </div>
       {contributions.length === 0 ? (
-        <p className="message-empty">
-          No contributed folders are available yet.
-        </p>
+        <div className="message-empty">
+          <p>
+            {viewer.role === "member" && syncEndpoint
+              ? "Waiting for your Circle owner to finish sharing the project folder."
+              : "No contributed folders are available yet."}
+          </p>
+          {viewer.role === "member" && syncEndpoint ? (
+            <button
+              type="button"
+              onClick={() => setRefreshRequest((value) => value + 1)}
+            >
+              Check again
+            </button>
+          ) : null}
+          {panelError ? (
+            <p className="inline-error" role="alert">
+              {panelError}
+            </p>
+          ) : null}
+        </div>
       ) : (
         <form
           aria-label="Map Circle Files"

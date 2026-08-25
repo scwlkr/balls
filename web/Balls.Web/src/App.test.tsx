@@ -152,12 +152,24 @@ describe("Balls browser workspace", () => {
 
   it("creates a single shareable invitation without exposing connection setup", async () => {
     const api = createApi({ circles: [details.circle] });
+    api.getCircle = async () => ({
+      ...details,
+      nodes: [
+        {
+          id: "0198f2cc-6a50-7a08-aacb-298f4ebdf679",
+          displayName: "Different first node",
+          joinedAtUtc: "2026-08-19T12:00:00Z",
+        },
+        ...details.nodes,
+      ],
+    });
     api.createInvitation = async () => ({
       circleId: details.circle.id,
       invitationId: "0198f2cc-6a50-7a08-aacb-298f4ebdf670",
       expiresAtUtc: "2026-08-25T13:00:00Z",
       package: '{"signed":"original"}',
       endpoint: "192.168.1.20:43120",
+      syncEndpoint: "192.168.1.20:43155",
     });
 
     render(<App api={api} />);
@@ -173,6 +185,7 @@ describe("Balls browser workspace", () => {
     ).toEqual({
       version: 1,
       endpoint: "192.168.1.20:43120",
+      syncEndpoint: "192.168.1.20:43155",
       package: '{"signed":"original"}',
     });
     expect(
@@ -208,21 +221,57 @@ describe("Balls browser workspace", () => {
     let joinedRequest: [string, string, string] | undefined;
     let mappedRequest:
       [string, string, string, string, string, string] | undefined;
+    let syncRequest: [string, string] | undefined;
+    let syncAttempts = 0;
     api.joinCircle = async (...request) => {
       joinedRequest = request;
       return joined;
     };
+    api.getViewer = async () => ({
+      memberId: joined.members[1].id,
+      role: "member",
+    });
+    api.syncFiles = async (...request) => {
+      syncRequest = request;
+      syncAttempts += 1;
+      return {
+        circleId: joined.circle.id,
+        importedGrantCount: syncAttempts > 1 ? 1 : 0,
+      };
+    };
     api.listFilesContributions = async (circleId) => ({
       circleId,
-      contributions: [
+      contributions:
+        syncAttempts < 2
+          ? []
+          : [
+              {
+                id: contributionId,
+                circleId,
+                provider: {
+                  id: "0198f2cc-6a50-7a08-aacb-298f4ebdf676",
+                  nodeId: joined.nodes[0].id,
+                },
+                displayName: "Project Files",
+                lifecycle: "defined",
+                generation: 1,
+                createdAtUtc: "2026-08-25T12:00:00Z",
+                authorizedByMemberId: joined.members[0].id,
+                authorityGeneration: 1,
+                authorizedAtUtc: "2026-08-25T12:00:00Z",
+              },
+            ],
+    });
+    api.listFilesGrants = async (circleId, contribution) => ({
+      circleId,
+      contributionId: contribution,
+      grants: [
         {
-          id: contributionId,
+          id: "0198f2cc-6a50-7a08-aacb-298f4ebdf678",
           circleId,
-          provider: {
-            id: "0198f2cc-6a50-7a08-aacb-298f4ebdf676",
-            nodeId: joined.nodes[0].id,
-          },
-          displayName: "Project Files",
+          contributionId: contribution,
+          memberId: joined.members[0].id,
+          access: "read-write",
           lifecycle: "defined",
           generation: 1,
           createdAtUtc: "2026-08-25T12:00:00Z",
@@ -230,12 +279,6 @@ describe("Balls browser workspace", () => {
           authorityGeneration: 1,
           authorizedAtUtc: "2026-08-25T12:00:00Z",
         },
-      ],
-    });
-    api.listFilesGrants = async (circleId, contribution) => ({
-      circleId,
-      contributionId: contribution,
-      grants: [
         {
           id: grantId,
           circleId,
@@ -285,6 +328,7 @@ describe("Balls browser workspace", () => {
         value: encodeInvitationCode({
           package: '{"signed":"original"}',
           endpoint: "192.168.1.20:43120",
+          syncEndpoint: "192.168.1.20:43155",
         }),
       },
     });
@@ -293,7 +337,16 @@ describe("Balls browser workspace", () => {
     });
     fireEvent.submit(join);
 
-    const files = await screen.findByRole("form", { name: "Map Circle Files" });
+    expect(
+      await screen.findByText(
+        "Waiting for your Circle owner to finish sharing the project folder.",
+      ),
+    ).toBeInTheDocument();
+    const files = await screen.findByRole(
+      "form",
+      { name: "Map Circle Files" },
+      { timeout: 3000 },
+    );
     const open = await within(files).findByRole("button", {
       name: "Open shared folder in Explorer",
     });
@@ -302,10 +355,15 @@ describe("Balls browser workspace", () => {
       "192.168.1.20:43120",
       "Bob",
     ]);
+    expect(syncRequest).toEqual([details.circle.id, "192.168.1.20:43155"]);
+    expect(syncAttempts).toBe(2);
     expect(
       within(files).queryByLabelText("Private host IPv4 address"),
     ).toBeNull();
     expect(within(files).queryByLabelText("Grant")).toBeNull();
+    expect(
+      screen.queryByRole("button", { name: "Create invitation" }),
+    ).toBeNull();
     fireEvent.click(open);
 
     expect(await within(files).findByRole("status")).toHaveTextContent(
@@ -565,12 +623,14 @@ function createApi(circleList: CircleListDto): BrowserApi {
     getStatus: async () => status,
     listCircles: async () => circleList,
     getCircle: async () => details,
+    getViewer: async () => ({ memberId: details.members[0].id, role: "owner" }),
     getMessages: async (circleId) => ({ circleId, messages: [] }),
     createCircle: async () => details,
     createInvitation: async () => {
       throw new Error("No invitation test configured.");
     },
     joinCircle: async () => details,
+    syncFiles: async (circleId) => ({ circleId, importedGrantCount: 0 }),
     listFilesContributions: async (circleId) => ({
       circleId,
       contributions: [],

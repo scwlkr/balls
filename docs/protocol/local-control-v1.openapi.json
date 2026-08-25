@@ -2215,6 +2215,124 @@
         }
       }
     },
+    "/browser/v1/circles/{circleId}/files/sync": {
+      "post": {
+        "tags": [
+          "ballsd"
+        ],
+        "parameters": [
+          {
+            "name": "circleId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SyncBrowserCircleFilesRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BrowserCircleFilesSyncResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "502": {
+            "description": "Bad Gateway",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/browser/v1/circles/{circleId}/viewer": {
+      "get": {
+        "tags": [
+          "ballsd"
+        ],
+        "parameters": [
+          {
+            "name": "circleId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BrowserCircleViewerResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/browser/v1/circles/{circleId}/files/contributions": {
       "get": {
         "tags": [
@@ -2652,13 +2770,34 @@
           }
         }
       },
+      "BrowserCircleFilesSyncResponse": {
+        "required": [
+          "circleId",
+          "importedGrantCount"
+        ],
+        "type": "object",
+        "properties": {
+          "circleId": {
+            "type": "string"
+          },
+          "importedGrantCount": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          }
+        }
+      },
       "BrowserCircleInvitationResponse": {
         "required": [
           "circleId",
           "invitationId",
           "expiresAtUtc",
           "package",
-          "endpoint"
+          "endpoint",
+          "syncEndpoint"
         ],
         "type": "object",
         "properties": {
@@ -2676,6 +2815,24 @@
             "type": "string"
           },
           "endpoint": {
+            "type": "string"
+          },
+          "syncEndpoint": {
+            "type": "string"
+          }
+        }
+      },
+      "BrowserCircleViewerResponse": {
+        "required": [
+          "memberId",
+          "role"
+        ],
+        "type": "object",
+        "properties": {
+          "memberId": {
+            "type": "string"
+          },
+          "role": {
             "type": "string"
           }
         }
@@ -3917,6 +4074,17 @@
           },
           "node": {
             "$ref": "#/components/schemas/NodeResponse"
+          }
+        }
+      },
+      "SyncBrowserCircleFilesRequest": {
+        "required": [
+          "endpoint"
+        ],
+        "type": "object",
+        "properties": {
+          "endpoint": {
+            "type": "string"
           }
         }
       },

@@ -146,9 +146,11 @@ internal static class BrowserAdapter
         CircleMessageQueryApplication messageQueries,
         CircleFilesApplication filesApplication,
         CircleFilesMemberMappingApplication filesMemberMappingApplication,
+        TrustedCircleFilesSyncApplication filesSyncApplication,
         InvitationApplication invitationApplication,
         TrustedCircleAdmissionApplication admissionApplication,
         string? admissionListenEndpoint,
+        string? messageListenEndpoint,
         BrowserAccessBroker access)
     {
         application.MapPost(
@@ -222,6 +224,7 @@ internal static class BrowserAdapter
                     BrowserInvitationEndpoints.CreateAsync(
                         invitationApplication,
                         admissionListenEndpoint,
+                        messageListenEndpoint,
                         circleId,
                         request,
                         token))
@@ -290,6 +293,29 @@ internal static class BrowserAdapter
             .Produces<CircleDetailsResponse>(StatusCodes.Status200OK)
             .Produces<ErrorResponse>(StatusCodes.Status400BadRequest)
             .Produces<ErrorResponse>(StatusCodes.Status404NotFound);
+        application.MapPost(
+                BrowserRoutes.Circles + "/{circleId}/files/sync",
+                (string circleId, SyncBrowserCircleFilesRequest request, CancellationToken token) =>
+                    BrowserCircleFilesSyncEndpoints.SynchronizeAsync(
+                        filesSyncApplication,
+                        circleId,
+                        request,
+                        token))
+            .Produces<BrowserCircleFilesSyncResponse>(StatusCodes.Status200OK)
+            .Produces<ErrorResponse>(StatusCodes.Status400BadRequest)
+            .Produces<ErrorResponse>(StatusCodes.Status409Conflict)
+            .Produces<ErrorResponse>(StatusCodes.Status502BadGateway);
+        application.MapGet(
+                BrowserRoutes.Circles + "/{circleId}/viewer",
+                (string circleId, CancellationToken token) =>
+                    CircleFilesReadEndpoints.GetLocalViewerAsync(
+                        circleApplication,
+                        filesApplication,
+                        circleId,
+                        token))
+            .Produces<BrowserCircleViewerResponse>(StatusCodes.Status200OK)
+            .Produces<ErrorResponse>(StatusCodes.Status400BadRequest)
+            .Produces<ErrorResponse>(StatusCodes.Status404NotFound);
         application.MapGet(
                 BrowserRoutes.Circles + "/{circleId}/files/contributions",
                 (string circleId, CancellationToken token) =>
@@ -304,7 +330,7 @@ internal static class BrowserAdapter
         application.MapGet(
                 BrowserRoutes.Circles + "/{circleId}/files/contributions/{contributionId}/grants",
                 (string circleId, string contributionId, CancellationToken token) =>
-                    CircleFilesReadEndpoints.ListAccessGrantsAsync(
+                    CircleFilesReadEndpoints.ListAccessGrantsForViewerAsync(
                         circleApplication,
                         filesApplication,
                         circleId,

@@ -11,6 +11,8 @@ import type {
   CircleFilesMemberMappingInspectionDto,
   CircleFilesMemberMappingResultDto,
   BrowserInvitationDto,
+  CircleViewerDto,
+  CircleFilesSyncDto,
   JoinCircleDto,
 } from "./localControl";
 
@@ -24,6 +26,7 @@ export interface BrowserApi {
   getStatus(): Promise<StatusDto>;
   listCircles(): Promise<CircleListDto>;
   getCircle(circleId: string): Promise<CircleDetailsDto>;
+  getViewer(circleId: string): Promise<CircleViewerDto>;
   getMessages(circleId: string): Promise<CircleMessageListDto>;
   createCircle(
     name: string,
@@ -38,6 +41,7 @@ export interface BrowserApi {
     endpoint: string,
     memberDisplayName: string,
   ): Promise<CircleDetailsDto>;
+  syncFiles(circleId: string, endpoint: string): Promise<CircleFilesSyncDto>;
   listFilesContributions(
     circleId: string,
   ): Promise<CircleFilesContributionListDto>;
@@ -104,6 +108,12 @@ class FetchBrowserApi implements BrowserApi {
     );
   }
 
+  getViewer(circleId: string) {
+    return this.request<CircleViewerDto>(
+      `/browser/v1/circles/${encodeURIComponent(circleId)}/viewer`,
+    );
+  }
+
   getMessages(circleId: string) {
     return this.request<CircleMessageListDto>(
       `/browser/v1/circles/${encodeURIComponent(circleId)}/messages`,
@@ -151,6 +161,14 @@ class FetchBrowserApi implements BrowserApi {
       "/browser/v1/circles/join",
       request,
       "Run balls ui again to join a Circle.",
+    );
+  }
+
+  syncFiles(circleId: string, endpoint: string) {
+    return this.authenticatedRequest<CircleFilesSyncDto>(
+      `/browser/v1/circles/${encodeURIComponent(circleId)}/files/sync`,
+      { endpoint },
+      "Run balls ui again to connect your shared files.",
     );
   }
 

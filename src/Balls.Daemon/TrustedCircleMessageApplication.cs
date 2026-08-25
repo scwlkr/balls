@@ -9,7 +9,8 @@ internal sealed class TrustedCircleMessageApplication(
     IAdmissionStateStore admissionState,
     ICircleMessageStateStore messages,
     IRemoteTransportConnector connector,
-    TimeProvider timeProvider)
+    TimeProvider timeProvider,
+    TrustedCircleFilesSyncApplication? filesSync = null)
 {
     private const string AnchorDnsName = "anchor.balls";
     private const string NodeDnsName = "node.balls";
@@ -172,6 +173,16 @@ internal sealed class TrustedCircleMessageApplication(
             context.Peers.Select(peer => ToExpectation(peer, context.Trust, Now())).ToArray(),
             cancellationToken: cancellationToken).ConfigureAwait(false);
         var frame = await channel.ReadAsync(cancellationToken).ConfigureAwait(false);
+        if (filesSync is not null && TrustedCircleFilesWireCodec.IsRequest(frame.Payload))
+        {
+            await filesSync.HandleAuthenticatedRequestAsync(
+                context.Circle,
+                channel,
+                frame,
+                cancellationToken).ConfigureAwait(false);
+            return;
+        }
+
         try
         {
             var signed = CircleMessageWireCodec.DecodeRequest(frame.Payload);

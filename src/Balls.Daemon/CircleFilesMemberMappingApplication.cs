@@ -10,7 +10,8 @@ internal sealed class CircleFilesMemberMappingApplication(
     ICircleFilesProviderCredentialStore store,
     ICircleFilesLifecycleAuditStore audit,
     ICircleFilesMemberMapper mapper,
-    TimeProvider timeProvider)
+    TimeProvider timeProvider,
+    ICircleMessageStateStore? authorities = null)
 {
     private readonly SemaphoreSlim mutationGate = new(1, 1);
 
@@ -192,26 +193,41 @@ internal sealed class CircleFilesMemberMappingApplication(
     {
         var normalizedDrive = ValidateAndNormalizeRequest(endpoint, driveLetter);
         AuthorizedMemberAccessGrant authorized;
-        try
+        var localAuthorization = await files.GetLocalAuthorizationContextAsync(
+            circleId,
+            cancellationToken).ConfigureAwait(false);
+        if (localAuthorization?.MemberRole == MemberRole.Member)
         {
-            var revoked = await files.GetAuthorizedRevokedLocalAccessGrantAsync(
+            authorized = await GetAuthorizedMappingGrantAsync(
                 circleId,
                 contributionId,
                 grantId,
                 cancellationToken).ConfigureAwait(false);
-            authorized = new AuthorizedMemberAccessGrant(
-                revoked.Revoked.Grant,
-                revoked.Contribution,
-                revoked.OwnerMemberCredential,
-                revoked.CircleAuthorityCredential);
         }
-        catch (LocalStateException exception) when (exception.Code == "circle_files_grant_not_revoked")
+        else
         {
-            authorized = await files.GetAuthorizedLocalAccessGrantAsync(
-                circleId,
-                contributionId,
-                grantId,
-                cancellationToken).ConfigureAwait(false);
+            try
+            {
+                var revoked = await files.GetAuthorizedRevokedLocalAccessGrantAsync(
+                    circleId,
+                    contributionId,
+                    grantId,
+                    cancellationToken).ConfigureAwait(false);
+                authorized = new AuthorizedMemberAccessGrant(
+                    revoked.Revoked.Grant,
+                    revoked.Contribution,
+                    revoked.OwnerMemberCredential,
+                    revoked.CircleAuthorityCredential);
+            }
+            catch (LocalStateException exception)
+                when (exception.Code == "circle_files_grant_not_revoked")
+            {
+                authorized = await files.GetAuthorizedLocalAccessGrantAsync(
+                    circleId,
+                    contributionId,
+                    grantId,
+                    cancellationToken).ConfigureAwait(false);
+            }
         }
 
         var circle = await circles.GetCircleAsync(circleId, cancellationToken).ConfigureAwait(false)
@@ -243,7 +259,7 @@ internal sealed class CircleFilesMemberMappingApplication(
         CancellationToken cancellationToken)
     {
         var normalizedDrive = ValidateAndNormalizeRequest(endpoint, driveLetter);
-        var authorized = await files.GetAuthorizedLocalAccessGrantAsync(
+        var authorized = await GetAuthorizedMappingGrantAsync(
             circleId, contributionId, grantId, cancellationToken).ConfigureAwait(false);
         var circle = await circles.GetCircleAsync(circleId, cancellationToken).ConfigureAwait(false)
             ?? throw new LocalStateException("circle_not_found", "The requested Circle is not known.");
@@ -267,7 +283,7 @@ internal sealed class CircleFilesMemberMappingApplication(
         CancellationToken cancellationToken)
     {
         var normalizedDrive = ValidateAndNormalizeRequest(endpoint, driveLetter);
-        var authorized = await files.GetAuthorizedLocalAccessGrantAsync(
+        var authorized = await GetAuthorizedMappingGrantAsync(
             circleId, contributionId, grantId, cancellationToken).ConfigureAwait(false);
         var circle = await circles.GetCircleAsync(circleId, cancellationToken).ConfigureAwait(false)
             ?? throw new LocalStateException("circle_not_found", "The requested Circle is not known.");
@@ -288,6 +304,71 @@ internal sealed class CircleFilesMemberMappingApplication(
             material.Dispose();
             throw;
         }
+    }
+
+    private async Task<AuthorizedMemberAccessGrant> GetAuthorizedMappingGrantAsync(
+        CircleId circleId,
+        CircleFilesContributionId contributionId,
+        MemberAccessGrantId grantId,
+        CancellationToken cancellationToken)
+    {
+        var context = await files.GetLocalAuthorizationContextAsync(circleId, cancellationToken)
+            .ConfigureAwait(false)
+            ?? throw new LocalStateException("circle_not_found", "The requested Circle is not known.");
+        if (context.MemberRole == MemberRole.Owner)
+        {
+            return await files.GetAuthorizedLocalAccessGrantAsync(
+                circleId,
+                contributionId,
+                grantId,
+                cancellationToken).ConfigureAwait(false);
+        }
+
+        var contribution = (await files.ListContributionsAsync(circleId, cancellationToken)
+                .ConfigureAwait(false))
+            .SingleOrDefault(value => value.Id == contributionId)
+            ?? throw new LocalStateException(
+                "circle_files_contribution_not_found",
+                "The requested Circle Files contribution was not found.");
+        var grant = (await files.ListAccessGrantsAsync(
+                circleId,
+                contributionId,
+                cancellationToken).ConfigureAwait(false))
+            .SingleOrDefault(value => value.Id == grantId && value.MemberId == context.MemberId)
+            ?? throw new LocalStateException(
+                "circle_files_grant_not_found",
+                "No authorized Circle Files grant exists for the local Member.");
+        var memberAuthorities = authorities
+            ?? throw new LocalStateException(
+                "circle_files_authorization_failed",
+                "The remote Circle Files Owner credentials are unavailable.");
+        var owner = await memberAuthorities.GetCircleMessageAuthorAsync(
+            circleId,
+            contribution.Authorization.OwnerMemberId,
+            contribution.Provider.NodeId,
+            cancellationToken).ConfigureAwait(false);
+        var circle = await circles.GetCircleAsync(circleId, cancellationToken).ConfigureAwait(false);
+        if (owner is null
+            || !owner.IsAuthorized
+            || circle is null
+            || !circle.Members.Any(member =>
+                member.Id == owner.MemberId && member.Role == MemberRole.Owner))
+        {
+            throw new LocalStateException(
+                "circle_files_authorization_failed",
+                "The remote Circle Files Owner is not trusted by this Circle.");
+        }
+
+        _ = CircleFilesRemoteAuthorization.Validate(
+            contribution,
+            grant,
+            owner.MemberCredential,
+            context);
+        return new AuthorizedMemberAccessGrant(
+            grant,
+            contribution,
+            owner.MemberCredential,
+            context.RootCredential);
     }
 
     private static CircleFilesMemberMappingRequest CreateRequest(

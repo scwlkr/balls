@@ -152,6 +152,34 @@ public sealed partial class BrowserAdapterSecurityTests
         using var createResponse = await browserClient.SendAsync(validCreate);
         var created = await createResponse.Content.ReadFromJsonAsync<CircleDetailsResponse>(
             ControlJson.Options);
+        Assert.IsNotNull(created);
+
+        using var missingSyncAntiforgery = CreateJsonRequest(
+            HttpMethod.Post,
+            BrowserRoutes.CircleFilesSync(created.Circle.Id),
+            new SyncBrowserCircleFilesRequest("192.168.1.20:43155"),
+            GetOrigin(browserBaseUri),
+            authenticated.Cookie);
+        using var missingSyncAntiforgeryResponse = await browserClient.SendAsync(
+            missingSyncAntiforgery);
+
+        using var publicSync = CreateJsonRequest(
+            HttpMethod.Post,
+            BrowserRoutes.CircleFilesSync(created.Circle.Id),
+            new SyncBrowserCircleFilesRequest("8.8.8.8:43155"),
+            GetOrigin(browserBaseUri),
+            authenticated.Cookie,
+            authenticated.Session.AntiforgeryToken);
+        using var publicSyncResponse = await browserClient.SendAsync(publicSync);
+
+        using var loopbackSync = CreateJsonRequest(
+            HttpMethod.Post,
+            BrowserRoutes.CircleFilesSync(created.Circle.Id),
+            new SyncBrowserCircleFilesRequest("127.0.0.1:43155"),
+            GetOrigin(browserBaseUri),
+            authenticated.Cookie,
+            authenticated.Session.AntiforgeryToken);
+        using var loopbackSyncResponse = await browserClient.SendAsync(loopbackSync);
 
         using var statusRequest = new HttpRequestMessage(HttpMethod.Get, BrowserRoutes.Status);
         statusRequest.Headers.TryAddWithoutValidation("Cookie", authenticated.Cookie);
@@ -161,8 +189,10 @@ public sealed partial class BrowserAdapterSecurityTests
         Assert.AreEqual(HttpStatusCode.BadRequest, ambiguousHostResponse.StatusCode);
         Assert.AreEqual(HttpStatusCode.Forbidden, missingAntiforgeryResponse.StatusCode);
         Assert.AreEqual(HttpStatusCode.Created, createResponse.StatusCode);
-        Assert.IsNotNull(created);
         Assert.AreEqual("Secure Circle", created.Circle.Name);
+        Assert.AreEqual(HttpStatusCode.Forbidden, missingSyncAntiforgeryResponse.StatusCode);
+        Assert.AreEqual(HttpStatusCode.BadRequest, publicSyncResponse.StatusCode);
+        Assert.AreEqual(HttpStatusCode.BadRequest, loopbackSyncResponse.StatusCode);
         Assert.AreEqual(HttpStatusCode.OK, statusResponse.StatusCode);
     }
 
@@ -209,6 +239,13 @@ public sealed partial class BrowserAdapterSecurityTests
         var browserBaseUri = GetBrowserBaseUri(launch);
         using var browserClient = CreateBrowserClient(browserBaseUri);
         var authenticated = await ExchangeAsync(browserClient, launch);
+        using var viewerRequest = new HttpRequestMessage(
+            HttpMethod.Get,
+            BrowserRoutes.CircleViewer(circle.Circle.Id));
+        viewerRequest.Headers.TryAddWithoutValidation("Cookie", authenticated.Cookie);
+        using var viewerResponse = await browserClient.SendAsync(viewerRequest);
+        var viewer = await viewerResponse.Content.ReadFromJsonAsync<BrowserCircleViewerResponse>(
+            ControlJson.Options);
         var path = BrowserRoutes.CircleFilesContributions(circle.Circle.Id);
         using var listRequest = new HttpRequestMessage(HttpMethod.Get, path);
         listRequest.Headers.TryAddWithoutValidation("Cookie", authenticated.Cookie);
@@ -234,6 +271,10 @@ public sealed partial class BrowserAdapterSecurityTests
         using var response = await browserClient.SendAsync(request);
 
         Assert.AreEqual(HttpStatusCode.OK, listResponse.StatusCode);
+        Assert.AreEqual(HttpStatusCode.OK, viewerResponse.StatusCode);
+        Assert.IsNotNull(viewer);
+        Assert.AreEqual(circle.Members.Single().Id, viewer.MemberId);
+        Assert.AreEqual("owner", viewer.Role);
         Assert.IsNotNull(listed);
         Assert.AreEqual(circle.Circle.Id, listed.CircleId);
         Assert.HasCount(1, listed.Contributions);
@@ -250,7 +291,11 @@ public sealed partial class BrowserAdapterSecurityTests
     {
         using var directory = new TemporaryDirectory();
         var admissionEndpoint = AllocateLoopbackEndpoint();
-        await using var daemon = await StartDaemonAsync(directory.Path, admissionEndpoint);
+        var messageEndpoint = AllocateLoopbackEndpoint();
+        await using var daemon = await StartDaemonAsync(
+            directory.Path,
+            admissionEndpoint,
+            messageEndpoint);
         using var ipcClient = CreateIpcClient(GetEndpoint(directory.Path));
         using var createCircleResponse = await ipcClient.PostAsJsonAsync(
             ControlRoutes.Circles,
@@ -314,12 +359,22 @@ public sealed partial class BrowserAdapterSecurityTests
         Assert.AreEqual(
             $"192.168.1.20:{IPEndPoint.Parse(admissionEndpoint).Port}",
             invitation.Endpoint);
+        Assert.AreEqual(
+            $"192.168.1.20:{IPEndPoint.Parse(messageEndpoint).Port}",
+            invitation.SyncEndpoint);
         Assert.IsNotEmpty(invitation.Package);
     }
 
     [TestMethod]
     public async Task Browser_join_accepts_the_existing_signed_invitation_over_authenticated_transport()
     {
+        if (OperatingSystem.IsMacOS())
+        {
+            Assert.Inconclusive(
+                ".NET 10 supports TLS 1.3 on macOS clients, but not macOS SslStream servers.");
+            return;
+        }
+
         using var ownerDirectory = new TemporaryDirectory();
         using var memberDirectory = new TemporaryDirectory();
         var admissionEndpoint = AllocateLoopbackEndpoint();
@@ -359,11 +414,25 @@ public sealed partial class BrowserAdapterSecurityTests
         using var response = await browserClient.SendAsync(join);
         var joined = await response.Content.ReadFromJsonAsync<CircleDetailsResponse>(ControlJson.Options);
 
+        using var viewerRequest = new HttpRequestMessage(
+            HttpMethod.Get,
+            BrowserRoutes.CircleViewer(circle.Circle.Id));
+        viewerRequest.Headers.TryAddWithoutValidation("Cookie", authenticated.Cookie);
+        using var viewerResponse = await browserClient.SendAsync(viewerRequest);
+        var viewer = await viewerResponse.Content.ReadFromJsonAsync<BrowserCircleViewerResponse>(
+            ControlJson.Options);
+
         Assert.AreEqual(HttpStatusCode.OK, response.StatusCode);
         Assert.IsNotNull(joined);
         Assert.AreEqual(circle.Circle.Id, joined.Circle.Id);
         Assert.HasCount(2, joined.Members);
         Assert.IsTrue(joined.Members.Any(person => person.DisplayName == "Bob"));
+        Assert.AreEqual(HttpStatusCode.OK, viewerResponse.StatusCode);
+        Assert.IsNotNull(viewer);
+        Assert.AreEqual("member", viewer.Role);
+        Assert.AreEqual(
+            joined.Members.Single(person => person.DisplayName == "Bob").Id,
+            viewer.MemberId);
     }
 
     [TestMethod]
@@ -450,14 +519,16 @@ public sealed partial class BrowserAdapterSecurityTests
 
     private static async Task<DaemonInstance> StartDaemonAsync(
         string root,
-        string? admissionListenEndpoint = null)
+        string? admissionListenEndpoint = null,
+        string? messageListenEndpoint = null)
     {
         return await DaemonHost.StartAsync(
             new DaemonOptions(
                 Path.Combine(root, "state"),
                 GetEndpoint(root),
                 "Browser-PC",
-                admissionListenEndpoint));
+                admissionListenEndpoint,
+                messageListenEndpoint));
     }
 
     private static string AllocateLoopbackEndpoint()

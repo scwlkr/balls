@@ -261,8 +261,10 @@ Active frontier:
   and two-Windows-VM evidence is in the
   [revocation and cleanup record](verification/2026-08-24-circle-files-revocation-cleanup.md).
 - [#73 — Deliver the first two-person LAN Circle Files pilot](https://github.com/scwlkr/balls/issues/73)
-  supplies the missing secure ordinary-member cross-Node access, browser invitation/join journey,
-  and privately verified company-first LAN outcome.
+  adds secure ordinary-member cross-Node access, browser invitation/join, protected Member-only
+  grant synchronization, and a self-contained double-click Windows package. The exact observed
+  behavior and remaining physical-LAN/consent boundaries are recorded in the
+  [company-first pilot record](verification/2026-08-25-company-first-lan-pilot.md).
 - [#62](https://github.com/scwlkr/balls/issues/62) remains the final acceptance and owner-gated
   release decision after #73 is verified.
 

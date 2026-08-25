@@ -6,15 +6,20 @@ const maximumInvitationLength = 32 * 1024;
 interface InvitationEnvelope {
   version: 1;
   endpoint: string;
+  syncEndpoint: string;
   package: string;
 }
 
 export function encodeInvitationCode(
-  invitation: Pick<BrowserInvitationDto, "endpoint" | "package">,
+  invitation: Pick<
+    BrowserInvitationDto,
+    "endpoint" | "syncEndpoint" | "package"
+  >,
 ) {
   const envelope = JSON.stringify({
     version: 1,
     endpoint: invitation.endpoint,
+    syncEndpoint: invitation.syncEndpoint,
     package: invitation.package,
   } satisfies InvitationEnvelope);
   const bytes = new TextEncoder().encode(envelope);
@@ -55,6 +60,8 @@ export function decodeInvitationCode(value: string): InvitationEnvelope {
       invitation.version !== 1 ||
       !("endpoint" in invitation) ||
       typeof invitation.endpoint !== "string" ||
+      !("syncEndpoint" in invitation) ||
+      typeof invitation.syncEndpoint !== "string" ||
       !("package" in invitation) ||
       typeof invitation.package !== "string" ||
       invitation.package.length === 0
@@ -64,6 +71,7 @@ export function decodeInvitationCode(value: string): InvitationEnvelope {
     return {
       version: 1,
       endpoint: invitation.endpoint,
+      syncEndpoint: invitation.syncEndpoint,
       package: invitation.package,
     };
   } catch {

@@ -14,6 +14,7 @@ internal static class BrowserInvitationEndpoints
     internal static async Task<IResult> CreateAsync(
         InvitationApplication invitations,
         string? admissionListenEndpoint,
+        string? messageListenEndpoint,
         string circleId,
         CreateBrowserCircleInvitationRequest request,
         CancellationToken cancellationToken)
@@ -24,15 +25,19 @@ internal static class BrowserInvitationEndpoints
                 new ErrorResponse("invalid_circle_id", "Circle ID must be a canonical UUID."));
         }
 
-        if (admissionListenEndpoint is null)
+        if (admissionListenEndpoint is null || messageListenEndpoint is null)
         {
             return Results.Conflict(
                 new ErrorResponse(
                     "admission_listener_unavailable",
-                    "This device must be configured to accept connections on your local network before inviting someone."));
+                    "This device must be configured to accept Circle and file-sharing connections on your local network before inviting someone."));
         }
 
-        if (!TryResolveShareableEndpoint(admissionListenEndpoint, request.HostAddress, out var endpoint))
+        if (!TryResolveShareableEndpoint(admissionListenEndpoint, request.HostAddress, out var endpoint)
+            || !TryResolveShareableEndpoint(
+                messageListenEndpoint,
+                IPEndPoint.Parse(endpoint).Address.ToString(),
+                out var syncEndpoint))
         {
             return Results.BadRequest(
                 new ErrorResponse(
@@ -53,7 +58,8 @@ internal static class BrowserInvitationEndpoints
                     issued.InvitationId.ToString(),
                     issued.ExpiresAtUtc,
                     issued.Package,
-                    endpoint));
+                    endpoint,
+                    syncEndpoint));
         }
         catch (InputValidationException exception)
         {

@@ -1,6 +1,8 @@
 using System.Net;
+using System.Text;
 using Balls.Core;
 using Balls.Daemon;
+using Balls.Platform;
 using Balls.Protocol.Remote.V1;
 using Balls.Storage.Sqlite;
 using Balls.Transport.Lan;
@@ -26,8 +28,11 @@ public sealed class TrustedCircleAdmissionApplicationTests
         var protector = new PassthroughProtector();
         string package;
         CircleId circleId;
+        CircleFilesContributionId contributionId;
+        MemberAccessGrantId memberGrantId;
         CircleDetails joined;
         CircleMessageId messageId = new(Guid.CreateVersion7());
+        var memberSecret = Enumerable.Range(1, 32).Select(value => (byte)value).ToArray();
         await using (var anchorStore = await SqliteLocalStateStore.OpenAsync(
                          anchorDirectory.Path,
                          protector))
@@ -162,6 +167,176 @@ public sealed class TrustedCircleAdmissionApplicationTests
             Assert.AreEqual(sent, retriedMessage);
             Assert.AreEqual(1, (await anchorStore.ListCircleMessagesAsync(circleId)).Count);
             Assert.AreEqual(1, (await joinerStore.ListCircleMessagesAsync(circleId)).Count);
+
+            var anchorFiles = new CircleFilesApplication(anchorStore, anchorStore, time);
+            var contribution = await anchorFiles.CreateContributionAsync(
+                new CreateCircleFilesContributionCommand(
+                    new CircleFilesContributionRequestId(Guid.CreateVersion7()),
+                    circleId,
+                    "Project Files"));
+            contributionId = contribution.Id;
+            var bob = joined.Members.Single(member => member.DisplayName == "Bob");
+            var memberGrant = await anchorFiles.CreateAccessGrantAsync(
+                new CreateMemberAccessGrantCommand(
+                    new MemberAccessGrantRequestId(Guid.CreateVersion7()),
+                    circleId,
+                    contribution.Id,
+                    bob.Id,
+                    MemberAccessMode.ReadWrite));
+            memberGrantId = memberGrant.Id;
+            var ownerGrant = await anchorFiles.CreateAccessGrantAsync(
+                new CreateMemberAccessGrantCommand(
+                    new MemberAccessGrantRequestId(Guid.CreateVersion7()),
+                    circleId,
+                    contribution.Id,
+                    created.Members.Single().Id,
+                    MemberAccessMode.ReadWrite));
+            var ownerAuthorization = await anchorStore.GetAuthorizationContextAsync(circleId);
+            Assert.IsNotNull(ownerAuthorization);
+            var crossMemberImport = await Assert.ThrowsExactlyAsync<LocalStateException>(() =>
+                joinerStore.ImportAuthorizedCircleFilesAccessAsync(
+                    contribution,
+                    ownerGrant,
+                    ownerAuthorization.MemberCredential));
+            Assert.AreEqual("circle_files_authorization_failed", crossMemberImport.Code);
+            var forgedGrant = memberGrant with { Access = MemberAccessMode.ReadOnly };
+            var forgedImport = await Assert.ThrowsExactlyAsync<LocalStateException>(() =>
+                joinerStore.ImportAuthorizedCircleFilesAccessAsync(
+                    contribution,
+                    forgedGrant,
+                    ownerAuthorization.MemberCredential));
+            Assert.AreEqual("circle_files_authorization_failed", forgedImport.Code);
+            Assert.IsEmpty(await joinerStore.ListContributionsAsync(circleId));
+
+            foreach (var (grant, account, ownership, secret) in new[]
+                     {
+                         (memberGrant, "BallsG-bob", new string('b', 64), memberSecret),
+                         (ownerGrant, "BallsG-alice", new string('a', 64), new byte[32]),
+                     })
+            {
+                var binding = new CircleFilesProviderCredentialBinding(
+                    grant.Id.ToString(),
+                    circleId.ToString(),
+                    contribution.Id.ToString(),
+                    grant.MemberId.ToString(),
+                    "windows-smb-3.1.1-v1",
+                    account,
+                    ownership,
+                    "read-write",
+                    grant.Generation);
+                using var prepared = await anchorStore.PrepareCircleFilesProviderCredentialAsync(
+                    binding,
+                    secret);
+                await anchorStore.CompleteCircleFilesProviderCredentialAsync(binding);
+            }
+
+            var anchorSync = new TrustedCircleFilesSyncApplication(
+                anchorStore,
+                anchorStore,
+                anchorStore,
+                anchorStore,
+                anchorStore,
+                anchorStore,
+                anchorStore,
+                new TcpLanTransportConnector(),
+                time);
+            var joinerSync = new TrustedCircleFilesSyncApplication(
+                joinerStore,
+                joinerStore,
+                joinerStore,
+                joinerStore,
+                joinerStore,
+                joinerStore,
+                joinerStore,
+                new TcpLanTransportConnector(),
+                time);
+            var anchorSyncListener = new TrustedCircleMessageApplication(
+                anchorStore,
+                anchorStore,
+                anchorStore,
+                anchorStore,
+                new TcpLanTransportConnector(),
+                time,
+                anchorSync);
+            await AssertFilesSyncRequestRejectedAsync(
+                messageListener,
+                anchorSyncListener,
+                joinerStore,
+                circleId,
+                bob.Id,
+                tamperMemberSignature: true,
+                now,
+                timeout.Token);
+            await AssertFilesSyncRequestRejectedAsync(
+                messageListener,
+                anchorSyncListener,
+                joinerStore,
+                circleId,
+                created.Members.Single().Id,
+                tamperMemberSignature: false,
+                now,
+                timeout.Token);
+            var serveSync = ServeMessageOnceAsync(
+                messageListener,
+                anchorSyncListener,
+                timeout.Token);
+            var synchronization = await joinerSync.SynchronizeAsync(
+                circleId,
+                messageListener.BoundAddress.Value,
+                timeout.Token);
+            await serveSync;
+
+            Assert.AreEqual(1, synchronization.ImportedGrantCount);
+            Assert.AreEqual(contribution.Id, (await joinerStore.ListContributionsAsync(circleId)).Single().Id);
+            var imported = (await joinerStore.ListAccessGrantsAsync(circleId, contribution.Id)).Single();
+            Assert.AreEqual(memberGrant.Id, imported.Id);
+            Assert.AreEqual(bob.Id, imported.MemberId);
+            Assert.AreNotEqual(ownerGrant.Id, imported.Id);
+            using var credential = await joinerStore.GetActiveCircleFilesProviderCredentialAsync(
+                memberGrant.Id.ToString());
+            Assert.IsNotNull(credential);
+            CollectionAssert.AreEqual(memberSecret, credential.Secret.ToArray());
+            Assert.IsNull(await joinerStore.GetActiveCircleFilesProviderCredentialAsync(
+                ownerGrant.Id.ToString()));
+
+            var mapper = new RecordingMemberMapper();
+            var mapping = new CircleFilesMemberMappingApplication(
+                joinerCircles,
+                new CircleFilesApplication(joinerStore, joinerStore, time),
+                joinerStore,
+                joinerStore,
+                mapper,
+                time,
+                joinerStore);
+            var preview = await mapping.PreviewAsync(
+                circleId,
+                contribution.Id,
+                memberGrant.Id,
+                "192.168.50.20",
+                "P",
+                timeout.Token);
+            var applied = await mapping.MapAsync(
+                circleId,
+                contribution.Id,
+                memberGrant.Id,
+                "192.168.50.20",
+                "P",
+                preview.PlanId,
+                timeout.Token);
+            Assert.AreEqual("mapped", applied.Status);
+            Assert.AreEqual(bob.Id.ToString(), mapper.LastMemberId);
+            CollectionAssert.AreEqual(memberSecret, mapper.LastSecret);
+
+            var serveRepeatSync = ServeMessageOnceAsync(
+                messageListener,
+                anchorSyncListener,
+                timeout.Token);
+            var repeated = await joinerSync.SynchronizeAsync(
+                circleId,
+                messageListener.BoundAddress.Value,
+                timeout.Token);
+            await serveRepeatSync;
+            Assert.AreEqual(1, repeated.ImportedGrantCount);
         }
 
         await using var reopenedAnchor = await SqliteLocalStateStore.OpenAsync(
@@ -187,6 +362,14 @@ public sealed class TrustedCircleAdmissionApplicationTests
         var joinerMessagesAfterRestart = await reopenedJoiner.ListCircleMessagesAsync(circleId);
         Assert.AreEqual(1, anchorMessagesAfterRestart.Count);
         Assert.AreEqual(anchorMessagesAfterRestart.Single(), joinerMessagesAfterRestart.Single());
+        Assert.AreEqual(contributionId, (await reopenedJoiner.ListContributionsAsync(circleId)).Single().Id);
+        Assert.AreEqual(
+            memberGrantId,
+            (await reopenedJoiner.ListAccessGrantsAsync(circleId, contributionId)).Single().Id);
+        using var reopenedCredential =
+            await reopenedJoiner.GetActiveCircleFilesProviderCredentialAsync(memberGrantId.ToString());
+        Assert.IsNotNull(reopenedCredential);
+        CollectionAssert.AreEqual(memberSecret, reopenedCredential.Secret.ToArray());
     }
 
     private static async Task<string> SendTamperedMessageAsync(
@@ -259,6 +442,85 @@ public sealed class TrustedCircleAdmissionApplicationTests
                 RemoteSecurityProtocol.Version,
                 new HashSet<string>(StringComparer.Ordinal)));
 
+    private static async Task AssertFilesSyncRequestRejectedAsync(
+        TcpLanTransportListener listener,
+        TrustedCircleMessageApplication owner,
+        SqliteLocalStateStore member,
+        CircleId circleId,
+        MemberId claimedMemberId,
+        bool tamperMemberSignature,
+        DateTimeOffset now,
+        CancellationToken cancellationToken)
+    {
+        var serve = ServeMessageOnceAsync(listener, owner, cancellationToken);
+        var request = SendRejectedFilesSyncRequestAsync(
+            member,
+            circleId,
+            listener.BoundAddress,
+            claimedMemberId,
+            tamperMemberSignature,
+            now,
+            cancellationToken);
+        var serverRejection = await Assert.ThrowsExactlyAsync<RemoteChannelException>(() => serve);
+        Assert.AreEqual("authentication_failed", serverRejection.Code);
+        var clientRejection = await Assert.ThrowsExactlyAsync<RemoteChannelException>(() => request);
+        Assert.AreEqual("interrupted", clientRejection.Code);
+    }
+
+    private static async Task SendRejectedFilesSyncRequestAsync(
+        SqliteLocalStateStore store,
+        CircleId circleId,
+        RemoteTransportAddress address,
+        MemberId claimedMemberId,
+        bool tamperMemberSignature,
+        DateTimeOffset now,
+        CancellationToken cancellationToken)
+    {
+        var author = await store.GetLocalCircleMessageAuthorAsync(circleId, cancellationToken);
+        Assert.IsNotNull(author);
+        var operationId = Guid.CreateVersion7();
+        var transcript = Encoding.UTF8.GetBytes(
+            $"balls-circle-files-sync-v1|{circleId}|{claimedMemberId}|{author.NodeId}|{operationId:D}");
+        var memberSignature = await store.SignWithLocalCircleMemberAsync(
+            circleId,
+            transcript,
+            cancellationToken);
+        if (tamperMemberSignature)
+        {
+            memberSignature[0] ^= 0x01;
+        }
+
+        var request = new SignedCircleFilesSyncRequest(
+            circleId.ToString(),
+            claimedMemberId.ToString(),
+            author.NodeId.ToString(),
+            operationId.ToString("D"),
+            memberSignature,
+            await store.SignWithNodeAsync(transcript, cancellationToken));
+        var trust = await store.GetCircleTrustAsync(circleId, cancellationToken);
+        Assert.IsNotNull(trust);
+        var security = await store.ListCircleNodeSecurityAsync(circleId, cancellationToken);
+        var local = security.Single(value => value.NodeId == author.NodeId);
+        var anchor = security.Single(value => value.NodeId == trust.IssuerNodeId);
+        using var certificate = await store.CreateTransportCertificateAsync(
+            "node.balls",
+            now,
+            cancellationToken);
+        await using var connection = await new TcpLanTransportConnector().ConnectAsync(
+            address,
+            cancellationToken);
+        await using var channel = await RemoteAuthenticatedChannel.ConnectAsync(
+            connection,
+            "anchor.balls",
+            new RemoteChannelIdentity(certificate, ToExpectation(local, trust, now)),
+            ToExpectation(anchor, trust, now),
+            cancellationToken: cancellationToken);
+        await channel.WriteAsync(
+            new RemoteFrame(operationId, TrustedCircleFilesWireCodec.EncodeRequest(request)),
+            cancellationToken);
+        _ = await channel.ReadAsync(cancellationToken);
+    }
+
     private static async Task ServeMessageOnceAsync(
         TcpLanTransportListener listener,
         TrustedCircleMessageApplication application,
@@ -286,6 +548,55 @@ public sealed class TrustedCircleAdmissionApplicationTests
     private sealed class FixedTimeProvider(DateTimeOffset value) : TimeProvider
     {
         public override DateTimeOffset GetUtcNow() => value;
+    }
+
+    private sealed class RecordingMemberMapper : ICircleFilesMemberMapper
+    {
+        internal string? LastMemberId { get; private set; }
+
+        internal byte[] LastSecret { get; private set; } = [];
+
+        public ValueTask<CircleFilesMemberMappingPlan> PreviewAsync(
+            CircleFilesMemberMappingRequest request,
+            CancellationToken cancellationToken) =>
+            ValueTask.FromResult(CreatePlan(request));
+
+        public ValueTask<CircleFilesMemberMappingInspection> InspectAsync(
+            CircleFilesMemberMappingRequest request,
+            CancellationToken cancellationToken) =>
+            ValueTask.FromResult(new CircleFilesMemberMappingInspection("mapped", CreatePlan(request)));
+
+        public ValueTask<CircleFilesMemberMappingResult> MapAsync(
+            CircleFilesMemberMappingRequest request,
+            string expectedPlanId,
+            ReadOnlyMemory<byte> secret,
+            CancellationToken cancellationToken)
+        {
+            LastMemberId = request.MemberId;
+            LastSecret = secret.ToArray();
+            var plan = CreatePlan(request);
+            Assert.AreEqual(expectedPlanId, plan.PlanId);
+            return ValueTask.FromResult(new CircleFilesMemberMappingResult("mapped", plan));
+        }
+
+        public ValueTask<CircleFilesMemberMappingResult> UnmapAsync(
+            CircleFilesMemberMappingRequest request,
+            CancellationToken cancellationToken) =>
+            ValueTask.FromResult(new CircleFilesMemberMappingResult("unmapped", CreatePlan(request)));
+
+        private static CircleFilesMemberMappingPlan CreatePlan(
+            CircleFilesMemberMappingRequest request) =>
+            new(
+                CircleFilesMemberMappingContract.Version,
+                new string('e', 64),
+                request.Endpoint,
+                $@"\\{request.Endpoint}\balls-project-files",
+                request.Endpoint,
+                request.DriveLetter,
+                request.CircleName,
+                request.GrantOwnershipId,
+                [request.DriveLetter],
+                ["Map the exact imported Member grant."]);
     }
 
     private sealed class PassthroughProtector : IPrivateMaterialProtector

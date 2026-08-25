@@ -118,6 +118,9 @@ material. Selecting JSON output for this interactive command is a usage error.
 | Circle Node | `id` (UUID), `displayName`, `joinedAtUtc` |
 | Circle details | `circle` (Circle summary), `members` (Member array), `nodes` (Circle Node array) |
 | Issued invitation | `circleId`, `invitationId`, `expiresAtUtc`, `package` (canonical JSON string) |
+| Browser invitation | issued invitation fields plus explicit private IPv4 admission `endpoint` and authenticated Circle Files `syncEndpoint` |
+| Browser Circle viewer | local `memberId` and exact Circle `role` |
+| Browser Circle Files sync | `circleId` and `importedGrantCount`; no provider credential or authorization proof |
 | Join request | `package`, `endpoint` (numeric private/loopback IP and port), `memberDisplayName` |
 | Redemption | `circleId`, `invitationId`, `redemptionId`, `status` (`accepted`) |
 | Circle Files provider | `id`, `nodeId`; provider implementation and credentials are absent |
@@ -417,17 +420,33 @@ Circle returns `404 Not Found`.
 ## Browser adapter
 
 The browser listener serves the bundled production application and only these `/browser/v1`
-routes: session exchange, status, Circle list/create/details, ordered Circle message history,
-read-only Circle Files contribution/Access Grant lists, and the four mapping operations. The browser control
-plane is intentionally narrower than `/control/v1`; control routes return `404` on TCP and browser
-routes return `404` over IPC. Invitation creation/redemption, host provisioning, and grant
-credential provisioning remain CLI/local-control only. Browser mapping routes call the same
-`CircleFilesMemberMappingApplication` as IPC and require the session, exact Origin, and in-memory
-antiforgery token; no password is returned to or stored by JavaScript.
+routes: session exchange, status, Circle list/create/details, exact local viewer identity, Owner
+invitation creation, signed invitation admission, ordered Circle message history, authenticated
+Circle Files synchronization, safe contribution/Access Grant lists, and the four mapping
+operations. The browser control plane remains narrower than `/control/v1`; control routes return
+`404` on TCP and browser routes return `404` over IPC. Readiness, host provisioning, grant creation,
+grant credential provisioning, revocation, and infrastructure cleanup remain CLI/local-control
+only. Browser mapping calls the same `CircleFilesMemberMappingApplication` as IPC; no SMB password
+or protected secret is returned to or stored by JavaScript.
+
+`GET /browser/v1/circles/{circleId}/viewer` returns the current local Member ID and role from
+persisted Circle membership rather than inferring ownership from participant ordering.
+`POST /browser/v1/circles/{circleId}/invitations` is Owner-authorized, preserves the existing
+signed, single-use invitation package unchanged, and adds separate numeric private IPv4 admission
+and authenticated-files synchronization endpoints. The browser wraps those public values in a
+bounded copyable invitation envelope. `POST /browser/v1/circles/join` submits the exact package,
+admission endpoint, and new Member display name to the existing signed admission behavior.
+
+`POST /browser/v1/circles/{circleId}/files/sync` accepts only a private IPv4 endpoint and returns
+the Circle ID plus the number of authorized grants imported. Provider credentials remain inside
+the authenticated daemon-to-daemon channel and the recipient's protected local credential store;
+they never occur in the browser request or response.
 
 Authenticated `GET /browser/v1/circles/{circleId}/files/contributions` and
-`GET /browser/v1/circles/{circleId}/files/contributions/{contributionId}/grants` return the same
-safe list representations and ordering as local control. Other methods are not mapped.
+`GET /browser/v1/circles/{circleId}/files/contributions/{contributionId}/grants` return safe list
+representations and stable ordering. An ordinary Member receives only their own authorized grants;
+an Owner may inspect the Circle's complete locally known grant list. Other mutation methods are
+not mapped.
 
 `POST /browser/v1/session` exchanges the launch capability once. Success sets the
 `__Host-balls-session` cookie with `HttpOnly`, `Secure`, `SameSite=Strict`, and `Path=/`, and returns
@@ -482,12 +501,14 @@ is not guaranteed to use the application error shape.
 
 ## Explicit non-goals
 
-v1 does not expose invitation/join, message-authoring, Circle Files readiness, host provisioning,
-or grant-credential provisioning to the browser. The local API and CLI implement the exact
-dedicated-host operation, one limited account/ACL operation per Access Grant, and explicit mapping.
+v1 does not expose message-authoring, Circle Files readiness, host provisioning, grant creation,
+grant-credential provisioning, revocation, or infrastructure cleanup to the browser. The local API
+and CLI implement the exact dedicated-host operation and one limited account/ACL operation per
+Access Grant. The browser supplies explicit invitation/join, authenticated Member-only grant
+synchronization, and guided Explorer mapping over the same application behavior.
 They do not enable SMB features or policy, start services, change network profiles or global firewall policy,
 adopt existing folders with content, delete user files, activate/revoke Contributions, rotate
 provider credentials, securely erase protected recovery material, synchronize or replicate content,
-add version history/trash,
-discover peers, automatically choose/replace drive letters, share credentials between Members, or
-add automatic/multiple-Anchor behavior.
+add version history/trash, discover peers, replace occupied drive letters, expose or reuse a
+credential for another Member, or add automatic/multiple-Anchor behavior. Guided mapping may
+select an available drive letter automatically without replacing an existing drive.
