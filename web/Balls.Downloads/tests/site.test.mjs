@@ -146,8 +146,10 @@ test("copies the public channel and bootstrap files into the deployment", async 
     assert.deepEqual(built, source);
   }
 
-  await Promise.all([
+  const [, wranglerJson] = await Promise.all([
     readFile(new URL("dist/.openai/hosting.json", siteRoot)),
-    readFile(new URL("dist/server/wrangler.json", siteRoot)),
+    readFile(new URL("dist/server/wrangler.json", siteRoot), "utf8"),
   ]);
+  const wrangler = JSON.parse(wranglerJson);
+  assert.equal(wrangler.assets.run_worker_first, true);
 });
