@@ -43,11 +43,19 @@ state or overwrite an existing pilot folder.
 Transfer the exact ZIP to each laptop through LocalSend, USB, or another existing channel. Do not
 send the Circle invitation with a public package link.
 
-On each laptop, open Windows PowerShell and verify the downloaded ZIP. Adjust only the source path
-if the browser changed it:
+On each laptop, open Windows PowerShell and paste the following as one complete block. It searches
+the current Windows profile so redirected Downloads, Desktop, and LocalSend destinations do not
+have to be guessed. If no match is found, put the ZIP somewhere below the current user's profile
+and rerun the block:
 
 ```powershell
-$archive = Join-Path $env:USERPROFILE 'Downloads\balls-0.3.0-alpha.1-canary-windows-x64-67974f2de650.zip'
+$packagePattern = 'balls-0.3.0-alpha.1-canary-windows-x64-67974f2de650*.zip'
+$matches = @(Get-ChildItem -LiteralPath $env:USERPROFILE -Filter $packagePattern `
+  -File -Recurse -ErrorAction SilentlyContinue)
+if ($matches.Count -eq 0) { throw "Balls ZIP not found below $env:USERPROFILE" }
+$archive = ($matches | Sort-Object FullName | Select-Object -First 1).FullName
+Write-Host "Using $archive"
+
 $expected = '96E742ABCF1A35EFB5722D54DC88DC26471CAFDEB501672997DE49E5749613B5'
 $actual = (Get-FileHash -LiteralPath $archive -Algorithm SHA256).Hash
 if ($actual -ne $expected) { throw "Balls package hash mismatch: $actual" }
