@@ -49,24 +49,69 @@ have to be guessed. If no match is found, put the ZIP somewhere below the curren
 and rerun the block:
 
 ```powershell
-$packagePattern = 'balls-0.3.0-alpha.1-canary-windows-x64-67974f2de650*.zip'
-$matches = @(Get-ChildItem -LiteralPath $env:USERPROFILE -Filter $packagePattern `
-  -File -Recurse -ErrorAction SilentlyContinue)
-if ($matches.Count -eq 0) { throw "Balls ZIP not found below $env:USERPROFILE" }
-$archive = ($matches | Sort-Object FullName | Select-Object -First 1).FullName
-Write-Host "Using $archive"
+& {
+  $packagePattern = 'balls-0.3.0-alpha.1-canary-windows-x64-67974f2de650*.zip'
+  $packageFiles = @(Get-ChildItem -LiteralPath $env:USERPROFILE -Filter $packagePattern `
+    -File -Recurse -ErrorAction SilentlyContinue)
+  if ($packageFiles.Count -eq 0) { throw "Balls ZIP not found below $env:USERPROFILE" }
+  $archive = ($packageFiles | Sort-Object FullName | Select-Object -First 1).FullName
+  Write-Host "Using $archive"
 
-$expected = '96E742ABCF1A35EFB5722D54DC88DC26471CAFDEB501672997DE49E5749613B5'
-$actual = (Get-FileHash -LiteralPath $archive -Algorithm SHA256).Hash
-if ($actual -ne $expected) { throw "Balls package hash mismatch: $actual" }
+  $expectedArchiveHash = '96E742ABCF1A35EFB5722D54DC88DC26471CAFDEB501672997DE49E5749613B5'
+  $actualArchiveHash = (Get-FileHash -LiteralPath $archive -Algorithm SHA256).Hash
+  if ($actualArchiveHash -ne $expectedArchiveHash) {
+    throw "Balls package hash mismatch: $actualArchiveHash"
+  }
 
-$ballsRoot = Join-Path $env:USERPROFILE 'Balls-Pilot-67974f2'
-if (Test-Path -LiteralPath $ballsRoot) { throw "Pilot folder already exists: $ballsRoot" }
-Expand-Archive -LiteralPath $archive -DestinationPath $ballsRoot
-Get-Content -LiteralPath (Join-Path $ballsRoot 'canary.json')
+  $ballsRoot = Join-Path $env:USERPROFILE 'Balls-Pilot-67974f2'
+  if (-not (Test-Path -LiteralPath $ballsRoot)) {
+    Expand-Archive -LiteralPath $archive -DestinationPath $ballsRoot
+  }
+
+  $canaryPath = Join-Path $ballsRoot 'canary.json'
+  $checksumPath = Join-Path $ballsRoot 'SHA256SUMS'
+  if (-not (Test-Path -LiteralPath $canaryPath -PathType Leaf) `
+      -or -not (Test-Path -LiteralPath $checksumPath -PathType Leaf)) {
+    throw "Existing pilot folder is incomplete: $ballsRoot"
+  }
+
+  $canary = Get-Content -LiteralPath $canaryPath -Raw | ConvertFrom-Json
+  $expectedCommit = '67974f2de6502d99a55378e9da5aabf5e4293cc7'
+  if ($canary.commit -ne $expectedCommit) {
+    throw "Extracted Canary commit mismatch: $($canary.commit)"
+  }
+
+  $failures = New-Object System.Collections.Generic.List[string]
+  $checked = 0
+  foreach ($line in Get-Content -LiteralPath $checksumPath) {
+    if ($line -notmatch '^([0-9A-Fa-f]{64})  (.+)$') {
+      throw "Invalid internal checksum entry: $line"
+    }
+    $expectedFileHash = $Matches[1]
+    $relativePath = $Matches[2].Replace('/', [IO.Path]::DirectorySeparatorChar)
+    $filePath = Join-Path $ballsRoot $relativePath
+    if (-not (Test-Path -LiteralPath $filePath -PathType Leaf)) {
+      $failures.Add("missing: $relativePath")
+      continue
+    }
+    $actualFileHash = (Get-FileHash -LiteralPath $filePath -Algorithm SHA256).Hash
+    if ($actualFileHash -ne $expectedFileHash) {
+      $failures.Add("mismatch: $relativePath")
+    }
+    $checked++
+  }
+  if ($failures.Count -ne 0) {
+    $failures | Select-Object -First 10
+    throw "$($failures.Count) internal package file(s) failed verification."
+  }
+  if ($checked -ne 748) { throw "Expected 748 internal files; verified $checked." }
+
+  Write-Host "PASS checkpoint 1 - verified $checked internal files at $ballsRoot"
+  $canary | Format-List product, version, commit, platform, architecture, runtimeSupported
+}
 ```
 
-PASS means the hash matches and `canary.json` names the full artifact commit above.
+PASS means the archive hash, full commit identity, and all 748 packaged-file checksums match.
 
 ## Checkpoint 2 — Start the host safely
 
