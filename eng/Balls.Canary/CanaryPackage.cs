@@ -67,6 +67,12 @@ internal static partial class CanaryPackageBuilder
 
             File.Copy(installerSource, Path.Combine(stagingDirectory, installerName));
             File.Copy(installerSource, installerPath, overwrite: true);
+            if (request.Platform == CanaryPlatform.Windows)
+            {
+                File.Copy(
+                    Path.Combine(request.RepositoryRoot, "eng", "canary", "Open-Balls.cmd"),
+                    Path.Combine(stagingDirectory, "Open Balls.cmd"));
+            }
 
             File.WriteAllText(
                 Path.Combine(stagingDirectory, "README.md"),
@@ -139,6 +145,10 @@ internal static partial class CanaryPackageBuilder
             request.Platform == CanaryPlatform.Windows
                 ? "Install-BallsCanary.ps1"
                 : "Install-BallsCanary.sh"));
+        if (request.Platform == CanaryPlatform.Windows)
+        {
+            RequireFile(Path.Combine(request.RepositoryRoot, "eng", "canary", "Open-Balls.cmd"));
+        }
     }
 
     private static string ReadVersion(string repositoryRoot)
@@ -182,6 +192,10 @@ internal static partial class CanaryPackageBuilder
               # Balls Windows Canary
 
               Development artifact `{artifactName}`. This is not a stable installer or release.
+
+              Extract the entire archive and double-click `Open Balls.cmd` to start a local
+              pilot Node and open its Circle workspace in your browser. This entry point does
+              not require PowerShell 7.
 
               From the downloaded workflow-artifact directory:
 
