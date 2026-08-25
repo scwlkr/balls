@@ -25,6 +25,11 @@ public sealed class WindowsPowerShellInspectionTests
         StringAssert.Contains(script, "Get-NetFirewallProfile");
         StringAssert.Contains(script, "Get-NetFirewallRule");
         StringAssert.Contains(script, "Get-NetFirewallPortFilter");
+        StringAssert.Contains(script, "Get-NetFirewallApplicationFilter");
+        StringAssert.Contains(script, "Get-NetFirewallServiceFilter");
+        StringAssert.Contains(script, "Test-BallsSmbFirewallApplicability");
+        StringAssert.Contains(script, "'LanmanServer'");
+        StringAssert.Contains(script, "'svchost.exe'");
         StringAssert.Contains(script, "Get-Service");
         StringAssert.Contains(script, "Get-Command");
         Assert.IsFalse(script.Contains("Set-", StringComparison.OrdinalIgnoreCase));
@@ -156,6 +161,55 @@ public sealed class WindowsPowerShellProcessTests
         Assert.AreEqual(CircleFilesReadinessProviders.WindowsSmb311, report.Provider);
         Assert.HasCount(9, report.Checks);
         Assert.IsTrue(Enum.IsDefined(report.Status));
+    }
+
+    [TestMethod]
+    public async Task Smb_firewall_predicate_excludes_only_provably_unrelated_applications()
+    {
+        if (!OperatingSystem.IsWindows())
+        {
+            Assert.Inconclusive("The Windows PowerShell firewall predicate requires Windows.");
+            return;
+        }
+
+        var inspection = StaticWindowsPowerShellJsonSource.GetScript(
+            WindowsPowerShellQuery.SmbReadiness);
+        var start = inspection.IndexOf(
+            "function Test-BallsSmbFirewallApplicability",
+            StringComparison.Ordinal);
+        var end = inspection.IndexOf("\n\n", start, StringComparison.Ordinal);
+        Assert.IsGreaterThanOrEqualTo(0, start);
+        Assert.IsGreaterThan(start, end);
+        var command = inspection[start..end] +
+            """
+
+            $cases = @(
+                [PSCustomObject]@{ Name = 'unrestricted'; Program = 'Any'; Service = 'Any'; Expected = $true },
+                [PSCustomObject]@{ Name = 'system'; Program = 'System'; Service = 'Any'; Expected = $true },
+                [PSCustomObject]@{ Name = 'server-service'; Program = 'Any'; Service = 'LanmanServer'; Expected = $true },
+                [PSCustomObject]@{ Name = 'shared-service-host'; Program = 'C:\Windows\System32\svchost.exe'; Service = 'Any'; Expected = $true },
+                [PSCustomObject]@{ Name = 'unrelated-executable'; Program = 'C:\Windows\System32\spoolsv.exe'; Service = 'Any'; Expected = $false },
+                [PSCustomObject]@{ Name = 'unrelated-service'; Program = 'C:\Windows\System32\svchost.exe'; Service = 'stisvc'; Expected = $false },
+                [PSCustomObject]@{ Name = 'missing-program'; Program = ''; Service = 'Any'; Expected = $true },
+                [PSCustomObject]@{ Name = 'missing-service'; Program = 'Any'; Service = ''; Expected = $true },
+                [PSCustomObject]@{ Name = 'relative-program'; Program = 'spoolsv.exe'; Service = 'Any'; Expected = $true },
+                [PSCustomObject]@{ Name = 'wildcard-program'; Program = 'C:\Windows\System32\*.exe'; Service = 'Any'; Expected = $true },
+                [PSCustomObject]@{ Name = 'unresolved-program'; Program = '%BALLS_UNKNOWN_ROOT%\tool.exe'; Service = 'Any'; Expected = $true },
+                [PSCustomObject]@{ Name = 'unknown-program-kind'; Program = 'C:\Windows\System32\unknown'; Service = 'Any'; Expected = $true }
+            )
+            foreach ($case in $cases) {
+                $actual = Test-BallsSmbFirewallApplicability -Program $case.Program -Service $case.Service
+                if ($actual -ne $case.Expected) { throw ('Unexpected SMB applicability: ' + $case.Name) }
+            }
+            [Console]::Out.Write($cases.Count)
+            """;
+        var output = await BoundedWindowsInspectionProcessRunner.RunAsync(
+            CreatePowerShellStartInfo(command),
+            TimeSpan.FromSeconds(5),
+            1024,
+            CancellationToken.None);
+
+        Assert.AreEqual("12", output);
     }
 
     private static ProcessStartInfo CreatePowerShellStartInfo(string command)

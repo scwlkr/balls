@@ -492,19 +492,21 @@ No Windows command, registry type, SMB type, or firewall type crosses into Core.
 The Windows adapter runs one fixed, encoded PowerShell inspection with no caller-controlled input.
 Its exact command allowlist reads Windows version, SMB server/client configuration, required
 command metadata, connected network profiles, firewall profiles, and active inbound firewall
-rule/port filters. The child process has a 10-second timeout and one combined 65,536-character
-decoded-output budget for both redirected streams. Missing, malformed, forward-unknown, timed-out,
-or failed observations become deterministic redacted `unknown` checks rather than raw command
-output.
+rule, port, application, and service filters. The child process has a 10-second timeout and one
+combined 65,536-character decoded-output budget for both redirected streams. Missing, malformed,
+forward-unknown, timed-out, or failed observations become deterministic redacted `unknown` checks
+rather than raw command output.
 
 The report evaluates the supported Windows generation, running SMB server with SMB 2/3 enabled,
 SMB 3.1.1 availability, SMB1 disabled, insecure guest logons disabled, server signing required,
 share encryption enforceability with an approved SMB 3.1.1 cipher, a connected Private network,
 and enabled Private/Public firewall profiles whose default inbound action is Block. It
 conservatively rejects an enabled Public/Any-profile inbound allow rule whose protocol/port filter
-can include TCP 445. Any unsafe observation makes the aggregate `not-ready`; otherwise an unknown
-observation makes it `unknown`. Inspection never changes a feature, policy, service, profile,
-folder, share, account, ACL, rule, or mapping.
+can include TCP 445 unless an explicit unrelated executable or non-SMB service filter proves that
+the rule cannot target the SMB server. Missing or ambiguous application/service bindings remain
+unsafe. Any unsafe observation makes the aggregate `not-ready`; otherwise an unknown observation
+makes it `unknown`. Inspection never changes a feature, policy, service, profile, folder, share,
+account, ACL, rule, or mapping.
 
 The Windows hosting adapter implements version 1 of one exact privileged operation: provision the
 dedicated folder, encrypted SMB share, and Private-profile-only firewall rule for an authorized

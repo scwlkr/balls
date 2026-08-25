@@ -81,6 +81,19 @@ internal sealed class StaticWindowsPowerShellJsonSource : IWindowsPowerShellJson
             $ErrorActionPreference = 'Stop'
             $ProgressPreference = 'SilentlyContinue'
 
+            function Test-BallsSmbFirewallApplicability {
+                param([AllowNull()][string]$Program, [AllowNull()][string]$Service)
+                if (-not [string]::IsNullOrWhiteSpace($Service) -and $Service -notin @('Any', 'LanmanServer')) { return $false }
+                if ([string]::IsNullOrWhiteSpace($Program) -or $Program -in @('Any', 'System')) { return $true }
+                try {
+                    $expanded = [Environment]::ExpandEnvironmentVariables($Program)
+                    if (-not [System.IO.Path]::IsPathRooted($expanded) -or $expanded.Contains('*') -or $expanded.Contains('?') -or $expanded.Contains('%')) { return $true }
+                    $name = [System.IO.Path]::GetFileName($expanded)
+                    if ([string]::IsNullOrWhiteSpace($name) -or $name -eq 'svchost.exe' -or -not $name.EndsWith('.exe', [StringComparison]::OrdinalIgnoreCase)) { return $true }
+                    return $false
+                } catch { return $true }
+            }
+
             try {
                 $currentVersion = Microsoft.PowerShell.Management\Get-ItemProperty -LiteralPath 'HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion' -ErrorAction Stop
                 $system = [PSCustomObject]@{
@@ -140,6 +153,7 @@ internal sealed class StaticWindowsPowerShellJsonSource : IWindowsPowerShellJson
                     $profiles = @(([string]$rule.Profile -split ',') | ForEach-Object { $_.Trim() })
                     if (($profiles -notcontains 'Any') -and ($profiles -notcontains 'Public')) { continue }
 
+                    $matchesSmbPort = $false
                     foreach ($portFilter in @($rule | NetSecurity\Get-NetFirewallPortFilter -ErrorAction Stop)) {
                         $protocol = [string]$portFilter.Protocol
                         if ($protocol -notin @('Any', 'TCP', '6')) { continue }
@@ -147,17 +161,31 @@ internal sealed class StaticWindowsPowerShellJsonSource : IWindowsPowerShellJson
                         foreach ($localPort in @($portFilter.LocalPort)) {
                             $portText = [string]$localPort
                             if ($portText -in @('Any', '445')) {
-                                $publicSmbInboundAllowRules++
+                                $matchesSmbPort = $true
                                 break
                             }
 
                             if ($portText -match '^(\d+)-(\d+)$') {
                                 if (([int]$Matches[1] -le 445) -and ([int]$Matches[2] -ge 445)) {
-                                    $publicSmbInboundAllowRules++
+                                    $matchesSmbPort = $true
                                     break
                                 }
                             }
                         }
+                        if ($matchesSmbPort) { break }
+                    }
+
+                    if (-not $matchesSmbPort) { continue }
+                    $applicationFilters = @($rule | NetSecurity\Get-NetFirewallApplicationFilter -ErrorAction Stop)
+                    $serviceFilters = @($rule | NetSecurity\Get-NetFirewallServiceFilter -ErrorAction Stop)
+                    if ($applicationFilters.Count -ne 1 -or $serviceFilters.Count -ne 1) {
+                        $publicSmbInboundAllowRules++
+                        continue
+                    }
+
+                    $couldTargetSmb = Test-BallsSmbFirewallApplicability -Program ([string]$applicationFilters[0].Program) -Service ([string]$serviceFilters[0].Service)
+                    if ($couldTargetSmb) {
+                        $publicSmbInboundAllowRules++
                     }
                 }
                 $firewall = [PSCustomObject]@{
