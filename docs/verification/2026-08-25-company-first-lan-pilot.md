@@ -98,14 +98,11 @@ TLS and returned success with zero authorized grants, as expected before host pr
 direct container-network result does not establish that a separate physical LAN device can reach
 the host.
 
-The owner subsequently made a freshly installed, separate physical Windows laptop available as a
-dedicated coworker simulator with no personal or production data. Its available Windows account
-does not have administrator rights. This physical computer is now the final recipient and
-real-LAN acceptance target; the existing disposable Windows guest remains a preliminary
-development fixture. Administrative OpenSSH enrollment is neither available nor required: the
-ordinary recipient must launch Balls, redeem its invitation, and map the approved folder without
-elevation. The physical device's actual network reachability and real Explorer/file operations
-have not yet been observed and must be recorded only after they pass.
+The owner also made a freshly installed, separate physical Windows laptop available with no
+personal or production data. Its available Windows account does not have administrator rights.
+Administrative OpenSSH enrollment is neither available nor required: an ordinary recipient must
+launch Balls, redeem its invitation, and map the approved folder without elevation. The physical
+device's actual Balls connectivity and real Explorer/file operations have not been observed.
 
 The owner subsequently reported that Microsoft Smart App Control blocked the unsigned application
 on that physical Windows account, which does not have administrator rights. Repository policy
@@ -115,7 +112,9 @@ application binaries trusted. The exact device policy/event has not been indepen
 but the reported block prevents claiming physical Balls execution. No alternate executable,
 removed download marker, weakened policy, or unsigned-code bypass was used. The disposable
 authorized Windows guest remains available for genuine product testing; built-in browser, TCP,
-or plain SMB checks on the physical laptop do not establish Balls acceptance.
+or plain SMB checks on the physical laptop do not establish Balls acceptance. The owner explicitly
+selected the existing disposable Windows guest as the immediate boss simulator and deferred
+physical-device product testing until its administrator can legitimately address the block.
 
 The Linux workstation's existing LocalSend installation and already approved LocalSend firewall
 rule can offer the nonsecret self-contained Windows package through its normal browser-link

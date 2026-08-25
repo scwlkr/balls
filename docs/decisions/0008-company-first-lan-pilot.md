@@ -8,14 +8,13 @@ company rather than every possible organization. The Owner creates a new Windows
 folder on the private LAN, invites one trusted coworker, and that ordinary Member receives usable
 Explorer access on a separate Windows computer without manually discovering IP addresses, provider
 credentials, grants, or mapping plans. Verify the complete journey privately before inviting the
-real coworker, using the owner's existing Windows environment as the folder host and the newly
-available, freshly installed physical Windows laptop as the dedicated coworker simulation. Its
-ordinary Windows account must launch Balls, join the Circle, and map the authorized share without
-administrator privileges or administrative remote access. Disposable Windows guests may
-accelerate development but cannot substitute for separate-device private-LAN proof. If enforced
-Smart App Control rejects the current unsigned build, preserve that boundary: use the authorized
-guest for development and treat trusted code signing or an administrator-managed application
-policy as an explicit owner-approved prerequisite for physical deployment.
+real coworker, using the owner's existing working Windows VM as the folder host and its existing
+small disposable Windows desktop VM as the immediate ordinary-coworker simulator. A separate
+physical Windows laptop is deferred because its standard-user account reports Smart App Control
+blocking the unsigned development build. Preserve that boundary: do not bypass policy; treat
+trusted code signing or an authorized administrator-managed application policy as a later
+owner-approved prerequisite for physical deployment. The invited Member must not need local
+administrator privileges, and two-VM evidence must never be mislabeled as physical-LAN proof.
 Existing-folder adoption, remote connectivity, broader infrastructure providers,
 AI, Apps, and other platform ambitions follow that first useful outcome instead of delaying it.
 

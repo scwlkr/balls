@@ -11,11 +11,12 @@ The current workstation runs the working Windows environment as the existing Doc
 `balls-issue61-provider2025`, `balls-issue61-client`, and `balls-issue61-node2` are historical
 disposable test fixtures on the same private `windows_default` Docker network.
 
-The owner also supplies a freshly installed, dedicated physical Windows laptop with no personal
-or production data. That separate computer is the primary coworker-simulation and final
-private-LAN acceptance device; the existing working Windows VM remains the folder host. An
-existing 2 GiB desktop test guest remains useful for quick isolated checks but cannot replace
-physical-network, real-Explorer, and two-device file-operation evidence. Inspect before starting:
+The owner has explicitly selected the existing working Windows VM as the folder host and one
+existing 2 GiB disposable Windows desktop guest as the immediate boss simulator. A separate,
+freshly installed physical Windows laptop also exists, but its standard-user account reports an
+enforced Smart App Control block on the unsigned pilot; physical-device testing is deferred until
+its application-trust boundary can be legitimately resolved. Two-VM evidence never becomes a
+claim about a separate physical network. Inspect before starting:
 
 ```bash
 docker ps -a --format '{{.Names}} {{.Status}}'
@@ -27,10 +28,9 @@ docker network inspect windows_default --format '{{.Name}} {{.Driver}}'
   configuration merely to run a Balls test.
 - Start only the explicitly selected disposable guest and monitor host memory; do not run the
   other historical test VMs concurrently.
-- Connect the dedicated physical coworker laptop to the same trusted private network using its
-  ordinary, non-administrator Windows account. Record access as pending until its actual Windows
-  user, private address, and product connection have been verified; hardware availability alone
-  is not a successful test.
+- Use only the already selected 2 GiB disposable Windows desktop guest as the active boss
+  simulator. Keep the physical laptop deferred; do not treat hardware availability or a browser
+  download as permission to bypass its enforced application-trust policy.
 - Keep browser control loopback-only. Any host-to-LAN forwarding must be limited to the private
   interface and the exact approved admission/SMB ports; never expose public SMB.
 - Keep guest passwords, SSH private keys, provider credentials, and signed-in application state
@@ -38,7 +38,7 @@ docker network inspect windows_default --format '{{.Name}} {{.Driver}}'
 - Treat the Hyper-V instructions below as historical Windows-host evidence. They do not describe
   the current Linux workstation or authorize creating nested Windows/Hyper-V infrastructure.
 
-## Dedicated physical coworker laptop
+## Deferred physical coworker laptop
 
 The freshly installed Windows laptop is owner-approved disposable test infrastructure, but its
 available Windows account does not have administrator privileges. This is the stronger real
@@ -73,13 +73,13 @@ evade an operating-system access decision from an unprivileged account. User-lev
 diagnostics may inspect the Windows account, private IP, network profile, and outbound
 reachability without exposing passwords or private keys.
 
-Run product acceptance from the actual physical Windows laptop: launch the self-contained Balls
-package, redeem one Circle invitation, discover only the authorized coworker grant, map the real
-encrypted SMB share into Explorer, and create/read/edit/rename files from both computers. Verify
-that physical private-LAN access and restart behavior are actually observed under the ordinary
-recipient account. Administrator approval remains limited to the separate Owner computer when it
-creates the share, firewall rules, and limited Member account. The working Owner's unrelated
-mapped drives, applications, and explicit Windows elevation boundaries remain protected.
+Once application trust is legitimately resolved, the deferred physical acceptance target is an
+ordinary recipient launching the package, redeeming one invitation, mapping only the authorized
+encrypted SMB share, and performing real file operations over the physical LAN. Until then, run
+that product journey between the existing working Owner VM and existing disposable coworker VM;
+label all evidence as two-VM, not physical-LAN. Administrator approval remains limited to the
+Owner when it creates the share, firewall rules, and limited Member account. The working Owner's
+unrelated mapped drives, applications, and explicit Windows elevation boundaries remain protected.
 
 Restrict any later cleanup to lab-owned access and rules. Do not disable unrelated security
 controls, expose SSH/SMB publicly, reuse an execution path to evade a firewall block, or treat
