@@ -4,7 +4,97 @@ Read this runbook before Windows VM automation, unsigned product execution, brow
 installer or Canary testing, or recovery of the dedicated Windows guest. The lab accelerates risky
 Windows checks without weakening security controls on the physical host.
 
-## Owned environment
+## Current Linux-hosted company-pilot lab
+
+The current workstation runs the working Windows environment as the existing Docker/KVM container
+`omarchy-windows`. Low-memory Windows guests named `balls-issue61-provider-desktop`,
+`balls-issue61-provider2025`, `balls-issue61-client`, and `balls-issue61-node2` are historical
+disposable test fixtures on the same private `windows_default` Docker network.
+
+The owner has explicitly selected the existing working Windows VM as the folder host and one
+existing 2 GiB disposable Windows desktop guest as the immediate boss simulator. A separate,
+freshly installed physical Windows laptop also exists, but its standard-user account reports an
+enforced Smart App Control block on the unsigned pilot; physical-device testing is deferred until
+its application-trust boundary can be legitimately resolved. Two-VM evidence never becomes a
+claim about a separate physical network. Inspect before starting:
+
+```bash
+docker ps -a --format '{{.Names}} {{.Status}}'
+free -h
+docker network inspect windows_default --format '{{.Name}} {{.Driver}}'
+```
+
+- Never stop, recreate, checkpoint, replace, or change the working Windows VM's disk or GPU
+  configuration merely to run a Balls test.
+- Start only the explicitly selected disposable guest and monitor host memory; do not run the
+  other historical test VMs concurrently.
+- Use only the already selected 2 GiB disposable Windows desktop guest as the active boss
+  simulator. Keep the physical laptop deferred; do not treat hardware availability or a browser
+  download as permission to bypass its enforced application-trust policy.
+- Keep browser control loopback-only. Any host-to-LAN forwarding must be limited to the private
+  interface and the exact approved admission/SMB ports; never expose public SMB.
+- Keep guest passwords, SSH private keys, provider credentials, and signed-in application state
+  out of command output, repository files, evidence, and issue comments.
+- Check the Owner's effective PowerShell execution policy before privileged grant provisioning.
+  The current grant helper invokes a protected local script with `-File`, which default
+  `Restricted` policy legitimately refuses. A temporary Owner-only `CurrentUser=RemoteSigned`
+  setting requires explicit owner approval, immediate guaranteed restoration to the exact prior
+  value, and independent post-run verification; never use a bypass flag, another execution path,
+  or change machine-wide or managed policy.
+- Record the actual `EnableLUA` setting before describing administrator approval. On a VM with
+  existing UAC disabled, the normal elevated helper can complete without displaying a consent
+  prompt; do not claim that the user saw or accepted a dialog.
+- Treat the Hyper-V instructions below as historical Windows-host evidence. They do not describe
+  the current Linux workstation or authorize creating nested Windows/Hyper-V infrastructure.
+
+## Deferred physical coworker laptop
+
+The freshly installed Windows laptop is owner-approved disposable test infrastructure, but its
+available Windows account does not have administrator privileges. This is the stronger real
+coworker test: the invited Member must not need elevation, Windows OpenSSH Server, a background
+service, an inbound firewall exception, or a development toolchain.
+
+The owner reports that Microsoft Smart App Control blocks the current unsigned Balls build on
+this laptop. A standard account cannot override that application-trust decision. Until an
+authorized device administrator independently establishes an appropriate trust policy or Balls
+ships binaries signed by a genuinely trusted publisher, this physical device cannot execute the
+product. Use the already authorized disposable Windows guest for executable end-to-end checks;
+physical laptop browser and built-in network/SMB diagnostics remain partial evidence only.
+
+Start with only the same trusted network, a normal Windows PowerShell or browser, and the
+self-contained Balls ZIP in a user-writable folder. The coworker launches `Open Balls.cmd`, which
+starts an ordinary user-owned daemon, opens its loopback browser, and makes only outbound
+connections to the Owner. Current-user Credential Manager and Explorer drive mapping do not
+require administrator approval.
+
+The current Linux workstation already has LocalSend and its intended firewall exception. Its
+normal "Share via link" feature can serve the nonsecret self-contained Windows ZIP directly to the
+coworker's browser; the physical laptop does not need LocalSend, an installer, SSH, or
+administrator access. Browser-link transfers use ordinary HTTP on the trusted LAN, so share only
+the public application package through that channel, never a Circle invitation, provider
+password, SSH key, or other private material.
+
+If remote administration is independently available and explicitly approved, it may simplify lab
+automation, but it is optional and must never become a product or acceptance prerequisite. Never
+attempt to install system OpenSSH, change protected firewall policy, reuse an unrelated allowed
+port, run blocked code through another executable, remove download trust metadata, or otherwise
+evade an operating-system access decision from an unprivileged account. User-level
+diagnostics may inspect the Windows account, private IP, network profile, and outbound
+reachability without exposing passwords or private keys.
+
+Once application trust is legitimately resolved, the deferred physical acceptance target is an
+ordinary recipient launching the package, redeeming one invitation, mapping only the authorized
+encrypted SMB share, and performing real file operations over the physical LAN. Until then, run
+that product journey between the existing working Owner VM and existing disposable coworker VM;
+label all evidence as two-VM, not physical-LAN. Administrator approval remains limited to the
+Owner when it creates the share, firewall rules, and limited Member account. The working Owner's
+unrelated mapped drives, applications, and explicit Windows elevation boundaries remain protected.
+
+Restrict any later cleanup to lab-owned access and rules. Do not disable unrelated security
+controls, expose SSH/SMB publicly, reuse an execution path to evade a firewall block, or treat
+administrative automation access as permission to bypass an explicit operating-system decision.
+
+## Historical Windows-host Hyper-V environment
 
 The machine-local lab owns these resources:
 
@@ -30,6 +120,10 @@ authoritative.
   This setting does not authorize changing the physical host.
 - Production code signing is intentionally out of scope. Local `balls.exe` and `ballsd.exe` are
   expected to report `NotSigned` in the source smoke.
+- An enforced Smart App Control or Application Control decision on the physical coworker laptop
+  is a hard unsigned-distribution blocker, not permission to disable protection or find an
+  alternate execution path. Trusted code signing or an authorized managed policy is a separate
+  owner-approved distribution decision.
 - Import the encrypted credential only through the current host Windows account. Never print,
   export, copy, commit, or checkpoint credentials, GitHub tokens, SSH private keys, or signed-in
   application state.

@@ -10,12 +10,19 @@ Balls is people-first. Nodes matter because of what they make possible for the C
 
 ## Initial user
 
-Design obsessively for:
+Design the immediate pilot obsessively for:
 
-- 2–10 people;
-- personally trusted members;
-- slightly technical users;
-- a 2–5 person small company as the first serious proving ground.
+- two personally trusted coworkers in one small company;
+- a newly created project folder hosted by one Windows Node on the private LAN;
+- one invitation that makes the approved folder usable from the second coworker's Windows PC;
+- ordinary Windows File Explorer and the company's existing project applications.
+
+The person accepting the invitation must not need to understand IP addresses, SMB accounts,
+provider grants, or drive-mapping plans. The owner may prepare and inspect the infrastructure,
+but the coworker receives a privately verified experience.
+
+The broader 2–10-person Circle audience and future integrations remain long-term goals, not
+prerequisites for this first useful outcome.
 
 Balls should not require every user to be a systems administrator.
 
@@ -108,9 +115,11 @@ SMB, sync, mounts, object storage, replication, and future protocols are impleme
 
 ### Files-first v1
 
-The first supported product release is intentionally files-first. It proves the Circle model by
-letting two trusted Members join one Circle and work in the same contributed folder through
-Windows File Explorer.
+The immediate company pilot and first supported product release are intentionally files-first.
+They prove the Circle model by letting two trusted Members join one Circle and work in the same
+newly contributed folder through Windows File Explorer. A second, ordinary Member must actually
+receive and use their approved access on a separate Windows computer; an Owner mapping a share
+on its own hosting Node is not sufficient evidence.
 
 The initial provider is authenticated SMB 3.1.1 on a Windows hosting Node. Each Member receives a
 separate limited Access Grant with whole-folder `Read/write` or `Read-only` access. LAN access

@@ -14,6 +14,13 @@ export type CircleMessageDto = components["schemas"]["CircleMessageResponse"];
 export type CircleMessageListDto =
   components["schemas"]["CircleMessageListResponse"];
 export type CreateCircleDto = components["schemas"]["CreateCircleRequest"];
+export type JoinCircleDto = components["schemas"]["JoinCircleRequest"];
+export type BrowserInvitationDto =
+  components["schemas"]["BrowserCircleInvitationResponse"];
+export type CircleViewerDto =
+  components["schemas"]["BrowserCircleViewerResponse"];
+export type CircleFilesSyncDto =
+  components["schemas"]["BrowserCircleFilesSyncResponse"];
 export type BrowserSessionDto = components["schemas"]["BrowserSessionResponse"];
 export type MemberDto = components["schemas"]["MemberResponse"];
 export type CircleNodeDto = components["schemas"]["CircleNodeResponse"];

@@ -1,7 +1,7 @@
 # Remote Circle Security v1
 
-**Status:** authenticated LAN transport, persisted single-Anchor admission, and one minimal durable
-Circle message implemented.
+**Status:** authenticated LAN transport, persisted single-Anchor admission, one minimal durable
+Circle message, and explicitly authorized two-person LAN Circle Files access.
 
 This contract is the authenticated security core for Node-to-Node Circle behavior. It is separate
 from [`local-control v1`](local-control-v1.md), and it does not trust a LAN, Tailscale, DNS name,
@@ -31,6 +31,23 @@ Circle providers cannot be substituted for each other accidentally. Provider imp
 discovery, and retries remain replaceable; v1 now includes bounded framing and one explicit LAN
 provider/listener composed into `ballsd` only when `--admission-listen <private-ip:port>` or
 `--message-listen <private-ip:port>` is selected for its respective operation.
+
+For the two-person LAN pilot, the authenticated message listener also accepts a separately typed
+Circle Files synchronization request. The directly shared browser invitation carries the admission
+and synchronization addresses in an outer convenience envelope without modifying the canonical
+signed invitation package. Both addresses are numeric private IPv4 endpoints, never identity
+proof; the existing pinned admission channel and mutually authenticated Circle channel establish
+peer identity independently of those addresses.
+
+An admitted Member signs a bounded Circle/Member/Node/request-bound synchronization request with
+both its Member and Node keys. The Owner validates that identity against the authenticated peer
+and returns only currently authorized Contributions and Access Grants belonging to that exact
+Member. The response carries the existing Owner- and Circle-authority-signed records plus that
+Member's provider credential inside the encrypted authenticated channel. The recipient verifies
+full signed authorization transcripts, the current authority generation, the Owner and provider
+Node, exact local Member identity, and provider binding before persisting imported records. Its
+local OS credential protector protects the SMB secret. Browser, CLI, local-control, diagnostic,
+and evidence surfaces never return the provider secret.
 
 ## Constants
 

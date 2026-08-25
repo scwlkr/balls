@@ -7,6 +7,11 @@ public sealed class CircleFilesApplication(
     IIdentityAuthorityStore identities,
     TimeProvider timeProvider)
 {
+    public Task<CircleFilesAuthorizationContext?> GetLocalAuthorizationContextAsync(
+        CircleId circleId,
+        CancellationToken cancellationToken = default) =>
+        state.GetAuthorizationContextAsync(circleId, cancellationToken);
+
     public async Task<CircleFilesContribution> CreateContributionAsync(
         CreateCircleFilesContributionCommand command,
         CancellationToken cancellationToken = default)

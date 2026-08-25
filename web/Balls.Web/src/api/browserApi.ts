@@ -10,6 +10,10 @@ import type {
   CircleFilesMemberMappingPlanDto,
   CircleFilesMemberMappingInspectionDto,
   CircleFilesMemberMappingResultDto,
+  BrowserInvitationDto,
+  CircleViewerDto,
+  CircleFilesSyncDto,
+  JoinCircleDto,
 } from "./localControl";
 
 interface ErrorDto {
@@ -22,11 +26,22 @@ export interface BrowserApi {
   getStatus(): Promise<StatusDto>;
   listCircles(): Promise<CircleListDto>;
   getCircle(circleId: string): Promise<CircleDetailsDto>;
+  getViewer(circleId: string): Promise<CircleViewerDto>;
   getMessages(circleId: string): Promise<CircleMessageListDto>;
   createCircle(
     name: string,
     ownerDisplayName: string,
   ): Promise<CircleDetailsDto>;
+  createInvitation(
+    circleId: string,
+    hostAddress?: string,
+  ): Promise<BrowserInvitationDto>;
+  joinCircle(
+    packageValue: string,
+    endpoint: string,
+    memberDisplayName: string,
+  ): Promise<CircleDetailsDto>;
+  syncFiles(circleId: string, endpoint: string): Promise<CircleFilesSyncDto>;
   listFilesContributions(
     circleId: string,
   ): Promise<CircleFilesContributionListDto>;
@@ -93,6 +108,12 @@ class FetchBrowserApi implements BrowserApi {
     );
   }
 
+  getViewer(circleId: string) {
+    return this.request<CircleViewerDto>(
+      `/browser/v1/circles/${encodeURIComponent(circleId)}/viewer`,
+    );
+  }
+
   getMessages(circleId: string) {
     return this.request<CircleMessageListDto>(
       `/browser/v1/circles/${encodeURIComponent(circleId)}/messages`,
@@ -116,6 +137,39 @@ class FetchBrowserApi implements BrowserApi {
         "X-Balls-Antiforgery": this.antiforgeryToken,
       },
     });
+  }
+
+  createInvitation(circleId: string, hostAddress?: string) {
+    return this.authenticatedRequest<BrowserInvitationDto>(
+      `/browser/v1/circles/${encodeURIComponent(circleId)}/invitations`,
+      { validForMinutes: 60, hostAddress: hostAddress?.trim() || null },
+      "Run balls ui again to invite someone.",
+    );
+  }
+
+  joinCircle(
+    packageValue: string,
+    endpoint: string,
+    memberDisplayName: string,
+  ) {
+    const request = {
+      package: packageValue,
+      endpoint,
+      memberDisplayName,
+    } satisfies JoinCircleDto;
+    return this.authenticatedRequest<CircleDetailsDto>(
+      "/browser/v1/circles/join",
+      request,
+      "Run balls ui again to join a Circle.",
+    );
+  }
+
+  syncFiles(circleId: string, endpoint: string) {
+    return this.authenticatedRequest<CircleFilesSyncDto>(
+      `/browser/v1/circles/${encodeURIComponent(circleId)}/files/sync`,
+      { endpoint },
+      "Run balls ui again to connect your shared files.",
+    );
   }
 
   listFilesContributions(circleId: string) {
@@ -202,17 +256,26 @@ class FetchBrowserApi implements BrowserApi {
     operation: "preview" | "map" | "inspect" | "unmap",
     body: Record<string, string>,
   ) {
-    if (!this.antiforgeryToken) {
-      throw new Error("Run balls ui again to change an Explorer mapping.");
-    }
-    return this.request<T>(
+    return this.authenticatedRequest<T>(
       `/browser/v1/circles/${encodeURIComponent(circleId)}/files/contributions/${encodeURIComponent(contributionId)}/grants/${encodeURIComponent(grantId)}/mapping/${operation}`,
-      {
-        method: "POST",
-        body: JSON.stringify(body),
-        headers: { "X-Balls-Antiforgery": this.antiforgeryToken },
-      },
+      body,
+      "Run balls ui again to change an Explorer mapping.",
     );
+  }
+
+  private authenticatedRequest<T>(
+    path: string,
+    body: object,
+    missingSessionMessage: string,
+  ) {
+    if (!this.antiforgeryToken) {
+      throw new Error(missingSessionMessage);
+    }
+    return this.request<T>(path, {
+      method: "POST",
+      body: JSON.stringify(body),
+      headers: { "X-Balls-Antiforgery": this.antiforgeryToken },
+    });
   }
 
   private async request<T>(path: string, init: RequestInit = {}): Promise<T> {

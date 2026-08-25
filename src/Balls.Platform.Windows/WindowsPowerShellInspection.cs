@@ -38,7 +38,7 @@ internal sealed class StaticWindowsPowerShellJsonSource : IWindowsPowerShellJson
         WindowsPowerShellQuery query,
         CancellationToken cancellationToken)
     {
-        var script = GetScript(query);
+        var script = GetCompactScript(query);
         cancellationToken.ThrowIfCancellationRequested();
 
         var executable = Path.Combine(
@@ -74,12 +74,94 @@ internal sealed class StaticWindowsPowerShellJsonSource : IWindowsPowerShellJson
             cancellationToken).ConfigureAwait(false);
     }
 
+    internal static string GetCompactScript(WindowsPowerShellQuery query) =>
+        string.Join('\n', GetScript(query)
+            .Split('\n')
+            .Select(static line => line.TrimStart(' ', '\t')));
+
     internal static string GetScript(WindowsPowerShellQuery query) => query switch
     {
         WindowsPowerShellQuery.SmbReadiness =>
             """
             $ErrorActionPreference = 'Stop'
             $ProgressPreference = 'SilentlyContinue'
+
+            function Test-BallsSmbFirewallApplicability {
+                param([AllowNull()][string]$Program, [AllowNull()][string]$Service)
+                if (-not [string]::IsNullOrWhiteSpace($Service) -and $Service -notin @('Any', 'LanmanServer')) { return $false }
+                if ([string]::IsNullOrWhiteSpace($Program) -or $Program -in @('Any', 'System')) { return $true }
+                try {
+                    $expanded = [Environment]::ExpandEnvironmentVariables($Program)
+                    if (-not [System.IO.Path]::IsPathRooted($expanded) -or $expanded.Contains('*') -or $expanded.Contains('?') -or $expanded.Contains('%')) { return $true }
+                    $name = [System.IO.Path]::GetFileName($expanded)
+                    if ([string]::IsNullOrWhiteSpace($name) -or $name -eq 'svchost.exe' -or -not $name.EndsWith('.exe', [StringComparison]::OrdinalIgnoreCase)) { return $true }
+                    return $false
+                } catch { return $true }
+            }
+
+            function Test-BallsUnrestrictedFirewallValue {
+                param([AllowNull()][object]$Value, [switch]$AllowEmpty, [switch]$AllowZero)
+                $values = @($Value)
+                if ($values.Count -eq 0) { return [bool]$AllowEmpty }
+                if ($values.Count -ne 1) { return $false }
+                $text = [string]$values[0]
+                return $text -eq 'Any' -or ($AllowEmpty -and [string]::IsNullOrWhiteSpace($text)) -or ($AllowZero -and $text -eq '0')
+            }
+
+            function Test-BallsSmbFirewallBroadPublicBlock {
+                param(
+                    [AllowNull()][object]$Rule,
+                    [AllowNull()][object]$Port,
+                    [AllowNull()][object]$Application,
+                    [AllowNull()][object]$Service,
+                    [AllowNull()][object]$Address,
+                    [AllowNull()][object]$Interface,
+                    [AllowNull()][object]$InterfaceType,
+                    [AllowNull()][object]$Security)
+                if (@($Rule).Count -ne 1 -or @($Port).Count -ne 1 -or @($Application).Count -ne 1 -or @($Service).Count -ne 1 -or @($Address).Count -ne 1 -or @($Interface).Count -ne 1 -or @($InterfaceType).Count -ne 1 -or @($Security).Count -ne 1) { return $false }
+                $ruleValue = @($Rule)[0]
+                $portValue = @($Port)[0]
+                $applicationValue = @($Application)[0]
+                $serviceValue = @($Service)[0]
+                $addressValue = @($Address)[0]
+                $interfaceValue = @($Interface)[0]
+                $interfaceTypeValue = @($InterfaceType)[0]
+                $securityValue = @($Security)[0]
+                if ([string]$ruleValue.Enabled -ne 'True' -or [string]$ruleValue.Direction -ne 'Inbound' -or [string]$ruleValue.Action -ne 'Block' -or [string]$ruleValue.Profile -ne 'Public') { return $false }
+                $primaryStatus = [string]$ruleValue.PrimaryStatus
+                if ($primaryStatus -ne 'OK' -and ($primaryStatus -ne 'Inactive' -or @($ruleValue.EnforcementStatus).Count -ne 1 -or [string]@($ruleValue.EnforcementStatus)[0] -ne 'ProfileInactive')) { return $false }
+                if (-not (Test-BallsUnrestrictedFirewallValue -Value $ruleValue.Owner -AllowEmpty)) { return $false }
+                if (-not (Test-BallsUnrestrictedFirewallValue -Value $ruleValue.RemoteDynamicKeywordAddresses -AllowEmpty)) { return $false }
+                if ([string]$portValue.Protocol -notin @('TCP', '6') -or @($portValue.LocalPort).Count -ne 1 -or [string]@($portValue.LocalPort)[0] -ne '445') { return $false }
+                if (-not (Test-BallsUnrestrictedFirewallValue -Value $portValue.RemotePort)) { return $false }
+                if (-not (Test-BallsUnrestrictedFirewallValue -Value $portValue.DynamicTarget -AllowEmpty)) { return $false }
+                if (-not (Test-BallsUnrestrictedFirewallValue -Value $applicationValue.Program)) { return $false }
+                if (-not (Test-BallsUnrestrictedFirewallValue -Value $applicationValue.Package -AllowEmpty)) { return $false }
+                if (-not (Test-BallsUnrestrictedFirewallValue -Value $serviceValue.Service)) { return $false }
+                if (-not (Test-BallsUnrestrictedFirewallValue -Value $addressValue.LocalAddress) -or -not (Test-BallsUnrestrictedFirewallValue -Value $addressValue.RemoteAddress)) { return $false }
+                if (-not (Test-BallsUnrestrictedFirewallValue -Value $addressValue.RemoteDynamicKeywordAddresses -AllowEmpty)) { return $false }
+                if (-not (Test-BallsUnrestrictedFirewallValue -Value $interfaceValue.InterfaceAlias)) { return $false }
+                if (-not (Test-BallsUnrestrictedFirewallValue -Value $interfaceTypeValue.InterfaceType -AllowZero)) { return $false }
+                if ([string]$securityValue.Authentication -ne 'NotRequired' -or [string]$securityValue.Encryption -ne 'NotRequired' -or [string]$securityValue.OverrideBlockRules -ne 'False') { return $false }
+                if (-not (Test-BallsUnrestrictedFirewallValue -Value $securityValue.LocalUser -AllowEmpty) -or -not (Test-BallsUnrestrictedFirewallValue -Value $securityValue.RemoteUser -AllowEmpty) -or -not (Test-BallsUnrestrictedFirewallValue -Value $securityValue.RemoteMachine -AllowEmpty)) { return $false }
+                return $true
+            }
+
+            function Test-BallsSmbFirewallBlockBypass {
+                param([AllowNull()][object]$Security)
+                if (@($Security).Count -ne 1) { return $true }
+                return [string]@($Security)[0].OverrideBlockRules -ne 'False'
+            }
+
+            function Select-BallsInboundFirewallRules {
+                param([AllowNull()][object]$Rules, [AllowNull()][string]$Action)
+                if ($Action -notin @('Allow', 'Block')) { throw 'Windows returned an unsupported inbound firewall rule action.' }
+                foreach ($rule in @($Rules)) {
+                    $ruleAction = [string]$rule.Action
+                    if ($ruleAction -notin @('Allow', 'Block')) { throw 'Windows returned an unsupported inbound firewall rule action.' }
+                    if ($ruleAction -eq $Action) { $rule }
+                }
+            }
 
             try {
                 $currentVersion = Microsoft.PowerShell.Management\Get-ItemProperty -LiteralPath 'HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion' -ErrorAction Stop
@@ -135,11 +217,16 @@ internal sealed class StaticWindowsPowerShellJsonSource : IWindowsPowerShellJson
             try {
                 $privateFirewall = NetSecurity\Get-NetFirewallProfile -Name 'Private' -PolicyStore ActiveStore -ErrorAction Stop
                 $publicFirewall = NetSecurity\Get-NetFirewallProfile -Name 'Public' -PolicyStore ActiveStore -ErrorAction Stop
+                $inboundFirewallRules = @(NetSecurity\Get-NetFirewallRule -PolicyStore ActiveStore -Enabled True -Direction Inbound -ErrorAction Stop)
+                $inboundFirewallAllowRules = @(Select-BallsInboundFirewallRules -Rules $inboundFirewallRules -Action 'Allow')
+                $inboundFirewallBlockRules = @(Select-BallsInboundFirewallRules -Rules $inboundFirewallRules -Action 'Block')
                 $publicSmbInboundAllowRules = 0
-                foreach ($rule in @(NetSecurity\Get-NetFirewallRule -PolicyStore ActiveStore -Enabled True -Direction Inbound -Action Allow -ErrorAction Stop)) {
+                $publicSmbInboundBlockBypass = $false
+                foreach ($rule in $inboundFirewallAllowRules) {
                     $profiles = @(([string]$rule.Profile -split ',') | ForEach-Object { $_.Trim() })
                     if (($profiles -notcontains 'Any') -and ($profiles -notcontains 'Public')) { continue }
 
+                    $matchesSmbPort = $false
                     foreach ($portFilter in @($rule | NetSecurity\Get-NetFirewallPortFilter -ErrorAction Stop)) {
                         $protocol = [string]$portFilter.Protocol
                         if ($protocol -notin @('Any', 'TCP', '6')) { continue }
@@ -147,19 +234,62 @@ internal sealed class StaticWindowsPowerShellJsonSource : IWindowsPowerShellJson
                         foreach ($localPort in @($portFilter.LocalPort)) {
                             $portText = [string]$localPort
                             if ($portText -in @('Any', '445')) {
-                                $publicSmbInboundAllowRules++
+                                $matchesSmbPort = $true
                                 break
                             }
 
                             if ($portText -match '^(\d+)-(\d+)$') {
                                 if (([int]$Matches[1] -le 445) -and ([int]$Matches[2] -ge 445)) {
-                                    $publicSmbInboundAllowRules++
+                                    $matchesSmbPort = $true
                                     break
                                 }
                             }
                         }
+                        if ($matchesSmbPort) { break }
+                    }
+
+                    if (-not $matchesSmbPort) { continue }
+                    $applicationFilters = @($rule | NetSecurity\Get-NetFirewallApplicationFilter -ErrorAction Stop)
+                    $serviceFilters = @($rule | NetSecurity\Get-NetFirewallServiceFilter -ErrorAction Stop)
+                    if ($applicationFilters.Count -ne 1 -or $serviceFilters.Count -ne 1) {
+                        $publicSmbInboundAllowRules++
+                        $publicSmbInboundBlockBypass = $true
+                        continue
+                    }
+
+                    $couldTargetSmb = Test-BallsSmbFirewallApplicability -Program ([string]$applicationFilters[0].Program) -Service ([string]$serviceFilters[0].Service)
+                    if ($couldTargetSmb) {
+                        $publicSmbInboundAllowRules++
+                        $securityFilters = @($rule | NetSecurity\Get-NetFirewallSecurityFilter -ErrorAction Stop)
+                        if (Test-BallsSmbFirewallBlockBypass -Security $securityFilters) {
+                            $publicSmbInboundBlockBypass = $true
+                        }
                     }
                 }
+
+                if ($publicSmbInboundAllowRules -gt 0 -and -not $publicSmbInboundBlockBypass) {
+                    $broadPublicSmbBlocks = 0
+                    foreach ($rule in $inboundFirewallBlockRules) {
+                        if ([string]$rule.Profile -ne 'Public') { continue }
+                        $ports = @($rule | NetSecurity\Get-NetFirewallPortFilter -ErrorAction Stop)
+                        if ($ports.Count -ne 1 -or [string]$ports[0].Protocol -notin @('TCP', '6') -or @($ports[0].LocalPort).Count -ne 1 -or [string]@($ports[0].LocalPort)[0] -ne '445') { continue }
+
+                        $applications = @($rule | NetSecurity\Get-NetFirewallApplicationFilter -ErrorAction Stop)
+                        $blockServices = @($rule | NetSecurity\Get-NetFirewallServiceFilter -ErrorAction Stop)
+                        $addresses = @($rule | NetSecurity\Get-NetFirewallAddressFilter -ErrorAction Stop)
+                        $interfaces = @($rule | NetSecurity\Get-NetFirewallInterfaceFilter -ErrorAction Stop)
+                        $interfaceTypes = @($rule | NetSecurity\Get-NetFirewallInterfaceTypeFilter -ErrorAction Stop)
+                        $security = @($rule | NetSecurity\Get-NetFirewallSecurityFilter -ErrorAction Stop)
+                        if (Test-BallsSmbFirewallBroadPublicBlock -Rule $rule -Port $ports -Application $applications -Service $blockServices -Address $addresses -Interface $interfaces -InterfaceType $interfaceTypes -Security $security) {
+                            $broadPublicSmbBlocks++
+                        }
+                    }
+
+                    if ($broadPublicSmbBlocks -eq 1) {
+                        $publicSmbInboundAllowRules = 0
+                    }
+                }
+
                 $firewall = [PSCustomObject]@{
                     PrivateEnabled = [bool]$privateFirewall.Enabled
                     PrivateDefaultInboundAction = [string]$privateFirewall.DefaultInboundAction

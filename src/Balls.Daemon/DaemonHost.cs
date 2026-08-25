@@ -132,18 +132,29 @@ public static class DaemonHost
                 store,
                 new TcpLanTransportConnector(),
                 TimeProvider.System);
-            var messageApplication = new TrustedCircleMessageApplication(
+            var messageQueries = new CircleMessageQueryApplication(store);
+            var filesApplication = new CircleFilesApplication(
+                store,
+                store,
+                TimeProvider.System);
+            var filesSyncApplication = new TrustedCircleFilesSyncApplication(
+                store,
+                store,
+                store,
                 store,
                 store,
                 store,
                 store,
                 new TcpLanTransportConnector(),
                 TimeProvider.System);
-            var messageQueries = new CircleMessageQueryApplication(store);
-            var filesApplication = new CircleFilesApplication(
+            var messageApplication = new TrustedCircleMessageApplication(
                 store,
                 store,
-                TimeProvider.System);
+                store,
+                store,
+                new TcpLanTransportConnector(),
+                TimeProvider.System,
+                filesSyncApplication);
             var filesHostingApplication = new CircleFilesHostingApplication(
                 filesApplication,
                 host.CircleFilesHosting);
@@ -157,7 +168,8 @@ public static class DaemonHost
                 store,
                 store,
                 host.CircleFilesMemberMapping,
-                TimeProvider.System);
+                TimeProvider.System,
+                store);
             var filesLifecycleApplication = new CircleFilesLifecycleApplication(
                 filesApplication,
                 store,
@@ -987,6 +999,11 @@ public static class DaemonHost
                 messageQueries,
                 filesApplication,
                 filesMemberMappingApplication,
+                filesSyncApplication,
+                invitationApplication,
+                admissionApplication,
+                options.AdmissionListenEndpoint,
+                options.MessageListenEndpoint,
                 browserAccess);
 
             await application.StartAsync(cancellationToken).ConfigureAwait(false);

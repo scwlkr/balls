@@ -492,19 +492,28 @@ No Windows command, registry type, SMB type, or firewall type crosses into Core.
 The Windows adapter runs one fixed, encoded PowerShell inspection with no caller-controlled input.
 Its exact command allowlist reads Windows version, SMB server/client configuration, required
 command metadata, connected network profiles, firewall profiles, and active inbound firewall
-rule/port filters. The child process has a 10-second timeout and one combined 65,536-character
-decoded-output budget for both redirected streams. Missing, malformed, forward-unknown, timed-out,
-or failed observations become deterministic redacted `unknown` checks rather than raw command
-output.
+rule, port, application, and service filters. The child process has a 10-second timeout and one
+combined 65,536-character decoded-output budget for both redirected streams. Missing, malformed,
+forward-unknown, timed-out, or failed observations become deterministic redacted `unknown` checks
+rather than raw command output.
 
 The report evaluates the supported Windows generation, running SMB server with SMB 2/3 enabled,
-SMB 3.1.1 availability, SMB1 disabled, insecure guest logons disabled, server signing required,
-share encryption enforceability with an approved SMB 3.1.1 cipher, a connected Private network,
-and enabled Private/Public firewall profiles whose default inbound action is Block. It
+SMB 3.1.1 availability, SMB1 disabled, guest access precluded on the Balls-hosted share, server
+signing required, share encryption enforceability with an approved SMB 3.1.1 cipher, a connected
+Private network, and enabled Private/Public firewall profiles whose default inbound action is
+Block. Guest exclusion follows from the server's required signing, rejection of unencrypted
+access, and support for the exact encrypted, explicitly authorized share; unrelated outbound SMB
+client guest settings are never changed or treated as Circle-share authorization. It
 conservatively rejects an enabled Public/Any-profile inbound allow rule whose protocol/port filter
-can include TCP 445. Any unsafe observation makes the aggregate `not-ready`; otherwise an unknown
-observation makes it `unknown`. Inspection never changes a feature, policy, service, profile,
-folder, share, account, ACL, rule, or mapping.
+can include TCP 445 unless an explicit unrelated executable or non-SMB service filter proves that
+the rule cannot target the SMB server. One independently verified, unrestricted, Public-only TCP
+445 block can safely override otherwise applicable allow rules without modifying unrelated
+applications; authenticated block-bypass rules, incomplete block coverage, and missing or
+ambiguous application/service bindings remain unsafe. A Public-only rule may be dormant solely
+because the currently connected network is Private; any other inactive reason fails closed. Any
+unsafe observation makes the aggregate `not-ready`; otherwise an unknown observation makes it
+`unknown`. Inspection never changes a feature, policy, service, profile, folder, share, account,
+ACL, rule, or mapping.
 
 The Windows hosting adapter implements version 1 of one exact privileged operation: provision the
 dedicated folder, encrypted SMB share, and Private-profile-only firewall rule for an authorized
@@ -558,17 +567,26 @@ contain that material.
 The helper creates one grant-owned local account with no group membership, no expiry, and exactly
 four deny-logon rights (interactive, remote interactive, batch, and service). It adds one inherited
 whole-folder ACL (`ReadAndExecute` or `Modify`, never `FullControl`) and one matching encrypted-share
-  allow entry (`Read` or `Change`). Each protected grant marker records the full ownership binding and
-  the exact host Owner/System baseline SDDL. Preflight derives the complete folder/share ACL from all
-  protected markers, so multiple Member grants coexist while deny entries, wrong rights, reduced
-  Owner access, orphan SIDs, and unmarked principals fail closed. It also rejects known broad Windows
-  token principals on every other non-special share. After account
+allow entry (`Read` or `Change`). Each protected grant marker records the full ownership binding and
+the exact host Owner/System baseline SDDL. The encrypted share uses access-based enumeration, so
+these private Owner/System-only markers are intentionally invisible to the Member. A separate,
+bounded grant-specific witness contains only public identity fields and an HMAC-SHA256 proof
+derived from the exact protected provider credential. Its protected ACL grants only the Owner and
+LocalSystem full control and the exact grant account read access. The Member verifies the complete
+Circle, Contribution, provider, grant, Member, account, ownership, access, and generation binding
+in constant time before accepting the mapped share; it never receives access to the private
+ownership markers. Preflight derives the complete folder/share ACL from all protected markers, so
+multiple Member grants coexist while deny entries, wrong rights, reduced Owner access, orphan SIDs,
+and unmarked principals fail closed. It also rejects known broad Windows token principals on every
+other non-special share. After account
 creation it derives the actual network-logon token groups, so custom/nested group access blocks the
 grant and rolls the exact owned prefix back. Exact retry reuses the same protected credential across
-process restart; foreign account, marker, folder ACL, or share ACL state fails closed. Failure rolls
-  back only that grant's exact share/folder entries and owned prefix in reverse order, preserving
-  other marker-backed Member grants. This includes externally terminated account creation with zero
-  or all four LSA rights; cleanup removes only an expected-rights subset before deleting the account.
+process restart; foreign account, marker, witness, folder ACL, or share ACL state fails closed. An
+otherwise complete legacy grant can reconcile only its missing exact witness without replacing its
+account or access. Failure rolls back only that grant's exact share/folder entries, witness, and
+owned prefix in reverse order, preserving other marker-backed Member grants. This includes
+externally terminated account creation with zero or all four LSA rights; cleanup removes only an
+expected-rights subset before deleting the account.
 
 Lifecycle removal is a separate preview/apply seam behind `ICircleFilesLifecycleManager`. The
 daemon requires the exact persisted revocation proof and credential binding before an elevated
@@ -592,10 +610,11 @@ An interrupted request remains visible and is resolved by the idempotent retry. 
 credential removal disables future credential
 authorization while retaining DPAPI-protected recovery material; secure deletion is not claimed.
 
-For the files-first v1, the Windows provider uses SMB 3.1.1 with SMB1 and guest access disabled,
-signing and encryption required, and one limited provider credential per Member Access Grant. A
-narrow privileged helper owns exact share, account, ACL, and firewall mutations; normal daemon,
-browser, CLI, and Explorer work remains unelevated.
+For the files-first v1, the Windows provider uses SMB 3.1.1 with SMB1 disabled, guest access
+excluded from its exact encrypted share, signing and encryption required, and one limited provider
+credential per Member Access Grant. Existing unrelated outbound SMB client sessions remain
+untouched. A narrow privileged helper owns exact share, account, ACL, and firewall mutations;
+normal daemon, browser, CLI, and Explorer work remains unelevated.
 
 The provider preserves application-requested SMB share modes and locks. It does not claim that an
 arbitrary application becomes single-writer. The first certified matrix covers Windows 11 File

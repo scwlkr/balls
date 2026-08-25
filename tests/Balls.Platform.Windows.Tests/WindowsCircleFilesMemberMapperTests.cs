@@ -89,7 +89,54 @@ public sealed class WindowsCircleFilesMemberMapperTests
         var operations = new StubOperations { AvailableLetters = ["M"] };
         var mapper = new WindowsCircleFilesMemberMapper(operations);
         var plan = await mapper.PreviewAsync(Request, CancellationToken.None);
-        operations.ShareEntries.Remove($".balls-grant-{Request.GrantId}-g1-v1.json");
+        operations.ShareWitness = null;
+
+        var error = await Assert.ThrowsExactlyAsync<CircleFilesHostingException>(
+            () => mapper.MapAsync(Request, plan.PlanId, Secret, CancellationToken.None).AsTask());
+
+        Assert.AreEqual("mapping_share_identity_mismatch", error.Code);
+        CollectionAssert.AreEqual(
+            new[]
+            {
+                "endpoint:probe", "credential:save", "drive:map", "share:validate",
+                "drive:delete", "credential:delete",
+            },
+            operations.Events.ToArray());
+        Assert.IsNull(operations.Mapping);
+        Assert.IsNull(operations.Credential);
+    }
+
+    [DataRow("tampered")]
+    [DataRow("wrong-secret")]
+    [DataRow("wrong-grant")]
+    [DataRow("wrong-owner")]
+    [DataRow("wrong-generation")]
+    [DataRow("oversized")]
+    [TestMethod]
+    public async Task Invalid_or_cross_grant_witness_is_rejected_and_exact_resources_are_rolled_back(
+        string failure)
+    {
+        var operations = new StubOperations { AvailableLetters = ["M"] };
+        operations.ShareWitness = failure switch
+        {
+            "tampered" => TamperedWitness(),
+            "wrong-secret" => WindowsCircleFilesShareWitness.CreateForMapping(
+                Request,
+                Encoding.UTF8.GetBytes("Another-Wrong-Grant-Secret-43!")),
+            "wrong-grant" => WindowsCircleFilesShareWitness.CreateForMapping(
+                Request with { GrantId = "66666666-6666-6666-6666-666666666666" },
+                Secret),
+            "wrong-owner" => WindowsCircleFilesShareWitness.CreateForMapping(
+                Request with { GrantOwnershipId = new string('b', 64) },
+                Secret),
+            "wrong-generation" => WindowsCircleFilesShareWitness.CreateForMapping(
+                Request with { Generation = 2 },
+                Secret),
+            "oversized" => new byte[WindowsCircleFilesShareWitness.MaximumBytes + 1],
+            _ => throw new ArgumentOutOfRangeException(nameof(failure)),
+        };
+        var mapper = new WindowsCircleFilesMemberMapper(operations);
+        var plan = await mapper.PreviewAsync(Request, CancellationToken.None);
 
         var error = await Assert.ThrowsExactlyAsync<CircleFilesHostingException>(
             () => mapper.MapAsync(Request, plan.PlanId, Secret, CancellationToken.None).AsTask());
@@ -107,6 +154,25 @@ public sealed class WindowsCircleFilesMemberMapperTests
     }
 
     [TestMethod]
+    public async Task Already_mapped_share_revalidates_the_authenticated_grant_witness()
+    {
+        var operations = new StubOperations { AvailableLetters = ["M"] };
+        var mapper = new WindowsCircleFilesMemberMapper(operations);
+        var plan = await mapper.PreviewAsync(Request, CancellationToken.None);
+        _ = await mapper.MapAsync(Request, plan.PlanId, Secret, CancellationToken.None);
+        operations.ShareWitness = TamperedWitness();
+        operations.Events.Clear();
+
+        var error = await Assert.ThrowsExactlyAsync<CircleFilesHostingException>(
+            () => mapper.MapAsync(Request, plan.PlanId, Secret, CancellationToken.None).AsTask());
+
+        Assert.AreEqual("mapping_share_identity_mismatch", error.Code);
+        Assert.AreEqual(plan.UncPath, operations.Mapping);
+        Assert.IsNotNull(operations.Credential);
+        CollectionAssert.AreEqual(new[] { "share:validate" }, operations.Events.ToArray());
+    }
+
+    [TestMethod]
     public async Task Failed_exact_rollback_is_typed_and_preserves_the_ownership_witness()
     {
         var operations = new StubOperations
@@ -114,7 +180,7 @@ public sealed class WindowsCircleFilesMemberMapperTests
             AvailableLetters = ["M"],
             DriveDeleteFailure = new IOException("Injected exact cleanup failure."),
         };
-        operations.ShareEntries.Remove($".balls-grant-{Request.GrantId}-g1-v1.json");
+        operations.ShareWitness = null;
         var mapper = new WindowsCircleFilesMemberMapper(operations);
         var plan = await mapper.PreviewAsync(Request, CancellationToken.None);
 
@@ -141,7 +207,7 @@ public sealed class WindowsCircleFilesMemberMapperTests
         var plan = await mapper.PreviewAsync(Request, CancellationToken.None);
         _ = await mapper.MapAsync(Request, plan.PlanId, Secret, CancellationToken.None);
         operations.DriveAccessible = false;
-        operations.ShareEntries.Remove($".balls-grant-{Request.GrantId}-g1-v1.json");
+        operations.ShareWitness = null;
         operations.DisconnectFailure = new IOException("Injected session cleanup failure.");
         operations.Events.Clear();
 
@@ -266,14 +332,63 @@ public sealed class WindowsCircleFilesMemberMapperTests
         }
     }
 
+    [TestMethod]
+    public void Native_share_witness_reader_accepts_only_bounded_nonempty_content()
+    {
+        var directory = Path.Combine(Path.GetTempPath(), "balls-witness", Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(directory);
+        try
+        {
+            var path = Path.Combine(directory, "witness.json");
+            var operations = new WindowsCircleFilesMappingOperations();
+            var expected = new byte[WindowsCircleFilesShareWitness.MaximumBytes];
+            expected[^1] = 42;
+            File.WriteAllBytes(path, expected);
+
+            CollectionAssert.AreEqual(
+                expected,
+                operations.ReadShareEntry(
+                    directory,
+                    "witness.json",
+                    WindowsCircleFilesShareWitness.MaximumBytes));
+
+            File.WriteAllBytes(path, new byte[WindowsCircleFilesShareWitness.MaximumBytes + 1]);
+            Assert.ThrowsExactly<InvalidDataException>(() => operations.ReadShareEntry(
+                directory,
+                "witness.json",
+                WindowsCircleFilesShareWitness.MaximumBytes));
+
+            File.WriteAllBytes(path, Array.Empty<byte>());
+            Assert.ThrowsExactly<InvalidDataException>(() => operations.ReadShareEntry(
+                directory,
+                "witness.json",
+                WindowsCircleFilesShareWitness.MaximumBytes));
+            Assert.ThrowsExactly<ArgumentOutOfRangeException>(() => operations.ReadShareEntry(
+                directory,
+                "witness.json",
+                WindowsCircleFilesShareWitness.MaximumBytes + 1));
+        }
+        finally
+        {
+            Directory.Delete(directory, recursive: true);
+        }
+    }
+
+    private static byte[] TamperedWitness()
+    {
+        var witness = WindowsCircleFilesShareWitness.CreateForMapping(Request, Secret);
+        witness[^3] = witness[^3] == (byte)'a' ? (byte)'b' : (byte)'a';
+        return witness;
+    }
+
     private sealed class StubOperations : IWindowsCircleFilesMappingOperations
     {
         public IReadOnlyList<string> AvailableLetters { get; set; } = [];
         public string? Mapping { get; set; }
         public WindowsCircleFilesStoredCredential? Credential { get; set; }
         public WindowsCircleFilesStoredLabel? Label { get; set; }
-        public HashSet<string> ShareEntries { get; } =
-            [".balls-owned-v1.json", $".balls-grant-{Request.GrantId}-g1-v1.json"];
+        public byte[]? ShareWitness { get; set; } =
+            WindowsCircleFilesShareWitness.CreateForMapping(Request, Secret);
         public IOException? EndpointFailure { get; set; }
         public IOException? DriveDeleteFailure { get; set; }
         public IOException? DisconnectFailure { get; set; }
@@ -319,13 +434,19 @@ public sealed class WindowsCircleFilesMemberMapperTests
             DriveAccessible = false;
         }
 
-        public bool ShareEntryExists(string uncPath, string fileName)
+        public byte[] ReadShareEntry(string uncPath, string fileName, int maximumBytes)
         {
-            if (fileName.StartsWith(".balls-grant-", StringComparison.Ordinal))
+            Events.Add("share:validate");
+            if (fileName != WindowsCircleFilesShareWitness.GetFileName(Request.GrantId, Request.Generation)
+                || ShareWitness is null)
             {
-                Events.Add("share:validate");
+                throw new FileNotFoundException("The exact grant witness is absent.");
             }
-            return ShareEntries.Contains(fileName);
+            if (ShareWitness.Length > maximumBytes)
+            {
+                throw new InvalidDataException("The exact grant witness exceeded its bounded size.");
+            }
+            return ShareWitness.ToArray();
         }
 
         public void SaveLabel(string uncPath, string friendlyName, string ownershipId)

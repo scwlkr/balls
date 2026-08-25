@@ -27,6 +27,7 @@ Use this directory for ADRs, threat models, protocol specifications, milestone d
 - [`decisions/0005-files-first-v1.md`](decisions/0005-files-first-v1.md) — focused v1 Circle Files outcome and provider boundary.
 - [`decisions/0006-trusted-circle-identity-and-admission.md`](decisions/0006-trusted-circle-identity-and-admission.md) — remote v1 identity, admission, authenticated-channel, rejection, and recovery decision.
 - [`decisions/0007-protected-macos-developer-node.md`](decisions/0007-protected-macos-developer-node.md) — Apple-Silicon source-run host, protected state/IPC, required CI, and exact remote-TLS boundary.
+- [`decisions/0008-company-first-lan-pilot.md`](decisions/0008-company-first-lan-pilot.md) — prioritize one privately verified two-person company LAN workflow without abandoning open source or the Circle vision.
 
 ## Contracts and state
 
@@ -63,3 +64,4 @@ Use this directory for ADRs, threat models, protocol specifications, milestone d
 - [`verification/2026-08-21-trusted-circle.md`](verification/2026-08-21-trusted-circle.md) — Trusted Circle release-candidate, security, exact-artifact, and owner-decision evidence.
 - [`verification/2026-08-21-macos-developer-node.md`](verification/2026-08-21-macos-developer-node.md) — physical Apple-Silicon state/IPC, process, browser, fast-gate evidence, and explicit remaining gaps.
 - [`verification/2026-08-21-browser-brand-workspace.md`](verification/2026-08-21-browser-brand-workspace.md) — canonical brandmark, responsive Circle interactions, accessibility, and reviewed browser-state screenshots.
+- [`verification/2026-08-25-company-first-lan-pilot.md`](verification/2026-08-25-company-first-lan-pilot.md) — two-person invitation, authorized Member-only files, self-contained Windows package, and honest Windows/LAN proof boundaries.

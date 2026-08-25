@@ -46,7 +46,7 @@ internal interface IWindowsCircleFilesMappingOperations
     void MapDrive(string driveLetter, string uncPath, string accountName, ReadOnlySpan<byte> secret);
     void ReconnectDrive(string driveLetter, string uncPath, string accountName, ReadOnlySpan<byte> secret);
     void DisconnectDriveSession(string driveLetter, string expectedUncPath);
-    bool ShareEntryExists(string uncPath, string fileName);
+    byte[] ReadShareEntry(string uncPath, string fileName, int maximumBytes);
     void SaveLabel(string uncPath, string friendlyName, string ownershipId);
     void UnmapDrive(string driveLetter, string expectedUncPath);
     void DeleteLabel(string uncPath, string friendlyName, string ownershipId);
@@ -151,7 +151,7 @@ public sealed class WindowsCircleFilesMemberMapper : ICircleFilesMemberMapper
                     secret.Span);
                 try
                 {
-                    ValidateShare(request, plan);
+                    ValidateShare(request, plan, secret.Span);
                 }
                 catch
                 {
@@ -166,7 +166,7 @@ public sealed class WindowsCircleFilesMemberMapper : ICircleFilesMemberMapper
                 }
                 return new CircleFilesMemberMappingResult("already-mapped", plan);
             }
-            ValidateShare(request, plan);
+            ValidateShare(request, plan, secret.Span);
             return new CircleFilesMemberMappingResult("already-mapped", plan);
         }
         if (operations.GetMappedUnc(plan.DriveLetter) is null
@@ -204,7 +204,7 @@ public sealed class WindowsCircleFilesMemberMapper : ICircleFilesMemberMapper
                 driveCreated = true;
             }
 
-            ValidateShare(request, plan);
+            ValidateShare(request, plan, secret.Span);
             var label = operations.GetLabel(plan.UncPath);
             if (!IsCompleteLabel(label, plan))
             {
@@ -305,7 +305,7 @@ public sealed class WindowsCircleFilesMemberMapper : ICircleFilesMemberMapper
             [
                 $"Save the exact {request.AccountName} grant credential for {request.Endpoint} in the current-user Windows Credential Manager.",
                 $"Persistently map {uncPath} to {request.DriveLetter}: without elevation or replacement.",
-                "Verify the exact Balls host and grant ownership markers through the mapped share.",
+                "Verify the authenticated grant-specific Balls share witness through the mapped share.",
                 $"Show the mapping in Explorer as {friendlyName}.",
             ]);
     }
@@ -380,16 +380,25 @@ public sealed class WindowsCircleFilesMemberMapper : ICircleFilesMemberMapper
 
     private void ValidateShare(
         CircleFilesMemberMappingRequest request,
-        CircleFilesMemberMappingPlan plan)
+        CircleFilesMemberMappingPlan plan,
+        ReadOnlySpan<byte> secret)
     {
         try
         {
-            if (!operations.ShareEntryExists(plan.UncPath, ".balls-owned-v1.json")
-                || !operations.ShareEntryExists(
-                    plan.UncPath,
-                    $".balls-grant-{request.GrantId}-g{request.Generation}-v1.json"))
+            var witness = operations.ReadShareEntry(
+                plan.UncPath,
+                WindowsCircleFilesShareWitness.GetFileName(request.GrantId, request.Generation),
+                WindowsCircleFilesShareWitness.MaximumBytes);
+            try
             {
-                throw ShareMismatch();
+                if (!WindowsCircleFilesShareWitness.IsValid(witness, request, secret))
+                {
+                    throw ShareMismatch();
+                }
+            }
+            finally
+            {
+                CryptographicOperations.ZeroMemory(witness);
             }
         }
         catch (CircleFilesHostingException)
@@ -397,6 +406,11 @@ public sealed class WindowsCircleFilesMemberMapper : ICircleFilesMemberMapper
             throw;
         }
         catch (UnauthorizedAccessException)
+        {
+            throw ShareMismatch();
+        }
+        catch (Exception exception) when (
+            exception is FileNotFoundException or DirectoryNotFoundException or InvalidDataException)
         {
             throw ShareMismatch();
         }
@@ -512,7 +526,7 @@ public sealed class WindowsCircleFilesMemberMapper : ICircleFilesMemberMapper
         "A drive, credential, or Explorer label no longer matches the exact Balls-owned mapping.");
     private static CircleFilesHostingException ShareMismatch() => Collision(
         "mapping_share_identity_mismatch",
-        "The SMB share did not present the exact authorized Balls ownership markers.");
+        "The SMB share did not present the exact authenticated Balls grant witness.");
 }
 
 [SupportedOSPlatform("windows")]
@@ -704,15 +718,38 @@ internal sealed class WindowsCircleFilesMappingOperations : IWindowsCircleFilesM
         if (result != 0) ThrowNative(result);
     }
 
-    public bool ShareEntryExists(string uncPath, string fileName) =>
-        Directory.EnumerateFileSystemEntries(
-                uncPath,
-                fileName,
-                SearchOption.TopDirectoryOnly)
-            .Any(path => string.Equals(
-                Path.GetFileName(path),
-                fileName,
-                StringComparison.Ordinal));
+    public byte[] ReadShareEntry(string uncPath, string fileName, int maximumBytes)
+    {
+        ArgumentOutOfRangeException.ThrowIfLessThanOrEqual(maximumBytes, 0);
+        ArgumentOutOfRangeException.ThrowIfGreaterThan(
+            maximumBytes,
+            WindowsCircleFilesShareWitness.MaximumBytes);
+
+        using var stream = new FileStream(
+            Path.Combine(uncPath, fileName),
+            FileMode.Open,
+            FileAccess.Read,
+            FileShare.ReadWrite | FileShare.Delete,
+            bufferSize: maximumBytes + 1,
+            options: FileOptions.SequentialScan);
+        var buffer = GC.AllocateUninitializedArray<byte>(maximumBytes + 1);
+        var length = 0;
+        while (length < buffer.Length)
+        {
+            var count = stream.Read(buffer.AsSpan(length));
+            if (count == 0)
+            {
+                break;
+            }
+            length += count;
+        }
+
+        if (length == 0 || length > maximumBytes)
+        {
+            throw new InvalidDataException("The Circle Files share witness exceeded its bounded size.");
+        }
+        return buffer.AsSpan(0, length).ToArray();
+    }
 
     public WindowsCircleFilesStoredLabel? GetLabel(string uncPath)
     {

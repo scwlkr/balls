@@ -80,8 +80,12 @@ public sealed class CanaryPackageTests
                 "LICENSE",
                 "README.md",
                 "Install-BallsCanary.ps1",
+                "Open Balls.cmd",
             },
             archive.Entries.Select(entry => entry.FullName).ToArray());
+
+        var readme = ReadText(archive, "README.md");
+        StringAssert.Contains(readme, "Open Balls.cmd");
 
         using var manifest = ReadJson(archive, "canary.json");
         Assert.AreEqual("0.1.0-alpha.1", manifest.RootElement.GetProperty("version").GetString());
@@ -180,6 +184,9 @@ public sealed class CanaryPackageTests
             File.WriteAllText(
                 Path.Combine(RepositoryRoot, "eng", "canary", "Install-BallsCanary.sh"),
                 "#!/usr/bin/env bash");
+            File.WriteAllText(
+                Path.Combine(RepositoryRoot, "eng", "canary", "Open-Balls.cmd"),
+                "@echo off");
             File.WriteAllText(Path.Combine(CliDirectory, cliFileName), "cli");
             File.WriteAllText(Path.Combine(DaemonDirectory, daemonFileName), "daemon");
         }

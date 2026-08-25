@@ -1,11 +1,17 @@
 import { useEffect, useRef, useState, type FormEvent } from "react";
 
 import { browserApi, type BrowserApi } from "./api/browserApi";
+import {
+  decodeInvitationCode,
+  encodeInvitationCode,
+  invitationHostAddress,
+} from "./api/invitationCode";
 import type {
   CircleFilesMemberMappingPlanDto,
   CircleDetailsDto,
   CircleMessageDto,
   CircleSummaryDto,
+  CircleViewerDto,
   StatusDto,
 } from "./api/localControl";
 import { BrandMark } from "./components/BrandMark";
@@ -21,6 +27,7 @@ interface WorkspaceState {
   status: StatusDto;
   circles: CircleSummaryDto[];
   selected: CircleDetailsDto | null;
+  viewer: CircleViewerDto | null;
   messages: CircleMessageDto[];
 }
 
@@ -38,6 +45,10 @@ export function App({ api = browserApi }: AppProps) {
   const [workspace, setWorkspace] = useState<WorkspaceState | null>(null);
   const [error, setError] = useState<string | null>(initialError);
   const [busy, setBusy] = useState(false);
+  const [fileHosts, setFileHosts] = useState<Record<string, string>>({});
+  const [fileSyncEndpoints, setFileSyncEndpoints] = useState<
+    Record<string, string>
+  >({});
 
   useEffect(() => {
     if (started.current) return;
@@ -57,17 +68,19 @@ export function App({ api = browserApi }: AppProps) {
           api.getStatus(),
           api.listCircles(),
         ]);
-        const [selected, messageList] = circleList.circles[0]
+        const [selected, messageList, viewer] = circleList.circles[0]
           ? await Promise.all([
               api.getCircle(circleList.circles[0].id),
               api.getMessages(circleList.circles[0].id),
+              api.getViewer(circleList.circles[0].id),
             ])
-          : [null, null];
+          : [null, null, null];
         if (active) {
           setWorkspace({
             status,
             circles: circleList.circles,
             selected,
+            viewer,
             messages: messageList?.messages ?? [],
           });
         }
@@ -90,10 +103,12 @@ export function App({ api = browserApi }: AppProps) {
     setError(null);
     try {
       const selected = await api.createCircle(name, owner);
+      const viewer = await api.getViewer(selected.circle.id);
       setWorkspace({
         ...workspace,
         circles: mergeCircle(workspace.circles, selected.circle),
         selected,
+        viewer,
         messages: [],
       });
     } catch (reason) {
@@ -108,11 +123,63 @@ export function App({ api = browserApi }: AppProps) {
     setBusy(true);
     setError(null);
     try {
-      const [selected, messageList] = await Promise.all([
+      const [selected, messageList, viewer] = await Promise.all([
         api.getCircle(circleId),
         api.getMessages(circleId),
+        api.getViewer(circleId),
       ]);
-      setWorkspace({ ...workspace, selected, messages: messageList.messages });
+      setWorkspace({
+        ...workspace,
+        selected,
+        viewer,
+        messages: messageList.messages,
+      });
+    } catch (reason) {
+      setError(toMessage(reason));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function joinCircle(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!workspace || busy) return;
+    const data = new FormData(event.currentTarget);
+    const invitationCode = String(data.get("invitationCode") ?? "");
+    const name = String(data.get("memberName") ?? "");
+    setBusy(true);
+    setError(null);
+    try {
+      const invitation = decodeInvitationCode(invitationCode);
+      const selected = await api.joinCircle(
+        invitation.package,
+        invitation.endpoint,
+        name,
+      );
+      const viewer = await api.getViewer(selected.circle.id);
+      const host = invitationHostAddress(invitation.endpoint);
+      if (host) {
+        setFileHosts((current) => ({ ...current, [selected.circle.id]: host }));
+        setFileSyncEndpoints((current) => ({
+          ...current,
+          [selected.circle.id]: invitation.syncEndpoint,
+        }));
+        window.sessionStorage.setItem(
+          `balls:file-host:${selected.circle.id}`,
+          host,
+        );
+        window.sessionStorage.setItem(
+          `balls:file-sync:${selected.circle.id}`,
+          invitation.syncEndpoint,
+        );
+      }
+      setWorkspace({
+        ...workspace,
+        circles: mergeCircle(workspace.circles, selected.circle),
+        selected,
+        viewer,
+        messages: [],
+      });
     } catch (reason) {
       setError(toMessage(reason));
     } finally {
@@ -152,7 +219,10 @@ export function App({ api = browserApi }: AppProps) {
               workspace={workspace}
               error={error}
               busy={busy}
+              fileHosts={fileHosts}
+              fileSyncEndpoints={fileSyncEndpoints}
               onCreate={createCircle}
+              onJoin={joinCircle}
               onSelect={selectCircle}
             />
           ) : null}
@@ -202,7 +272,10 @@ interface WorkspaceProps {
   workspace: WorkspaceState;
   error: string | null;
   busy: boolean;
+  fileHosts: Record<string, string>;
+  fileSyncEndpoints: Record<string, string>;
   onCreate: (event: FormEvent<HTMLFormElement>) => void;
+  onJoin: (event: FormEvent<HTMLFormElement>) => void;
   onSelect: (circleId: string) => void;
 }
 
@@ -211,7 +284,10 @@ function Workspace({
   workspace,
   error,
   busy,
+  fileHosts,
+  fileSyncEndpoints,
   onCreate,
+  onJoin,
   onSelect,
 }: WorkspaceProps) {
   const dashboard = workspace.selected
@@ -263,14 +339,17 @@ function Workspace({
         </p>
       ) : null}
 
-      {dashboard ? (
+      {dashboard && workspace.viewer ? (
         <CircleWorkspace
           api={api}
           dashboard={dashboard}
+          fileHost={fileHosts[dashboard.circle.id]}
+          fileSyncEndpoint={fileSyncEndpoints[dashboard.circle.id]}
+          viewer={workspace.viewer}
           messages={workspace.messages}
         />
       ) : (
-        <EmptyWorkspace busy={busy} onCreate={onCreate} />
+        <EmptyWorkspace busy={busy} onCreate={onCreate} onJoin={onJoin} />
       )}
     </>
   );
@@ -278,10 +357,16 @@ function Workspace({
 
 function CircleWorkspace({
   dashboard,
+  fileHost,
+  fileSyncEndpoint,
+  viewer,
   messages,
   api,
 }: {
   dashboard: DashboardSnapshot;
+  fileHost?: string;
+  fileSyncEndpoint?: string;
+  viewer: CircleViewerDto;
   messages: CircleMessageDto[];
   api: BrowserApi;
 }) {
@@ -316,18 +401,151 @@ function CircleWorkspace({
         </dl>
       </section>
       <CircleTopology circle={circle} />
-      <FilesMappingPanel api={api} circleId={circle.id} />
+      {viewer.role === "owner" ? (
+        <InvitationPanel api={api} circleId={circle.id} />
+      ) : null}
+      <FilesMappingPanel
+        key={circle.id}
+        api={api}
+        dashboard={dashboard}
+        viewer={viewer}
+        circleId={circle.id}
+        initialEndpoint={
+          fileHost ??
+          window.sessionStorage.getItem(`balls:file-host:${circle.id}`) ??
+          ""
+        }
+        syncEndpoint={
+          fileSyncEndpoint ??
+          window.sessionStorage.getItem(`balls:file-sync:${circle.id}`) ??
+          ""
+        }
+      />
       <MessageHistory dashboard={dashboard} messages={messages} />
     </>
   );
 }
 
-function FilesMappingPanel({
+function InvitationPanel({
   api,
   circleId,
 }: {
   api: BrowserApi;
   circleId: string;
+}) {
+  const [hostAddress, setHostAddress] = useState("");
+  const [invitationCode, setInvitationCode] = useState("");
+  const [expiresAt, setExpiresAt] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [copied, setCopied] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  async function createInvitation() {
+    if (busy) return;
+    setBusy(true);
+    setCopied(false);
+    setError(null);
+    try {
+      const invitation = await api.createInvitation(circleId, hostAddress);
+      setInvitationCode(encodeInvitationCode(invitation));
+      setExpiresAt(invitation.expiresAtUtc);
+    } catch (reason) {
+      setError(toMessage(reason));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function copyInvitation() {
+    try {
+      await navigator.clipboard.writeText(invitationCode);
+      setCopied(true);
+    } catch {
+      setError("Copy the invitation from the text box and send it privately.");
+    }
+  }
+
+  return (
+    <section
+      className="message-history invitation-panel"
+      id="invite"
+      aria-labelledby="invite-title"
+    >
+      <div className="section-heading">
+        <div>
+          <p className="eyebrow">Private, single-use invitation</p>
+          <h2 id="invite-title">Invite someone</h2>
+        </div>
+        <p>They install Balls, paste your invitation, and join this Circle.</p>
+      </div>
+      <div className="invitation-actions" aria-busy={busy}>
+        <button
+          type="button"
+          disabled={busy}
+          onClick={() => void createInvitation()}
+        >
+          {busy ? "Creating invitation…" : "Create invitation"}
+        </button>
+        <details className="invitation-advanced">
+          <summary>Advanced network settings</summary>
+          <label htmlFor="invitation-host-address">
+            Reachable private host address
+          </label>
+          <input
+            id="invitation-host-address"
+            value={hostAddress}
+            placeholder="192.168.1.20"
+            disabled={busy}
+            onChange={(event) => setHostAddress(event.target.value)}
+          />
+          <p>
+            Only set this when the server is behind a VM or port-forwarding
+            rule.
+          </p>
+        </details>
+        {invitationCode ? (
+          <div className="invitation-result">
+            <label htmlFor="invitation-code">
+              Invitation to send privately
+            </label>
+            <textarea
+              id="invitation-code"
+              readOnly
+              value={invitationCode}
+              rows={3}
+            />
+            <button type="button" onClick={() => void copyInvitation()}>
+              {copied ? "Copied" : "Copy invitation"}
+            </button>
+            <p>
+              Expires {new Date(expiresAt).toLocaleString()} and works once.
+            </p>
+          </div>
+        ) : null}
+        {error ? (
+          <p className="inline-error" role="alert">
+            {error}
+          </p>
+        ) : null}
+      </div>
+    </section>
+  );
+}
+
+function FilesMappingPanel({
+  api,
+  dashboard,
+  viewer,
+  circleId,
+  initialEndpoint,
+  syncEndpoint,
+}: {
+  api: BrowserApi;
+  dashboard: DashboardSnapshot;
+  viewer: CircleViewerDto;
+  circleId: string;
+  initialEndpoint: string;
+  syncEndpoint: string;
 }) {
   const [contributions, setContributions] = useState<
     Awaited<ReturnType<BrowserApi["listFilesContributions"]>>["contributions"]
@@ -337,7 +555,7 @@ function FilesMappingPanel({
   >([]);
   const [contributionId, setContributionId] = useState("");
   const [grantId, setGrantId] = useState("");
-  const [endpoint, setEndpoint] = useState("");
+  const [endpoint, setEndpoint] = useState(initialEndpoint);
   const [driveLetter, setDriveLetter] = useState("");
   const [plan, setPlan] = useState<CircleFilesMemberMappingPlanDto | null>(
     null,
@@ -351,31 +569,78 @@ function FilesMappingPanel({
   const [mappingStatus, setMappingStatus] = useState<string | null>(null);
   const [panelError, setPanelError] = useState<string | null>(null);
   const [panelBusy, setPanelBusy] = useState(false);
+  const [refreshRequest, setRefreshRequest] = useState(0);
+  const guided = initialEndpoint.length > 0;
+  const memberNames = new Map(
+    dashboard.circle.members.map((member) => [member.id, member.name]),
+  );
 
   useEffect(() => {
     let active = true;
-    void api
-      .listFilesContributions(circleId)
-      .then(async (result) => {
+    let timer: ReturnType<typeof window.setTimeout> | undefined;
+    let attempt = 0;
+    const shouldSynchronize =
+      viewer.role === "member" && syncEndpoint.length > 0;
+
+    function retry() {
+      if (!active || !shouldSynchronize || attempt >= 15) return;
+      const delay = Math.min(1000 * 2 ** attempt, 15000);
+      attempt += 1;
+      timer = window.setTimeout(() => void load(), delay);
+    }
+
+    async function load() {
+      try {
+        if (shouldSynchronize) {
+          await api.syncFiles(circleId, syncEndpoint);
+          if (!active) return;
+        }
+
+        const result = await api.listFilesContributions(circleId);
         if (!active) return;
         setContributions(result.contributions);
         const first = result.contributions[0];
         setContributionId(first?.id ?? "");
-        if (first) {
-          const grantList = await api.listFilesGrants(circleId, first.id);
-          if (active) {
-            setGrants(grantList.grants);
-            setGrantId(grantList.grants[0]?.id ?? "");
+        if (!first) {
+          retry();
+          return;
+        }
+
+        const grantList = await api.listFilesGrants(circleId, first.id);
+        if (active) {
+          const available = grantList.grants.filter(
+            (grant) =>
+              viewer.role === "owner" || grant.memberId === viewer.memberId,
+          );
+          setGrants(available);
+          setGrantId(available[0]?.id ?? "");
+          if (available.length === 0) {
+            retry();
           }
         }
-      })
-      .catch((reason) => {
-        if (active) setPanelError(toMessage(reason));
-      });
+      } catch (reason) {
+        if (!active) return;
+        if (shouldSynchronize && attempt < 15) {
+          retry();
+        } else {
+          setPanelError(toMessage(reason));
+        }
+      }
+    }
+
+    void load();
     return () => {
       active = false;
+      if (timer !== undefined) window.clearTimeout(timer);
     };
-  }, [api, circleId]);
+  }, [
+    api,
+    circleId,
+    refreshRequest,
+    syncEndpoint,
+    viewer.memberId,
+    viewer.role,
+  ]);
 
   async function chooseContribution(value: string) {
     setContributionId(value);
@@ -386,8 +651,12 @@ function FilesMappingPanel({
     if (!value) return;
     try {
       const result = await api.listFilesGrants(circleId, value);
-      setGrants(result.grants);
-      setGrantId(result.grants[0]?.id ?? "");
+      const available = result.grants.filter(
+        (grant) =>
+          viewer.role === "owner" || grant.memberId === viewer.memberId,
+      );
+      setGrants(available);
+      setGrantId(available[0]?.id ?? "");
     } catch (reason) {
       setPanelError(toMessage(reason));
     }
@@ -487,6 +756,51 @@ function FilesMappingPanel({
     }
   }
 
+  async function openSharedFolder() {
+    if (!contributionId || !grantId || !endpoint || panelBusy) return;
+    setPanelBusy(true);
+    setPanelError(null);
+    setMappingStatus(null);
+    try {
+      const available = await api.previewFilesMapping(
+        circleId,
+        contributionId,
+        grantId,
+        endpoint,
+        "",
+      );
+      const selectedDrive = available.availableDriveLetters.includes("P")
+        ? "P"
+        : available.availableDriveLetters[0];
+      if (!selectedDrive) {
+        throw new Error("No drive letters are available on this computer.");
+      }
+      const exactPlan = await api.previewFilesMapping(
+        circleId,
+        contributionId,
+        grantId,
+        endpoint,
+        selectedDrive,
+      );
+      await api.mapFiles(
+        circleId,
+        contributionId,
+        grantId,
+        endpoint,
+        selectedDrive,
+        exactPlan.planId,
+      );
+      setDriveLetter(selectedDrive);
+      setMappingStatus(
+        `Shared folder ready in File Explorer (${selectedDrive}:).`,
+      );
+    } catch (reason) {
+      setPanelError(toMessage(reason));
+    } finally {
+      setPanelBusy(false);
+    }
+  }
+
   return (
     <section
       className="message-history"
@@ -501,9 +815,26 @@ function FilesMappingPanel({
         <p>The limited password stays inside this device.</p>
       </div>
       {contributions.length === 0 ? (
-        <p className="message-empty">
-          No contributed folders are available yet.
-        </p>
+        <div className="message-empty">
+          <p>
+            {viewer.role === "member" && syncEndpoint
+              ? "Waiting for your Circle owner to finish sharing the project folder."
+              : "No contributed folders are available yet."}
+          </p>
+          {viewer.role === "member" && syncEndpoint ? (
+            <button
+              type="button"
+              onClick={() => setRefreshRequest((value) => value + 1)}
+            >
+              Check again
+            </button>
+          ) : null}
+          {panelError ? (
+            <p className="inline-error" role="alert">
+              {panelError}
+            </p>
+          ) : null}
+        </div>
       ) : (
         <form
           aria-label="Map Circle Files"
@@ -523,46 +854,63 @@ function FilesMappingPanel({
               </option>
             ))}
           </select>
-          <label htmlFor="files-grant">Grant</label>
-          <select
-            id="files-grant"
-            disabled={panelBusy}
-            value={grantId}
-            onChange={(event) => {
-              setGrantId(event.target.value);
-              setPlan(null);
-              setPlanContext(null);
-              setMappingStatus(null);
-            }}
-          >
-            {grants.map((value) => (
-              <option key={value.id} value={value.id}>
-                {value.access} · {value.memberId}
-              </option>
-            ))}
-          </select>
-          <label htmlFor="files-endpoint">Private host IPv4 address</label>
-          <input
-            id="files-endpoint"
-            value={endpoint}
-            placeholder="192.168.1.20"
-            required
-            disabled={panelBusy}
-            onChange={(event) => {
-              setEndpoint(event.target.value);
-              setPlan(null);
-              setPlanContext(null);
-              setMappingStatus(null);
-            }}
-          />
-          <button
-            type="button"
-            disabled={panelBusy || !grantId || !endpoint}
-            onClick={() => void discover()}
-          >
-            Find available drive letters
-          </button>
-          {plan ? (
+          {!guided || grants.length > 1 ? (
+            <>
+              <label htmlFor="files-grant">Grant</label>
+              <select
+                id="files-grant"
+                disabled={panelBusy}
+                value={grantId}
+                onChange={(event) => {
+                  setGrantId(event.target.value);
+                  setPlan(null);
+                  setPlanContext(null);
+                  setMappingStatus(null);
+                }}
+              >
+                {grants.map((value) => (
+                  <option key={value.id} value={value.id}>
+                    {value.access} ·{" "}
+                    {memberNames.get(value.memberId) ?? "Circle member"}
+                  </option>
+                ))}
+              </select>
+            </>
+          ) : null}
+          {guided ? (
+            <button
+              type="button"
+              disabled={panelBusy || !grantId}
+              onClick={() => void openSharedFolder()}
+            >
+              {panelBusy ? "Connecting…" : "Open shared folder in Explorer"}
+            </button>
+          ) : (
+            <>
+              <label htmlFor="files-endpoint">Private host IPv4 address</label>
+              <input
+                id="files-endpoint"
+                value={endpoint}
+                placeholder="192.168.1.20"
+                required
+                disabled={panelBusy}
+                onChange={(event) => {
+                  setEndpoint(event.target.value);
+                  setPlan(null);
+                  setPlanContext(null);
+                  setMappingStatus(null);
+                }}
+              />
+              <button
+                type="button"
+                disabled={panelBusy || !grantId || !endpoint}
+                onClick={() => void discover()}
+              >
+                Find available drive letters
+              </button>
+            </>
+          )}
+          {!guided && plan ? (
             <>
               <label htmlFor="files-drive">Drive letter</label>
               <select
@@ -630,9 +978,7 @@ function FilesMappingPanel({
               ) : null}
             </>
           ) : null}
-          {mappingStatus ? (
-            <p role="status">Mapping status: {mappingStatus}</p>
-          ) : null}
+          {mappingStatus ? <p role="status">{mappingStatus}</p> : null}
           {panelError ? (
             <p className="inline-error" role="alert">
               {panelError}
@@ -700,30 +1046,79 @@ function MessageHistory({
 function EmptyWorkspace({
   busy,
   onCreate,
+  onJoin,
 }: {
   busy: boolean;
   onCreate: (event: FormEvent<HTMLFormElement>) => void;
+  onJoin: (event: FormEvent<HTMLFormElement>) => void;
 }) {
+  const [mode, setMode] = useState<"create" | "join">("create");
+  const joining = mode === "join";
   return (
     <section className="empty-workspace" id="circle">
       <div className="empty-intro">
         <BrandMark />
         <p className="eyebrow">Your first shared place</p>
-        <h1>Create your first Circle</h1>
+        <h1>{joining ? "Join your Circle" : "Create your first Circle"}</h1>
         <p>
-          Start a shared digital place for your people. This Node keeps the
-          Circle available on this device.
+          {joining
+            ? "Paste the private invitation you received to connect with your people and shared files."
+            : "Start a shared digital place for your people. This Node keeps the Circle available on this device."}
         </p>
+        <div
+          className="onboarding-choice"
+          aria-label="Choose how to get started"
+        >
+          <button
+            type="button"
+            aria-pressed={!joining}
+            disabled={busy}
+            onClick={() => setMode("create")}
+          >
+            Create a Circle
+          </button>
+          <button
+            type="button"
+            aria-pressed={joining}
+            disabled={busy}
+            onClick={() => setMode("join")}
+          >
+            Join a Circle
+          </button>
+        </div>
       </div>
-      <form aria-label="Create a Circle" aria-busy={busy} onSubmit={onCreate}>
-        <label htmlFor="circle-name">Circle name</label>
-        <input id="circle-name" name="circleName" maxLength={100} required />
-        <label htmlFor="owner-name">Your display name</label>
-        <input id="owner-name" name="ownerName" maxLength={100} required />
-        <button type="submit" disabled={busy}>
-          {busy ? "Creating…" : "Create Circle"}
-        </button>
-      </form>
+      {joining ? (
+        <form aria-label="Join a Circle" aria-busy={busy} onSubmit={onJoin}>
+          <label htmlFor="join-invitation">Your invitation</label>
+          <textarea
+            id="join-invitation"
+            name="invitationCode"
+            rows={4}
+            required
+            placeholder="Paste the invitation you received"
+          />
+          <label htmlFor="join-member-name">Your name</label>
+          <input
+            id="join-member-name"
+            name="memberName"
+            maxLength={100}
+            required
+          />
+          <button type="submit" disabled={busy}>
+            {busy ? "Joining…" : "Join Circle"}
+          </button>
+        </form>
+      ) : (
+        <form aria-label="Create a Circle" aria-busy={busy} onSubmit={onCreate}>
+          <label htmlFor="circle-name">Circle name</label>
+          <input id="circle-name" name="circleName" maxLength={100} required />
+          <label htmlFor="owner-name">Your display name</label>
+          <input id="owner-name" name="ownerName" maxLength={100} required />
+          <button type="submit" disabled={busy}>
+            {busy ? "Creating…" : "Create Circle"}
+          </button>
+        </form>
+      )}
     </section>
   );
 }

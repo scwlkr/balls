@@ -28,7 +28,13 @@ Read these documents in order:
 
 ## Initial target
 
-Balls should first feel exceptional for **2–10 trusted, somewhat technical people**, with a **2–5 person small company** as the primary proving environment.
+The immediate proving ground is **one small company and two real coworkers**. One person creates a
+new Windows-hosted project folder on the private LAN, sends the other person a Balls invitation,
+and both use the folder from Windows File Explorer and their ordinary project applications.
+
+The invited coworker should not need a private IP address, an SMB password, a grant identifier,
+or an infrastructure setup guide. Broader Circle integrations remain the long-term direction, but
+they do not take priority over this useful two-person outcome. Balls remains open source.
 
 ## Current status
 
@@ -104,14 +110,17 @@ protected Unix-domain sockets; see the developer workflow for their platform def
 Every successful `main` commit publishes two short-lived workflow artifacts from the exact commit
 that passed CI:
 
-- a runnable `windows-x64` development Canary containing `balls`, `ballsd`, identity metadata,
-  and SHA-256 checksums;
+- a self-contained `windows-x64` development Canary containing `balls`, `ballsd`, its required
+  .NET runtime, identity metadata, and SHA-256 checksums;
 - a runnable `linux-x64` development Canary using protected XDG state and a same-user Unix-domain
   socket.
 
 Download the artifacts from the latest successful
-[`CI` workflow](https://github.com/scwlkr/balls/actions/workflows/ci.yml). After extracting
-the downloaded Windows workflow artifact, install and start it with one command:
+[`CI` workflow](https://github.com/scwlkr/balls/actions/workflows/ci.yml). Extract the Windows
+workflow artifact, then extract its included Canary archive and double-click **Open Balls.cmd**.
+The local workspace opens in your browser without installing .NET or PowerShell 7.
+
+For a checksum-verifying developer installation, run:
 
 ```powershell
 pwsh -File .\Install-BallsCanary.ps1 -PackagePath .\balls-*-canary-windows-x64-*.zip
