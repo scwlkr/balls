@@ -2,8 +2,8 @@
 
 **Date:** 2026-08-25  
 **Artifact commit:** `67974f2de6502d99a55378e9da5aabf5e4293cc7`  
-**Artifact:** `balls-0.3.0-alpha.1-canary-windows-x64-67974f2de650.zip`  
-**SHA-256:** `96e742abcf1a35efb5722d54dc88dc26471cafdeb501672997de49e5749613b5`
+**Runtime artifact:** `balls-0.3.0-alpha.1-canary-windows-x64-67974f2de650.zip`
+**Runtime SHA-256:** `96e742abcf1a35efb5722d54dc88dc26471cafdeb501672997de49e5749613b5`
 
 This is an owner-run proof on two Windows laptops connected to the same trusted private LAN. One
 laptop hosts a new folder while it remains on; the other joins the Circle and maps that folder in
@@ -38,80 +38,23 @@ recovery.
 Use a fresh extraction and the fresh state paths below. Do not reuse a prior Balls development
 state or overwrite an existing pilot folder.
 
-## Checkpoint 1 — Put the exact package on both laptops
+## Checkpoint 1 — Put the one pilot bundle on both laptops
 
-Transfer the exact ZIP to each laptop through LocalSend, USB, or another existing channel. Do not
-send the Circle invitation with a public package link.
+Transfer the single `Balls-Two-Laptop-Pilot-67974f2.zip` bundle to each laptop through LocalSend,
+USB, or another existing channel. Its download location and Windows user name do not matter. Do
+not send the Circle invitation with a public package link.
 
-On each laptop, open Windows PowerShell and paste the following as one complete block. It searches
-the current Windows profile so redirected Downloads, Desktop, and LocalSend destinations do not
-have to be guessed. If no match is found, put the ZIP somewhere below the current user's profile
-and rerun the block:
+On each laptop:
 
-```powershell
-& {
-  $packagePattern = 'balls-0.3.0-alpha.1-canary-windows-x64-67974f2de650*.zip'
-  $packageFiles = @(Get-ChildItem -LiteralPath $env:USERPROFILE -Filter $packagePattern `
-    -File -Recurse -ErrorAction SilentlyContinue)
-  if ($packageFiles.Count -eq 0) { throw "Balls ZIP not found below $env:USERPROFILE" }
-  $archive = ($packageFiles | Sort-Object FullName | Select-Object -First 1).FullName
-  Write-Host "Using $archive"
+1. Right-click the downloaded ZIP and choose **Extract All**.
+2. Open the newly extracted folder. Do not run files from the ZIP preview.
+3. Double-click **CHECK PACKAGE.cmd**.
+4. Stop at this checkpoint and report the result.
 
-  $expectedArchiveHash = '96E742ABCF1A35EFB5722D54DC88DC26471CAFDEB501672997DE49E5749613B5'
-  $actualArchiveHash = (Get-FileHash -LiteralPath $archive -Algorithm SHA256).Hash
-  if ($actualArchiveHash -ne $expectedArchiveHash) {
-    throw "Balls package hash mismatch: $actualArchiveHash"
-  }
-
-  $ballsRoot = Join-Path $env:USERPROFILE 'Balls-Pilot-67974f2'
-  if (-not (Test-Path -LiteralPath $ballsRoot)) {
-    Expand-Archive -LiteralPath $archive -DestinationPath $ballsRoot
-  }
-
-  $canaryPath = Join-Path $ballsRoot 'canary.json'
-  $checksumPath = Join-Path $ballsRoot 'SHA256SUMS'
-  if (-not (Test-Path -LiteralPath $canaryPath -PathType Leaf) `
-      -or -not (Test-Path -LiteralPath $checksumPath -PathType Leaf)) {
-    throw "Existing pilot folder is incomplete: $ballsRoot"
-  }
-
-  $canary = Get-Content -LiteralPath $canaryPath -Raw | ConvertFrom-Json
-  $expectedCommit = '67974f2de6502d99a55378e9da5aabf5e4293cc7'
-  if ($canary.commit -ne $expectedCommit) {
-    throw "Extracted Canary commit mismatch: $($canary.commit)"
-  }
-
-  $failures = New-Object System.Collections.Generic.List[string]
-  $checked = 0
-  foreach ($line in Get-Content -LiteralPath $checksumPath) {
-    if ($line -notmatch '^([0-9A-Fa-f]{64})  (.+)$') {
-      throw "Invalid internal checksum entry: $line"
-    }
-    $expectedFileHash = $Matches[1]
-    $relativePath = $Matches[2].Replace('/', [IO.Path]::DirectorySeparatorChar)
-    $filePath = Join-Path $ballsRoot $relativePath
-    if (-not (Test-Path -LiteralPath $filePath -PathType Leaf)) {
-      $failures.Add("missing: $relativePath")
-      continue
-    }
-    $actualFileHash = (Get-FileHash -LiteralPath $filePath -Algorithm SHA256).Hash
-    if ($actualFileHash -ne $expectedFileHash) {
-      $failures.Add("mismatch: $relativePath")
-    }
-    $checked++
-  }
-  if ($failures.Count -ne 0) {
-    $failures | Select-Object -First 10
-    throw "$($failures.Count) internal package file(s) failed verification."
-  }
-  if ($checked -ne 748) { throw "Expected 748 internal files; verified $checked." }
-
-  Write-Host "PASS checkpoint 1 - verified $checked internal files at $ballsRoot"
-  $canary | Format-List product, version, commit, platform, architecture, runtimeSupported
-}
-```
-
-PASS means the archive hash, full commit identity, and all 748 packaged-file checksums match.
+The checker resolves the bundled `Balls` directory relative to its own location. It does not
+search Downloads, a Windows profile, or any fixed drive path. It records the checked package path
+under the current user's local application data so later host commands use the same package. PASS
+says `PASS checkpoint 1 - Balls is complete and ready at:` followed by the actual extraction path.
 
 ## Checkpoint 2 — Start the host safely
 
@@ -133,7 +76,8 @@ rules plus the empty parent directory. Replace `192.168.1.20` nowhere in this bl
 limited by port, program, Private profile, and LocalSubnet rather than one changing local address:
 
 ```powershell
-$ballsRoot = Join-Path $env:USERPROFILE 'Balls-Pilot-67974f2'
+$packageMarker = Join-Path $env:LOCALAPPDATA 'Balls-TwoLaptopPilot\package-path.txt'
+$ballsRoot = (Get-Content -LiteralPath $packageMarker -Raw).Trim().Trim('"')
 $daemon = (Resolve-Path (Join-Path $ballsRoot 'ballsd\ballsd.exe')).Path
 $ruleNames = @('Balls-Pilot-Admission-67974f2', 'Balls-Pilot-Sync-67974f2')
 $existingRules = @(Get-NetFirewallRule -Name $ruleNames -ErrorAction SilentlyContinue)
@@ -156,7 +100,8 @@ Close the administrator window. In ordinary Windows PowerShell, replace the exam
 with the private IPv4 address observed above, then start the host Node:
 
 ```powershell
-$ballsRoot = Join-Path $env:USERPROFILE 'Balls-Pilot-67974f2'
+$packageMarker = Join-Path $env:LOCALAPPDATA 'Balls-TwoLaptopPilot\package-path.txt'
+$ballsRoot = (Get-Content -LiteralPath $packageMarker -Raw).Trim().Trim('"')
 $hostIp = '192.168.1.20'
 $pipe = 'balls-two-laptop-host'
 $state = Join-Path $env:LOCALAPPDATA 'Balls-TwoLaptopPilot-Host\state'
@@ -198,7 +143,7 @@ On the host workspace:
 
 On the joining laptop:
 
-1. open the extracted package;
+1. open the extracted bundle, then open its **Balls** folder;
 2. double-click **Open Balls.cmd**;
 3. choose **Join a Circle**;
 4. paste the invitation and enter the test Member name; and
@@ -221,7 +166,8 @@ ordinary host PowerShell session used in Checkpoint 2. It expects exactly one Ci
 one non-Owner Member in the fresh pilot state.
 
 ```powershell
-$ballsRoot = Join-Path $env:USERPROFILE 'Balls-Pilot-67974f2'
+$packageMarker = Join-Path $env:LOCALAPPDATA 'Balls-TwoLaptopPilot\package-path.txt'
+$ballsRoot = (Get-Content -LiteralPath $packageMarker -Raw).Trim().Trim('"')
 $pipe = 'balls-two-laptop-host'
 $cli = Join-Path $ballsRoot 'balls\balls.exe'
 $folder = 'C:\BallsPilotData\Shared'

@@ -1,0 +1,15 @@
+BALLS TWO-LAPTOP PILOT
+
+Use this same single ZIP on both Windows laptops.
+
+1. Right-click the ZIP and choose Extract All.
+2. Open the newly extracted folder.
+3. Double-click CHECK PACKAGE.cmd.
+4. Send the PASS or BLOCKED message back to Codex.
+
+Do not run CHECK PACKAGE.cmd from inside the ZIP preview.
+Do not launch Balls or change firewall settings until the package check passes.
+
+The download and extraction locations do not matter. The checker finds the
+bundled Balls files relative to itself and records that exact location for the
+later host steps.
