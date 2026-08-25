@@ -15,7 +15,7 @@ export default defineConfig(async () => {
         viteEnvironment: { name: "server" },
         config: {
           main: "./worker/index.ts",
-          assets: { binding: "ASSETS" },
+          assets: { binding: "ASSETS", run_worker_first: true },
         },
       }),
     ],
