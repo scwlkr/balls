@@ -51,10 +51,11 @@ Status: implementation. Trusted Circle is owner-accepted and published as
 provider-neutral contribution and Access Grant foundation. #57 adds the read-only Windows SMB
 readiness gate. #58 adds the dedicated owned-folder hosting helper. #59 adds one protected limited
 Windows credential and exact ACL per Access Grant; #60 adds explicit persistent Explorer mapping.
-#61 implements generation-bound revocation and ownership-proven cleanup. #73 is the current
-implementation frontier: securely deliver the ordinary Member's approved folder access across
-Nodes and provide the company-ready invitation journey. #62 remains the final acceptance gate
-after #73 is verified.
+#61 implements generation-bound revocation and ownership-proven cleanup. #73 now proves the
+company-first two-Windows-VM pilot: signed invitation, Member-only protected synchronization,
+an authenticated encrypted Explorer mapping, two-way file editing, and restart persistence.
+#62 is the next ready issue and final milestone acceptance gate; its exact-artifact matrix must
+still independently verify genuine standard-user browser mapping and safe live grant revocation.
 
 Exit outcome: two Windows Members can add, remove, rename, and edit files in the same persistent
 Explorer-mapped folder over a private LAN. Circle contribution and authorization drive a
@@ -274,8 +275,9 @@ Active frontier:
   enforced Smart App Control rejects the unsigned pilot and its user cannot approve policy
   changes. The exact observed behavior and remaining Owner consent boundaries are recorded in the
   [company-first pilot record](verification/2026-08-25-company-first-lan-pilot.md).
-- [#62](https://github.com/scwlkr/balls/issues/62) remains the final acceptance and owner-gated
-  release decision after #73 is verified.
+- [#62](https://github.com/scwlkr/balls/issues/62) is the next ready issue and final acceptance
+  gate. It owns exact-Canary two-Windows verification, genuine nonadministrator browser mapping,
+  safe live revocation, compatibility evidence, and the separately owner-gated release decision.
 
 ## Working rules
 

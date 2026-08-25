@@ -115,9 +115,11 @@ the Circle Files product model.
 7. [#73 deliver the first two-person LAN Circle Files pilot](https://github.com/scwlkr/balls/issues/73);
 8. [#62 verify and accept the LAN Circle Files milestone](https://github.com/scwlkr/balls/issues/62).
 
-#56–#61 are closed. #73 supplies the missing ordinary-member cross-Node access and invitation
-journey; #62 remains the final milestone/release acceptance gate after that product outcome is
-honestly verified.
+#56–#61 and #73 deliver the implementation: the existing two Windows VMs now share a real
+encrypted, persistent Explorer-mapped folder after Circle invitation and Member-only grant
+synchronization. #62 is the next ready milestone/release acceptance gate and owns stronger
+exact-artifact verification, a genuinely nonadministrator browser journey, live revocation,
+application compatibility, and any separately approved publication decision.
 
 **Provider contract:** SMB1 is disabled; the Balls-hosted share excludes guest access and requires
 signing, encryption, and an authorized Member account; TCP 445 is never public. Existing unrelated

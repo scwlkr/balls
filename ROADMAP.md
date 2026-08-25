@@ -27,8 +27,10 @@ on Windows and Linux. [`0.3.0-alpha.1`](https://github.com/scwlkr/balls/releases
 Trusted Circle is also published. Its remote v1 identity/admission security design, protected
 production credentials, bounded single-use invitations, authenticated LAN transport, persisted
 two-Node Circle admission, and one persistent Circle message passed exact-artifact independent
-and shared verification. The executable LAN Circle Files successor includes completed #56–#61,
-the real two-person onboarding outcome in #73, and the final acceptance gate in #62.
+and shared verification. The executable LAN Circle Files successor includes completed #56–#61
+and the verified two-Windows onboarding/file-sharing outcome in #73; #62 is the next ready final
+acceptance gate for exact artifacts, standard-user browser access, safe revocation, and any
+owner-approved release decision.
 
 In parallel, [#48](https://github.com/scwlkr/balls/issues/48) establishes an Apple-Silicon,
 source-run macOS developer Node and required Mac fast lane. This accelerates portable, browser,
