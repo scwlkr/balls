@@ -74,6 +74,44 @@ test("enforces the public security policy through the Worker", async () => {
   assert.equal(response.headers.get("x-frame-options"), "DENY");
 });
 
+test("enforces the public security policy on static asset responses", async () => {
+  const headers = await readFile(new URL("public/_headers", siteRoot), "utf8");
+
+  assert.match(headers, /^\/\*$/m);
+  assert.match(
+    headers,
+    /^[ ]{2}Content-Security-Policy: default-src 'self'; base-uri 'none'; connect-src 'self'; font-src 'self'; form-action 'none'; frame-ancestors 'none'; img-src 'self'; object-src 'none'; script-src 'self'; style-src 'self'$/m,
+  );
+  assert.match(headers, /^[ ]{2}Cross-Origin-Opener-Policy: same-origin$/m);
+  assert.match(
+    headers,
+    /^[ ]{2}Permissions-Policy: clipboard-write=\(self\)$/m,
+  );
+  assert.match(headers, /^[ ]{2}Referrer-Policy: no-referrer$/m);
+  assert.match(
+    headers,
+    /^[ ]{2}Strict-Transport-Security: max-age=31536000; includeSubDomains$/m,
+  );
+  assert.match(headers, /^[ ]{2}X-Content-Type-Options: nosniff$/m);
+  assert.match(headers, /^[ ]{2}X-Frame-Options: DENY$/m);
+  assert.match(
+    headers,
+    /^\/channels\/\*\n[ ]{2}Content-Type: application\/json; charset=utf-8$/m,
+  );
+  assert.match(
+    headers,
+    /^\/install\.ps1\n[ ]{2}Content-Type: text\/plain; charset=utf-8$/m,
+  );
+  assert.match(
+    headers,
+    /^\/install\.sh\n[ ]{2}Content-Type: text\/plain; charset=utf-8$/m,
+  );
+  assert.match(
+    headers,
+    /^\/source\.sh\n[ ]{2}Content-Type: text\/plain; charset=utf-8$/m,
+  );
+});
+
 test("pins the accepted Alpha and every packaged asset by SHA-256", async () => {
   const manifest = JSON.parse(
     await readFile(new URL("public/channels/alpha.json", siteRoot), "utf8"),
@@ -136,6 +174,7 @@ test("bootstraps verify local files without pipe-to-shell or policy bypasses", a
 
 test("copies the public channel and bootstrap files into the deployment", async () => {
   for (const path of [
+    "_headers",
     "channels/alpha.json",
     "install.ps1",
     "install.sh",
@@ -146,10 +185,5 @@ test("copies the public channel and bootstrap files into the deployment", async 
     assert.deepEqual(built, source);
   }
 
-  const [, wranglerJson] = await Promise.all([
-    readFile(new URL("dist/.openai/hosting.json", siteRoot)),
-    readFile(new URL("dist/server/wrangler.json", siteRoot), "utf8"),
-  ]);
-  const wrangler = JSON.parse(wranglerJson);
-  assert.equal(wrangler.assets.run_worker_first, true);
+  await readFile(new URL("dist/.openai/hosting.json", siteRoot));
 });
