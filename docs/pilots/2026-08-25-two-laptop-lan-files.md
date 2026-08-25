@@ -149,6 +149,10 @@ On the joining laptop:
 4. paste the invitation and enter the test Member name; and
 5. select **Join Circle**.
 
+If the launcher cannot start the local Node, it prints the exact diagnostic path under
+`%LOCALAPPDATA%\Balls-Pilot\logs`. Preserve that safe error text; do not change PowerShell or
+application-control policy on the joining laptop.
+
 If the host cannot be reached, run this on the joining laptop with the actual host address:
 
 ```powershell
@@ -229,3 +233,27 @@ Record the final result as exactly one of:
 - `BLOCKED — <checkpoint and exact safe error>`
 
 Do not include the invitation or any provider credential in the result.
+
+## Observed assisted pilot — 2026-08-25
+
+`PASS — two-laptop Circle Files core workflow`, with the following exact boundary:
+
+- the host was the owner Windows Node running on the Linux laptop; the joining Node was the
+  separate physical Windows boss laptop on the same private LAN;
+- both machines ran the checksum-verified `67974f2de650` Windows Canary, joined the same Circle,
+  and authenticated one read/write grant over the protected synchronization endpoint;
+- Balls mapped `P:` on the boss laptop to the dedicated `C:\BallsPilotData\Shared` host folder;
+- the host share required SMB encryption, the server required signing, SMB1 was disabled, and the
+  observed session negotiated SMB 3.1.1;
+- both Nodes observed create, read, edit, rename, and delete operations in both directions, and
+  all disposable smoke files were removed;
+- the repository launcher fix cold-started an isolated boss Node through the real Explorer-shell
+  path, after which the isolated daemon and state were removed; a separate `Balls Pilot` shortcut
+  installed that fix without changing the verified package files; and
+- the consumed invitation was removed and the host's temporary `CurrentUser` execution-policy
+  change was independently verified restored to `Undefined` with effective policy `Restricted`.
+
+This run did not exercise Revit, revocation, backup/recovery, a host reboot, or the browser's
+guided mapping-button click. The real mapping was applied through the Balls CLI, which calls the
+same local application behavior. Those omissions remain outside this immediate usable-now pilot
+and do not satisfy the complete `0.4.0-alpha.1` release-acceptance matrix in issue #62.

@@ -28,15 +28,18 @@ hardened local React workspace on Windows and Linux. The annotated tag targets e
 commit `3935b6ac275b24c8ed2389862b012da747099f34`; seven public assets, checksums, installers, and
 the SPDX 2.3 SBOM passed unauthenticated readback.
 
-The current Linux workstation has an existing working Windows VM, disposable low-memory Windows
-test VMs on a private Docker/KVM network, and an owner-provided physical Windows laptop. The owner
-has explicitly selected the existing working VM as the project-folder host and one existing
-2 GiB disposable Windows desktop VM as the immediate boss simulator. The physical laptop runs
-only a standard user and reports that Smart App Control blocks the current unsigned build, so its
-product testing is deferred until an authorized administrator resolves application trust or
-genuinely trusted signed binaries are available. VM evidence must never be described as physical
-LAN proof. The older `Balls.Dev.Windows11` Hyper-V lab and its PowerShell Direct evidence
-describe the historical Windows-host setup, not the current Linux workstation. Read the
+The current Linux workstation hosts the owner Windows VM, and a separate physical Windows boss
+laptop is available on the same private LAN. On 2026-08-25 both ran the checksum-verified unsigned
+`67974f2de650` Canary without weakening application control: the physical laptop joined the owner
+Circle, imported one authenticated grant, mapped `P:`, and completed bidirectional create, read,
+edit, rename, and delete operations against the encrypted SMB 3.1.1 share. This is genuine
+cross-machine private-LAN evidence, while the owner Node itself remains virtualized. The mapping
+was applied through the real Balls CLI under the boss user's limited interactive token, not through
+an observed browser-button click, and the account may still be administrator-capable. Exact scope
+and cleanup evidence are in the
+[two-laptop pilot runbook](pilots/2026-08-25-two-laptop-lan-files.md). The older
+`Balls.Dev.Windows11` Hyper-V lab and its PowerShell Direct evidence describe the historical
+Windows-host setup, not the current Linux workstation. Read the
 [Windows development lab runbook](windows-development-lab.md) before any Windows VM or
 physical-laptop automation, unsigned execution, or recovery.
 
@@ -51,11 +54,13 @@ Status: implementation. Trusted Circle is owner-accepted and published as
 provider-neutral contribution and Access Grant foundation. #57 adds the read-only Windows SMB
 readiness gate. #58 adds the dedicated owned-folder hosting helper. #59 adds one protected limited
 Windows credential and exact ACL per Access Grant; #60 adds explicit persistent Explorer mapping.
-#61 implements generation-bound revocation and ownership-proven cleanup. #73 now proves the
-company-first two-Windows-VM pilot: signed invitation, Member-only protected synchronization,
-an authenticated encrypted Explorer mapping, two-way file editing, and restart persistence.
-#62 is the next ready issue and final milestone acceptance gate; its exact-artifact matrix must
-still independently verify genuine standard-user browser mapping and safe live grant revocation.
+#61 implements generation-bound revocation and ownership-proven cleanup. #73 proves the
+company-first two-Windows-VM pilot, and the later assisted physical-laptop run adds real private-LAN
+reachability, Member-only protected synchronization, an authenticated encrypted Explorer mapping,
+and two-way file editing on the boss laptop. #62 is the next ready issue and final milestone
+acceptance gate; its exact-artifact matrix must still independently verify the browser-guided
+mapping click under a genuinely nonadministrator account, safe live grant revocation/cleanup,
+application compatibility, and release evidence.
 
 Exit outcome: two Windows Members can add, remove, rename, and edit files in the same persistent
 Explorer-mapped folder over a private LAN. Circle contribution and authorization drive a

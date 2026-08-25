@@ -132,6 +132,23 @@ public sealed class CanaryPackageTests
         Assert.ThrowsExactly<ArgumentException>(() => CanaryPackageBuilder.Build(request));
     }
 
+    [TestMethod]
+    public void Windows_launcher_uses_a_detached_process_with_actionable_startup_logs()
+    {
+        var launcher = File.ReadAllText(Path.Combine(
+            FindRepositoryRoot(),
+            "eng",
+            "canary",
+            "Open-Balls.cmd"));
+
+        StringAssert.Contains(launcher, "Start-Process -FilePath $env:BALLS_DAEMON");
+        StringAssert.Contains(launcher, "-RedirectStandardOutput $env:BALLS_STDOUT");
+        StringAssert.Contains(launcher, "-RedirectStandardError $env:BALLS_STDERR");
+        StringAssert.Contains(launcher, "Startup log: %BALLS_STDERR%");
+        Assert.IsFalse(
+            launcher.Contains("start \"Balls background node\"", StringComparison.OrdinalIgnoreCase));
+    }
+
     private static JsonDocument ReadJson(ZipArchive archive, string path) =>
         JsonDocument.Parse(ReadText(archive, path));
 
@@ -156,6 +173,22 @@ public sealed class CanaryPackageTests
             var actual = Convert.ToHexString(SHA256.HashData(stream));
             Assert.AreEqual(expected[entry.FullName], actual, entry.FullName);
         }
+    }
+
+    private static string FindRepositoryRoot()
+    {
+        var directory = new DirectoryInfo(AppContext.BaseDirectory);
+        while (directory is not null)
+        {
+            if (File.Exists(Path.Combine(directory.FullName, "Balls.slnx")))
+            {
+                return directory.FullName;
+            }
+
+            directory = directory.Parent;
+        }
+
+        throw new InvalidOperationException("Could not find Balls.slnx from the test directory.");
     }
 
     private sealed class PackageFixture : IDisposable
