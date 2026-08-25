@@ -67,8 +67,9 @@ mise exec -- dotnet run --project eng/Balls.Verify --configuration Release -- fa
 The run completed locked dependency restore, C# formatting, generated-client and web-format
 checks, a zero-warning Release solution build, web lint/typecheck, categorized .NET tests,
 12 browser component tests, a production browser build, and one real Chromium Playwright journey.
-The corresponding pull request also passed the Ubuntu, Windows, and macOS fast lanes, the
-required-check aggregate, dependency review, and CodeQL.
+An earlier pull-request checkpoint also passed the Ubuntu, Windows, and macOS fast lanes, the
+required-check aggregate, dependency review, and CodeQL. Check the current pull-request head
+separately; an earlier green checkpoint is not evidence that a later head has passed.
 
 ## Windows lab observations
 
@@ -96,6 +97,13 @@ context; the browser file-synchronization route reached the working guest over a
 TLS and returned success with zero authorized grants, as expected before host provisioning. This
 direct container-network result does not establish that a separate physical LAN device can reach
 the host.
+
+The owner subsequently made a freshly installed, separate physical Windows laptop available as a
+dedicated coworker simulator with no personal or production data. This physical computer is now
+the final recipient and real-LAN acceptance target; the existing disposable Windows guest remains
+a preliminary development fixture. Administrative OpenSSH enrollment, the physical device's
+actual network reachability, and its real Explorer/file operations have not yet been observed and
+must be recorded only after they pass.
 
 Windows administrator consent for actual folder/share and grant-account provisioning is deliberately
 preserved. Linux host firewall rules are likewise not changed implicitly: a running private-address

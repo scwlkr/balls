@@ -28,11 +28,14 @@ hardened local React workspace on Windows and Linux. The annotated tag targets e
 commit `3935b6ac275b24c8ed2389862b012da747099f34`; seven public assets, checksums, installers, and
 the SPDX 2.3 SBOM passed unauthenticated readback.
 
-The current Linux workstation has an existing Windows production VM and disposable low-memory
-Windows test VMs on a private Docker/KVM network. The older `Balls.Dev.Windows11` Hyper-V lab and
-its PowerShell Direct evidence describe the historical Windows-host setup, not the current Linux
-workstation. Read the [Windows development lab runbook](windows-development-lab.md) before any
-Windows VM automation, unsigned execution, or recovery.
+The current Linux workstation has an existing Windows production VM, disposable low-memory
+Windows test VMs on a private Docker/KVM network, and an owner-provided freshly installed physical
+Windows laptop dedicated to coworker simulation. The physical laptop is the final separate-device
+private-LAN acceptance target; its authenticated remote access and product journey must be
+verified before they are claimed. The older `Balls.Dev.Windows11` Hyper-V lab and its PowerShell
+Direct evidence describe the historical Windows-host setup, not the current Linux workstation.
+Read the [Windows development lab runbook](windows-development-lab.md) before any Windows VM or
+physical-laptop automation, unsigned execution, or recovery.
 
 ## Active milestone
 
@@ -262,8 +265,10 @@ Active frontier:
   [revocation and cleanup record](verification/2026-08-24-circle-files-revocation-cleanup.md).
 - [#73 — Deliver the first two-person LAN Circle Files pilot](https://github.com/scwlkr/balls/issues/73)
   adds secure ordinary-member cross-Node access, browser invitation/join, protected Member-only
-  grant synchronization, and a self-contained double-click Windows package. The exact observed
-  behavior and remaining physical-LAN/consent boundaries are recorded in the
+  grant synchronization, and a self-contained double-click Windows package. An owner-provided,
+  freshly installed physical Windows laptop is now the dedicated coworker-simulation and final
+  private-LAN acceptance target. The exact observed behavior, pending physical-machine enrollment,
+  and remaining consent boundaries are recorded in the
   [company-first pilot record](verification/2026-08-25-company-first-lan-pilot.md).
 - [#62](https://github.com/scwlkr/balls/issues/62) remains the final acceptance and owner-gated
   release decision after #73 is verified.

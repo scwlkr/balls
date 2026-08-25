@@ -11,8 +11,11 @@ The current workstation runs the working Windows environment as the existing Doc
 `balls-issue61-provider2025`, `balls-issue61-client`, and `balls-issue61-node2` are historical
 disposable test fixtures on the same private `windows_default` Docker network.
 
-The ordinary-member company-pilot check uses the existing working Windows VM as the folder host
-and at most one existing 2 GiB desktop test guest as the coworker. Inspect before starting:
+The owner also supplies a freshly installed, dedicated physical Windows laptop with no personal
+or production data. That separate computer is the primary coworker-simulation and final
+private-LAN acceptance device; the existing working Windows VM remains the folder host. An
+existing 2 GiB desktop test guest remains useful for quick isolated checks but cannot replace
+physical-network, real-Explorer, and two-device file-operation evidence. Inspect before starting:
 
 ```bash
 docker ps -a --format '{{.Names}} {{.Status}}'
@@ -24,12 +27,46 @@ docker network inspect windows_default --format '{{.Name}} {{.Driver}}'
   configuration merely to run a Balls test.
 - Start only the explicitly selected disposable guest and monitor host memory; do not run the
   other historical test VMs concurrently.
+- Connect the dedicated physical coworker laptop to the same trusted private network. Record
+  access as pending until its actual Windows user, private address, and authenticated connection
+  have been verified; hardware availability alone is not a successful test.
 - Keep browser control loopback-only. Any host-to-LAN forwarding must be limited to the private
   interface and the exact approved admission/SMB ports; never expose public SMB.
 - Keep guest passwords, SSH private keys, provider credentials, and signed-in application state
   out of command output, repository files, evidence, and issue comments.
 - Treat the Hyper-V instructions below as historical Windows-host evidence. They do not describe
   the current Linux workstation or authorize creating nested Windows/Hyper-V infrastructure.
+
+## Dedicated physical coworker laptop
+
+The freshly installed Windows laptop is owner-approved disposable test infrastructure. It may be
+configured for administrative remote automation, but remote access is lab setup rather than part
+of the ordinary coworker product experience.
+
+Bootstrap Windows OpenSSH Server once from an Administrator PowerShell session on that laptop:
+
+1. Join the same trusted LAN as the Linux workstation and verify its Windows network profile is
+   Private.
+2. Install the Windows `OpenSSH.Server` capability if missing and start `sshd` automatically.
+3. Add only the designated Linux workstation's existing public key to
+   `%ProgramData%\ssh\administrators_authorized_keys`; preserve other existing authorized keys
+   and restrict the file ACL to `SYSTEM` and the local Administrators group.
+4. Disable the default broad OpenSSH firewall rule and create one named TCP 22 rule restricted to
+   the Private profile and the current Linux workstation's exact private IPv4 address.
+5. Report the Windows account name, private IPv4 address, and public SSH host-key fingerprint;
+   never request or print a Windows password, SSH private key, or other secret.
+6. Connect from Linux with the existing SSH agent, verify the expected host fingerprint and
+   administrative identity, and record only nonsecret device/readiness evidence.
+
+Run product acceptance from the actual physical Windows laptop: launch the self-contained Balls
+package, redeem one Circle invitation, discover only the authorized coworker grant, map the real
+encrypted SMB share into Explorer, and create/read/edit/rename files from both computers. Verify
+that physical private-LAN access and restart behavior are actually observed. The working owner's
+unrelated mapped drives, applications, and explicit Windows elevation boundaries remain protected.
+
+Restrict any later cleanup to lab-owned access and rules. Do not disable unrelated security
+controls, expose SSH/SMB publicly, reuse an execution path to evade a firewall block, or treat
+administrative automation access as permission to bypass an explicit operating-system decision.
 
 ## Historical Windows-host Hyper-V environment
 

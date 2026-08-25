@@ -8,7 +8,10 @@ company rather than every possible organization. The Owner creates a new Windows
 folder on the private LAN, invites one trusted coworker, and that ordinary Member receives usable
 Explorer access on a separate Windows computer without manually discovering IP addresses, provider
 credentials, grants, or mapping plans. Verify the complete journey privately before inviting the
-real coworker. Existing-folder adoption, remote connectivity, broader infrastructure providers,
+real coworker, using the owner's existing Windows environment as the folder host and the newly
+available, freshly installed physical Windows laptop as the dedicated coworker simulation.
+Disposable Windows guests may accelerate development but cannot substitute for separate-device
+private-LAN proof. Existing-folder adoption, remote connectivity, broader infrastructure providers,
 AI, Apps, and other platform ambitions follow that first useful outcome instead of delaying it.
 
 The Windows provider secures the Circle-contributed share itself: the SMB server must require
