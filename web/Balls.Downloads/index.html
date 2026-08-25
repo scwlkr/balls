@@ -1,0 +1,350 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Download Balls</title>
+    <meta
+      name="description"
+      content="Install the newest published Balls Alpha on Windows or Linux, or get the exact macOS source, from one stable command."
+    />
+    <link rel="canonical" href="https://balls.wlkrlabs.com/" />
+    <meta property="og:title" content="Download Balls" />
+    <meta
+      property="og:description"
+      content="One stable command for the newest published Balls Alpha."
+    />
+    <meta property="og:site_name" content="Balls" />
+    <meta property="og:type" content="website" />
+    <meta property="og:url" content="https://balls.wlkrlabs.com/" />
+    <meta property="og:image" content="https://balls.wlkrlabs.com/og.png" />
+    <meta property="og:image:width" content="1730" />
+    <meta property="og:image:height" content="909" />
+    <meta
+      property="og:image:alt"
+      content="Download Balls — One command. The newest published Alpha."
+    />
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="Download Balls" />
+    <meta
+      name="twitter:description"
+      content="One stable command for the newest published Balls Alpha."
+    />
+    <meta name="twitter:image" content="https://balls.wlkrlabs.com/og.png" />
+  </head>
+  <body>
+    <svg
+      class="brand-definitions"
+      width="0"
+      height="0"
+      aria-hidden="true"
+      focusable="false"
+    >
+      <defs>
+        <symbol id="balls-brand-mark" viewBox="0 0 64 64">
+          <g
+            class="brand-mark-core"
+            fill="none"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+          >
+            <path
+              d="m10 18 19-11 18 11M10 18v22l19 11M29 7v44"
+              stroke="var(--brand-core)"
+              stroke-width="3.5"
+            />
+            <path
+              d="m10 18 19 11 18-11M10 40l19-11m-19 11 19 11"
+              stroke="var(--brand-core)"
+              stroke-width="3.5"
+            />
+            <circle cx="10" cy="18" r="4.5" fill="var(--brand-core)" />
+            <circle cx="29" cy="7" r="4.5" fill="var(--brand-core)" />
+            <circle cx="47" cy="18" r="4.5" fill="var(--brand-core)" />
+            <circle cx="10" cy="40" r="4.5" fill="var(--brand-core)" />
+            <circle cx="29" cy="29" r="4.5" fill="var(--brand-core)" />
+            <circle cx="29" cy="51" r="4.5" fill="var(--brand-core)" />
+          </g>
+          <g
+            class="brand-mark-signal"
+            fill="none"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+          >
+            <path
+              d="m29 51 20-11V29"
+              stroke="var(--brand-signal)"
+              stroke-width="3.5"
+            />
+            <circle cx="49" cy="40" r="4.5" fill="var(--brand-signal)" />
+            <circle cx="49" cy="29" r="4.5" fill="var(--brand-signal)" />
+          </g>
+        </symbol>
+      </defs>
+    </svg>
+    <div class="site-shell">
+      <header class="masthead">
+        <a class="brand" href="#top" aria-label="Balls downloads home">
+          <svg
+            class="brand-mark"
+            viewBox="0 0 64 64"
+            aria-hidden="true"
+            focusable="false"
+          >
+            <use href="#balls-brand-mark"></use>
+          </svg>
+          <span>balls</span>
+        </a>
+        <nav aria-label="Primary navigation">
+          <a href="#downloads">Downloads</a>
+          <a href="/channels/alpha.json">Manifest</a>
+          <a href="https://github.com/scwlkr/balls">GitHub</a>
+        </nav>
+      </header>
+
+      <main id="top">
+        <section class="hero" aria-labelledby="hero-title">
+          <div class="hero-copy">
+            <p class="eyebrow">
+              <span aria-hidden="true"></span> Latest accepted Alpha
+            </p>
+            <h1 id="hero-title">
+              One command. The newest published Balls Alpha.
+            </h1>
+            <p class="hero-summary">
+              Pick this computer, copy two lines, and run them in its terminal.
+              Rerun the same command after a new Alpha is accepted—no more
+              carrying ZIP files between machines.
+            </p>
+            <div class="hero-actions">
+              <a class="primary-action" href="#downloads">
+                Choose your computer
+              </a>
+              <a
+                class="text-action"
+                href="https://github.com/scwlkr/balls/releases"
+              >
+                View public releases <span aria-hidden="true">↗</span>
+              </a>
+            </div>
+          </div>
+
+          <aside class="release-card" aria-label="What the command does">
+            <div class="release-card-heading">
+              <span class="status-light" aria-hidden="true"></span>
+              <span>Verified delivery</span>
+            </div>
+            <ol>
+              <li>
+                <span>01</span>
+                Reads the small, versioned Alpha manifest.
+              </li>
+              <li>
+                <span>02</span>
+                Downloads exact assets from the public GitHub Release.
+              </li>
+              <li>
+                <span>03</span>
+                Checks SHA-256 before the local installer runs.
+              </li>
+            </ol>
+            <p>
+              Nothing runs in the background. Stop a running Balls daemon, then
+              rerun the command when you want a newer accepted Alpha.
+            </p>
+          </aside>
+        </section>
+
+        <section
+          class="downloads-section"
+          id="downloads"
+          aria-labelledby="downloads-title"
+        >
+          <div class="section-heading">
+            <div>
+              <p class="eyebrow">Choose a delivery lane</p>
+              <h2 id="downloads-title">Run it where Balls will live.</h2>
+            </div>
+            <p>
+              Windows and Linux install published packages. macOS intentionally
+              downloads source only until a real Mac package exists.
+            </p>
+          </div>
+
+          <div class="delivery-list">
+            <article class="delivery-card">
+              <div class="delivery-meta">
+                <div class="delivery-index">
+                  <span>01</span>
+                  <span>Packaged · x64</span>
+                </div>
+                <p class="platform-name">Windows</p>
+                <h3>Install the latest Alpha</h3>
+                <p>
+                  Downloads the accepted Windows package and repository
+                  installer, verifies both SHA-256 layers, and keeps your
+                  existing Balls state.
+                </p>
+              </div>
+              <div class="delivery-command">
+                <div class="command-block">
+                  <div class="terminal-heading">
+                    <span>PowerShell 7</span>
+                    <button
+                      type="button"
+                      data-copy-target="windows-command"
+                      aria-label="Copy PowerShell 7 command"
+                    >
+                      <span class="copy-icon" aria-hidden="true"></span>
+                      <span data-copy-label aria-live="polite">
+                        Copy command
+                      </span>
+                    </button>
+                  </div>
+                  <pre><code id="windows-command">Invoke-WebRequest https://balls.wlkrlabs.com/install.ps1 -OutFile .\install-balls.ps1
+pwsh -NoProfile -File .\install-balls.ps1</code></pre>
+                </div>
+                <div class="command-notes">
+                  <span>Windows x64 · PowerShell 7</span>
+                  <a href="/install.ps1">Review install.ps1</a>
+                </div>
+              </div>
+            </article>
+
+            <article class="delivery-card">
+              <div class="delivery-meta">
+                <div class="delivery-index">
+                  <span>02</span>
+                  <span>Packaged · x64</span>
+                </div>
+                <p class="platform-name">Linux</p>
+                <h3>Install the latest Alpha</h3>
+                <p>
+                  Downloads the accepted Linux package and repository installer,
+                  verifies both SHA-256 layers, and uses protected user-owned
+                  state.
+                </p>
+              </div>
+              <div class="delivery-command">
+                <div class="command-block">
+                  <div class="terminal-heading">
+                    <span>Bash</span>
+                    <button
+                      type="button"
+                      data-copy-target="linux-command"
+                      aria-label="Copy Bash command"
+                    >
+                      <span class="copy-icon" aria-hidden="true"></span>
+                      <span data-copy-label aria-live="polite">
+                        Copy command
+                      </span>
+                    </button>
+                  </div>
+                  <pre><code id="linux-command">curl --proto "=https" --tlsv1.2 -fsSLo ./install-balls.sh https://balls.wlkrlabs.com/install.sh
+bash ./install-balls.sh</code></pre>
+                </div>
+                <div class="command-notes">
+                  <span>
+                    Linux x64 · Bash · curl · Python 3 · unzip · ASP.NET Core 10
+                  </span>
+                  <a href="/install.sh">Review install.sh</a>
+                </div>
+              </div>
+            </article>
+
+            <article class="delivery-card source-only">
+              <div class="delivery-meta">
+                <div class="delivery-index">
+                  <span>03</span>
+                  <span>Source · Apple silicon</span>
+                </div>
+                <p class="platform-name">macOS</p>
+                <h3>Get the latest Alpha source</h3>
+                <p>
+                  macOS is source-only today. This gets the exact accepted
+                  release source and verifies its commit; it does not claim a
+                  packaged or notarized app.
+                </p>
+              </div>
+              <div class="delivery-command">
+                <div class="command-block">
+                  <div class="terminal-heading">
+                    <span>Terminal</span>
+                    <button
+                      type="button"
+                      data-copy-target="macos-command"
+                      aria-label="Copy Terminal command"
+                    >
+                      <span class="copy-icon" aria-hidden="true"></span>
+                      <span data-copy-label aria-live="polite">
+                        Copy command
+                      </span>
+                    </button>
+                  </div>
+                  <pre><code id="macos-command">curl --proto "=https" --tlsv1.2 -fsSLo ./get-balls-source.sh https://balls.wlkrlabs.com/source.sh
+bash ./get-balls-source.sh</code></pre>
+                </div>
+                <div class="command-notes">
+                  <span>
+                    Apple-silicon macOS · Bash · curl · Python 3 · Git
+                  </span>
+                  <a href="/source.sh">Review source.sh</a>
+                </div>
+              </div>
+            </article>
+          </div>
+        </section>
+
+        <section class="trust-section" aria-labelledby="trust-title">
+          <div>
+            <p class="eyebrow">Know what you are running</p>
+            <h2 id="trust-title">Small command. Visible trust chain.</h2>
+          </div>
+          <div class="trust-grid">
+            <article>
+              <span>01</span>
+              <h3>Published, not bleeding-edge</h3>
+              <p>
+                The stable command follows the newest owner-accepted Alpha,
+                never a short-lived GitHub Actions artifact.
+              </p>
+            </article>
+            <article>
+              <span>02</span>
+              <h3>Checks before execution</h3>
+              <p>
+                Packages, checksum files, and repository installers are matched
+                to the hashes in the public channel manifest.
+              </p>
+            </article>
+            <article>
+              <span>03</span>
+              <h3>Prerelease means prerelease</h3>
+              <p>
+                Current binaries are an unsigned prerelease. The commands do not
+                bypass Windows policy or imply a supported Stable release.
+              </p>
+            </article>
+          </div>
+        </section>
+      </main>
+
+      <footer>
+        <a class="brand footer-brand" href="#top" aria-label="Back to top">
+          <svg
+            class="brand-mark"
+            viewBox="0 0 64 64"
+            aria-hidden="true"
+            focusable="false"
+          >
+            <use href="#balls-brand-mark"></use>
+          </svg>
+          <span>balls</span>
+        </a>
+        <p>Trusted Circles, on infrastructure they control.</p>
+        <a href="https://github.com/scwlkr/balls">Open source on GitHub ↗</a>
+      </footer>
+    </div>
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>

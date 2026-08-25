@@ -186,6 +186,7 @@ internal static class VerificationPlanner
                     "--no-restore")),
                 new VerificationStep(Pnpm(repositoryRoot, "web:generate:check")),
                 new VerificationStep(Pnpm(repositoryRoot, "web:format:check")),
+                new VerificationStep(Pnpm(repositoryRoot, "downloads:format:check")),
                 new VerificationStep(Dotnet(
                     repositoryRoot,
                     "build",
@@ -194,7 +195,9 @@ internal static class VerificationPlanner
                     "Release",
                     "--no-restore")),
                 new VerificationStep(Pnpm(repositoryRoot, "web:lint")),
+                new VerificationStep(Pnpm(repositoryRoot, "downloads:lint")),
                 new VerificationStep(Pnpm(repositoryRoot, "web:typecheck")),
+                new VerificationStep(Pnpm(repositoryRoot, "downloads:typecheck")),
                 new VerificationStep(
                     Dotnet(
                         repositoryRoot,
@@ -216,6 +219,9 @@ internal static class VerificationPlanner
                 new VerificationStep(Pnpm(repositoryRoot, "web:test")),
                 new VerificationStep(Pnpm(repositoryRoot, "web:build")),
                 new VerificationStep(Pnpm(repositoryRoot, "web:e2e")),
+                new VerificationStep(Pnpm(repositoryRoot, "downloads:build")),
+                new VerificationStep(Pnpm(repositoryRoot, "downloads:test")),
+                new VerificationStep(Pnpm(repositoryRoot, "downloads:e2e")),
             ]);
     }
 
