@@ -30,12 +30,12 @@ the SPDX 2.3 SBOM passed unauthenticated readback.
 
 The current Linux workstation has an existing Windows production VM, disposable low-memory
 Windows test VMs on a private Docker/KVM network, and an owner-provided freshly installed physical
-Windows laptop dedicated to coworker simulation. The physical laptop is the final separate-device
-private-LAN acceptance target; its authenticated remote access and product journey must be
-verified before they are claimed. The older `Balls.Dev.Windows11` Hyper-V lab and its PowerShell
-Direct evidence describe the historical Windows-host setup, not the current Linux workstation.
-Read the [Windows development lab runbook](windows-development-lab.md) before any Windows VM or
-physical-laptop automation, unsigned execution, or recovery.
+Windows laptop dedicated to coworker simulation. Its available account is a normal Windows user,
+not an administrator; the final separate-device private-LAN acceptance journey must work without
+recipient elevation or administrative remote access. The older `Balls.Dev.Windows11` Hyper-V lab
+and its PowerShell Direct evidence describe the historical Windows-host setup, not the current
+Linux workstation. Read the [Windows development lab runbook](windows-development-lab.md) before
+any Windows VM or physical-laptop automation, unsigned execution, or recovery.
 
 ## Active milestone
 
@@ -267,8 +267,10 @@ Active frontier:
   adds secure ordinary-member cross-Node access, browser invitation/join, protected Member-only
   grant synchronization, and a self-contained double-click Windows package. An owner-provided,
   freshly installed physical Windows laptop is now the dedicated coworker-simulation and final
-  private-LAN acceptance target. The exact observed behavior, pending physical-machine enrollment,
-  and remaining consent boundaries are recorded in the
+  private-LAN acceptance target. Its coworker account is not an administrator, so recipient
+  startup, invitation, synchronization, and Explorer mapping must succeed without elevation.
+  The exact observed behavior, pending physical-machine proof, and remaining Owner consent
+  boundaries are recorded in the
   [company-first pilot record](verification/2026-08-25-company-first-lan-pilot.md).
 - [#62](https://github.com/scwlkr/balls/issues/62) remains the final acceptance and owner-gated
   release decision after #73 is verified.

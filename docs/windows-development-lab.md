@@ -27,9 +27,10 @@ docker network inspect windows_default --format '{{.Name}} {{.Driver}}'
   configuration merely to run a Balls test.
 - Start only the explicitly selected disposable guest and monitor host memory; do not run the
   other historical test VMs concurrently.
-- Connect the dedicated physical coworker laptop to the same trusted private network. Record
-  access as pending until its actual Windows user, private address, and authenticated connection
-  have been verified; hardware availability alone is not a successful test.
+- Connect the dedicated physical coworker laptop to the same trusted private network using its
+  ordinary, non-administrator Windows account. Record access as pending until its actual Windows
+  user, private address, and product connection have been verified; hardware availability alone
+  is not a successful test.
 - Keep browser control loopback-only. Any host-to-LAN forwarding must be limited to the private
   interface and the exact approved admission/SMB ports; never expose public SMB.
 - Keep guest passwords, SSH private keys, provider credentials, and signed-in application state
@@ -39,30 +40,38 @@ docker network inspect windows_default --format '{{.Name}} {{.Driver}}'
 
 ## Dedicated physical coworker laptop
 
-The freshly installed Windows laptop is owner-approved disposable test infrastructure. It may be
-configured for administrative remote automation, but remote access is lab setup rather than part
-of the ordinary coworker product experience.
+The freshly installed Windows laptop is owner-approved disposable test infrastructure, but its
+available Windows account does not have administrator privileges. This is the stronger real
+coworker test: the invited Member must not need elevation, Windows OpenSSH Server, a background
+service, an inbound firewall exception, or a development toolchain.
 
-Bootstrap Windows OpenSSH Server once from an Administrator PowerShell session on that laptop:
+Start with only the same trusted network, a normal Windows PowerShell or browser, and the
+self-contained Balls ZIP in a user-writable folder. The coworker launches `Open Balls.cmd`, which
+starts an ordinary user-owned daemon, opens its loopback browser, and makes only outbound
+connections to the Owner. Current-user Credential Manager and Explorer drive mapping do not
+require administrator approval.
 
-1. Join the same trusted LAN as the Linux workstation and verify its Windows network profile is
-   Private.
-2. Install the Windows `OpenSSH.Server` capability if missing and start `sshd` automatically.
-3. Add only the designated Linux workstation's existing public key to
-   `%ProgramData%\ssh\administrators_authorized_keys`; preserve other existing authorized keys
-   and restrict the file ACL to `SYSTEM` and the local Administrators group.
-4. Disable the default broad OpenSSH firewall rule and create one named TCP 22 rule restricted to
-   the Private profile and the current Linux workstation's exact private IPv4 address.
-5. Report the Windows account name, private IPv4 address, and public SSH host-key fingerprint;
-   never request or print a Windows password, SSH private key, or other secret.
-6. Connect from Linux with the existing SSH agent, verify the expected host fingerprint and
-   administrative identity, and record only nonsecret device/readiness evidence.
+The current Linux workstation already has LocalSend and its intended firewall exception. Its
+normal "Share via link" feature can serve the nonsecret self-contained Windows ZIP directly to the
+coworker's browser; the physical laptop does not need LocalSend, an installer, SSH, or
+administrator access. Browser-link transfers use ordinary HTTP on the trusted LAN, so share only
+the public application package through that channel, never a Circle invitation, provider
+password, SSH key, or other private material.
+
+If remote administration is independently available and explicitly approved, it may simplify lab
+automation, but it is optional and must never become a product or acceptance prerequisite. Never
+attempt to install system OpenSSH, change protected firewall policy, reuse an unrelated allowed
+port, or evade an operating-system access decision from an unprivileged account. User-level
+diagnostics may inspect the Windows account, private IP, network profile, and outbound
+reachability without exposing passwords or private keys.
 
 Run product acceptance from the actual physical Windows laptop: launch the self-contained Balls
 package, redeem one Circle invitation, discover only the authorized coworker grant, map the real
 encrypted SMB share into Explorer, and create/read/edit/rename files from both computers. Verify
-that physical private-LAN access and restart behavior are actually observed. The working owner's
-unrelated mapped drives, applications, and explicit Windows elevation boundaries remain protected.
+that physical private-LAN access and restart behavior are actually observed under the ordinary
+recipient account. Administrator approval remains limited to the separate Owner computer when it
+creates the share, firewall rules, and limited Member account. The working Owner's unrelated
+mapped drives, applications, and explicit Windows elevation boundaries remain protected.
 
 Restrict any later cleanup to lab-owned access and rules. Do not disable unrelated security
 controls, expose SSH/SMB publicly, reuse an execution path to evade a firewall block, or treat

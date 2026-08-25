@@ -99,11 +99,19 @@ direct container-network result does not establish that a separate physical LAN 
 the host.
 
 The owner subsequently made a freshly installed, separate physical Windows laptop available as a
-dedicated coworker simulator with no personal or production data. This physical computer is now
-the final recipient and real-LAN acceptance target; the existing disposable Windows guest remains
-a preliminary development fixture. Administrative OpenSSH enrollment, the physical device's
-actual network reachability, and its real Explorer/file operations have not yet been observed and
-must be recorded only after they pass.
+dedicated coworker simulator with no personal or production data. Its available Windows account
+does not have administrator rights. This physical computer is now the final recipient and
+real-LAN acceptance target; the existing disposable Windows guest remains a preliminary
+development fixture. Administrative OpenSSH enrollment is neither available nor required: the
+ordinary recipient must launch Balls, redeem its invitation, and map the approved folder without
+elevation. The physical device's actual network reachability and real Explorer/file operations
+have not yet been observed and must be recorded only after they pass.
+
+The Linux workstation's existing LocalSend installation and already approved LocalSend firewall
+rule can offer the nonsecret self-contained Windows package through its normal browser-link
+mode. The package page was observed on the workstation without installing software, creating a
+new firewall exception, or exposing invitations or provider credentials. A successful download
+from the separate physical Windows laptop has not yet been observed.
 
 Windows administrator consent for actual folder/share and grant-account provisioning is deliberately
 preserved. Linux host firewall rules are likewise not changed implicitly: a running private-address
