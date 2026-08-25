@@ -44,6 +44,7 @@ test("presents one stable command for every supported delivery lane", async () =
   assert.match(html, /https:\/\/balls\.wlkrlabs\.com\/install\.ps1/);
   assert.match(html, /https:\/\/balls\.wlkrlabs\.com\/install\.sh/);
   assert.match(html, /https:\/\/balls\.wlkrlabs\.com\/source\.sh/);
+  assert.match(html, /Windows x64 · PowerShell 7 · ASP\.NET Core 10/i);
   assert.match(html, /unsigned prerelease/i);
   assert.match(html, /macOS is source-only/i);
   assert.doesNotMatch(html, /automatic updates/i);
@@ -121,6 +122,8 @@ test("bootstraps verify local files without pipe-to-shell or policy bypasses", a
   assert.match(powershell, /Install-BallsCanary\\?\.ps1/);
   assert.match(powershell, /packageManifest\.commit/);
   assert.match(powershell, /commit\.Substring\(0, 12\)/);
+  assert.match(powershell, /--list-runtimes/);
+  assert.match(powershell, /Microsoft\\\.AspNetCore\\\.App\\s\+10\\\./);
   assert.doesNotMatch(powershell, /Invoke-Expression|\biex\b|ExecutionPolicy/i);
 
   assert.match(linux, /sha256sum/);
