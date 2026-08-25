@@ -107,11 +107,23 @@ ordinary recipient must launch Balls, redeem its invitation, and map the approve
 elevation. The physical device's actual network reachability and real Explorer/file operations
 have not yet been observed and must be recorded only after they pass.
 
+The owner subsequently reported that Microsoft Smart App Control blocked the unsigned application
+on that physical Windows account, which does not have administrator rights. Repository policy
+already records that local `balls.exe` and `ballsd.exe` are unsigned, and package inspection also
+found unsigned Balls assemblies; signed Microsoft runtime dependencies do not make those separate
+application binaries trusted. The exact device policy/event has not been independently inspected,
+but the reported block prevents claiming physical Balls execution. No alternate executable,
+removed download marker, weakened policy, or unsigned-code bypass was used. The disposable
+authorized Windows guest remains available for genuine product testing; built-in browser, TCP,
+or plain SMB checks on the physical laptop do not establish Balls acceptance.
+
 The Linux workstation's existing LocalSend installation and already approved LocalSend firewall
 rule can offer the nonsecret self-contained Windows package through its normal browser-link
-mode. The package page was observed on the workstation without installing software, creating a
-new firewall exception, or exposing invitations or provider credentials. A successful download
-from the separate physical Windows laptop has not yet been observed.
+mode. The separate physical Windows laptop reached that page through its existing browser and
+requested the exact Windows ZIP across the real private LAN without installing software,
+requesting administrator access, creating a new firewall exception, or exposing invitations or
+provider credentials. This proves only the existing LocalSend browser-transfer path; it does not
+override Smart App Control or establish reachability to the separate Balls/SMB ports.
 
 Windows administrator consent for actual folder/share and grant-account provisioning is deliberately
 preserved. Linux host firewall rules are likewise not changed implicitly: a running private-address

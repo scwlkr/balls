@@ -45,6 +45,13 @@ available Windows account does not have administrator privileges. This is the st
 coworker test: the invited Member must not need elevation, Windows OpenSSH Server, a background
 service, an inbound firewall exception, or a development toolchain.
 
+The owner reports that Microsoft Smart App Control blocks the current unsigned Balls build on
+this laptop. A standard account cannot override that application-trust decision. Until an
+authorized device administrator independently establishes an appropriate trust policy or Balls
+ships binaries signed by a genuinely trusted publisher, this physical device cannot execute the
+product. Use the already authorized disposable Windows guest for executable end-to-end checks;
+physical laptop browser and built-in network/SMB diagnostics remain partial evidence only.
+
 Start with only the same trusted network, a normal Windows PowerShell or browser, and the
 self-contained Balls ZIP in a user-writable folder. The coworker launches `Open Balls.cmd`, which
 starts an ordinary user-owned daemon, opens its loopback browser, and makes only outbound
@@ -61,7 +68,8 @@ password, SSH key, or other private material.
 If remote administration is independently available and explicitly approved, it may simplify lab
 automation, but it is optional and must never become a product or acceptance prerequisite. Never
 attempt to install system OpenSSH, change protected firewall policy, reuse an unrelated allowed
-port, or evade an operating-system access decision from an unprivileged account. User-level
+port, run blocked code through another executable, remove download trust metadata, or otherwise
+evade an operating-system access decision from an unprivileged account. User-level
 diagnostics may inspect the Windows account, private IP, network profile, and outbound
 reachability without exposing passwords or private keys.
 
@@ -103,6 +111,10 @@ authoritative.
   This setting does not authorize changing the physical host.
 - Production code signing is intentionally out of scope. Local `balls.exe` and `ballsd.exe` are
   expected to report `NotSigned` in the source smoke.
+- An enforced Smart App Control or Application Control decision on the physical coworker laptop
+  is a hard unsigned-distribution blocker, not permission to disable protection or find an
+  alternate execution path. Trusted code signing or an authorized managed policy is a separate
+  owner-approved distribution decision.
 - Import the encrypted credential only through the current host Windows account. Never print,
   export, copy, commit, or checkpoint credentials, GitHub tokens, SSH private keys, or signed-in
   application state.

@@ -32,10 +32,14 @@ The current Linux workstation has an existing Windows production VM, disposable 
 Windows test VMs on a private Docker/KVM network, and an owner-provided freshly installed physical
 Windows laptop dedicated to coworker simulation. Its available account is a normal Windows user,
 not an administrator; the final separate-device private-LAN acceptance journey must work without
-recipient elevation or administrative remote access. The older `Balls.Dev.Windows11` Hyper-V lab
-and its PowerShell Direct evidence describe the historical Windows-host setup, not the current
-Linux workstation. Read the [Windows development lab runbook](windows-development-lab.md) before
-any Windows VM or physical-laptop automation, unsigned execution, or recovery.
+recipient elevation or administrative remote access. The owner reports that Microsoft Smart App
+Control blocks the current unsigned pilot on that physical laptop; without an authorized
+administrator-managed trust decision or genuinely trusted signed binaries, it cannot run Balls.
+Existing disposable Windows guests remain the immediate authorized execution fixtures, while
+physical product acceptance remains blocked. The older `Balls.Dev.Windows11` Hyper-V lab and its
+PowerShell Direct evidence describe the historical Windows-host setup, not the current Linux
+workstation. Read the [Windows development lab runbook](windows-development-lab.md) before any
+Windows VM or physical-laptop automation, unsigned execution, or recovery.
 
 ## Active milestone
 
@@ -269,8 +273,9 @@ Active frontier:
   freshly installed physical Windows laptop is now the dedicated coworker-simulation and final
   private-LAN acceptance target. Its coworker account is not an administrator, so recipient
   startup, invitation, synchronization, and Explorer mapping must succeed without elevation.
-  The exact observed behavior, pending physical-machine proof, and remaining Owner consent
-  boundaries are recorded in the
+  The physical laptop currently rejects unsigned Balls binaries under Smart App Control, so
+  executable acceptance remains blocked until application trust is resolved without bypass. The
+  exact observed behavior and remaining Owner consent boundaries are recorded in the
   [company-first pilot record](verification/2026-08-25-company-first-lan-pilot.md).
 - [#62](https://github.com/scwlkr/balls/issues/62) remains the final acceptance and owner-gated
   release decision after #73 is verified.
