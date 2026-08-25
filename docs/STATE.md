@@ -1,6 +1,6 @@
 # Current State
 
-**Updated:** 2026-08-22
+**Updated:** 2026-08-25
 
 This is the compact entry point for a coding agent. GitHub Issues are the execution authority;
 [`ROADMAP.md`](../ROADMAP.md) is the outcome index; detailed design and contract documents are
@@ -8,9 +8,14 @@ loaded only when linked by the active issue.
 
 ## Product direction
 
-Balls is a Circle-first platform. The path to the first supported release is files-first: secure
-Circle membership, a native Windows/Linux Node foundation, one TypeScript browser UI, and a
-Windows Circle Files provider that gives two Members the same Explorer folder.
+Balls is a Circle-first, open-source platform. Its immediate owner-approved priority is one useful
+two-person company workflow: a new Windows-hosted project folder, one private-LAN Circle
+invitation, and approved Windows Explorer access for an ordinary coworker on a separate computer.
+The coworker must not configure IP addresses, SMB passwords, grant identifiers, or mapping plans.
+
+The path to the first supported release remains files-first: secure Circle membership, a native
+Windows/Linux Node foundation, one TypeScript browser UI, and a Windows Circle Files provider that
+gives two Members the same useful Explorer folder.
 
 The files-first release does not redefine Balls as an SMB utility. AI, Apps, multiple Anchors,
 replicated storage, richer messaging, macOS polish, and compute remain later product pillars.
@@ -23,10 +28,11 @@ hardened local React workspace on Windows and Linux. The annotated tag targets e
 commit `3935b6ac275b24c8ed2389862b012da747099f34`; seven public assets, checksums, installers, and
 the SPDX 2.3 SBOM passed unauthenticated readback.
 
-The dedicated `Balls.Dev.Windows11` Hyper-V guest is ready for unsigned source builds, real Chrome
-UI journeys, installer checks, and Windows-specific acceptance. PowerShell Direct, GitHub access,
-the repository toolchain, and the initial source/browser/installer smokes are proven. Read the
-[Windows development lab runbook](windows-development-lab.md) before using or recovering it.
+The current Linux workstation has an existing Windows production VM and disposable low-memory
+Windows test VMs on a private Docker/KVM network. The older `Balls.Dev.Windows11` Hyper-V lab and
+its PowerShell Direct evidence describe the historical Windows-host setup, not the current Linux
+workstation. Read the [Windows development lab runbook](windows-development-lab.md) before any
+Windows VM automation, unsigned execution, or recovery.
 
 ## Active milestone
 
@@ -39,8 +45,10 @@ Status: implementation. Trusted Circle is owner-accepted and published as
 provider-neutral contribution and Access Grant foundation. #57 adds the read-only Windows SMB
 readiness gate. #58 adds the dedicated owned-folder hosting helper. #59 adds one protected limited
 Windows credential and exact ACL per Access Grant; #60 adds explicit persistent Explorer mapping.
-#61 implements generation-bound revocation and ownership-proven cleanup; #62 remains
-dependency-blocked pending its verified landing.
+#61 implements generation-bound revocation and ownership-proven cleanup. #73 is the current
+implementation frontier: securely deliver the ordinary Member's approved folder access across
+Nodes and provide the company-ready invitation journey. #62 remains the final acceptance gate
+after #73 is verified.
 
 Exit outcome: two Windows Members can add, remove, rename, and edit files in the same persistent
 Explorer-mapped folder over a private LAN. Circle contribution and authorization drive a
@@ -218,7 +226,7 @@ Completed Trusted Circle acceptance:
 
 Active frontier:
 
-- **`0.4.0-alpha.1` — LAN Circle Files** has seven executable issues.
+- **`0.4.0-alpha.1` — LAN Circle Files** has eight executable issues.
 - [#56 — Define Circle Files contributions and Member access grants](https://github.com/scwlkr/balls/issues/56)
   defines provider-neutral, Owner-authorized contribution and whole-folder Access Grant state in
   Core, SQLite v6, local-control v1, and the structured CLI. The exact verification is recorded in
@@ -252,7 +260,11 @@ Active frontier:
   handling, restart-safe exact-owned grant/host cleanup, and redacted lifecycle audit. Local focused
   and two-Windows-VM evidence is in the
   [revocation and cleanup record](verification/2026-08-24-circle-files-revocation-cleanup.md).
-- [#62](https://github.com/scwlkr/balls/issues/62) remains dependency-blocked.
+- [#73 — Deliver the first two-person LAN Circle Files pilot](https://github.com/scwlkr/balls/issues/73)
+  supplies the missing secure ordinary-member cross-Node access, browser invitation/join journey,
+  and privately verified company-first LAN outcome.
+- [#62](https://github.com/scwlkr/balls/issues/62) remains the final acceptance and owner-gated
+  release decision after #73 is verified.
 
 ## Working rules
 

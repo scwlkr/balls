@@ -2,9 +2,14 @@
 
 ## Goal
 
-Reach a public, supported Circle Files product quickly while preserving the larger Circle platform.
-The first serious proving ground is the owner and one coworker editing the same contributed folder
-through Windows File Explorer.
+First make Balls useful to the owner's own company: two trusted coworkers must be able to use a
+new Windows-hosted project folder over their private LAN after the second person accepts a Circle
+invitation. Reach a public, supported Circle Files product afterward while preserving the larger
+open-source Circle platform.
+
+The actual coworker is invited only after the same ordinary-member journey has passed privately on
+two separate Windows Nodes. Existing-folder adoption, remote networking, and broader integrations
+are not allowed to delay that first company outcome.
 
 The milestone names below describe user outcomes. The active milestone and its immediate successor
 are committed in GitHub Issues; later ticket maps remain planning hypotheses until they are refined
@@ -92,8 +97,9 @@ be exportable for backup.
 
 ## `0.4.0-alpha.1` — LAN Circle Files
 
-**User outcome:** two Windows Members can add, remove, rename, and edit files in the same persistent
-Explorer-mapped folder over a private LAN.
+**User outcome:** an Owner creates a new Windows-hosted project folder and sends one Circle
+invitation; a second ordinary Windows Member joins and can add, remove, rename, and edit files in
+the same persistent Explorer-mapped folder over a private LAN without handling its SMB password.
 
 **Architectural proof:** Circle contribution and authorization drive a provider without making SMB
 the Circle Files product model.
@@ -106,10 +112,12 @@ the Circle Files product model.
 4. [#59 issue one limited SMB credential per Member access grant](https://github.com/scwlkr/balls/issues/59);
 5. [#60 map the exact Circle folder unelevated in Windows Explorer](https://github.com/scwlkr/balls/issues/60);
 6. [#61 revoke grants and remove only Balls-owned infrastructure](https://github.com/scwlkr/balls/issues/61);
-7. [#62 verify and accept the LAN Circle Files milestone](https://github.com/scwlkr/balls/issues/62).
+7. [#73 deliver the first two-person LAN Circle Files pilot](https://github.com/scwlkr/balls/issues/73);
+8. [#62 verify and accept the LAN Circle Files milestone](https://github.com/scwlkr/balls/issues/62).
 
-#56 is the single ready frontier. #57–#62 remain dependency-blocked until their recorded
-predecessors land.
+#56–#61 are closed. #73 supplies the missing ordinary-member cross-Node access and invitation
+journey; #62 remains the final milestone/release acceptance gate after that product outcome is
+honestly verified.
 
 **Provider contract:** SMB1 and guest access are disabled; signing and encryption are required;
 TCP 445 is never public. Access begins with `Read/write` or `Read-only` at the whole-folder level.
@@ -142,7 +150,10 @@ explicit confirmation after future authentication is disabled.
 
 ## `0.6.0-beta.1` — Company Pilot
 
-**User outcome:** the owner and one coworker use an accepted candidate for real shared files.
+**User outcome:** the owner and one coworker use an accepted candidate for real shared files with
+the additional support and operational readiness expected of a formal Beta. The first useful
+private-LAN company workflow is required during `0.4.0-alpha.1`; it must not wait for this later
+Beta milestone.
 
 **Candidate tickets:**
 

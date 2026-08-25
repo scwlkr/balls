@@ -75,6 +75,20 @@ The magic is not that the user learned how to configure networking.
 
 The magic is that **joining the Circle made their computer useful to the group.**
 
+## Immediate proving ground
+
+The first Circle does not need to serve every organization. It needs to help two real coworkers
+share a newly created project folder over their private local network and open it in the Windows
+applications they already use.
+
+One coworker creates the Circle and folder. The other receives an invitation, joins without
+configuring networking or SMB credentials, and sees the approved folder in File Explorer. The
+owner verifies this experience privately before inviting the actual coworker.
+
+Balls remains open source, and its larger Circle vision remains intact. General-purpose
+integrations, remote connectivity, and additional product pillars follow the first working
+company experience instead of delaying it.
+
 ## The workspace idea
 
 For work, Balls should feel like a rethinking of what a workspace platform can be.

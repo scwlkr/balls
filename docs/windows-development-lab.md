@@ -4,7 +4,34 @@ Read this runbook before Windows VM automation, unsigned product execution, brow
 installer or Canary testing, or recovery of the dedicated Windows guest. The lab accelerates risky
 Windows checks without weakening security controls on the physical host.
 
-## Owned environment
+## Current Linux-hosted company-pilot lab
+
+The current workstation runs the working Windows environment as the existing Docker/KVM container
+`omarchy-windows`. Low-memory Windows guests named `balls-issue61-provider-desktop`,
+`balls-issue61-provider2025`, `balls-issue61-client`, and `balls-issue61-node2` are historical
+disposable test fixtures on the same private `windows_default` Docker network.
+
+The ordinary-member company-pilot check uses the existing working Windows VM as the folder host
+and at most one existing 2 GiB desktop test guest as the coworker. Inspect before starting:
+
+```bash
+docker ps -a --format '{{.Names}} {{.Status}}'
+free -h
+docker network inspect windows_default --format '{{.Name}} {{.Driver}}'
+```
+
+- Never stop, recreate, checkpoint, replace, or change the working Windows VM's disk or GPU
+  configuration merely to run a Balls test.
+- Start only the explicitly selected disposable guest and monitor host memory; do not run the
+  other historical test VMs concurrently.
+- Keep browser control loopback-only. Any host-to-LAN forwarding must be limited to the private
+  interface and the exact approved admission/SMB ports; never expose public SMB.
+- Keep guest passwords, SSH private keys, provider credentials, and signed-in application state
+  out of command output, repository files, evidence, and issue comments.
+- Treat the Hyper-V instructions below as historical Windows-host evidence. They do not describe
+  the current Linux workstation or authorize creating nested Windows/Hyper-V infrastructure.
+
+## Historical Windows-host Hyper-V environment
 
 The machine-local lab owns these resources:
 

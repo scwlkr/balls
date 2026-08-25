@@ -10,11 +10,15 @@ It should treat the confirmed product decisions as strong constraints unless exp
 
 ### Audience
 
-Initial sweet spot: 2–10 trusted people.
+The immediate proving ground is two trusted coworkers in the owner's small company.
 
-Primary first environment: a 2–5 person small company.
+The first outcome is a new Windows-hosted project folder on a private LAN, one shareable Circle
+invitation, and usable Windows Explorer access for the invited coworker. That coworker must not
+need networking or SMB administration knowledge.
 
-Users are expected to be at least somewhat technical.
+The broader 2–10-person audience remains a later product direction. Open-source licensing and the
+long-term Circle vision are unchanged. See
+[`ADR 0008`](docs/decisions/0008-company-first-lan-pilot.md).
 
 ### Circle
 
@@ -203,9 +207,12 @@ adapter; native shells are deferred until a proven OS-specific need appears. See
 ### Files-first v1
 
 The first supported release focuses on Circle creation/join, Member and Node visibility, the local
-browser UI and CLI, and one secure Windows Explorer Circle Files provider. One Anchor may be
-authoritative without automatic failover. Rich chat, replication, macOS polish, AI, Apps, and
-compute remain later milestones. See [`ADR 0005`](docs/decisions/0005-files-first-v1.md).
+browser UI and CLI, and one secure Windows Explorer Circle Files provider. The immediate company
+pilot requires the invited non-Owner Member to receive actual authorized access on a separate
+Windows computer without manually handling provider credentials. One Anchor may be authoritative
+without automatic failover. Rich chat, replication, macOS polish, AI, Apps, and compute remain
+later milestones. See [`ADR 0005`](docs/decisions/0005-files-first-v1.md) and
+[`ADR 0008`](docs/decisions/0008-company-first-lan-pilot.md).
 
 ### Development and release model
 

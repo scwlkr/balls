@@ -28,7 +28,13 @@ Read these documents in order:
 
 ## Initial target
 
-Balls should first feel exceptional for **2–10 trusted, somewhat technical people**, with a **2–5 person small company** as the primary proving environment.
+The immediate proving ground is **one small company and two real coworkers**. One person creates a
+new Windows-hosted project folder on the private LAN, sends the other person a Balls invitation,
+and both use the folder from Windows File Explorer and their ordinary project applications.
+
+The invited coworker should not need a private IP address, an SMB password, a grant identifier,
+or an infrastructure setup guide. Broader Circle integrations remain the long-term direction, but
+they do not take priority over this useful two-person outcome. Balls remains open source.
 
 ## Current status
 
