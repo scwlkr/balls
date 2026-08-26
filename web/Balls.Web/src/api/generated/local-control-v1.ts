@@ -1951,7 +1951,7 @@ export interface paths {
       };
       requestBody: {
         content: {
-          "application/json": components["schemas"]["JoinCircleRequest"];
+          "application/json": components["schemas"]["JoinBrowserCircleRequest"];
         };
       };
       responses: {
@@ -2149,11 +2149,7 @@ export interface paths {
         };
         cookie?: never;
       };
-      requestBody: {
-        content: {
-          "application/json": components["schemas"]["SyncBrowserCircleFilesRequest"];
-        };
-      };
+      requestBody?: never;
       responses: {
         /** @description OK */
         200: {
@@ -2309,6 +2305,156 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  "/browser/v1/circles/{circleId}/files/contributions/folder-selection": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    post: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path: {
+          circleId: string;
+        };
+        cookie?: never;
+      };
+      requestBody?: never;
+      responses: {
+        /** @description OK */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["BrowserCircleFilesFolderSelectionResponse"];
+          };
+        };
+        /** @description Bad Request */
+        400: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["ErrorResponse"];
+          };
+        };
+        /** @description Forbidden */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["ErrorResponse"];
+          };
+        };
+        /** @description Not Found */
+        404: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["ErrorResponse"];
+          };
+        };
+        /** @description Conflict */
+        409: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["ErrorResponse"];
+          };
+        };
+      };
+    };
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/browser/v1/circles/{circleId}/files/contributions/folder-apply": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    post: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path: {
+          circleId: string;
+        };
+        cookie?: never;
+      };
+      requestBody: {
+        content: {
+          "application/json": components["schemas"]["ApplyBrowserCircleFilesFolderRequest"];
+        };
+      };
+      responses: {
+        /** @description OK */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["BrowserCircleFilesContributionResponse"];
+          };
+        };
+        /** @description Bad Request */
+        400: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["ErrorResponse"];
+          };
+        };
+        /** @description Forbidden */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["ErrorResponse"];
+          };
+        };
+        /** @description Not Found */
+        404: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["ErrorResponse"];
+          };
+        };
+        /** @description Conflict */
+        409: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["ErrorResponse"];
+          };
+        };
+      };
+    };
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   "/browser/v1/circles/{circleId}/files/contributions/{contributionId}/grants": {
     parameters: {
       query?: never;
@@ -2387,7 +2533,7 @@ export interface paths {
       };
       requestBody: {
         content: {
-          "application/json": components["schemas"]["PreviewCircleFilesMemberMappingRequest"];
+          "application/json": components["schemas"]["PreviewBrowserCircleFilesMemberMappingRequest"];
         };
       };
       responses: {
@@ -2428,7 +2574,7 @@ export interface paths {
       };
       requestBody: {
         content: {
-          "application/json": components["schemas"]["ApplyCircleFilesMemberMappingRequest"];
+          "application/json": components["schemas"]["ApplyBrowserCircleFilesMemberMappingRequest"];
         };
       };
       responses: {
@@ -2469,7 +2615,7 @@ export interface paths {
       };
       requestBody: {
         content: {
-          "application/json": components["schemas"]["InspectCircleFilesMemberMappingRequest"];
+          "application/json": components["schemas"]["InspectBrowserCircleFilesMemberMappingRequest"];
         };
       };
       responses: {
@@ -2510,7 +2656,7 @@ export interface paths {
       };
       requestBody: {
         content: {
-          "application/json": components["schemas"]["UnmapCircleFilesMemberMappingRequest"];
+          "application/json": components["schemas"]["UnmapBrowserCircleFilesMemberMappingRequest"];
         };
       };
       responses: {
@@ -2588,6 +2734,15 @@ export interface paths {
 export type webhooks = Record<string, never>;
 export interface components {
   schemas: {
+    ApplyBrowserCircleFilesFolderRequest: {
+      requestId: string;
+      folderPath: string;
+      displayName: string;
+    };
+    ApplyBrowserCircleFilesMemberMappingRequest: {
+      driveLetter: string;
+      planId: string;
+    };
     ApplyCircleFilesGrantCleanupRequest: {
       folderPath: string;
       planId: string;
@@ -2611,6 +2766,17 @@ export interface components {
       driveLetter: string;
       planId: string;
     };
+    BrowserCircleFilesContributionResponse: {
+      status: string;
+      contributionId: string;
+      displayName: string;
+      folderPath: string;
+    };
+    BrowserCircleFilesFolderSelectionResponse: {
+      status: string;
+      folderPath: null | string;
+      displayName: null | string;
+    };
     BrowserCircleFilesSyncResponse: {
       circleId: string;
       /** Format: int32 */
@@ -2622,6 +2788,7 @@ export interface components {
       /** Format: date-time */
       expiresAtUtc: string;
       package: string;
+      provider: string;
       endpoint: string;
       syncEndpoint: string;
     };
@@ -2837,9 +3004,19 @@ export interface components {
     ExchangeBrowserSessionRequest: {
       capability: string;
     };
+    InspectBrowserCircleFilesMemberMappingRequest: {
+      driveLetter: string;
+    };
     InspectCircleFilesMemberMappingRequest: {
       endpoint: string;
       driveLetter: string;
+    };
+    JoinBrowserCircleRequest: {
+      package: string;
+      provider: string;
+      admissionEndpoint: string;
+      syncEndpoint: string;
+      memberDisplayName: string;
     };
     JoinCircleRequest: {
       package: string;
@@ -2903,6 +3080,9 @@ export interface components {
       /** Format: date-time */
       createdAtUtc: string;
     };
+    PreviewBrowserCircleFilesMemberMappingRequest: {
+      driveLetter: string;
+    };
     PreviewCircleFilesGrantCleanupRequest: {
       folderPath: string;
     };
@@ -2944,8 +3124,8 @@ export interface components {
       protocolVersion: number | string;
       node: components["schemas"]["NodeResponse"];
     };
-    SyncBrowserCircleFilesRequest: {
-      endpoint: string;
+    UnmapBrowserCircleFilesMemberMappingRequest: {
+      driveLetter: string;
     };
     UnmapCircleFilesMemberMappingRequest: {
       endpoint: string;

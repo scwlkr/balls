@@ -14,7 +14,8 @@ export type CircleMessageDto = components["schemas"]["CircleMessageResponse"];
 export type CircleMessageListDto =
   components["schemas"]["CircleMessageListResponse"];
 export type CreateCircleDto = components["schemas"]["CreateCircleRequest"];
-export type JoinCircleDto = components["schemas"]["JoinCircleRequest"];
+export type JoinBrowserCircleDto =
+  components["schemas"]["JoinBrowserCircleRequest"];
 export type BrowserInvitationDto =
   components["schemas"]["BrowserCircleInvitationResponse"];
 export type CircleViewerDto =

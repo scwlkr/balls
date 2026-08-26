@@ -77,12 +77,28 @@ public sealed record BrowserCircleInvitationResponse(
     string InvitationId,
     DateTimeOffset ExpiresAtUtc,
     string Package,
+    string Provider,
     string Endpoint,
     string SyncEndpoint);
 
+public sealed record JoinBrowserCircleRequest(
+    string Package,
+    string Provider,
+    string AdmissionEndpoint,
+    string SyncEndpoint,
+    string MemberDisplayName);
+
 public sealed record BrowserCircleViewerResponse(string MemberId, string Role);
 
-public sealed record SyncBrowserCircleFilesRequest(string Endpoint);
+public sealed record PreviewBrowserCircleFilesMemberMappingRequest(string DriveLetter);
+
+public sealed record ApplyBrowserCircleFilesMemberMappingRequest(
+    string DriveLetter,
+    string PlanId);
+
+public sealed record InspectBrowserCircleFilesMemberMappingRequest(string DriveLetter);
+
+public sealed record UnmapBrowserCircleFilesMemberMappingRequest(string DriveLetter);
 
 public sealed record BrowserCircleFilesSyncResponse(string CircleId, int ImportedGrantCount);
 

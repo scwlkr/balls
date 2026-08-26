@@ -121,10 +121,11 @@ material. Selecting JSON output for this interactive command is a usage error.
 | Circle Node | `id` (UUID), `displayName`, `joinedAtUtc` |
 | Circle details | `circle` (Circle summary), `members` (Member array), `nodes` (Circle Node array) |
 | Issued invitation | `circleId`, `invitationId`, `expiresAtUtc`, `package` (canonical JSON string) |
-| Browser invitation | issued invitation fields plus explicit private IPv4 admission `endpoint` and authenticated Circle Files `syncEndpoint` |
+| Browser invitation | issued invitation fields plus outer `provider`, private IPv4 admission `endpoint`, and authenticated Circle Files `syncEndpoint`; the signed `package` is unchanged |
 | Browser Circle viewer | local `memberId` and exact Circle `role` |
 | Browser Circle Files sync | `circleId` and `importedGrantCount`; no provider credential or authorization proof |
-| Join request | `package`, `endpoint` (numeric private/loopback IP and port), `memberDisplayName` |
+| Control/CLI join request | `package`, `endpoint` (numeric private/loopback IP and port), `memberDisplayName` |
+| Browser join request | exact signed `package`, outer `provider`, `admissionEndpoint`, `syncEndpoint`, and `memberDisplayName` |
 | Redemption | `circleId`, `invitationId`, `redemptionId`, `status` (`accepted`) |
 | Circle Files provider | `id`, `nodeId`; provider implementation and credentials are absent |
 | File Contribution | `id`, `circleId`, provider, `displayName`, lifecycle, generation, created time, authorizing Member/generation/time |
@@ -450,13 +451,28 @@ actual bound numeric private IPv4 admission and authenticated-files synchronizat
 which the browser wraps in a bounded copyable invitation envelope. Listener selection or binding
 must succeed before invitation state is created. An unavailable or ambiguous private network
 returns a bounded `409` while the loopback workspace remains usable. `POST
-/browser/v1/circles/join` submits the exact package, admission endpoint, and new Member display name
-to the existing signed admission behavior.
+/browser/v1/circles/join` submits the exact package, outer provider, admission/synchronization
+endpoints, and new Member display name to the existing signed admission behavior. After signed
+admission succeeds, `ballsd` commits that unsigned outer connection with membership under the
+local OS protection scheme. It is local transport/provider state, never Circle identity or an
+addition to the signed invitation.
 
-`POST /browser/v1/circles/{circleId}/files/sync` accepts only a private IPv4 endpoint and returns
-the Circle ID plus the number of authorized grants imported. Provider credentials remain inside
-the authenticated daemon-to-daemon channel and the recipient's protected local credential store;
-they never occur in the browser request or response.
+`POST /browser/v1/circles/{circleId}/files/sync` has no request body. It resolves the saved
+provider and synchronization endpoint from protected local Node state and returns the Circle ID
+plus the number of authorized grants imported. Browser mapping requests likewise contain only
+the contribution/grant path plus drive/plan values; `ballsd` derives the saved private Files host.
+The detailed control/CLI mapping routes retain their explicit diagnostic `endpoint` contract.
+The existing public browser mapping plan may describe its derived endpoint, but JavaScript never
+stores or retransmits that value; #100 replaces that multi-call plan with one high-level open
+operation. Provider credentials remain inside daemon state and authenticated daemon-to-daemon
+channels and never occur in browser requests or responses.
+
+The web application never reads or writes Web Storage for admission or Circle Files connection
+state. A fresh browser session and a packaged daemon relaunch reconstruct the Member Capability
+from the persisted Circle plus protected connection. Unreachable owners return bounded `502`
+errors without changing that connection, and the guided panel retries with capped backoff or lets
+the person choose **Check again**. Missing, corrupt, or mismatched saved connections fail closed
+with bounded `409` errors and do not reflect provider or endpoint values.
 
 Authenticated `GET /browser/v1/circles/{circleId}/files/contributions` and
 `GET /browser/v1/circles/{circleId}/files/contributions/{contributionId}/grants` return safe list
@@ -503,7 +519,7 @@ Handled application errors use this shape:
 | 400 | `owner_display_name_required` |
 | 400 | `owner_display_name_too_long` |
 | 400 | `invalid_circle_id` |
-| 400 | `invalid_invitation_validity`, `invalid_admission_endpoint`, `member_display_name`, `malformed`, `forged`, `expired`, `not_yet_valid`, `revoked`, `wrong_circle`, `wrong_node`, `downgraded`, `unsupported_version`, `unsupported_suite`, `unauthorized_issuer`, `stale_authority_state` |
+| 400 | `invalid_invitation_validity`, `invalid_admission_endpoint`, `invalid_circle_connection`, `unsupported_circle_connection`, `member_display_name`, `malformed`, `forged`, `expired`, `not_yet_valid`, `revoked`, `wrong_circle`, `wrong_node`, `downgraded`, `unsupported_version`, `unsupported_suite`, `unauthorized_issuer`, `stale_authority_state` |
 | 400 | `invalid_message_endpoint`, `invalid_message_text`, `unauthorized`, `oversized` |
 | 400 | `contribution_name_required`, `contribution_name_too_long`, `invalid_member_access`, `circle_files_owner_required`, `circle_files_authority_unavailable`, `circle_files_authorization_failed` |
 | 400 | `hosting_path_invalid`, `hosting_authorization_invalid`, `windows_required` |
@@ -514,6 +530,7 @@ Handled application errors use this shape:
 | 404 | `circle_files_contribution_not_found`, `member_not_found` |
 | 409 | `creation_request_conflict` |
 | 409 | `admission_attempt_conflict` |
+| 409 | `circle_connection_missing`, `invalid_circle_connection`, `circle_connection_conflict` |
 | 409 | `private_network_unavailable`, `private_network_ambiguous`, `private_listeners_unavailable` |
 | 409 | `message_request_conflict`, `conflict` |
 | 409 | `circle_files_contribution_request_conflict`, `circle_files_grant_request_conflict`, `circle_files_grant_exists`, `circle_files_grant_generation_changed` |

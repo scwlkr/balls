@@ -13,7 +13,7 @@ import type {
   BrowserInvitationDto,
   CircleViewerDto,
   CircleFilesSyncDto,
-  JoinCircleDto,
+  JoinBrowserCircleDto,
 } from "./localControl";
 
 interface ErrorDto {
@@ -48,10 +48,12 @@ export interface BrowserApi {
   createInvitation(circleId: string): Promise<BrowserInvitationDto>;
   joinCircle(
     packageValue: string,
-    endpoint: string,
+    provider: string,
+    admissionEndpoint: string,
+    syncEndpoint: string,
     memberDisplayName: string,
   ): Promise<CircleDetailsDto>;
-  syncFiles(circleId: string, endpoint: string): Promise<CircleFilesSyncDto>;
+  syncFiles(circleId: string): Promise<CircleFilesSyncDto>;
   listFilesContributions(
     circleId: string,
   ): Promise<CircleFilesContributionListDto>;
@@ -70,14 +72,12 @@ export interface BrowserApi {
     circleId: string,
     contributionId: string,
     grantId: string,
-    endpoint: string,
     driveLetter: string,
   ): Promise<CircleFilesMemberMappingPlanDto>;
   mapFiles(
     circleId: string,
     contributionId: string,
     grantId: string,
-    endpoint: string,
     driveLetter: string,
     planId: string,
   ): Promise<CircleFilesMemberMappingResultDto>;
@@ -85,14 +85,12 @@ export interface BrowserApi {
     circleId: string,
     contributionId: string,
     grantId: string,
-    endpoint: string,
     driveLetter: string,
   ): Promise<CircleFilesMemberMappingInspectionDto>;
   unmapFiles(
     circleId: string,
     contributionId: string,
     grantId: string,
-    endpoint: string,
     driveLetter: string,
   ): Promise<CircleFilesMemberMappingResultDto>;
 }
@@ -166,14 +164,18 @@ class FetchBrowserApi implements BrowserApi {
 
   joinCircle(
     packageValue: string,
-    endpoint: string,
+    provider: string,
+    admissionEndpoint: string,
+    syncEndpoint: string,
     memberDisplayName: string,
   ) {
     const request = {
       package: packageValue,
-      endpoint,
+      provider,
+      admissionEndpoint,
+      syncEndpoint,
       memberDisplayName,
-    } satisfies JoinCircleDto;
+    } satisfies JoinBrowserCircleDto;
     return this.authenticatedRequest<CircleDetailsDto>(
       "/browser/v1/circles/join",
       request,
@@ -181,10 +183,10 @@ class FetchBrowserApi implements BrowserApi {
     );
   }
 
-  syncFiles(circleId: string, endpoint: string) {
+  syncFiles(circleId: string) {
     return this.authenticatedRequest<CircleFilesSyncDto>(
       `/browser/v1/circles/${encodeURIComponent(circleId)}/files/sync`,
-      { endpoint },
+      {},
       "Run balls ui again to connect your shared files.",
     );
   }
@@ -226,7 +228,6 @@ class FetchBrowserApi implements BrowserApi {
     circleId: string,
     contributionId: string,
     grantId: string,
-    endpoint: string,
     driveLetter: string,
   ) {
     return this.mappingRequest<CircleFilesMemberMappingPlanDto>(
@@ -234,7 +235,7 @@ class FetchBrowserApi implements BrowserApi {
       contributionId,
       grantId,
       "preview",
-      { endpoint, driveLetter },
+      { driveLetter },
     );
   }
 
@@ -242,7 +243,6 @@ class FetchBrowserApi implements BrowserApi {
     circleId: string,
     contributionId: string,
     grantId: string,
-    endpoint: string,
     driveLetter: string,
     planId: string,
   ) {
@@ -251,7 +251,7 @@ class FetchBrowserApi implements BrowserApi {
       contributionId,
       grantId,
       "map",
-      { endpoint, driveLetter, planId },
+      { driveLetter, planId },
     );
   }
 
@@ -259,7 +259,6 @@ class FetchBrowserApi implements BrowserApi {
     circleId: string,
     contributionId: string,
     grantId: string,
-    endpoint: string,
     driveLetter: string,
   ) {
     return this.mappingRequest<CircleFilesMemberMappingInspectionDto>(
@@ -267,7 +266,7 @@ class FetchBrowserApi implements BrowserApi {
       contributionId,
       grantId,
       "inspect",
-      { endpoint, driveLetter },
+      { driveLetter },
     );
   }
 
@@ -275,7 +274,6 @@ class FetchBrowserApi implements BrowserApi {
     circleId: string,
     contributionId: string,
     grantId: string,
-    endpoint: string,
     driveLetter: string,
   ) {
     return this.mappingRequest<CircleFilesMemberMappingResultDto>(
@@ -283,7 +281,7 @@ class FetchBrowserApi implements BrowserApi {
       contributionId,
       grantId,
       "unmap",
-      { endpoint, driveLetter },
+      { driveLetter },
     );
   }
 

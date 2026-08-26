@@ -52,6 +52,7 @@ Current `main` contains substantial reusable work:
 
 - native Windows/Linux `ballsd`, typed CLI, protected local state, and local React workspace;
 - signed single-use Circle invitations and authenticated two-Node LAN admission;
+- protected invitation-derived Member connection state that survives browser and daemon relaunch;
 - persisted Members, Nodes, and one minimal Circle message;
 - Owner-authorized Circle Files contributions and Member Access Grants;
 - a narrow Windows helper for the owned encrypted SMB share and limited per-Member credentials;
@@ -73,8 +74,6 @@ Reuse this machinery where it shortens #92. Do not expand it for hypothetical fu
   choreography rather than one graphical flow.
 - Real Windows mapping was previously triggered through the CLI; the full browser click under a
   genuine standard user remains unobserved.
-- Invitation-derived connection information is kept in browser session storage, so the guided path
-  may fall back to technical mapping controls after a fresh browser session.
 - The current button maps the drive but does not itself open File Explorer.
 - Published Windows packages are unsigned; do not bypass Windows application-control policy.
 
