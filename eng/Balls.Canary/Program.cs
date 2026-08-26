@@ -2,13 +2,26 @@ using Balls.Canary;
 
 try
 {
-    var request = CanaryCommandParser.Parse(args);
-    var result = CanaryPackageBuilder.Build(request);
-    Console.WriteLine($"Artifact: {result.ArchivePath}");
-    Console.WriteLine($"Checksum: {result.ChecksumPath}");
-    if (result.InstallerPath is not null)
+    if (args.FirstOrDefault() == "package")
     {
-        Console.WriteLine($"Installer: {result.InstallerPath}");
+        var request = CanaryCommandParser.Parse(args);
+        var result = CanaryPackageBuilder.Build(request);
+        Console.WriteLine($"Artifact: {result.ArchivePath}");
+        Console.WriteLine($"Checksum: {result.ChecksumPath}");
+        if (result.InstallerPath is not null)
+        {
+            Console.WriteLine($"Installer: {result.InstallerPath}");
+        }
+    }
+    else
+    {
+        var request = DevelopmentManifestCommandParser.Parse(args);
+        var result = DevelopmentManifestBuilder.Build(request);
+        Console.WriteLine($"Version manifest: {result.VersionManifestPath}");
+        Console.WriteLine($"Development pointer: {result.ChannelManifestPath}");
+        Console.WriteLine($"Release catalog: {result.ReleaseCatalogPath}");
+        Console.WriteLine($"Previous pointer tag: {result.PreviousTag ?? "none"}");
+        Console.WriteLine($"Previous pointer SHA-256: {result.PreviousSha256 ?? "none"}");
     }
 
     return 0;

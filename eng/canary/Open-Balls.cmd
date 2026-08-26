@@ -2,8 +2,8 @@
 setlocal EnableExtensions DisableDelayedExpansion
 
 set "BALLS_PACKAGE=%~dp0"
-set "BALLS_HOME=%LOCALAPPDATA%\Balls-Pilot"
-set "BALLS_PIPE=balls-pilot"
+set "BALLS_HOME=%LOCALAPPDATA%\Balls"
+set "BALLS_PIPE=balls"
 set "BALLS_CLI=%BALLS_PACKAGE%balls\balls.exe"
 set "BALLS_DAEMON=%BALLS_PACKAGE%ballsd\ballsd.exe"
 set "BALLS_DAEMON_DIRECTORY=%BALLS_PACKAGE%ballsd"
