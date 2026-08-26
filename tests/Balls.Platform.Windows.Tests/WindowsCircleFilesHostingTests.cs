@@ -207,12 +207,13 @@ public sealed class WindowsCircleFilesHostingTests
                 + "if($errors.Count -ne 0){exit 1};'ok'";
             var startInfo = WindowsDirectPowerShellCommand.CreateStartInfo(parser);
             startInfo.Environment["PSExecutionPolicyPreference"] = "Restricted";
-            _ = await BoundedWindowsInspectionProcessRunner.RunWithInputAsync(
+            var output = await BoundedWindowsInspectionProcessRunner.RunWithInputAsync(
                 startInfo,
                 mutationScript,
                 TimeSpan.FromSeconds(45),
                 1024,
                 CancellationToken.None);
+            Assert.AreEqual("ok", output.Trim());
         }
     }
 
