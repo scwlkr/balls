@@ -1,8 +1,6 @@
 import assert from "node:assert/strict";
-import { spawnSync } from "node:child_process";
 import { readFile } from "node:fs/promises";
 import test from "node:test";
-import { fileURLToPath } from "node:url";
 
 const siteRoot = new URL("../", import.meta.url);
 
@@ -43,14 +41,20 @@ test("presents one stable command for every supported delivery lane", async () =
   assert.match(html, /Linux/i);
   assert.match(html, /macOS/i);
   assert.match(html, /og\.png/i);
-  assert.match(html, /https:\/\/balls\.wlkrlabs\.com\/install\.ps1/);
+  assert.match(html, /Loading verified install command/);
+  assert.match(html, /href="\/bootstrap\/windows-x64\.json"/);
   assert.match(html, /https:\/\/balls\.wlkrlabs\.com\/install\.sh/);
   assert.match(html, /https:\/\/balls\.wlkrlabs\.com\/source\.sh/);
   assert.match(
     html,
     /Windows x64 · Windows PowerShell 5\.1\+[\s\S]*· runtime checked from manifest/i,
   );
-  assert.match(html, /powershell\.exe -NoLogo -NoProfile -File/);
+  assert.doesNotMatch(html, /powershell\.exe -NoLogo -NoProfile -File/);
+  assert.doesNotMatch(html, /\.ps1\b/i);
+  assert.doesNotMatch(
+    html,
+    /ExecutionPolicy|Unblock-File|Invoke-Expression|\biex\b/i,
+  );
   assert.doesNotMatch(html, /\bpwsh\b/);
   assert.match(html, /unsigned prerelease/i);
   assert.match(html, /macOS is source-only/i);
@@ -202,42 +206,21 @@ test("pins moving and immutable manifests plus the release catalog", async () =>
 });
 
 test("bootstraps verify local files without pipe-to-shell or policy bypasses", async () => {
-  const [powershell, linux, macos] = await Promise.all([
-    readFile(new URL("public/install.ps1", siteRoot), "utf8"),
+  const [windowsSource, linux, macos] = await Promise.all([
+    readFile(new URL("src/main.ts", siteRoot), "utf8"),
     readFile(new URL("public/install.sh", siteRoot), "utf8"),
     readFile(new URL("public/source.sh", siteRoot), "utf8"),
   ]);
 
-  assert.match(powershell, /Get-FileHash/);
-  assert.match(powershell, /Install-BallsCanary\\?\.ps1/);
-  assert.match(powershell, /PackageManifest\.commit/);
-  assert.match(powershell, /commit\.Substring\(0, 12\)/);
-  assert.match(powershell, /--list-runtimes/);
-  assert.match(powershell, /DOTNET_ROOT_X64/);
-  assert.match(powershell, /RegistryView\]::Registry64/);
-  assert.match(powershell, /ProgramW6432/);
-  assert.doesNotMatch(powershell, /Get-Command\s+dotnet/);
+  assert.match(windowsSource, /bootstrap\/windows-x64\.json/);
+  assert.match(windowsSource, /Get-FileHash/);
+  assert.match(windowsSource, /balls-bootstrap-windows-x64/);
+  assert.match(windowsSource, /--manifest-uri/);
+  assert.doesNotMatch(windowsSource, /install\.ps1|\s-File\s|\.ps1\b/i);
   assert.doesNotMatch(
-    powershell,
-    /requires the x64 \.NET 10 and ASP\.NET Core 10 runtimes/,
+    windowsSource,
+    /Invoke-Expression|\biex\b|ExecutionPolicy|Unblock-File/i,
   );
-  const preflight = powershell.lastIndexOf(
-    "Assert-RuntimeRequirements $delivery.runtime",
-  );
-  assert.ok(preflight > powershell.indexOf("Invoke-RestMethod"));
-  assert.ok(preflight < powershell.indexOf("$temporaryRoot"));
-  assert.match(powershell, /#Requires -Version 5\.1/);
-  assert.match(powershell, /@\('alpha', 'development'\)/);
-  assert.match(powershell, /installation\.json/);
-  assert.match(powershell, /WScript\.Shell/);
-  assert.match(powershell, /Assert-InternalChecksums/);
-  assert.match(powershell, /Opened the local Balls workspace\./);
-  assert.match(powershell, /previousShortcutBytes/);
-  assert.match(powershell, /previousRecordBytes/);
-  assert.match(powershell, /installationCommitted/);
-  assert.doesNotMatch(powershell, /\$IsWindows/);
-  assert.doesNotMatch(powershell, /\.ArgumentList/);
-  assert.doesNotMatch(powershell, /Invoke-Expression|\biex\b|ExecutionPolicy/i);
 
   assert.match(linux, /sha256sum/);
   assert.match(linux, /Install-BallsCanary\\?\.sh/);
@@ -250,31 +233,10 @@ test("bootstraps verify local files without pipe-to-shell or policy bypasses", a
   assert.doesNotMatch(macos, /curl[^\n]*\|/);
 });
 
-test(
-  "executes the Windows runtime preflight unit tests",
-  { skip: process.platform !== "win32" },
-  () => {
-    const result = spawnSync(
-      "powershell.exe",
-      [
-        "-NoLogo",
-        "-NoProfile",
-        "-NonInteractive",
-        "-File",
-        fileURLToPath(new URL("install-runtime.test.ps1", import.meta.url)),
-      ],
-      { encoding: "utf8" },
-    );
-
-    assert.equal(result.status, 0, `${result.stdout}\n${result.stderr}`);
-  },
-);
-
 test("copies the public channel and bootstrap files into the deployment", async () => {
   for (const path of [
     "channels/alpha.json",
     "releases.json",
-    "install.ps1",
     "install.sh",
     "source.sh",
     "versions/0.3.0-alpha.1.json",

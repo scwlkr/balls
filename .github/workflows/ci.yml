@@ -211,13 +211,17 @@ jobs:
           $canaryRoot = Join-Path $env:RUNNER_TEMP 'balls-canary'
           $cliDirectory = Join-Path $canaryRoot 'input\balls'
           $daemonDirectory = Join-Path $canaryRoot 'input\ballsd'
+          $bootstrapDirectory = Join-Path $canaryRoot 'input\bootstrap'
           $outputDirectory = Join-Path $canaryRoot 'output'
+          $commit = '${{ github.sha }}'
 
           dotnet restore Balls.slnx --locked-mode
           dotnet restore src/Balls.Cli/Balls.Cli.csproj --runtime win-x64 -p:NuGetLockFilePath=obj/packages.win-x64.lock.json
           dotnet restore src/Balls.Daemon/Balls.Daemon.csproj --runtime win-x64 -p:NuGetLockFilePath=obj/packages.win-x64.lock.json
+          dotnet restore src/Balls.Bootstrap.Windows/Balls.Bootstrap.Windows.csproj --runtime win-x64 -p:NuGetLockFilePath=obj/packages.win-x64.lock.json
           dotnet publish src/Balls.Cli/Balls.Cli.csproj --configuration Release --runtime win-x64 --self-contained true --no-restore --output $cliDirectory
           dotnet publish src/Balls.Daemon/Balls.Daemon.csproj --configuration Release --runtime win-x64 --self-contained true --no-restore --output $daemonDirectory
+          dotnet publish src/Balls.Bootstrap.Windows/Balls.Bootstrap.Windows.csproj --configuration Release --runtime win-x64 --self-contained true --no-restore --output $bootstrapDirectory
           dotnet run --project eng/Balls.Canary --configuration Release --no-restore -- package `
             --repository-root . `
             --cli-directory $cliDirectory `
@@ -225,7 +229,12 @@ jobs:
             --output-directory $outputDirectory `
             --platform windows `
             --architecture x64 `
-            --commit '${{ github.sha }}'
+            --commit $commit
+
+          $bootstrapName = "balls-bootstrap-windows-x64-$($commit.Substring(0, 12)).exe"
+          Copy-Item `
+            -LiteralPath (Join-Path $bootstrapDirectory 'balls-bootstrap-windows-x64.exe') `
+            -Destination (Join-Path $outputDirectory $bootstrapName)
 
           $archives = @(Get-ChildItem -LiteralPath $outputDirectory -Filter '*.zip' -File)
           if ($archives.Count -ne 1) {
@@ -243,10 +252,14 @@ jobs:
             throw "Expected exactly one Windows Canary archive; found $($archives.Count)."
           }
           $archive = $archives[0]
+          $bootstraps = @(Get-ChildItem -LiteralPath $outputDirectory -Filter 'balls-bootstrap-windows-x64-*.exe' -File)
+          if ($bootstraps.Count -ne 1) {
+            throw "Expected exactly one native Windows bootstrap; found $($bootstraps.Count)."
+          }
           & .\eng\canary\Test-WindowsCanary.ps1 `
             -PackagePath $archive.FullName `
             -ChecksumPath ($archive.FullName + '.sha256') `
-            -InstallerPath (Join-Path $outputDirectory 'Install-BallsCanary.ps1')
+            -BootstrapPath $bootstraps[0].FullName
 
       - name: Upload Windows Canary
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1

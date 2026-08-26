@@ -49,6 +49,7 @@ internal sealed record DevelopmentManifestRequest(
     string PackagePath,
     string ChecksumPath,
     string InstallerPath,
+    string BootstrapPath,
     string Tag,
     string Commit,
     string PublishedAt);
@@ -68,6 +69,7 @@ internal static class DevelopmentManifestCommandParser
             values["--package-path"],
             values["--checksum-path"],
             values["--installer-path"],
+            values["--bootstrap-path"],
             values["--tag"],
             values["--commit"],
             values["--published-at"]);
@@ -79,6 +81,7 @@ internal static class DevelopmentManifestCommandParser
         "--package-path",
         "--checksum-path",
         "--installer-path",
+        "--bootstrap-path",
         "--tag",
         "--commit",
         "--published-at",
@@ -86,7 +89,7 @@ internal static class DevelopmentManifestCommandParser
 
     private const string UsageMessage =
         "Usage: Balls.Canary development-manifest --public-root <path> --package-path <zip> " +
-        "--checksum-path <sha256> --installer-path <ps1> --tag <development-tag> " +
+        "--checksum-path <sha256> --installer-path <ps1> --bootstrap-path <exe> --tag <development-tag> " +
         "--commit <full-sha> --published-at <utc-timestamp>";
 }
 

@@ -6,6 +6,7 @@
     <Project Path="eng/Balls.RemoteHarness/Balls.RemoteHarness.csproj" />
   </Folder>
   <Folder Name="/src/">
+    <Project Path="src/Balls.Bootstrap.Windows/Balls.Bootstrap.Windows.csproj" />
     <Project Path="src/Balls.Cli/Balls.Cli.csproj" />
     <Project Path="src/Balls.Core/Balls.Core.csproj" />
     <Project Path="src/Balls.Daemon/Balls.Daemon.csproj" />
@@ -23,6 +24,7 @@
     <Project Path="src/Balls.Windows.Helper/Balls.Windows.Helper.csproj" />
   </Folder>
   <Folder Name="/tests/">
+    <Project Path="tests/Balls.Bootstrap.Windows.Tests/Balls.Bootstrap.Windows.Tests.csproj" />
     <Project Path="tests/Balls.Architecture.Tests/Balls.Architecture.Tests.csproj" />
     <Project Path="tests/Balls.Cli.Tests/Balls.Cli.Tests.csproj" />
     <Project Path="tests/Balls.Core.Tests/Balls.Core.Tests.csproj" />

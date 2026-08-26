@@ -9,13 +9,14 @@ param(
     [Parameter(Mandatory)]
     [string] $ExpectedCommit,
 
+    [uri] $BootstrapManifestUri = 'https://balls.wlkrlabs.com/bootstrap/windows-x64.json',
+
     [string] $InstallRoot = (Join-Path $env:LOCALAPPDATA 'Balls-Download-Smoke')
 )
 
 $ErrorActionPreference = 'Stop'
 Set-StrictMode -Version Latest
-$bootstrapPath = [IO.Path]::GetFullPath(
-    (Join-Path $PSScriptRoot '..\..\web\Balls.Downloads\public\install.ps1'))
+$bootstrapPath = Join-Path $env:TEMP ("balls-bootstrap-smoke-{0}.exe" -f [guid]::NewGuid().ToString('N'))
 $resolvedInstallRoot = [IO.Path]::GetFullPath($InstallRoot)
 $localAppData = [IO.Path]::GetFullPath(
     [Environment]::GetFolderPath([Environment+SpecialFolder]::LocalApplicationData))
@@ -76,6 +77,13 @@ if ($ExpectedTag -notmatch '^[0-9A-Za-z][0-9A-Za-z._-]{0,127}$' -or
     $ExpectedCommit -notmatch '^[0-9a-f]{40}$') {
     throw 'Expected release identity is invalid.'
 }
+if ($BootstrapManifestUri.Scheme -cne 'https' -or
+    $BootstrapManifestUri.Host -cne 'balls.wlkrlabs.com' -or
+    $BootstrapManifestUri.Query.Length -ne 0 -or
+    $BootstrapManifestUri.Fragment.Length -ne 0 -or
+    $BootstrapManifestUri.AbsolutePath -notmatch '^/bootstrap/(windows-x64|versions/[0-9A-Za-z][0-9A-Za-z._-]{0,127})\.json$') {
+    throw 'Bootstrap manifest URI must be an official moving or immutable Balls bootstrap manifest.'
+}
 if (-not $resolvedInstallRoot.StartsWith(
     ($localAppData + [IO.Path]::DirectorySeparatorChar),
     [StringComparison]::OrdinalIgnoreCase)) {
@@ -89,11 +97,47 @@ if (Test-Path -LiteralPath $shortcutPath) {
 }
 
 try {
-    & powershell.exe -NoLogo -NoProfile -File $bootstrapPath `
-        -ManifestUri $ManifestUri.AbsoluteUri `
-        -InstallRoot $resolvedInstallRoot
-    if ($LASTEXITCODE -ne 0) {
-        throw "The official Windows bootstrap failed with exit code $LASTEXITCODE."
+    $bootstrap = Invoke-RestMethod -UseBasicParsing -Uri $BootstrapManifestUri
+    $bootstrapName = [string] $bootstrap.asset.name
+    $bootstrapUri = [uri] $bootstrap.asset.url
+    if ($bootstrap.schemaVersion -ne 1 -or
+        [string] $bootstrap.product -cne 'Balls' -or
+        [string] $bootstrap.platform -cne 'windows' -or
+        [string] $bootstrap.architecture -cne 'x64' -or
+        [string] $bootstrap.release.commit -cne $ExpectedCommit -or
+        $bootstrapName -notmatch '^balls-bootstrap-windows-x64-[0-9a-f]{12}\.exe$' -or
+        [string] $bootstrap.asset.sha256 -notmatch '^[0-9a-f]{64}$' -or
+        $bootstrapUri.Scheme -cne 'https' -or
+        $bootstrapUri.Host -cne 'github.com' -or
+        $bootstrapUri.AbsolutePath -cne "/scwlkr/balls/releases/download/$($bootstrap.release.tag)/$bootstrapName") {
+        throw 'The official native Windows bootstrap manifest is invalid or does not match the selected release.'
+    }
+    Invoke-WebRequest -UseBasicParsing -Uri $bootstrapUri -OutFile $bootstrapPath
+    if ((Get-FileHash -LiteralPath $bootstrapPath -Algorithm SHA256).Hash.ToLowerInvariant() -cne
+        [string] $bootstrap.asset.sha256) {
+        throw 'The native Windows bootstrap SHA-256 verification failed.'
+    }
+
+    $processPolicyBefore = [Environment]::GetEnvironmentVariable(
+        'PSExecutionPolicyPreference',
+        [EnvironmentVariableTarget]::Process)
+    try {
+        [Environment]::SetEnvironmentVariable(
+            'PSExecutionPolicyPreference',
+            'Restricted',
+            [EnvironmentVariableTarget]::Process)
+        & $bootstrapPath `
+            --manifest-uri $ManifestUri.AbsoluteUri `
+            --install-root $resolvedInstallRoot
+        if ($LASTEXITCODE -ne 0) {
+            throw "The official native Windows bootstrap failed with exit code $LASTEXITCODE."
+        }
+    }
+    finally {
+        [Environment]::SetEnvironmentVariable(
+            'PSExecutionPolicyPreference',
+            $processPolicyBefore,
+            [EnvironmentVariableTarget]::Process)
     }
 
     $recordPath = Join-Path $resolvedInstallRoot 'installation.json'
@@ -213,6 +257,9 @@ finally {
             [Runtime.InteropServices.Marshal]::FinalReleaseComObject($shell) | Out-Null
         }
         Remove-Item -LiteralPath $shortcutPath -Force
+    }
+    if (Test-Path -LiteralPath $bootstrapPath) {
+        Remove-Item -LiteralPath $bootstrapPath -Force
     }
     if (Test-Path -LiteralPath $resolvedInstallRoot) {
         if (-not $resolvedInstallRoot.StartsWith(

@@ -11,9 +11,13 @@ namespace Balls.Canary;
 internal sealed record DevelopmentManifestResult(
     string VersionManifestPath,
     string ChannelManifestPath,
+    string BootstrapVersionManifestPath,
+    string BootstrapManifestPath,
     string ReleaseCatalogPath,
     string? PreviousTag,
-    string? PreviousSha256);
+    string? PreviousSha256,
+    string? PreviousBootstrapTag,
+    string? PreviousBootstrapSha256);
 
 internal static partial class DevelopmentManifestBuilder
 {
@@ -32,6 +36,7 @@ internal static partial class DevelopmentManifestBuilder
         var packagePath = Path.GetFullPath(request.PackagePath);
         var checksumPath = Path.GetFullPath(request.ChecksumPath);
         var installerPath = Path.GetFullPath(request.InstallerPath);
+        var bootstrapPath = Path.GetFullPath(request.BootstrapPath);
         var identity = ReadPackageIdentity(packagePath, request.Commit);
         RequireNoSensitivePayload(packagePath);
         RequireSelfContainedRuntime(packagePath);
@@ -64,6 +69,15 @@ internal static partial class DevelopmentManifestBuilder
         if (!string.Equals(installerName, "Install-BallsCanary.ps1", StringComparison.Ordinal))
         {
             throw new InvalidDataException("The Windows installer has an unexpected filename.");
+        }
+
+        var bootstrapName = Path.GetFileName(bootstrapPath);
+        var expectedBootstrapName = $"balls-bootstrap-windows-x64-{request.Commit[..12]}.exe";
+        if (!string.Equals(bootstrapName, expectedBootstrapName, StringComparison.Ordinal) ||
+            !IsX64PortableExecutable(bootstrapPath))
+        {
+            throw new InvalidDataException(
+                $"Native Windows bootstrap must be the exact x64 release asset: {expectedBootstrapName}");
         }
 
         var publishedAt = DateTimeOffset.ParseExact(
@@ -105,16 +119,31 @@ internal static partial class DevelopmentManifestBuilder
             },
         };
         var manifestText = Serialize(manifest);
+        var bootstrapManifestText = Serialize(new
+        {
+            schemaVersion = 1,
+            product = "Balls",
+            platform = "windows",
+            architecture = "x64",
+            release = new { tag = request.Tag, commit = request.Commit },
+            asset = Asset(bootstrapName, releaseRoot, HashFile(bootstrapPath)),
+        });
 
         var versionsRoot = Path.Combine(publicRoot, "versions");
         var channelsRoot = Path.Combine(publicRoot, "channels");
+        var bootstrapRoot = Path.Combine(publicRoot, "bootstrap");
+        var bootstrapVersionsRoot = Path.Combine(bootstrapRoot, "versions");
         var versionManifestPath = Path.Combine(versionsRoot, $"{request.Tag}.json");
         var channelManifestPath = Path.Combine(channelsRoot, "development.json");
+        var bootstrapManifestPath = Path.Combine(bootstrapRoot, "windows-x64.json");
+        var bootstrapVersionManifestPath = Path.Combine(bootstrapVersionsRoot, $"{request.Tag}.json");
         var releaseCatalogPath = Path.Combine(publicRoot, "releases.json");
         var catalogText = BuildCatalog(releaseCatalogPath, request.Tag, publishedAt);
 
         string? previousTag = null;
         string? previousSha256 = null;
+        string? previousBootstrapSha256 = null;
+        string? previousBootstrapTag = null;
         if (File.Exists(channelManifestPath))
         {
             var previousBytes = File.ReadAllBytes(channelManifestPath);
@@ -125,9 +154,20 @@ internal static partial class DevelopmentManifestBuilder
                 .GetProperty("tag")
                 .GetString();
         }
+        if (File.Exists(bootstrapManifestPath))
+        {
+            previousBootstrapSha256 = HashFile(bootstrapManifestPath);
+            using var previousBootstrap = JsonDocument.Parse(File.ReadAllBytes(bootstrapManifestPath));
+            previousBootstrapTag = previousBootstrap.RootElement
+                .GetProperty("release")
+                .GetProperty("tag")
+                .GetString();
+        }
 
         Directory.CreateDirectory(versionsRoot);
         Directory.CreateDirectory(channelsRoot);
+        Directory.CreateDirectory(bootstrapRoot);
+        Directory.CreateDirectory(bootstrapVersionsRoot);
         if (File.Exists(versionManifestPath))
         {
             var existing = File.ReadAllText(versionManifestPath);
@@ -141,15 +181,33 @@ internal static partial class DevelopmentManifestBuilder
         {
             File.WriteAllText(versionManifestPath, manifestText, new UTF8Encoding(false));
         }
+        if (File.Exists(bootstrapVersionManifestPath))
+        {
+            var existing = File.ReadAllText(bootstrapVersionManifestPath);
+            if (!string.Equals(existing, bootstrapManifestText, StringComparison.Ordinal))
+            {
+                throw new InvalidOperationException(
+                    $"Immutable bootstrap manifest already exists with different content: {bootstrapVersionManifestPath}");
+            }
+        }
+        else
+        {
+            File.WriteAllText(bootstrapVersionManifestPath, bootstrapManifestText, new UTF8Encoding(false));
+        }
 
         WriteAtomic(channelManifestPath, manifestText);
+        WriteAtomic(bootstrapManifestPath, bootstrapManifestText);
         WriteAtomic(releaseCatalogPath, catalogText);
         return new DevelopmentManifestResult(
             versionManifestPath,
             channelManifestPath,
+            bootstrapVersionManifestPath,
+            bootstrapManifestPath,
             releaseCatalogPath,
             previousTag,
-            previousSha256);
+            previousSha256,
+            previousBootstrapTag,
+            previousBootstrapSha256);
     }
 
     private static void ValidateRequest(DevelopmentManifestRequest request)
@@ -158,6 +216,7 @@ internal static partial class DevelopmentManifestBuilder
         RequireFile(request.PackagePath);
         RequireFile(request.ChecksumPath);
         RequireFile(request.InstallerPath);
+        RequireFile(request.BootstrapPath);
         RequireFile(Path.Combine(request.PublicRoot, "releases.json"));
 
         if (!CommitPattern().IsMatch(request.Commit))
@@ -319,8 +378,36 @@ internal static partial class DevelopmentManifestBuilder
         sha256,
     };
 
-    private static string HashFile(string path) =>
-        Convert.ToHexString(SHA256.HashData(File.ReadAllBytes(path))).ToLowerInvariant();
+    private static string HashFile(string path)
+    {
+        using var stream = File.OpenRead(path);
+        return Convert.ToHexString(SHA256.HashData(stream)).ToLowerInvariant();
+    }
+
+    private static bool IsX64PortableExecutable(string path)
+    {
+        try
+        {
+            using var stream = File.OpenRead(path);
+            using var reader = new BinaryReader(stream);
+            if (stream.Length < 70 || reader.ReadUInt16() != 0x5a4d)
+            {
+                return false;
+            }
+            stream.Position = 0x3c;
+            var offset = reader.ReadInt32();
+            if (offset < 0 || offset + 6 > stream.Length)
+            {
+                return false;
+            }
+            stream.Position = offset;
+            return reader.ReadUInt32() == 0x00004550 && reader.ReadUInt16() == 0x8664;
+        }
+        catch (IOException)
+        {
+            return false;
+        }
+    }
 
     private static string Serialize<T>(T value) =>
         JsonSerializer.Serialize(value, JsonOptions) + Environment.NewLine;

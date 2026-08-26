@@ -36,8 +36,9 @@ test("shows every delivery lane and copies the complete Linux command", async ({
     "https://balls.wlkrlabs.com/install.sh",
   );
   await expect(page.locator("#windows-command")).toContainText(
-    "powershell.exe -NoLogo -NoProfile",
+    "https://balls.wlkrlabs.com/bootstrap/windows-x64.json",
   );
+  await expect(page.locator("#windows-command")).toContainText("Get-FileHash");
 });
 
 test("shows the latest warned Development build and limits history to ten", async ({

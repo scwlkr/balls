@@ -182,8 +182,8 @@
                 <p class="platform-name">Windows</p>
                 <h3>Install the latest Alpha</h3>
                 <p>
-                  Downloads the accepted Windows package and repository
-                  installer, verifies both SHA-256 layers, and keeps your
+                  Downloads the accepted Windows package through a verified
+                  native bootstrap, checks both SHA-256 layers, and keeps your
                   existing Balls state.
                 </p>
               </div>
@@ -202,7 +202,7 @@
                       </span>
                     </button>
                   </div>
-                  <pre><code id="windows-command">Invoke-WebRequest https://balls.wlkrlabs.com/install.ps1 -OutFile "$env:TEMP\install-balls.ps1"; powershell.exe -NoLogo -NoProfile -File "$env:TEMP\install-balls.ps1"</code></pre>
+                  <pre><code id="windows-command">Loading verified install command…</code></pre>
                 </div>
                 <div class="command-notes">
                   <span>
@@ -212,7 +212,9 @@
                       · runtime checked from manifest</span
                     >
                   </span>
-                  <a href="/install.ps1">Review install.ps1</a>
+                  <a href="/bootstrap/windows-x64.json"
+                    >Review bootstrap manifest</a
+                  >
                 </div>
               </div>
             </article>
