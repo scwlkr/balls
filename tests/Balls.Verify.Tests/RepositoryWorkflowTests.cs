@@ -47,7 +47,7 @@ public sealed partial class RepositoryWorkflowTests
         Assert.AreEqual(3, Regex.Matches(Workflow, "hashFiles\\('pnpm-lock.yaml'\\)").Count);
         StringAssert.Contains(
             Workflow,
-            "actions/setup-node@2028fbc5c25fe9cf00d9f06a71cc4710d4507903");
+            "actions/setup-node@820762786026740c76f36085b0efc47a31fe5020");
         StringAssert.Contains(
             Workflow,
             "actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830");
