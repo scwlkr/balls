@@ -26,6 +26,18 @@ public sealed class DependencyDirectionTests
     }
 
     [TestMethod]
+    public void Core_does_not_own_local_host_path_persistence()
+    {
+        var core = typeof(CircleApplication).Assembly;
+        var storage = typeof(SqliteLocalStateStore).Assembly;
+
+        Assert.IsNull(core.GetType("Balls.Core.CircleFilesHostedFolderBinding"));
+        Assert.IsNull(core.GetType("Balls.Core.ICircleFilesHostedFolderStore"));
+        Assert.IsNotNull(storage.GetType("Balls.Storage.Sqlite.CircleFilesHostedFolderBinding"));
+        Assert.IsNotNull(storage.GetType("Balls.Storage.Sqlite.ICircleFilesHostedFolderStore"));
+    }
+
+    [TestMethod]
     public void Protocol_has_no_outward_Balls_dependency()
     {
         AssertBallsReferences(typeof(ControlProtocol).Assembly);

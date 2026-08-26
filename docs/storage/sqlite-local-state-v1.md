@@ -118,7 +118,8 @@ receipt but does not gain private root/Anchor authority or redefine itself as th
 - Successful browser hosting persists the exact canonical folder/provider/Node binding after the
   narrow host operation succeeds. Equivalent retry is idempotent; any attempt to bind the same
   Contribution to a different folder or host fails closed. The local folder path is ordinary host
-  configuration, not credential material; provider credentials and passwords remain protected in
+  configuration, not credential material; its binding/store contract lives at the SQLite storage
+  edge rather than in provider-neutral Core. Provider credentials and passwords remain protected in
   their dedicated credential records.
 - Grant creation first proves that its Contribution and Member belong to the same Circle, then
   atomically stores whole-folder access plus the same dual-signed authorization metadata. A bad

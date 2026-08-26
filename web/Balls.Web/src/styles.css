@@ -420,6 +420,36 @@ h1 {
   white-space: nowrap;
 }
 
+.active-membership {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 1px;
+  margin: 0 0 1.25rem;
+  overflow: hidden;
+  background: var(--line);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-medium);
+}
+
+.active-membership div {
+  padding: 0.85rem 1rem;
+  background: var(--surface);
+}
+
+.active-membership dt {
+  margin-bottom: 0.25rem;
+  color: var(--muted);
+  font-size: 0.66rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
+.active-membership dd {
+  margin: 0;
+  color: var(--carbon);
+  font-weight: 700;
+}
+
 .topology {
   padding: clamp(1.5rem, 4vw, 3rem);
   color: var(--surface);
@@ -863,6 +893,12 @@ footer code {
   border: 1px solid var(--line);
   border-radius: var(--radius-large);
   background: var(--surface);
+}
+
+.member-refresh-actions {
+  display: flex;
+  justify-content: flex-end;
+  margin: -1rem 0 1rem;
 }
 
 .message-list {

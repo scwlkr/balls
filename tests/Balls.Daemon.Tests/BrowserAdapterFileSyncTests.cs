@@ -52,6 +52,9 @@ public sealed partial class BrowserAdapterSecurityTests
             {
                 CircleFilesHosting = hostProvisioner,
                 CircleFilesGrantCredentials = grantProvisioner,
+                CircleFilesFolderPicker = new StubFolderPicker(
+                    @"C:\BallsShares\Pilot",
+                    "Pilot Projects"),
             },
             selected.PrivateMaterialProtector);
         using var ownerClient = CreateIpcClient(GetEndpoint(ownerDirectory.Path));
@@ -159,6 +162,9 @@ public sealed partial class BrowserAdapterSecurityTests
             {
                 CircleFilesHosting = hostProvisioner,
                 CircleFilesGrantCredentials = grantProvisioner,
+                CircleFilesFolderPicker = new StubFolderPicker(
+                    @"C:\BallsShares\Pilot",
+                    "Pilot Projects"),
             },
             selected.PrivateMaterialProtector);
         using var relaunchedOwnerClient = CreateIpcClient(GetEndpoint(ownerDirectory.Path));
@@ -166,13 +172,24 @@ public sealed partial class BrowserAdapterSecurityTests
         var ownerBrowserBaseUri = GetBrowserBaseUri(ownerLaunch);
         using var ownerBrowserClient = CreateBrowserClient(ownerBrowserBaseUri);
         var ownerAuthenticated = await ExchangeAsync(ownerBrowserClient, ownerLaunch);
+        using var selectFolder = CreateJsonRequest(
+            HttpMethod.Post,
+            BrowserRoutes.CircleFilesFolderSelection(circle.Circle.Id),
+            new { },
+            GetOrigin(ownerBrowserBaseUri),
+            ownerAuthenticated.Cookie,
+            ownerAuthenticated.Session.AntiforgeryToken);
+        using var selectFolderResponse = await ownerBrowserClient.SendAsync(selectFolder);
+        var folderSelection = await selectFolderResponse.Content
+            .ReadFromJsonAsync<BrowserCircleFilesFolderSelectionResponse>(ControlJson.Options);
+        Assert.AreEqual(HttpStatusCode.OK, selectFolderResponse.StatusCode);
+        Assert.IsNotNull(folderSelection?.SelectionId);
         using var contribute = CreateJsonRequest(
             HttpMethod.Post,
             BrowserRoutes.CircleFilesFolderApply(circle.Circle.Id),
             new ApplyBrowserCircleFilesFolderRequest(
                 "0198d000-6100-7000-8000-000000000002",
-                @"C:\BallsShares\Pilot",
-                "Pilot Projects"),
+                folderSelection!.SelectionId!),
             GetOrigin(ownerBrowserBaseUri),
             ownerAuthenticated.Cookie,
             ownerAuthenticated.Session.AntiforgeryToken);

@@ -10,9 +10,10 @@ internal static class BrowserCircleFilesContributionEndpoints
     internal static async Task<IResult> SelectFolderAsync(
         BrowserCircleFilesContributionApplication application,
         string circleId,
+        string sessionToken,
         CancellationToken cancellationToken)
     {
-        if (!TryParse(circleId, out var circle))
+        if (!BrowserUuid.TryParse(circleId, out var circle))
         {
             return InvalidIds();
         }
@@ -20,17 +21,20 @@ internal static class BrowserCircleFilesContributionEndpoints
         return await InvokeAsync(
             () => application.SelectFolderAsync(
                 new CircleId(circle),
+                sessionToken,
                 cancellationToken)).ConfigureAwait(false);
     }
 
     internal static async Task<IResult> ApplyAsync(
         BrowserCircleFilesContributionApplication application,
         string circleId,
+        string sessionToken,
         ApplyBrowserCircleFilesFolderRequest request,
         CancellationToken cancellationToken)
     {
-        if (!TryParse(circleId, out var circle)
-            || !TryParse(request.RequestId, out var requestId))
+        if (!BrowserUuid.TryParse(circleId, out var circle)
+            || !BrowserUuid.TryParse(request.RequestId, out var requestId)
+            || !BrowserUuid.TryParse(request.SelectionId, out var selectionId))
         {
             return InvalidIds();
         }
@@ -38,9 +42,9 @@ internal static class BrowserCircleFilesContributionEndpoints
         return await InvokeAsync(
             () => application.ApplyAsync(
                 new CircleId(circle),
+                sessionToken,
                 new CircleFilesContributionRequestId(requestId),
-                request.FolderPath,
-                request.DisplayName,
+                selectionId,
                 cancellationToken)).ConfigureAwait(false);
     }
 
@@ -81,10 +85,6 @@ internal static class BrowserCircleFilesContributionEndpoints
 
     private static IResult InvalidIds() => Results.BadRequest(new ErrorResponse(
         "invalid_request_id",
-        "Circle and contribution request IDs must be canonical non-empty UUIDs."));
+        "Circle, contribution request, and folder selection IDs must be canonical non-empty UUIDs."));
 
-    private static bool TryParse(string? value, out Guid parsed) =>
-        Guid.TryParseExact(value, "D", out parsed)
-        && parsed != Guid.Empty
-        && string.Equals(value, parsed.ToString("D"), StringComparison.Ordinal);
 }

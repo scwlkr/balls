@@ -17,7 +17,7 @@ internal static class BrowserInvitationEndpoints
         CreateBrowserCircleInvitationRequest request,
         CancellationToken cancellationToken)
     {
-        if (!Guid.TryParseExact(circleId, "D", out var parsedCircleId))
+        if (!BrowserUuid.TryParse(circleId, out var parsedCircleId))
         {
             return Results.BadRequest(
                 new ErrorResponse("invalid_circle_id", "Circle ID must be a canonical UUID."));

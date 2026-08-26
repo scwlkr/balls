@@ -446,7 +446,10 @@ password, authorization proof, share name, firewall rule, endpoint, drive, plan,
 secret is returned to or stored by JavaScript.
 
 `GET /browser/v1/circles/{circleId}/viewer` returns the current local Member ID and role from
-persisted Circle membership rather than inferring ownership from participant ordering.
+persisted Circle membership rather than inferring ownership from participant ordering. The open
+workspace visibly names both the active Circle and that exact local Member. An Owner can refresh
+the workspace's joined-Member choices in place through ordinary browser UI after another person
+joins; daemon or browser relaunch and technical controls are not part of that discovery flow.
 `POST /browser/v1/circles/{circleId}/invitations` is Owner-authorized, preserves the existing
 signed, single-use invitation package unchanged, and accepts only `validForMinutes`; the Owner
 does not submit an address, port, provider, or other infrastructure value. The response adds the
@@ -491,16 +494,20 @@ an Owner may inspect the Circle's complete locally known grant list.
 
 Owner-authorized `POST
 /browser/v1/circles/{circleId}/files/contributions/folder-selection` opens the normal Windows folder
-picker in the unelevated daemon and returns either `selected` with the exact local path and human
-folder name or `cancelled` with no path. Cancellation creates no Contribution and performs no host
-mutation. `POST /browser/v1/circles/{circleId}/files/contributions/folder-apply` accepts a canonical
-idempotency request ID plus that selected path/name, creates the signed Contribution, previews the
-exact existing host plan, and applies it through the existing narrow helper. Its response contains
-only the public Contribution ID, human name, canonical folder path, and `applied` or
-`already-applied`; internal plans and infrastructure identifiers remain hidden. Other Circle Files
-mutation methods are not mapped. A successful apply also binds that Contribution to the exact
-canonical hosted folder, provider, and hosting Node in daemon state. An exact retry must reproduce
-that binding; it cannot silently substitute a different folder or host.
+picker in the unelevated daemon and returns either `selected` with an opaque selection ID, the exact
+local path, and human folder name or `cancelled` with no selection. The daemon retains that picker
+result for at most 15 minutes, bound to the authenticated browser session and Circle. Cancellation
+creates no Contribution and performs no host mutation. `POST
+/browser/v1/circles/{circleId}/files/contributions/folder-apply` accepts only a canonical idempotency
+request ID plus the opaque selection ID; it never accepts a browser-supplied path or display name.
+Missing, expired, replaced, cross-session, or request-ID-substituted selections return a bounded
+`409`. Apply creates the signed Contribution, previews the exact server-held picker path, and applies
+it through the existing narrow helper. Its response contains only the public Contribution ID, human
+name, canonical folder path, and `applied` or `already-applied`; internal plans and infrastructure
+identifiers remain hidden. Other Circle Files mutation methods are not mapped. A successful apply
+also binds that Contribution to the exact canonical hosted folder, provider, and hosting Node in
+daemon state. An exact retry must reproduce that binding; it cannot silently substitute a different
+folder, request identity, session, or host.
 
 Owner-only `POST /browser/v1/circles/{circleId}/files/grant/preview` accepts only a contributed
 folder name, a joined human Member name, and `Read/write`. `ballsd` uniquely resolves the

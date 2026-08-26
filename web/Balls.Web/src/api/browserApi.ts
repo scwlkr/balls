@@ -21,6 +21,7 @@ interface ErrorDto {
 
 export interface CircleFilesFolderSelectionDto {
   status: "selected" | "cancelled";
+  selectionId: string | null;
   folderPath: string | null;
   displayName: string | null;
 }
@@ -75,8 +76,7 @@ export interface BrowserApi {
   contributeFilesFolder(
     circleId: string,
     requestId: string,
-    folderPath: string,
-    displayName: string,
+    selectionId: string,
   ): Promise<CircleFilesContributionResultDto>;
   previewFilesGrant(
     circleId: string,
@@ -210,12 +210,11 @@ class FetchBrowserApi implements BrowserApi {
   contributeFilesFolder(
     circleId: string,
     requestId: string,
-    folderPath: string,
-    displayName: string,
+    selectionId: string,
   ) {
     return this.authenticatedRequest<CircleFilesContributionResultDto>(
       `/browser/v1/circles/${encodeURIComponent(circleId)}/files/contributions/folder-apply`,
-      { requestId, folderPath, displayName },
+      { requestId, selectionId },
       "Run balls ui again to contribute the folder.",
     );
   }

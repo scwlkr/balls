@@ -44,11 +44,13 @@ public static class DaemonHost
         HostPlatform host,
         IPrivateMaterialProtector privateMaterialProtector,
         CancellationToken cancellationToken = default,
-        Func<PrivateIPv4AddressSelection>? privateAddressSelector = null)
+        Func<PrivateIPv4AddressSelection>? privateAddressSelector = null,
+        TimeProvider? timeProvider = null)
     {
         ArgumentNullException.ThrowIfNull(options);
         ArgumentNullException.ThrowIfNull(host);
         ArgumentNullException.ThrowIfNull(privateMaterialProtector);
+        var clock = timeProvider ?? TimeProvider.System;
 
         ArgumentException.ThrowIfNullOrWhiteSpace(options.DataDirectory);
         host.LocalControlServer.ValidateEndpoint(options.LocalControlEndpoint);
@@ -133,25 +135,25 @@ public static class DaemonHost
                 .ConfigureAwait(false);
             var circleApplication = new CircleApplication(
                 store,
-                TimeProvider.System,
+                clock,
                 options.NodeDisplayName);
             var invitationApplication = new InvitationApplication(
                 store,
                 store,
                 store,
-                TimeProvider.System);
+                clock);
             var admissionApplication = new TrustedCircleAdmissionApplication(
                 store,
                 store,
                 store,
                 store,
                 new TcpLanTransportConnector(),
-                TimeProvider.System);
+                clock);
             var messageQueries = new CircleMessageQueryApplication(store);
             var filesApplication = new CircleFilesApplication(
                 store,
                 store,
-                TimeProvider.System);
+                clock);
             var filesSyncApplication = new TrustedCircleFilesSyncApplication(
                 store,
                 store,
@@ -161,14 +163,14 @@ public static class DaemonHost
                 store,
                 store,
                 new TcpLanTransportConnector(),
-                TimeProvider.System);
+                clock);
             var messageApplication = new TrustedCircleMessageApplication(
                 store,
                 store,
                 store,
                 store,
                 new TcpLanTransportConnector(),
-                TimeProvider.System,
+                clock,
                 filesSyncApplication);
             var filesHostingApplication = new CircleFilesHostingApplication(
                 filesApplication,
@@ -178,7 +180,8 @@ public static class DaemonHost
                     filesApplication,
                     filesHostingApplication,
                     host.CircleFilesFolderPicker,
-                    store);
+                    store,
+                    clock);
             var filesGrantCredentialApplication = new CircleFilesGrantCredentialApplication(
                 filesApplication,
                 store,
@@ -188,7 +191,7 @@ public static class DaemonHost
                 filesApplication,
                 filesGrantCredentialApplication,
                 store,
-                TimeProvider.System);
+                clock);
             var filesMemberMappingApplication = new CircleFilesMemberMappingApplication(
                 circleApplication,
                 filesApplication,
@@ -196,16 +199,16 @@ public static class DaemonHost
                 store,
                 host.CircleFilesMemberMapping,
                 host.CircleFilesLocationLauncher,
-                TimeProvider.System,
+                clock,
                 store);
             var filesLifecycleApplication = new CircleFilesLifecycleApplication(
                 filesApplication,
                 store,
                 store,
                 host.CircleFilesLifecycle,
-                TimeProvider.System);
+                clock);
             var browserAccess = new BrowserAccessBroker(
-                TimeProvider.System,
+                clock,
                 launchLifetime: TimeSpan.FromMinutes(1),
                 sessionLifetime: TimeSpan.FromMinutes(30));
             var browserEndpoint = new BrowserEndpointState();

@@ -107,13 +107,13 @@ public sealed record BrowserCircleFilesOpenResponse(
 
 public sealed record BrowserCircleFilesFolderSelectionResponse(
     string Status,
+    string? SelectionId,
     string? FolderPath,
     string? DisplayName);
 
 public sealed record ApplyBrowserCircleFilesFolderRequest(
     string RequestId,
-    string FolderPath,
-    string DisplayName);
+    string SelectionId);
 
 public sealed record BrowserCircleFilesContributionResponse(
     string Status,

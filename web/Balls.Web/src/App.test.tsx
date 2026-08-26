@@ -172,9 +172,11 @@ describe("Balls browser workspace", () => {
 
   it("previews the exact existing folder and retries one idempotent contribution", async () => {
     const api = createApi({ circles: [details.circle] });
-    const requests: Array<[string, string, string, string]> = [];
+    const selectionId = "0198f2cc-6a50-7a08-aacb-298f4ebdf689";
+    const requests: Array<[string, string, string]> = [];
     api.selectFilesFolder = async () => ({
       status: "selected",
+      selectionId,
       folderPath: String.raw`C:\BallsDemo\Projects`,
       displayName: "Projects",
     });
@@ -216,8 +218,7 @@ describe("Balls browser workspace", () => {
     expect(requests).toHaveLength(2);
     expect(requests[0]).toEqual(requests[1]);
     expect(requests[0]?.[0]).toBe(details.circle.id);
-    expect(requests[0]?.[2]).toBe(String.raw`C:\BallsDemo\Projects`);
-    expect(requests[0]?.[3]).toBe("Projects");
+    expect(requests[0]?.[2]).toBe(selectionId);
   });
 
   it("creates a single shareable invitation without exposing connection setup", async () => {
@@ -375,6 +376,61 @@ describe("Balls browser workspace", () => {
     expect(applyCount).toBe(2);
   });
 
+  it("refreshes joined Members in place so an Owner can select a new Member", async () => {
+    const member = {
+      id: "0198f2cc-6a50-7a08-aacb-298f4ebdf681",
+      displayName: "Bob",
+      role: "member",
+      joinedAtUtc: "2026-08-25T12:00:00Z",
+    } as const;
+    const joined = {
+      ...details,
+      circle: { ...details.circle, memberCount: 2 },
+      members: [...details.members, member],
+    } satisfies CircleDetailsDto;
+    const api = createApi({ circles: [details.circle] });
+    let memberHasJoined = false;
+    api.getCircle = async () => (memberHasJoined ? joined : details);
+    api.listFilesContributions = async (circleId) => ({
+      circleId,
+      contributions: [
+        {
+          id: "0198f2cc-6a50-7a08-aacb-298f4ebdf682",
+          circleId,
+          provider: {
+            id: "0198f2cc-6a50-7a08-aacb-298f4ebdf683",
+            nodeId: details.nodes[0].id,
+          },
+          displayName: "Projects",
+          lifecycle: "defined",
+          generation: 1,
+          createdAtUtc: "2026-08-25T12:00:00Z",
+          authorizedByMemberId: details.members[0].id,
+          authorityGeneration: 1,
+          authorizedAtUtc: "2026-08-25T12:00:00Z",
+        },
+      ],
+    });
+
+    render(<App api={api} />);
+    expect(
+      await screen.findByText(
+        "Invite someone and wait for them to join before sharing the folder.",
+      ),
+    ).toBeInTheDocument();
+
+    memberHasJoined = true;
+    fireEvent.click(screen.getByRole("button", { name: "Refresh members" }));
+
+    const form = await screen.findByRole("form", {
+      name: "Share a Circle Capability",
+    });
+    expect(within(form).getByLabelText("Member")).toHaveValue("Bob");
+    expect(screen.getByRole("status")).toHaveTextContent(
+      "Member list updated.",
+    );
+  });
+
   it("joins with a pasted invitation and opens shared files through one no-input action", async () => {
     const api = createApi({ circles: [] });
     const joined = {
@@ -514,6 +570,9 @@ describe("Balls browser workspace", () => {
         "Waiting for your Circle owner to finish sharing the project folder.",
       ),
     ).toBeInTheDocument();
+    const activeMembership = screen.getByLabelText("Active Circle membership");
+    expect(activeMembership).toHaveTextContent("Example Studio");
+    expect(activeMembership).toHaveTextContent("Bob");
     const files = await screen.findByRole(
       "form",
       { name: "Open Circle Capability" },
@@ -786,6 +845,7 @@ function createApi(circleList: CircleListDto): BrowserApi {
     }),
     selectFilesFolder: async () => ({
       status: "cancelled",
+      selectionId: null,
       folderPath: null,
       displayName: null,
     }),

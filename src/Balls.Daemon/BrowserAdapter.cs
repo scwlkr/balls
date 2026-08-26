@@ -238,7 +238,7 @@ internal static class BrowserAdapter
                 BrowserRoutes.Circles,
                 async (CreateCircleRequest request, CancellationToken token) =>
                 {
-                    if (!Guid.TryParse(request.RequestId, out var requestId))
+                    if (!BrowserUuid.TryParse(request.RequestId, out var requestId))
                     {
                         return Results.BadRequest(
                             new ErrorResponse(
@@ -273,7 +273,7 @@ internal static class BrowserAdapter
                 BrowserRoutes.Circles + "/{circleId}",
                 async (string circleId, CancellationToken token) =>
                 {
-                    if (!Guid.TryParse(circleId, out var parsedCircleId))
+                    if (!BrowserUuid.TryParse(circleId, out var parsedCircleId))
                     {
                         return Results.BadRequest(
                             new ErrorResponse(
@@ -330,10 +330,11 @@ internal static class BrowserAdapter
             .Produces<ErrorResponse>(StatusCodes.Status404NotFound);
         application.MapPost(
                 BrowserRoutes.Circles + "/{circleId}/files/contributions/folder-selection",
-                (string circleId, CancellationToken token) =>
+                (string circleId, HttpContext context, CancellationToken token) =>
                     BrowserCircleFilesContributionEndpoints.SelectFolderAsync(
                         filesContributionApplication,
                         circleId,
+                        context.Request.Cookies[SessionCookieName] ?? string.Empty,
                         token))
             .Produces<BrowserCircleFilesFolderSelectionResponse>(StatusCodes.Status200OK)
             .Produces<ErrorResponse>(StatusCodes.Status400BadRequest)
@@ -343,10 +344,11 @@ internal static class BrowserAdapter
         application.MapPost(
                 BrowserRoutes.Circles + "/{circleId}/files/contributions/folder-apply",
                 (string circleId, ApplyBrowserCircleFilesFolderRequest request,
-                    CancellationToken token) =>
+                    HttpContext context, CancellationToken token) =>
                     BrowserCircleFilesContributionEndpoints.ApplyAsync(
                         filesContributionApplication,
                         circleId,
+                        context.Request.Cookies[SessionCookieName] ?? string.Empty,
                         request,
                         token))
             .Produces<BrowserCircleFilesContributionResponse>(StatusCodes.Status200OK)
@@ -412,7 +414,7 @@ internal static class BrowserAdapter
                 BrowserRoutes.Circles + "/{circleId}/messages",
                 async (string circleId, CancellationToken token) =>
                 {
-                    if (!Guid.TryParseExact(circleId, "D", out var parsedCircleId))
+                    if (!BrowserUuid.TryParse(circleId, out var parsedCircleId))
                     {
                         return Results.BadRequest(
                             new ErrorResponse(

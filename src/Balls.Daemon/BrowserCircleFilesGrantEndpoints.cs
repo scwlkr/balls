@@ -14,7 +14,7 @@ internal static class BrowserCircleFilesGrantEndpoints
         PreviewBrowserCircleFilesGrantRequest request,
         CancellationToken cancellationToken)
     {
-        if (!TryParse(circleId, out var circle))
+        if (!BrowserUuid.TryParse(circleId, out var circle))
         {
             return InvalidCircle();
         }
@@ -35,7 +35,7 @@ internal static class BrowserCircleFilesGrantEndpoints
         string sessionToken,
         CancellationToken cancellationToken)
     {
-        if (!TryParse(circleId, out var circle))
+        if (!BrowserUuid.TryParse(circleId, out var circle))
         {
             return InvalidCircle();
         }
@@ -94,8 +94,4 @@ internal static class BrowserCircleFilesGrantEndpoints
         "invalid_circle_id",
         "Circle ID must be a canonical non-empty UUID."));
 
-    private static bool TryParse(string? value, out Guid parsed) =>
-        Guid.TryParseExact(value, "D", out parsed)
-        && parsed != Guid.Empty
-        && string.Equals(value, parsed.ToString("D"), StringComparison.Ordinal);
 }

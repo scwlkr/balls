@@ -287,6 +287,8 @@ public sealed partial class BrowserAdapterSecurityTests
         var selectedHost = (SupportedHostPlatform)HostPlatformSelector.SelectCurrent();
         var picker = new StubFolderPicker(@"C:\BallsDemo\Projects", "Projects");
         var hosting = new StubHostProvisioner();
+        var time = new ManualTimeProvider(
+            new DateTimeOffset(2026, 8, 26, 12, 0, 0, TimeSpan.Zero));
         var host = selectedHost.Platform with
         {
             CircleFilesFolderPicker = picker,
@@ -299,7 +301,8 @@ public sealed partial class BrowserAdapterSecurityTests
                 endpoint,
                 "Browser-PC"),
             host,
-            selectedHost.PrivateMaterialProtector);
+            selectedHost.PrivateMaterialProtector,
+            timeProvider: time);
         using var ipcClient = CreateIpcClient(endpoint);
         var circle = await (await ipcClient.PostAsJsonAsync(
                 ControlRoutes.Circles,
@@ -315,6 +318,19 @@ public sealed partial class BrowserAdapterSecurityTests
         using var browserClient = CreateBrowserClient(browserBaseUri);
         var authenticated = await ExchangeAsync(browserClient, launch);
 
+        using var missingSelectionRequest = CreateJsonRequest(
+            HttpMethod.Post,
+            BrowserRoutes.CircleFilesFolderApply(circle.Circle.Id),
+            new ApplyBrowserCircleFilesFolderRequest(
+                "0198d000-5000-7000-8000-000000000012",
+                "0198d000-5000-7000-8000-000000000013"),
+            GetOrigin(browserBaseUri),
+            authenticated.Cookie,
+            authenticated.Session.AntiforgeryToken);
+        using var missingSelectionResponse = await browserClient.SendAsync(missingSelectionRequest);
+        Assert.AreEqual(HttpStatusCode.Conflict, missingSelectionResponse.StatusCode);
+        Assert.HasCount(0, hosting.Requests);
+
         using var selectRequest = CreateJsonRequest(
             HttpMethod.Post,
             BrowserRoutes.CircleFilesFolderSelection(circle.Circle.Id),
@@ -328,12 +344,67 @@ public sealed partial class BrowserAdapterSecurityTests
         Assert.AreEqual(HttpStatusCode.OK, selectResponse.StatusCode);
         Assert.IsNotNull(selection);
         Assert.AreEqual("selected", selection.Status);
+        Assert.IsNotNull(selection.SelectionId);
         Assert.AreEqual(@"C:\BallsDemo\Projects", selection.FolderPath);
+
+        var otherLaunch = await IssueLaunchAsync(ipcClient);
+        using var otherBrowserClient = CreateBrowserClient(browserBaseUri);
+        var otherAuthenticated = await ExchangeAsync(otherBrowserClient, otherLaunch);
+        using var crossSessionRequest = CreateJsonRequest(
+            HttpMethod.Post,
+            BrowserRoutes.CircleFilesFolderApply(circle.Circle.Id),
+            new ApplyBrowserCircleFilesFolderRequest(
+                "0198d000-5000-7000-8000-000000000012",
+                selection.SelectionId),
+            GetOrigin(browserBaseUri),
+            otherAuthenticated.Cookie,
+            otherAuthenticated.Session.AntiforgeryToken);
+        using var crossSessionResponse = await otherBrowserClient.SendAsync(crossSessionRequest);
+        Assert.AreEqual(HttpStatusCode.Conflict, crossSessionResponse.StatusCode);
+        Assert.HasCount(0, hosting.Requests);
+
+        using var substitutedSelectionRequest = CreateJsonRequest(
+            HttpMethod.Post,
+            BrowserRoutes.CircleFilesFolderApply(circle.Circle.Id),
+            new ApplyBrowserCircleFilesFolderRequest(
+                "0198d000-5000-7000-8000-000000000012",
+                "0198d000-5000-7000-8000-000000000014"),
+            GetOrigin(browserBaseUri),
+            authenticated.Cookie,
+            authenticated.Session.AntiforgeryToken);
+        using var substitutedSelectionResponse = await browserClient.SendAsync(
+            substitutedSelectionRequest);
+        Assert.AreEqual(HttpStatusCode.Conflict, substitutedSelectionResponse.StatusCode);
+        Assert.HasCount(0, hosting.Requests);
 
         var applyBody = new ApplyBrowserCircleFilesFolderRequest(
             "0198d000-5000-7000-8000-000000000012",
-            selection.FolderPath!,
-            selection.DisplayName!);
+            selection.SelectionId!);
+        time.Advance(TimeSpan.FromMinutes(16));
+        using var staleRequest = CreateJsonRequest(
+            HttpMethod.Post,
+            BrowserRoutes.CircleFilesFolderApply(circle.Circle.Id),
+            applyBody,
+            GetOrigin(browserBaseUri),
+            authenticated.Cookie,
+            authenticated.Session.AntiforgeryToken);
+        using var staleResponse = await browserClient.SendAsync(staleRequest);
+        Assert.AreEqual(HttpStatusCode.Conflict, staleResponse.StatusCode);
+        Assert.HasCount(0, hosting.Requests);
+
+        using var replacementSelectRequest = CreateJsonRequest(
+            HttpMethod.Post,
+            BrowserRoutes.CircleFilesFolderSelection(circle.Circle.Id),
+            new { },
+            GetOrigin(browserBaseUri),
+            authenticated.Cookie,
+            authenticated.Session.AntiforgeryToken);
+        using var replacementSelectResponse = await browserClient.SendAsync(replacementSelectRequest);
+        var replacement = await replacementSelectResponse.Content
+            .ReadFromJsonAsync<BrowserCircleFilesFolderSelectionResponse>(ControlJson.Options);
+        Assert.AreEqual(HttpStatusCode.OK, replacementSelectResponse.StatusCode);
+        Assert.IsNotNull(replacement?.SelectionId);
+        applyBody = applyBody with { SelectionId = replacement!.SelectionId! };
         using var applyRequest = CreateJsonRequest(
             HttpMethod.Post,
             BrowserRoutes.CircleFilesFolderApply(circle.Circle.Id),
@@ -378,6 +449,17 @@ public sealed partial class BrowserAdapterSecurityTests
         Assert.IsFalse(appliedJson.Contains("authorization", StringComparison.OrdinalIgnoreCase));
         Assert.IsFalse(appliedJson.Contains("shareName", StringComparison.OrdinalIgnoreCase));
         Assert.IsFalse(appliedJson.Contains("firewall", StringComparison.OrdinalIgnoreCase));
+
+        using var substitutedRequestId = CreateJsonRequest(
+            HttpMethod.Post,
+            BrowserRoutes.CircleFilesFolderApply(circle.Circle.Id),
+            applyBody with { RequestId = "0198d000-5000-7000-8000-000000000015" },
+            GetOrigin(browserBaseUri),
+            authenticated.Cookie,
+            authenticated.Session.AntiforgeryToken);
+        using var substitutedRequestIdResponse = await browserClient.SendAsync(substitutedRequestId);
+        Assert.AreEqual(HttpStatusCode.Conflict, substitutedRequestIdResponse.StatusCode);
+        Assert.AreEqual(4, hosting.Requests.Count);
     }
 
     [TestMethod]
@@ -812,6 +894,15 @@ public sealed partial class BrowserAdapterSecurityTests
     private static partial Regex AssetPath();
 
     private sealed record AuthenticatedBrowser(string Cookie, BrowserSessionResponse Session);
+
+    private sealed class ManualTimeProvider(DateTimeOffset utcNow) : TimeProvider
+    {
+        private DateTimeOffset value = utcNow;
+
+        public override DateTimeOffset GetUtcNow() => value;
+
+        internal void Advance(TimeSpan duration) => value += duration;
+    }
 
     private sealed class StubFolderPicker(string folderPath, string displayName)
         : ICircleFilesFolderPicker

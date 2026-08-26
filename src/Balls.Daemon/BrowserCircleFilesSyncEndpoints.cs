@@ -15,9 +15,7 @@ internal static class BrowserCircleFilesSyncEndpoints
         string circleId,
         CancellationToken cancellationToken)
     {
-        if (!Guid.TryParseExact(circleId, "D", out var parsedCircleId)
-            || parsedCircleId == Guid.Empty
-            || !string.Equals(circleId, parsedCircleId.ToString("D"), StringComparison.Ordinal))
+        if (!BrowserUuid.TryParse(circleId, out var parsedCircleId))
         {
             return Results.BadRequest(
                 new ErrorResponse("invalid_circle_id", "Circle ID must be a canonical UUID."));
