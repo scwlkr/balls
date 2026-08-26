@@ -76,9 +76,9 @@ Reuse this machinery where it shortens #92. Do not expand it for hypothetical fu
   Circle Files synchronization listeners required by browser invitations.
 - The graphical Owner contribute/grant flow is automated, but its real standard-user Windows
   folder-picker, elevation, and helper retry behavior still needs checklist observation.
-- Real Windows mapping was previously triggered through the CLI; the full browser click under a
-- The browser now maps and launches File Explorer through one action, but that complete packaged
-  click under a genuine standard user remains unobserved.
+- Real Windows mapping was previously triggered through the CLI. The browser now maps and launches
+  File Explorer through one action, but that complete packaged click under a genuine standard user
+  remains unobserved.
 - Published Windows packages are unsigned; do not bypass Windows application-control policy.
 
 Issue #92 owns only the smallest fixes and evidence needed to cross these blockers.

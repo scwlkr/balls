@@ -549,21 +549,22 @@ cancellation then enters reverse recovery, whose individual system commands reta
 20-second bounds. No arbitrary command, script, or caller-controlled shell argument crosses the
 elevation boundary.
 
-Both privilege levels require an absolute fixed-local path with an existing parent, outside drive roots, Windows and
-profile roots, network locations, files, and any existing reparse traversal. The target must be
-new or empty, or contain only the exact Balls ownership marker and operation journal. Preflight
-rejects any share, rule, marker, or journal collision before mutation. Apply creates a protected
-ACL granting only the local Owner and LocalSystem full control, an encryption-required SMB share
-granting only that Owner, and one inbound TCP 445 rule restricted to `Private`, `LocalSubnet`, and
-`LanmanServer`.
+Both privilege levels require an absolute fixed-local path with an existing parent, outside drive
+roots, Windows and profile roots, network locations, files, and any existing reparse traversal. The
+target may be new or an existing folder containing ordinary user files. Preflight rejects any
+share, rule, foreign ownership marker, or reserved Balls metadata collision before mutation. Apply
+creates a protected ACL granting only the local Owner and LocalSystem full control, an
+encryption-required SMB share granting only that Owner, and one inbound TCP 445 rule restricted to
+`Private`, `LocalSubnet`, and `LanmanServer`.
 
 The exact ownership ID appears in the folder marker, operation journal, share description, and
 firewall description. Each step is inspected before use; retry returns `already-applied` only for
 the complete exact state, including protected Owner/LocalSystem ACLs on both marker files. Partial
 or failed work rolls back in reverse order and removes only
-resources whose complete identity and properties prove Balls ownership. Existing content is never
-adopted or deleted, an originally empty folder has its prior ACL restored, and the journal can
-claim at most the exact target directory rather than any ancestor.
+resources whose complete identity and properties prove Balls ownership. Ordinary folder entries
+become the contributed content but are never treated as Balls-owned or deleted. A pre-existing
+folder's exact prior ACL is journaled and restored on rollback, and the journal can claim at most
+the exact target directory rather than any ancestor.
 
 The Windows grant-credential adapter revalidates the Contribution and Access Grant through Core,
 including both current Owner/root signatures, and deterministically binds Circle, Contribution,

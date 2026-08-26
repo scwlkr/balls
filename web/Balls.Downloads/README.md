@@ -47,7 +47,7 @@ checks. This does not authorize Alpha, Beta, or Stable movement.
 1. Record the current `channels/development.json` content and hash, or record that no pointer
    exists. This is the rollback pointer.
 2. Build the Windows package once from the identified commit with `--runtime win-x64
---self-contained true`; run the package tests and native Windows smoke against those bytes.
+--self-contained true`; run the package-integrity and focused package tests against those bytes.
 3. Create the canonical tag `development-<yyyyMMddTHHmmssZ>-<commit12>` using the UTC package-build
    preparation time and package commit, then create an immutable GitHub prerelease. Upload the
    archive, archive checksum, repository installer, and the normal release integrity assets. Do not
@@ -71,14 +71,11 @@ checks. This does not authorize Alpha, Beta, or Stable movement.
    credential pattern, an identity/hash/filename mismatch, or a changed existing version manifest.
    It prints the prior Development tag and manifest SHA-256 for the issue rollback record.
 
-5. Prepend the build to `releases.json`, retain every accepted release and only the newest ten
-   Development rows, and preserve the complete-history link. Append the generator's prior-pointer
-   output and the new exact identity to [`DEVELOPMENT-POINTER-LEDGER.md`](DEVELOPMENT-POINTER-LEDGER.md)
-   before deployment.
-6. Run the local gates below. After the site is deployed, run the copied live Development command
-   under the authorized ordinary Windows profile and record the observed manifest, archive, and
-   installed `installation.json` identity on the issue. The exact-release smoke performs that
-   install plus daemon-path, Start Menu shortcut, execution-policy, and owned-cleanup checks. It
+5. Publish the immutable prerelease assets and `versions/<tag>.json` first while leaving the live
+   Development pointer and release catalog unchanged. Read that exact manifest back from
+   `https://balls.wlkrlabs.com/versions/<tag>.json`, then run the exact-release smoke below against
+   that immutable version URL under an authorized ordinary Windows profile. The smoke installs the
+   package and checks the daemon path, Start Menu shortcut, execution policy, and owned cleanup. It
    validates both automatic first launch and a real Start Menu shortcut relaunch, requires each
    installed daemon to own exactly two private IPv4 TCP listeners, rejects any wildcard/public
    listener, and reports `privateListenersVerified: true` without recording the selected private
@@ -86,10 +83,19 @@ checks. This does not authorize Alpha, Beta, or Stable movement.
 
    ```powershell
    .\eng\canary\Test-WindowsDownload.ps1 `
-     -ManifestUri https://balls.wlkrlabs.com/channels/development.json `
+     -ManifestUri https://balls.wlkrlabs.com/versions/<development-tag>.json `
      -ExpectedTag <development-tag> `
      -ExpectedCommit <full-commit>
    ```
+
+6. Only after that immutable-version smoke passes, prepend the build to `releases.json`, retain
+   every accepted release and only the newest ten Development rows, and preserve the
+   complete-history link. Append the generator's prior-pointer output and the new exact identity to
+   [`DEVELOPMENT-POINTER-LEDGER.md`](DEVELOPMENT-POINTER-LEDGER.md), then deploy the generated
+   Development pointer and catalog. Run the local gates below before each deployment. Read back the
+   live warned Development entry and repeat the copied Development command once to prove it resolves
+   to the same installed `installation.json` identity. Record only the observed identities and
+   outcomes on the issue.
 
 If publication or live installation fails, restore the recorded prior Development pointer. Never
 edit an already-published version manifest or overwrite a GitHub Release asset.
@@ -141,5 +147,6 @@ Before moving a public channel to a newer packaged release, rerun the exact copi
 authorized Windows installer lab, then record only the observed release identity and outcome on
 the issue.
 
-Publishing and custom-domain attachment remain owner-gated operations. The Sites project ID is
-recorded in `.openai/hosting.json` only when that gate is approved.
+Development publication is authorized only by the bounded active-issue process above. Alpha, Beta,
+and Stable publication plus custom-domain attachment remain Owner-gated operations. The Sites
+project ID is recorded in `.openai/hosting.json` only when that gate is approved.

@@ -230,8 +230,10 @@ balls files contribution create --circle <circle-id> --name <name> [--request-id
 
 Validates the persisted Contribution and its current Owner/root authorization, runs the complete
 readiness inspection, and accepts `{ "folderPath": "C:\\BallsCircleFiles\\MyCircle" }`. The path
-must canonicalize to an absolute fixed-local location with an existing parent, be new or empty, and stay outside roots,
-Windows/profile roots, files, network locations, and any existing reparse traversal.
+must canonicalize to an absolute fixed-local location with an existing parent and stay outside
+roots, Windows/profile roots, files, network locations, and any existing reparse traversal. It may
+be new or an existing folder containing ordinary user files; foreign ownership markers and
+reserved Balls hosting metadata are refused.
 
 Success returns `200 OK` with a version 1 deterministic plan containing its 64-character plan ID,
 canonical path, exact share/firewall/ownership IDs, existing-target flag, and ordered actions.
