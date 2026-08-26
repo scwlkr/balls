@@ -12,3 +12,8 @@ Balls owns backup and tested restoration of Circle identity, authority, authoriz
 provider-ownership records, and audit state. The selected backup product owns ordinary company files
 and supported locked Revit Server repository copies. One recovery runbook coordinates both sets and
 must prove that restored Circle intent still matches restored provider state.
+
+The initial Revit backup operation runs after office hours, refuses to copy an unlocked live
+repository, uses Autodesk's supported whole-Host lock and status operations, stages a consistent
+copy, and unlocks before slow removable-disk or cloud transfer. Active work, incomplete lock, copy
+failure, or failed unlock produces an alert rather than a forced or silently incomplete backup.

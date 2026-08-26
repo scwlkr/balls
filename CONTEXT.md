@@ -64,3 +64,8 @@ _Avoid_: Circle Owner, every administrator
 The combined plain-language view of whether the Office Circle and its integrated providers are
 available, protected, and ready for their intended use.
 _Avoid_: Provider console, automatic repair
+
+**Managed Node Enrollment**:
+The Owner-approved process that joins one Member's device to both the Office Circle and its private
+network without making the Member handle a separate network credential.
+_Avoid_: Shared network key, automatic Member device

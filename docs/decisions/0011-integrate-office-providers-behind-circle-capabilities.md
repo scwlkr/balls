@@ -19,3 +19,9 @@ or private network.
 The initial office deployment supports Revit Server 2027 only. A future Revit release is a separate,
 explicitly installed and verified Capability with its own provider state; Balls never silently
 upgrades a Revit Server repository or project model.
+
+Every approved Revit Node uses Tailscale even on the office LAN and reaches the Host through one
+frozen MagicDNS name. Balls enrolls each Node only after Owner approval by using one-time material
+created through a narrowly scoped, Owner-configured Tailscale trust credential; no employee handles
+a reusable network key. All Office Circle Members may use the Revit model service, while only a
+Server Administrator may reach or change the Revit Server administration surface.
