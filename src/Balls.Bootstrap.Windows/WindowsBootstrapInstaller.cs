@@ -1,5 +1,4 @@
 using System.Diagnostics;
-using System.Runtime.Versioning;
 using System.Text;
 using System.Text.Json;
 
@@ -11,7 +10,6 @@ internal sealed class WindowsBootstrapInstaller : IDisposable
     private const int MaximumChecksumBytes = 1_024;
     private readonly VerifiedDownloader downloader = new();
 
-    [SupportedOSPlatform("windows")]
     public async Task InstallAsync(BootstrapOptions options, CancellationToken cancellationToken)
     {
         RequireSafeInstallRoot(options);
@@ -105,6 +103,10 @@ internal sealed class WindowsBootstrapInstaller : IDisposable
 
             if (options.CreateShortcut)
             {
+                if (!OperatingSystem.IsWindows())
+                {
+                    throw new PlatformNotSupportedException("Windows shortcuts require Windows.");
+                }
                 shortcutChanged = true;
                 _ = WindowsShortcut.Create(launcherPath, installedVersionRoot);
             }
@@ -240,7 +242,6 @@ internal sealed class WindowsBootstrapInstaller : IDisposable
             checksumPath);
     }
 
-    [SupportedOSPlatform("windows")]
     private static void RequireSafeInstallRoot(BootstrapOptions options)
     {
         var localAppData = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);

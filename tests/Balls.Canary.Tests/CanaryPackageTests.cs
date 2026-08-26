@@ -118,6 +118,9 @@ public sealed class CanaryPackageTests
         Assert.AreEqual(64, result.PreviousSha256.Length);
         Assert.IsNotNull(result.PreviousBootstrapSha256);
         Assert.AreEqual(64, result.PreviousBootstrapSha256.Length);
+        Assert.AreEqual(
+            "development-20260826T220000Z-0123456789ab",
+            result.PreviousBootstrapTag);
 
         using var manifest = JsonDocument.Parse(File.ReadAllText(result.VersionManifestPath));
         var root = manifest.RootElement;
@@ -141,6 +144,9 @@ public sealed class CanaryPackageTests
         Assert.AreEqual(
             "balls-bootstrap-windows-x64-0123456789ab.exe",
             bootstrapRoot.GetProperty("asset").GetProperty("name").GetString());
+        Assert.AreEqual(
+            File.ReadAllText(result.BootstrapManifestPath),
+            File.ReadAllText(result.BootstrapVersionManifestPath));
 
         using var catalog = JsonDocument.Parse(File.ReadAllText(result.ReleaseCatalogPath));
         var development = catalog.RootElement.GetProperty("development");

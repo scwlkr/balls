@@ -41,18 +41,14 @@ test("presents one stable command for every supported delivery lane", async () =
   assert.match(html, /Linux/i);
   assert.match(html, /macOS/i);
   assert.match(html, /og\.png/i);
-  assert.match(
-    html,
-    /https:\/\/balls\.wlkrlabs\.com\/bootstrap\/windows-x64\.json/,
-  );
+  assert.match(html, /Loading verified install command/);
+  assert.match(html, /href="\/bootstrap\/windows-x64\.json"/);
   assert.match(html, /https:\/\/balls\.wlkrlabs\.com\/install\.sh/);
   assert.match(html, /https:\/\/balls\.wlkrlabs\.com\/source\.sh/);
   assert.match(
     html,
     /Windows x64 · Windows PowerShell 5\.1\+[\s\S]*· runtime checked from manifest/i,
   );
-  assert.match(html, /Get-FileHash/);
-  assert.match(html, /balls-bootstrap-windows-x64/);
   assert.doesNotMatch(html, /powershell\.exe -NoLogo -NoProfile -File/);
   assert.doesNotMatch(html, /\.ps1\b/i);
   assert.doesNotMatch(

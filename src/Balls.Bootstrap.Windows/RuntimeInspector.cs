@@ -6,12 +6,15 @@ namespace Balls.Bootstrap.Windows;
 
 internal static class RuntimeInspector
 {
-    [SupportedOSPlatform("windows")]
     public static void Require(RuntimeContract runtime)
     {
         if (runtime.Kind == "self-contained")
         {
             return;
+        }
+        if (!OperatingSystem.IsWindows())
+        {
+            throw new PlatformNotSupportedException("Framework-dependent Windows packages require Windows.");
         }
 
         var root = FindDotnetRoot();

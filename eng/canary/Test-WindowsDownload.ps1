@@ -77,6 +77,13 @@ if ($ExpectedTag -notmatch '^[0-9A-Za-z][0-9A-Za-z._-]{0,127}$' -or
     $ExpectedCommit -notmatch '^[0-9a-f]{40}$') {
     throw 'Expected release identity is invalid.'
 }
+if ($BootstrapManifestUri.Scheme -cne 'https' -or
+    $BootstrapManifestUri.Host -cne 'balls.wlkrlabs.com' -or
+    $BootstrapManifestUri.Query.Length -ne 0 -or
+    $BootstrapManifestUri.Fragment.Length -ne 0 -or
+    $BootstrapManifestUri.AbsolutePath -notmatch '^/bootstrap/(windows-x64|versions/[0-9A-Za-z][0-9A-Za-z._-]{0,127})\.json$') {
+    throw 'Bootstrap manifest URI must be an official moving or immutable Balls bootstrap manifest.'
+}
 if (-not $resolvedInstallRoot.StartsWith(
     ($localAppData + [IO.Path]::DirectorySeparatorChar),
     [StringComparison]::OrdinalIgnoreCase)) {

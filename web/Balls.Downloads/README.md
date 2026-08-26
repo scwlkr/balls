@@ -50,8 +50,8 @@ durable public channel at expiring GitHub Actions artifacts.
 An agent working an active issue may publish Development after exact-commit build and integrity
 checks. This does not authorize Alpha, Beta, or Stable movement.
 
-1. Record the current `channels/development.json` content and hash, or record that no pointer
-   exists. This is the rollback pointer.
+1. Record the current `channels/development.json` and `bootstrap/windows-x64.json` contents, tags,
+   and hashes, or record that a pointer does not exist. These are the two rollback pointers.
 2. Build the Windows package once from the identified commit with `--runtime win-x64
 --self-contained true`; run the package-integrity and focused package tests against those bytes.
 3. Create the canonical tag `development-<yyyyMMddTHHmmssZ>-<commit12>` using the UTC package-build
@@ -77,12 +77,13 @@ checks. This does not authorize Alpha, Beta, or Stable movement.
 
    The command refuses a framework-dependent archive, a forbidden sensitive file or common
    credential pattern, an identity/hash/filename mismatch, or a changed existing version manifest.
-   It prints the prior Development tag, channel-manifest SHA-256, and native-bootstrap-pointer
-   SHA-256 for the issue rollback record.
+   It also creates an immutable `bootstrap/versions/<tag>.json` descriptor and prints the prior
+   Development tag, channel-manifest SHA-256, and native-bootstrap-pointer SHA-256 for the issue
+   rollback record.
 
-5. Publish the immutable prerelease assets, `versions/<tag>.json`, the generated native-bootstrap
-   pointer, and the site code that displays the native command first, while leaving the live
-   Development pointer and release catalog unchanged. Read that exact manifest back from
+5. Publish the immutable prerelease assets, `versions/<tag>.json`, and
+   `bootstrap/versions/<tag>.json` first while leaving every moving pointer, the live site command,
+   and the release catalog unchanged. Read that exact manifest back from
    `https://balls.wlkrlabs.com/versions/<tag>.json`, then run the exact-release smoke below against
    that immutable version URL under an authorized ordinary Windows profile. The smoke installs the
    package and checks the daemon path, Start Menu shortcut, execution policy, and owned cleanup. It
@@ -95,11 +96,13 @@ checks. This does not authorize Alpha, Beta, or Stable movement.
    # Release-engineering seam from a repository checkout; this is not an Owner command.
    .\eng\canary\Test-WindowsDownload.ps1 `
      -ManifestUri https://balls.wlkrlabs.com/versions/<development-tag>.json `
+     -BootstrapManifestUri https://balls.wlkrlabs.com/bootstrap/versions/<development-tag>.json `
      -ExpectedTag <development-tag> `
      -ExpectedCommit <full-commit>
    ```
 
-6. Only after that immutable-version smoke passes, prepend the build to `releases.json`, retain
+6. Only after that immutable-version smoke passes, deploy the generated native-bootstrap pointer
+   and site command, prepend the build to `releases.json`, retain
    every accepted release and only the newest ten Development rows, and preserve the
    complete-history link. Append the generator's prior-pointer output and the new exact identity to
    [`DEVELOPMENT-POINTER-LEDGER.md`](DEVELOPMENT-POINTER-LEDGER.md), then deploy the generated

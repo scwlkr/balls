@@ -11,10 +11,12 @@ namespace Balls.Canary;
 internal sealed record DevelopmentManifestResult(
     string VersionManifestPath,
     string ChannelManifestPath,
+    string BootstrapVersionManifestPath,
     string BootstrapManifestPath,
     string ReleaseCatalogPath,
     string? PreviousTag,
     string? PreviousSha256,
+    string? PreviousBootstrapTag,
     string? PreviousBootstrapSha256);
 
 internal static partial class DevelopmentManifestBuilder
@@ -130,15 +132,18 @@ internal static partial class DevelopmentManifestBuilder
         var versionsRoot = Path.Combine(publicRoot, "versions");
         var channelsRoot = Path.Combine(publicRoot, "channels");
         var bootstrapRoot = Path.Combine(publicRoot, "bootstrap");
+        var bootstrapVersionsRoot = Path.Combine(bootstrapRoot, "versions");
         var versionManifestPath = Path.Combine(versionsRoot, $"{request.Tag}.json");
         var channelManifestPath = Path.Combine(channelsRoot, "development.json");
         var bootstrapManifestPath = Path.Combine(bootstrapRoot, "windows-x64.json");
+        var bootstrapVersionManifestPath = Path.Combine(bootstrapVersionsRoot, $"{request.Tag}.json");
         var releaseCatalogPath = Path.Combine(publicRoot, "releases.json");
         var catalogText = BuildCatalog(releaseCatalogPath, request.Tag, publishedAt);
 
         string? previousTag = null;
         string? previousSha256 = null;
         string? previousBootstrapSha256 = null;
+        string? previousBootstrapTag = null;
         if (File.Exists(channelManifestPath))
         {
             var previousBytes = File.ReadAllBytes(channelManifestPath);
@@ -152,11 +157,17 @@ internal static partial class DevelopmentManifestBuilder
         if (File.Exists(bootstrapManifestPath))
         {
             previousBootstrapSha256 = HashFile(bootstrapManifestPath);
+            using var previousBootstrap = JsonDocument.Parse(File.ReadAllBytes(bootstrapManifestPath));
+            previousBootstrapTag = previousBootstrap.RootElement
+                .GetProperty("release")
+                .GetProperty("tag")
+                .GetString();
         }
 
         Directory.CreateDirectory(versionsRoot);
         Directory.CreateDirectory(channelsRoot);
         Directory.CreateDirectory(bootstrapRoot);
+        Directory.CreateDirectory(bootstrapVersionsRoot);
         if (File.Exists(versionManifestPath))
         {
             var existing = File.ReadAllText(versionManifestPath);
@@ -170,6 +181,19 @@ internal static partial class DevelopmentManifestBuilder
         {
             File.WriteAllText(versionManifestPath, manifestText, new UTF8Encoding(false));
         }
+        if (File.Exists(bootstrapVersionManifestPath))
+        {
+            var existing = File.ReadAllText(bootstrapVersionManifestPath);
+            if (!string.Equals(existing, bootstrapManifestText, StringComparison.Ordinal))
+            {
+                throw new InvalidOperationException(
+                    $"Immutable bootstrap manifest already exists with different content: {bootstrapVersionManifestPath}");
+            }
+        }
+        else
+        {
+            File.WriteAllText(bootstrapVersionManifestPath, bootstrapManifestText, new UTF8Encoding(false));
+        }
 
         WriteAtomic(channelManifestPath, manifestText);
         WriteAtomic(bootstrapManifestPath, bootstrapManifestText);
@@ -177,10 +201,12 @@ internal static partial class DevelopmentManifestBuilder
         return new DevelopmentManifestResult(
             versionManifestPath,
             channelManifestPath,
+            bootstrapVersionManifestPath,
             bootstrapManifestPath,
             releaseCatalogPath,
             previousTag,
             previousSha256,
+            previousBootstrapTag,
             previousBootstrapSha256);
     }
 
