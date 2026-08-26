@@ -146,6 +146,7 @@ internal static class BrowserAdapter
         CircleMessageQueryApplication messageQueries,
         CircleFilesApplication filesApplication,
         BrowserCircleFilesContributionApplication filesContributionApplication,
+        BrowserCircleFilesGrantApplication filesGrantApplication,
         CircleFilesMemberMappingApplication filesMemberMappingApplication,
         TrustedCircleFilesSyncApplication filesSyncApplication,
         IAdmissionStateStore circleConnections,
@@ -349,6 +350,34 @@ internal static class BrowserAdapter
                         request,
                         token))
             .Produces<BrowserCircleFilesContributionResponse>(StatusCodes.Status200OK)
+            .Produces<ErrorResponse>(StatusCodes.Status400BadRequest)
+            .Produces<ErrorResponse>(StatusCodes.Status403Forbidden)
+            .Produces<ErrorResponse>(StatusCodes.Status404NotFound)
+            .Produces<ErrorResponse>(StatusCodes.Status409Conflict);
+        application.MapPost(
+                BrowserRoutes.Circles + "/{circleId}/files/grant/preview",
+                (string circleId, PreviewBrowserCircleFilesGrantRequest request,
+                    HttpContext context, CancellationToken token) =>
+                    BrowserCircleFilesGrantEndpoints.PreviewAsync(
+                        filesGrantApplication,
+                        circleId,
+                        context.Request.Cookies[SessionCookieName] ?? string.Empty,
+                        request,
+                        token))
+            .Produces<BrowserCircleFilesGrantPreviewResponse>(StatusCodes.Status200OK)
+            .Produces<ErrorResponse>(StatusCodes.Status400BadRequest)
+            .Produces<ErrorResponse>(StatusCodes.Status403Forbidden)
+            .Produces<ErrorResponse>(StatusCodes.Status404NotFound)
+            .Produces<ErrorResponse>(StatusCodes.Status409Conflict);
+        application.MapPost(
+                BrowserRoutes.Circles + "/{circleId}/files/grant/apply",
+                (string circleId, HttpContext context, CancellationToken token) =>
+                    BrowserCircleFilesGrantEndpoints.ApplyAsync(
+                        filesGrantApplication,
+                        circleId,
+                        context.Request.Cookies[SessionCookieName] ?? string.Empty,
+                        token))
+            .Produces<BrowserCircleFilesGrantApplyResponse>(StatusCodes.Status200OK)
             .Produces<ErrorResponse>(StatusCodes.Status400BadRequest)
             .Produces<ErrorResponse>(StatusCodes.Status403Forbidden)
             .Produces<ErrorResponse>(StatusCodes.Status404NotFound)

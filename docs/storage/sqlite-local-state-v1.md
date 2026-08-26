@@ -1,9 +1,10 @@
 # SQLite Local State
 
-**Status:** schema v9 implemented for local records, protected cryptographic authority,
+**Status:** schema v10 implemented for local records, protected cryptographic authority,
 invitations, persisted Circle admission, the first durable Circle message, and provider-neutral
 Circle Files contribution/grant authorization, grant revocation, lifecycle audit, and protected
-Windows provider credentials plus the joined Node's protected private Circle connection.
+Windows provider credentials, the joined Node's protected private Circle connection, and durable
+canonical hosted-folder bindings.
 
 This database belongs to one `ballsd` instance. It preserves local Node identity and the Circles
 known to that daemon. It is a storage adapter, not the eventual replicated Circle state model.
@@ -26,7 +27,7 @@ persistent filesystem. See
 ## Database identity and open sequence
 
 - SQLite `application_id`: `0x42414C53` (`BALS`).
-- SQLite `user_version`: `9`.
+- SQLite `user_version`: `10`.
 - Connection mode: read/write/create, private cache, pooling disabled.
 
 The store reads identity and schema metadata before applying persistent configuration. A database
@@ -74,6 +75,7 @@ timestamps use round-trip ISO 8601 format.
 | `circle_messages` | Per-Circle ordered accepted message, canonical request digest, exact signed request, and Anchor-signed receipt; unique message UUID and Circle sequence |
 | `circle_files_contributions` | Provider-neutral whole-folder Contribution ID, request ID, provider/hosting Node identity, lifecycle/generation, and exact Owner-Member/current-root authorization proof |
 | `circle_files_access_grants` | One Member Access Grant per Contribution/Member with whole-folder access, lifecycle/generation, request identity, and exact dual-signed Owner authorization proof |
+| `circle_files_hosted_folders` | One exact canonical hosted-folder binding per Contribution: Circle, provider, hosting Node, and local folder path; the Contribution ID is the primary key and all identity relationships are foreign-key constrained |
 | `circle_files_provider_credentials` | One exact provider credential binding per Access Grant: Circle, Contribution, Member, provider, account/ownership IDs, access, generation, pending/active/removed lifecycle, protection scheme, protected secret, and creation time |
 | `circle_files_access_grant_revocations` | One immutable exact-generation revocation per Access Grant with request identity, time, and dual-signed Owner/current-root proof |
 | `circle_files_lifecycle_audit_events` | Append-only redacted lifecycle requests and outcomes with Circle/Contribution, typed subject ID, stable operation/outcome tokens, bounded session count, and time |
@@ -113,6 +115,11 @@ receipt but does not gain private root/Anchor authority or redefine itself as th
 - Contribution creation atomically stores the stable provider identity, normalized definition,
   lifecycle/generation, authorizing Owner/generation/time, exact canonical transcript, and both
   signatures. Exact request retry returns the original IDs; conflicting reuse changes nothing.
+- Successful browser hosting persists the exact canonical folder/provider/Node binding after the
+  narrow host operation succeeds. Equivalent retry is idempotent; any attempt to bind the same
+  Contribution to a different folder or host fails closed. The local folder path is ordinary host
+  configuration, not credential material; provider credentials and passwords remain protected in
+  their dedicated credential records.
 - Grant creation first proves that its Contribution and Member belong to the same Circle, then
   atomically stores whole-folder access plus the same dual-signed authorization metadata. A bad
   Member/contribution, duplicate grant, or constraint failure leaves no partial grant.
@@ -157,15 +164,17 @@ Migrations run one boundary at a time and transactionally: v1 adds protected Nod
 (v2), v2 adds transport and invitation state (v3), v3 adds public Circle trust and admission
 state (v4), v4 adds local Member authorship plus persistent message/replay state (v5), v5 adds
 provider-neutral Circle Files contributions and Member Access Grants (v6), v6 adds protected
-Circle Files provider credentials (v7), v7 adds grant revocations plus lifecycle audit (v8), and
-v8 adds protected joined-Circle provider/admission/synchronization connection state (v9).
+Circle Files provider credentials (v7), v7 adds grant revocations plus lifecycle audit (v8), v8
+adds protected joined-Circle provider/admission/synchronization connection state (v9), and v9 adds
+the exact hosted-folder binding required to resolve graphical Owner grants server-side (v10).
 Each step records its
 own target version, so interruption between steps resumes from the last complete schema. A
 protection or database failure rolls back that schema version and every generated row; injected
 failure after the v8 DDL leaves version 7 and both lifecycle tables absent; injected failure after
-the v9 DDL leaves version 8 and the connection table absent. The next successful start performs
-one complete migration. Protected credentials, joined-Circle connections, and public Circle trust
-are validated on every open and are never silently regenerated when unreadable.
+the v9 DDL leaves version 8 and the connection table absent; injected failure after the v10 DDL
+leaves version 9 and the hosted-folder table absent. The next successful start performs one
+complete migration. Protected credentials, joined-Circle connections, and public Circle trust are
+validated on every open and are never silently regenerated when unreadable.
 
 Future schema changes must retain explicit transactional migrations, forward-version refusal, and
 failure/restart tests. SQLite remains local Node state, not the Circle's network replication

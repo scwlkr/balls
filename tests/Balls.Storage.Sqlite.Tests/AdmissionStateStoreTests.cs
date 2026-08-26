@@ -484,6 +484,7 @@ public sealed class AdmissionStateStoreTests
             {
                 downgrade.CommandText =
                     """
+                    DROP TABLE circle_files_hosted_folders;
                     DROP TABLE circle_connections;
                     PRAGMA user_version = 8;
                     """;
@@ -505,6 +506,58 @@ public sealed class AdmissionStateStoreTests
             await using var reader = await inspect.ExecuteReaderAsync();
             Assert.IsTrue(await reader.ReadAsync());
             Assert.AreEqual(8L, reader.GetInt64(0));
+            Assert.AreEqual(0L, reader.GetInt64(1));
+        }
+
+        await using var reopened = await OpenAsync(directory.Path);
+        await using var migrated = new SqliteConnection(
+            $"Data Source={databasePath};Mode=ReadOnly;Pooling=False");
+        await migrated.OpenAsync();
+        using var version = migrated.CreateCommand();
+        version.CommandText = "PRAGMA user_version;";
+        Assert.AreEqual(
+            (long)SqliteLocalStateStore.CurrentSchemaVersion,
+            (long)(await version.ExecuteScalarAsync())!);
+    }
+
+    [TestMethod]
+    public async Task Version_nine_hosted_folder_migration_is_atomic_and_restartable()
+    {
+        using var directory = new TemporaryDirectory();
+        await using (var store = await OpenAsync(directory.Path))
+        {
+        }
+
+        var databasePath = Path.Combine(directory.Path, "balls.db");
+        await using (var connection = new SqliteConnection(
+                         $"Data Source={databasePath};Pooling=False"))
+        {
+            await connection.OpenAsync();
+            using (var downgrade = connection.CreateCommand())
+            {
+                downgrade.CommandText =
+                    """
+                    DROP TABLE circle_files_hosted_folders;
+                    PRAGMA user_version = 9;
+                    """;
+                await downgrade.ExecuteNonQueryAsync();
+            }
+
+            await Assert.ThrowsExactlyAsync<InvalidOperationException>(
+                () => SqliteLocalStateStore.MigrateV9ToV10Async(
+                    connection,
+                    CancellationToken.None,
+                    _ => throw new InvalidOperationException("injected")));
+            using var inspect = connection.CreateCommand();
+            inspect.CommandText =
+                """
+                SELECT (SELECT user_version FROM pragma_user_version),
+                       (SELECT COUNT(*) FROM sqlite_master
+                        WHERE type = 'table' AND name = 'circle_files_hosted_folders');
+                """;
+            await using var reader = await inspect.ExecuteReaderAsync();
+            Assert.IsTrue(await reader.ReadAsync());
+            Assert.AreEqual(9L, reader.GetInt64(0));
             Assert.AreEqual(0L, reader.GetInt64(1));
         }
 

@@ -177,11 +177,18 @@ public static class DaemonHost
                 new BrowserCircleFilesContributionApplication(
                     filesApplication,
                     filesHostingApplication,
-                    host.CircleFilesFolderPicker);
+                    host.CircleFilesFolderPicker,
+                    store);
             var filesGrantCredentialApplication = new CircleFilesGrantCredentialApplication(
                 filesApplication,
                 store,
                 host.CircleFilesGrantCredentials);
+            var browserFilesGrantApplication = new BrowserCircleFilesGrantApplication(
+                circleApplication,
+                filesApplication,
+                filesGrantCredentialApplication,
+                store,
+                TimeProvider.System);
             var filesMemberMappingApplication = new CircleFilesMemberMappingApplication(
                 circleApplication,
                 filesApplication,
@@ -1075,6 +1082,7 @@ public static class DaemonHost
                 messageQueries,
                 filesApplication,
                 browserFilesContributionApplication,
+                browserFilesGrantApplication,
                 filesMemberMappingApplication,
                 filesSyncApplication,
                 store,

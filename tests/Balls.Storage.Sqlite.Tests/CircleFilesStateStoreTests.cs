@@ -81,6 +81,61 @@ public sealed class CircleFilesStateStoreTests
     }
 
     [TestMethod]
+    public async Task Hosted_folder_binding_is_exact_idempotent_and_restart_stable()
+    {
+        using var directory = new TemporaryDirectory();
+        CircleFilesHostedFolderBinding binding;
+
+        await using (var store = await SqliteLocalStateStore.OpenAsync(
+                         directory.Path,
+                         TestPrivateMaterialProtector.Instance))
+        {
+            var circles = new CircleApplication(store, new FixedTimeProvider(Now), "Owner-PC");
+            var circle = await circles.CreateCircleAsync(
+                new CreateCircleCommand(
+                    new CreationRequestId(
+                        Guid.Parse("0198d000-2000-7000-8000-000000000091")),
+                    "Hosted Folder Circle",
+                    "Alice"));
+            var files = new CircleFilesApplication(store, store, new FixedTimeProvider(Now));
+            var contribution = await files.CreateContributionAsync(
+                new CreateCircleFilesContributionCommand(
+                    new CircleFilesContributionRequestId(
+                        Guid.Parse("0198d000-2000-7000-8000-000000000092")),
+                    circle.Circle.Id,
+                    "Projects"));
+            binding = new CircleFilesHostedFolderBinding(
+                circle.Circle.Id,
+                contribution.Id,
+                contribution.Provider.Id,
+                contribution.Provider.NodeId,
+                @"C:\BallsDemo\Projects");
+
+            await store.SaveCircleFilesHostedFolderAsync(binding);
+            await store.SaveCircleFilesHostedFolderAsync(binding);
+            Assert.AreEqual(
+                binding,
+                await store.GetCircleFilesHostedFolderAsync(
+                    binding.CircleId,
+                    binding.ContributionId));
+
+            var conflict = await Assert.ThrowsExactlyAsync<LocalStateConflictException>(
+                () => store.SaveCircleFilesHostedFolderAsync(
+                    binding with { FolderPath = @"C:\BallsDemo\Substituted" }));
+            Assert.AreEqual("circle_files_hosted_folder_conflict", conflict.Code);
+        }
+
+        await using var reopened = await SqliteLocalStateStore.OpenAsync(
+            directory.Path,
+            TestPrivateMaterialProtector.Instance);
+        Assert.AreEqual(
+            binding,
+            await reopened.GetCircleFilesHostedFolderAsync(
+                binding.CircleId,
+                binding.ContributionId));
+    }
+
+    [TestMethod]
     public async Task Grant_revocation_is_atomic_idempotent_and_restart_stable()
     {
         using var directory = new TemporaryDirectory();
@@ -403,6 +458,7 @@ public sealed class CircleFilesStateStoreTests
                 downgrade.CommandText =
                     """
                     PRAGMA foreign_keys = OFF;
+                    DROP TABLE circle_files_hosted_folders;
                     DROP TABLE circle_connections;
                     DROP TABLE circle_files_lifecycle_audit_events;
                     DROP TABLE circle_files_access_grant_revocations;
@@ -456,6 +512,7 @@ public sealed class CircleFilesStateStoreTests
                 downgrade.CommandText =
                     """
                     PRAGMA foreign_keys = OFF;
+                    DROP TABLE circle_files_hosted_folders;
                     DROP TABLE circle_connections;
                     DROP TABLE circle_files_lifecycle_audit_events;
                     DROP TABLE circle_files_access_grant_revocations;
@@ -515,6 +572,7 @@ public sealed class CircleFilesStateStoreTests
                 downgrade.CommandText =
                     """
                     PRAGMA foreign_keys = OFF;
+                    DROP TABLE circle_files_hosted_folders;
                     DROP TABLE circle_connections;
                     DROP TABLE circle_files_lifecycle_audit_events;
                     DROP TABLE circle_files_access_grant_revocations;
@@ -575,6 +633,7 @@ public sealed class CircleFilesStateStoreTests
             using var command = connection.CreateCommand();
             command.CommandText =
                 """
+                DROP TABLE circle_files_hosted_folders;
                 DROP TABLE circle_connections;
                 DROP TABLE circle_files_lifecycle_audit_events;
                 DROP TABLE circle_files_access_grant_revocations;
@@ -629,6 +688,7 @@ public sealed class CircleFilesStateStoreTests
             {
                 downgrade.CommandText =
                     """
+                    DROP TABLE circle_files_hosted_folders;
                     DROP TABLE circle_connections;
                     DROP TABLE circle_files_lifecycle_audit_events;
                     DROP TABLE circle_files_access_grant_revocations;

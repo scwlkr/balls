@@ -7,7 +7,8 @@ namespace Balls.Daemon;
 internal sealed class BrowserCircleFilesContributionApplication(
     CircleFilesApplication files,
     CircleFilesHostingApplication hosting,
-    ICircleFilesFolderPicker folderPicker)
+    ICircleFilesFolderPicker folderPicker,
+    ICircleFilesHostedFolderStore hostedFolders)
 {
     private readonly SemaphoreSlim mutationGate = new(1, 1);
 
@@ -67,6 +68,14 @@ internal sealed class BrowserCircleFilesContributionApplication(
                 contribution.Id,
                 folderPath,
                 preview.PlanId,
+                cancellationToken).ConfigureAwait(false);
+            await hostedFolders.SaveCircleFilesHostedFolderAsync(
+                new CircleFilesHostedFolderBinding(
+                    contribution.CircleId,
+                    contribution.Id,
+                    contribution.Provider.Id,
+                    contribution.Provider.NodeId,
+                    applied.Plan.FolderPath),
                 cancellationToken).ConfigureAwait(false);
             return new BrowserCircleFilesContributionResponse(
                 applied.Status,

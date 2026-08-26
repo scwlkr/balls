@@ -34,6 +34,22 @@ export interface CircleFilesContributionResultDto {
   folderPath: string;
 }
 
+export interface CircleFilesGrantPreviewDto {
+  folderName: string;
+  folderPath: string;
+  memberName: string;
+  access: "Read/write";
+  summary: string;
+}
+
+export interface CircleFilesGrantResultDto {
+  status: "applied" | "already-applied";
+  folderName: string;
+  memberName: string;
+  access: "Read/write";
+  message: string;
+}
+
 export interface BrowserApi {
   exchangeLaunchCapability(capability: string): Promise<void>;
   getStatus(): Promise<StatusDto>;
@@ -64,6 +80,12 @@ export interface BrowserApi {
     folderPath: string,
     displayName: string,
   ): Promise<CircleFilesContributionResultDto>;
+  previewFilesGrant(
+    circleId: string,
+    folderName: string,
+    memberName: string,
+  ): Promise<CircleFilesGrantPreviewDto>;
+  applyFilesGrant(circleId: string): Promise<CircleFilesGrantResultDto>;
   listFilesGrants(
     circleId: string,
     contributionId: string,
@@ -221,6 +243,22 @@ class FetchBrowserApi implements BrowserApi {
       `/browser/v1/circles/${encodeURIComponent(circleId)}/files/contributions/folder-apply`,
       { requestId, folderPath, displayName },
       "Run balls ui again to contribute the folder.",
+    );
+  }
+
+  previewFilesGrant(circleId: string, folderName: string, memberName: string) {
+    return this.authenticatedRequest<CircleFilesGrantPreviewDto>(
+      `/browser/v1/circles/${encodeURIComponent(circleId)}/files/grant/preview`,
+      { folderName, memberName, access: "read-write" },
+      "Run balls ui again to review Member access.",
+    );
+  }
+
+  applyFilesGrant(circleId: string) {
+    return this.authenticatedRequest<CircleFilesGrantResultDto>(
+      `/browser/v1/circles/${encodeURIComponent(circleId)}/files/grant/apply`,
+      {},
+      "Run balls ui again to share the folder.",
     );
   }
 
