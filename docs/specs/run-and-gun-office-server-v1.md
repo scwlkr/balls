@@ -27,6 +27,18 @@ install exact Balls Development build
 Employees do not handle SMB credentials, share names, drive letters, Tailscale keys, IP addresses,
 ports, `RSN.ini`, or Revit Server administration.
 
+## Product framing
+
+The Office Circle should feel like the company's private, open-source workspace: one understandable
+place for its people, permissions, files, Revit service, and future Circle capabilities. Google
+Workspace is a useful comparison for the joined-up experience, but Balls does not clone Google
+Docs, Gmail, or every office application. It gives the Circle one experience across infrastructure
+and specialized providers the Circle controls.
+
+This v1 builds only the server, identity, ordinary-file, private-network, and Revit foundations.
+Circle Messaging, Circle AI, and Circle Apps remain later product pillars rather than requirements
+for purchasing or starting this office server.
+
 ## Simple system model
 
 - There is one **Office Circle**.

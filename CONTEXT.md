@@ -82,3 +82,8 @@ _Avoid_: Secret share, hidden folder
 The initial working deployment for two or three trusted people using exact Development software and
 simple configurable operations without claiming enterprise production maturity.
 _Avoid_: Production release, enterprise deployment
+
+**Office Workspace**:
+The Office Circle's coherent Member experience across its people, permitted files, Revit service,
+and later Circle capabilities, built from infrastructure the Circle controls.
+_Avoid_: Google Workspace clone, server dashboard, bundle of shares
