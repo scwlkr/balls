@@ -37,7 +37,12 @@ internal sealed class TemporaryDirectory : IDisposable
                 GetCanonicalTempPath(),
                 $"bt-{Guid.NewGuid():N}"[..11])
             : System.IO.Path.Combine(
-                System.IO.Path.GetTempPath(),
+                OperatingSystem.IsLinux()
+                    ? System.IO.Path.Combine(
+                        Environment.GetFolderPath(Environment.SpecialFolder.UserProfile),
+                        ".local",
+                        "state")
+                    : System.IO.Path.GetTempPath(),
                 "balls-tests",
                 Guid.NewGuid().ToString("N"));
         Directory.CreateDirectory(Path);

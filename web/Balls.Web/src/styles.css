@@ -24,6 +24,29 @@
   --radius-large: 1.35rem;
 }
 
+.contribution-actions,
+.contribution-preview {
+  display: grid;
+  gap: 0.8rem;
+}
+
+.contribution-preview {
+  margin-top: 1rem;
+  padding: 1rem;
+  border: 1px solid var(--line);
+  border-radius: 0.8rem;
+  background: var(--paper);
+}
+
+.contribution-preview p,
+.contribution-preview strong {
+  margin: 0;
+}
+
+.contribution-preview strong {
+  overflow-wrap: anywhere;
+}
+
 * {
   box-sizing: border-box;
 }
@@ -395,6 +418,36 @@ h1 {
   font-size: 0.66rem;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.active-membership {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 1px;
+  margin: 0 0 1.25rem;
+  overflow: hidden;
+  background: var(--line);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-medium);
+}
+
+.active-membership div {
+  padding: 0.85rem 1rem;
+  background: var(--surface);
+}
+
+.active-membership dt {
+  margin-bottom: 0.25rem;
+  color: var(--muted);
+  font-size: 0.66rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
+.active-membership dd {
+  margin: 0;
+  color: var(--carbon);
+  font-weight: 700;
 }
 
 .topology {
@@ -840,6 +893,12 @@ footer code {
   border: 1px solid var(--line);
   border-radius: var(--radius-large);
   background: var(--surface);
+}
+
+.member-refresh-actions {
+  display: flex;
+  justify-content: flex-end;
+  margin: -1rem 0 1rem;
 }
 
 .message-list {

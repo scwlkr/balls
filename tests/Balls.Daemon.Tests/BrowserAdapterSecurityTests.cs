@@ -3,11 +3,14 @@ using System.Net.Http.Json;
 using System.Net.NetworkInformation;
 using System.Net.Sockets;
 using System.Text;
+using System.Text.Json;
 using System.Text.RegularExpressions;
 using Balls.Daemon;
 using Balls.Host;
+using Balls.Platform;
 using Balls.Protocol.Browser.V1;
 using Balls.Protocol.Control.V1;
+using Balls.Transport.Lan;
 
 namespace Balls.Daemon.Tests;
 
@@ -157,29 +160,21 @@ public sealed partial class BrowserAdapterSecurityTests
         using var missingSyncAntiforgery = CreateJsonRequest(
             HttpMethod.Post,
             BrowserRoutes.CircleFilesSync(created.Circle.Id),
-            new SyncBrowserCircleFilesRequest("192.168.1.20:43155"),
+            new { },
             GetOrigin(browserBaseUri),
             authenticated.Cookie);
         using var missingSyncAntiforgeryResponse = await browserClient.SendAsync(
             missingSyncAntiforgery);
 
-        using var publicSync = CreateJsonRequest(
+        using var missingConnectionSync = CreateJsonRequest(
             HttpMethod.Post,
             BrowserRoutes.CircleFilesSync(created.Circle.Id),
-            new SyncBrowserCircleFilesRequest("8.8.8.8:43155"),
+            new { },
             GetOrigin(browserBaseUri),
             authenticated.Cookie,
             authenticated.Session.AntiforgeryToken);
-        using var publicSyncResponse = await browserClient.SendAsync(publicSync);
-
-        using var loopbackSync = CreateJsonRequest(
-            HttpMethod.Post,
-            BrowserRoutes.CircleFilesSync(created.Circle.Id),
-            new SyncBrowserCircleFilesRequest("127.0.0.1:43155"),
-            GetOrigin(browserBaseUri),
-            authenticated.Cookie,
-            authenticated.Session.AntiforgeryToken);
-        using var loopbackSyncResponse = await browserClient.SendAsync(loopbackSync);
+        using var missingConnectionSyncResponse = await browserClient.SendAsync(
+            missingConnectionSync);
 
         using var statusRequest = new HttpRequestMessage(HttpMethod.Get, BrowserRoutes.Status);
         statusRequest.Headers.TryAddWithoutValidation("Cookie", authenticated.Cookie);
@@ -191,13 +186,12 @@ public sealed partial class BrowserAdapterSecurityTests
         Assert.AreEqual(HttpStatusCode.Created, createResponse.StatusCode);
         Assert.AreEqual("Secure Circle", created.Circle.Name);
         Assert.AreEqual(HttpStatusCode.Forbidden, missingSyncAntiforgeryResponse.StatusCode);
-        Assert.AreEqual(HttpStatusCode.BadRequest, publicSyncResponse.StatusCode);
-        Assert.AreEqual(HttpStatusCode.BadRequest, loopbackSyncResponse.StatusCode);
+        Assert.AreEqual(HttpStatusCode.Conflict, missingConnectionSyncResponse.StatusCode);
         Assert.AreEqual(HttpStatusCode.OK, statusResponse.StatusCode);
     }
 
     [TestMethod]
-    public async Task Browser_projection_lists_Circle_Files_but_exposes_no_mutation_route()
+    public async Task Browser_projection_lists_Circle_Files_but_rejects_the_raw_mutation_route()
     {
         using var directory = new TemporaryDirectory();
         await using var daemon = await StartDaemonAsync(directory.Path);
@@ -287,15 +281,202 @@ public sealed partial class BrowserAdapterSecurityTests
     }
 
     [TestMethod]
-    public async Task Browser_invitation_requires_antiforgery_and_a_shareable_private_address()
+    public async Task Owner_browser_selects_and_idempotently_contributes_one_exact_existing_folder()
     {
         using var directory = new TemporaryDirectory();
-        var admissionEndpoint = AllocateLoopbackEndpoint();
-        var messageEndpoint = AllocateLoopbackEndpoint();
+        var selectedHost = (SupportedHostPlatform)HostPlatformSelector.SelectCurrent();
+        var picker = new StubFolderPicker(@"C:\BallsDemo\Projects", "Projects");
+        var hosting = new StubHostProvisioner();
+        var time = new ManualTimeProvider(
+            new DateTimeOffset(2026, 8, 26, 12, 0, 0, TimeSpan.Zero));
+        var host = selectedHost.Platform with
+        {
+            CircleFilesFolderPicker = picker,
+            CircleFilesHosting = hosting,
+        };
+        var endpoint = GetEndpoint(directory.Path);
+        await using var daemon = await DaemonHost.StartAsync(
+            new DaemonOptions(
+                Path.Combine(directory.Path, "state"),
+                endpoint,
+                "Browser-PC"),
+            host,
+            selectedHost.PrivateMaterialProtector,
+            timeProvider: time);
+        using var ipcClient = CreateIpcClient(endpoint);
+        var circle = await (await ipcClient.PostAsJsonAsync(
+                ControlRoutes.Circles,
+                new CreateCircleRequest(
+                    "0198d000-5000-7000-8000-000000000011",
+                    "Files Circle",
+                    "Alice"),
+                ControlJson.Options))
+            .Content.ReadFromJsonAsync<CircleDetailsResponse>(ControlJson.Options);
+        Assert.IsNotNull(circle);
+        var launch = await IssueLaunchAsync(ipcClient);
+        var browserBaseUri = GetBrowserBaseUri(launch);
+        using var browserClient = CreateBrowserClient(browserBaseUri);
+        var authenticated = await ExchangeAsync(browserClient, launch);
+
+        using var missingSelectionRequest = CreateJsonRequest(
+            HttpMethod.Post,
+            BrowserRoutes.CircleFilesFolderApply(circle.Circle.Id),
+            new ApplyBrowserCircleFilesFolderRequest(
+                "0198d000-5000-7000-8000-000000000012",
+                "0198d000-5000-7000-8000-000000000013"),
+            GetOrigin(browserBaseUri),
+            authenticated.Cookie,
+            authenticated.Session.AntiforgeryToken);
+        using var missingSelectionResponse = await browserClient.SendAsync(missingSelectionRequest);
+        Assert.AreEqual(HttpStatusCode.Conflict, missingSelectionResponse.StatusCode);
+        Assert.HasCount(0, hosting.Requests);
+
+        using var selectRequest = CreateJsonRequest(
+            HttpMethod.Post,
+            BrowserRoutes.CircleFilesFolderSelection(circle.Circle.Id),
+            new { },
+            GetOrigin(browserBaseUri),
+            authenticated.Cookie,
+            authenticated.Session.AntiforgeryToken);
+        using var selectResponse = await browserClient.SendAsync(selectRequest);
+        var selection = await selectResponse.Content
+            .ReadFromJsonAsync<BrowserCircleFilesFolderSelectionResponse>(ControlJson.Options);
+        Assert.AreEqual(HttpStatusCode.OK, selectResponse.StatusCode);
+        Assert.IsNotNull(selection);
+        Assert.AreEqual("selected", selection.Status);
+        Assert.IsNotNull(selection.SelectionId);
+        Assert.AreEqual(@"C:\BallsDemo\Projects", selection.FolderPath);
+
+        var otherLaunch = await IssueLaunchAsync(ipcClient);
+        using var otherBrowserClient = CreateBrowserClient(browserBaseUri);
+        var otherAuthenticated = await ExchangeAsync(otherBrowserClient, otherLaunch);
+        using var crossSessionRequest = CreateJsonRequest(
+            HttpMethod.Post,
+            BrowserRoutes.CircleFilesFolderApply(circle.Circle.Id),
+            new ApplyBrowserCircleFilesFolderRequest(
+                "0198d000-5000-7000-8000-000000000012",
+                selection.SelectionId),
+            GetOrigin(browserBaseUri),
+            otherAuthenticated.Cookie,
+            otherAuthenticated.Session.AntiforgeryToken);
+        using var crossSessionResponse = await otherBrowserClient.SendAsync(crossSessionRequest);
+        Assert.AreEqual(HttpStatusCode.Conflict, crossSessionResponse.StatusCode);
+        Assert.HasCount(0, hosting.Requests);
+
+        using var substitutedSelectionRequest = CreateJsonRequest(
+            HttpMethod.Post,
+            BrowserRoutes.CircleFilesFolderApply(circle.Circle.Id),
+            new ApplyBrowserCircleFilesFolderRequest(
+                "0198d000-5000-7000-8000-000000000012",
+                "0198d000-5000-7000-8000-000000000014"),
+            GetOrigin(browserBaseUri),
+            authenticated.Cookie,
+            authenticated.Session.AntiforgeryToken);
+        using var substitutedSelectionResponse = await browserClient.SendAsync(
+            substitutedSelectionRequest);
+        Assert.AreEqual(HttpStatusCode.Conflict, substitutedSelectionResponse.StatusCode);
+        Assert.HasCount(0, hosting.Requests);
+
+        var applyBody = new ApplyBrowserCircleFilesFolderRequest(
+            "0198d000-5000-7000-8000-000000000012",
+            selection.SelectionId!);
+        time.Advance(TimeSpan.FromMinutes(16));
+        using var staleRequest = CreateJsonRequest(
+            HttpMethod.Post,
+            BrowserRoutes.CircleFilesFolderApply(circle.Circle.Id),
+            applyBody,
+            GetOrigin(browserBaseUri),
+            authenticated.Cookie,
+            authenticated.Session.AntiforgeryToken);
+        using var staleResponse = await browserClient.SendAsync(staleRequest);
+        Assert.AreEqual(HttpStatusCode.Conflict, staleResponse.StatusCode);
+        Assert.HasCount(0, hosting.Requests);
+
+        using var replacementSelectRequest = CreateJsonRequest(
+            HttpMethod.Post,
+            BrowserRoutes.CircleFilesFolderSelection(circle.Circle.Id),
+            new { },
+            GetOrigin(browserBaseUri),
+            authenticated.Cookie,
+            authenticated.Session.AntiforgeryToken);
+        using var replacementSelectResponse = await browserClient.SendAsync(replacementSelectRequest);
+        var replacement = await replacementSelectResponse.Content
+            .ReadFromJsonAsync<BrowserCircleFilesFolderSelectionResponse>(ControlJson.Options);
+        Assert.AreEqual(HttpStatusCode.OK, replacementSelectResponse.StatusCode);
+        Assert.IsNotNull(replacement?.SelectionId);
+        applyBody = applyBody with { SelectionId = replacement!.SelectionId! };
+        using var applyRequest = CreateJsonRequest(
+            HttpMethod.Post,
+            BrowserRoutes.CircleFilesFolderApply(circle.Circle.Id),
+            applyBody,
+            GetOrigin(browserBaseUri),
+            authenticated.Cookie,
+            authenticated.Session.AntiforgeryToken);
+        using var applyResponse = await browserClient.SendAsync(applyRequest);
+        var appliedJson = await applyResponse.Content.ReadAsStringAsync();
+        var applied = System.Text.Json.JsonSerializer
+            .Deserialize<BrowserCircleFilesContributionResponse>(appliedJson, ControlJson.Options);
+        Assert.AreEqual(HttpStatusCode.OK, applyResponse.StatusCode);
+        Assert.IsNotNull(applied);
+        Assert.AreEqual("applied", applied.Status);
+        Assert.AreEqual(selection.FolderPath, applied.FolderPath);
+
+        using var retryRequest = CreateJsonRequest(
+            HttpMethod.Post,
+            BrowserRoutes.CircleFilesFolderApply(circle.Circle.Id),
+            applyBody,
+            GetOrigin(browserBaseUri),
+            authenticated.Cookie,
+            authenticated.Session.AntiforgeryToken);
+        using var retryResponse = await browserClient.SendAsync(retryRequest);
+        var retried = await retryResponse.Content
+            .ReadFromJsonAsync<BrowserCircleFilesContributionResponse>(ControlJson.Options);
+        using var listRequest = new HttpRequestMessage(
+            HttpMethod.Get,
+            BrowserRoutes.CircleFilesContributions(circle.Circle.Id));
+        listRequest.Headers.TryAddWithoutValidation("Cookie", authenticated.Cookie);
+        using var listResponse = await browserClient.SendAsync(listRequest);
+        var listed = await listResponse.Content
+            .ReadFromJsonAsync<CircleFilesContributionListResponse>(ControlJson.Options);
+
+        Assert.AreEqual(HttpStatusCode.OK, retryResponse.StatusCode);
+        Assert.AreEqual("already-applied", retried?.Status);
+        Assert.IsNotNull(listed);
+        Assert.HasCount(1, listed.Contributions);
+        Assert.AreEqual(4, hosting.Requests.Count);
+        Assert.IsTrue(hosting.Requests.All(request =>
+            request.FolderPath == @"C:\BallsDemo\Projects"));
+        Assert.IsFalse(appliedJson.Contains("authorization", StringComparison.OrdinalIgnoreCase));
+        Assert.IsFalse(appliedJson.Contains("shareName", StringComparison.OrdinalIgnoreCase));
+        Assert.IsFalse(appliedJson.Contains("firewall", StringComparison.OrdinalIgnoreCase));
+
+        using var substitutedRequestId = CreateJsonRequest(
+            HttpMethod.Post,
+            BrowserRoutes.CircleFilesFolderApply(circle.Circle.Id),
+            applyBody with { RequestId = "0198d000-5000-7000-8000-000000000015" },
+            GetOrigin(browserBaseUri),
+            authenticated.Cookie,
+            authenticated.Session.AntiforgeryToken);
+        using var substitutedRequestIdResponse = await browserClient.SendAsync(substitutedRequestId);
+        Assert.AreEqual(HttpStatusCode.Conflict, substitutedRequestIdResponse.StatusCode);
+        Assert.AreEqual(4, hosting.Requests.Count);
+    }
+
+    [TestMethod]
+    public async Task Browser_invitation_requires_antiforgery_and_uses_actual_automatic_listener_addresses()
+    {
+        using var directory = new TemporaryDirectory();
+        var privateAddress = PrivateIPv4AddressSelector.SelectCurrent();
+        if (!privateAddress.IsAvailable)
+        {
+            Assert.Inconclusive("This host does not have exactly one operational private IPv4 address.");
+            return;
+        }
+
         await using var daemon = await StartDaemonAsync(
             directory.Path,
-            admissionEndpoint,
-            messageEndpoint);
+            automaticPrivateListeners: true,
+            privateAddressSelector: () => privateAddress);
         using var ipcClient = CreateIpcClient(GetEndpoint(directory.Path));
         using var createCircleResponse = await ipcClient.PostAsJsonAsync(
             ControlRoutes.Circles,
@@ -316,53 +497,87 @@ public sealed partial class BrowserAdapterSecurityTests
         using var missingAntiforgery = CreateJsonRequest(
             HttpMethod.Post,
             route,
-            new CreateBrowserCircleInvitationRequest(60, "192.168.1.20"),
+            new CreateBrowserCircleInvitationRequest(60),
             GetOrigin(browserBaseUri),
             authenticated.Cookie);
         using var missingAntiforgeryResponse = await browserClient.SendAsync(missingAntiforgery);
 
-        using var loopbackRequest = CreateJsonRequest(
+        using var invitationRequest = CreateJsonRequest(
             HttpMethod.Post,
             route,
-            new CreateBrowserCircleInvitationRequest(60, null),
+            new CreateBrowserCircleInvitationRequest(60),
             GetOrigin(browserBaseUri),
             authenticated.Cookie,
             authenticated.Session.AntiforgeryToken);
-        using var loopbackResponse = await browserClient.SendAsync(loopbackRequest);
-
-        using var publicRequest = CreateJsonRequest(
-            HttpMethod.Post,
-            route,
-            new CreateBrowserCircleInvitationRequest(60, "8.8.8.8"),
-            GetOrigin(browserBaseUri),
-            authenticated.Cookie,
-            authenticated.Session.AntiforgeryToken);
-        using var publicResponse = await browserClient.SendAsync(publicRequest);
-
-        using var privateRequest = CreateJsonRequest(
-            HttpMethod.Post,
-            route,
-            new CreateBrowserCircleInvitationRequest(60, "192.168.1.20"),
-            GetOrigin(browserBaseUri),
-            authenticated.Cookie,
-            authenticated.Session.AntiforgeryToken);
-        using var privateResponse = await browserClient.SendAsync(privateRequest);
-        var invitation = await privateResponse.Content.ReadFromJsonAsync<BrowserCircleInvitationResponse>(
+        using var invitationResponse = await browserClient.SendAsync(invitationRequest);
+        var invitationJson = await invitationResponse.Content.ReadAsStringAsync();
+        var invitation = JsonSerializer.Deserialize<BrowserCircleInvitationResponse>(
+            invitationJson,
             ControlJson.Options);
 
         Assert.AreEqual(HttpStatusCode.Forbidden, missingAntiforgeryResponse.StatusCode);
-        Assert.AreEqual(HttpStatusCode.BadRequest, loopbackResponse.StatusCode);
-        Assert.AreEqual(HttpStatusCode.BadRequest, publicResponse.StatusCode);
-        Assert.AreEqual(HttpStatusCode.Created, privateResponse.StatusCode);
+        Assert.AreEqual(HttpStatusCode.Created, invitationResponse.StatusCode);
         Assert.IsNotNull(invitation);
         Assert.AreEqual(circle.Circle.Id, invitation.CircleId);
-        Assert.AreEqual(
-            $"192.168.1.20:{IPEndPoint.Parse(admissionEndpoint).Port}",
-            invitation.Endpoint);
-        Assert.AreEqual(
-            $"192.168.1.20:{IPEndPoint.Parse(messageEndpoint).Port}",
-            invitation.SyncEndpoint);
+        Assert.AreEqual(LanTcpEndpoint.ProviderName, invitation.Provider);
+        Assert.AreEqual(daemon.AdmissionAddress!.Value, invitation.Endpoint);
+        Assert.AreEqual(daemon.MessageAddress!.Value, invitation.SyncEndpoint);
+        Assert.AreEqual(privateAddress.Address, IPEndPoint.Parse(invitation.Endpoint).Address);
+        Assert.AreEqual(privateAddress.Address, IPEndPoint.Parse(invitation.SyncEndpoint).Address);
+        Assert.AreNotEqual(0, IPEndPoint.Parse(invitation.Endpoint).Port);
+        Assert.AreNotEqual(0, IPEndPoint.Parse(invitation.SyncEndpoint).Port);
         Assert.IsNotEmpty(invitation.Package);
+        using var invitationDocument = JsonDocument.Parse(invitationJson);
+        CollectionAssert.AreEquivalent(
+            new[] { "circleId", "invitationId", "expiresAtUtc", "package", "provider", "endpoint", "syncEndpoint" },
+            invitationDocument.RootElement.EnumerateObject().Select(property => property.Name).ToArray());
+    }
+
+    [TestMethod]
+    public async Task Ambiguous_automatic_private_network_keeps_browser_available_and_refuses_invitation()
+    {
+        using var directory = new TemporaryDirectory();
+        await using var daemon = await StartDaemonAsync(
+            directory.Path,
+            automaticPrivateListeners: true,
+            privateAddressSelector: () => new PrivateIPv4AddressSelection(
+                null,
+                "private_network_ambiguous",
+                "Balls found more than one private network connection and cannot safely choose one for invitations."));
+        using var ipcClient = CreateIpcClient(GetEndpoint(directory.Path));
+        using var createCircleResponse = await ipcClient.PostAsJsonAsync(
+            ControlRoutes.Circles,
+            new CreateCircleRequest(
+                "0198d000-6000-7000-8000-000000000002",
+                "Ambiguous Network Circle",
+                "Alice"),
+            ControlJson.Options);
+        var circle = await createCircleResponse.Content.ReadFromJsonAsync<CircleDetailsResponse>(
+            ControlJson.Options);
+        Assert.IsNotNull(circle);
+        var launch = await IssueLaunchAsync(ipcClient);
+        var browserBaseUri = GetBrowserBaseUri(launch);
+        using var browserClient = CreateBrowserClient(browserBaseUri);
+        var authenticated = await ExchangeAsync(browserClient, launch);
+        using var request = CreateJsonRequest(
+            HttpMethod.Post,
+            BrowserRoutes.CircleInvitations(circle.Circle.Id),
+            new CreateBrowserCircleInvitationRequest(60),
+            GetOrigin(browserBaseUri),
+            authenticated.Cookie,
+            authenticated.Session.AntiforgeryToken);
+        using var response = await browserClient.SendAsync(request);
+        var responseJson = await response.Content.ReadAsStringAsync();
+        var error = JsonSerializer.Deserialize<ErrorResponse>(responseJson, ControlJson.Options);
+
+        Assert.AreEqual(HttpStatusCode.Conflict, response.StatusCode);
+        Assert.IsNotNull(error);
+        Assert.AreEqual("private_network_ambiguous", error.Code);
+        Assert.IsTrue(error.Message.Length <= 120);
+        Assert.IsNull(daemon.AdmissionAddress);
+        Assert.IsNull(daemon.MessageAddress);
+        Assert.IsFalse(responseJson.Contains("package", StringComparison.OrdinalIgnoreCase));
+        Assert.IsFalse(responseJson.Contains("endpoint", StringComparison.OrdinalIgnoreCase));
     }
 
     [TestMethod]
@@ -377,8 +592,19 @@ public sealed partial class BrowserAdapterSecurityTests
 
         using var ownerDirectory = new TemporaryDirectory();
         using var memberDirectory = new TemporaryDirectory();
-        var admissionEndpoint = AllocateLoopbackEndpoint();
-        await using var owner = await StartDaemonAsync(ownerDirectory.Path, admissionEndpoint);
+        var privateAddress = FindOperationalPrivateAddress();
+        if (privateAddress is null)
+        {
+            Assert.Inconclusive("Browser admission requires an operational private IPv4 interface.");
+            return;
+        }
+
+        var admissionEndpoint = AllocatePrivateEndpoint(privateAddress);
+        var messageEndpoint = AllocatePrivateEndpoint(privateAddress);
+        await using var owner = await StartDaemonAsync(
+            ownerDirectory.Path,
+            admissionEndpoint,
+            messageEndpoint);
         await using var member = await StartDaemonAsync(memberDirectory.Path);
         using var ownerClient = CreateIpcClient(GetEndpoint(ownerDirectory.Path));
         using var memberClient = CreateIpcClient(GetEndpoint(memberDirectory.Path));
@@ -407,7 +633,12 @@ public sealed partial class BrowserAdapterSecurityTests
         using var join = CreateJsonRequest(
             HttpMethod.Post,
             BrowserRoutes.CircleJoin,
-            new JoinCircleRequest(invitation.Package, admissionEndpoint, "Bob"),
+            new JoinBrowserCircleRequest(
+                invitation.Package,
+                LanTcpEndpoint.ProviderName,
+                admissionEndpoint,
+                messageEndpoint,
+                "Bob"),
             GetOrigin(browserBaseUri),
             authenticated.Cookie,
             authenticated.Session.AntiforgeryToken);
@@ -520,24 +751,28 @@ public sealed partial class BrowserAdapterSecurityTests
     private static async Task<DaemonInstance> StartDaemonAsync(
         string root,
         string? admissionListenEndpoint = null,
-        string? messageListenEndpoint = null)
+        string? messageListenEndpoint = null,
+        bool automaticPrivateListeners = false,
+        Func<PrivateIPv4AddressSelection>? privateAddressSelector = null)
     {
-        return await DaemonHost.StartAsync(
-            new DaemonOptions(
-                Path.Combine(root, "state"),
-                GetEndpoint(root),
-                "Browser-PC",
-                admissionListenEndpoint,
-                messageListenEndpoint));
-    }
+        var options = new DaemonOptions(
+            Path.Combine(root, "state"),
+            GetEndpoint(root),
+            "Browser-PC",
+            admissionListenEndpoint,
+            messageListenEndpoint,
+            automaticPrivateListeners);
+        if (privateAddressSelector is null)
+        {
+            return await DaemonHost.StartAsync(options);
+        }
 
-    private static string AllocateLoopbackEndpoint()
-    {
-        var listener = new TcpListener(IPAddress.Loopback, 0);
-        listener.Start();
-        var endpoint = (IPEndPoint)listener.LocalEndpoint;
-        listener.Stop();
-        return endpoint.ToString();
+        var host = (SupportedHostPlatform)HostPlatformSelector.SelectCurrent();
+        return await DaemonHost.StartAsync(
+            options,
+            host.Platform,
+            host.PrivateMaterialProtector,
+            privateAddressSelector: privateAddressSelector);
     }
 
     private static HttpClient CreateIpcClient(string endpoint)
@@ -659,6 +894,69 @@ public sealed partial class BrowserAdapterSecurityTests
     private static partial Regex AssetPath();
 
     private sealed record AuthenticatedBrowser(string Cookie, BrowserSessionResponse Session);
+
+    private sealed class ManualTimeProvider(DateTimeOffset utcNow) : TimeProvider
+    {
+        private DateTimeOffset value = utcNow;
+
+        public override DateTimeOffset GetUtcNow() => value;
+
+        internal void Advance(TimeSpan duration) => value += duration;
+    }
+
+    private sealed class StubFolderPicker(string folderPath, string displayName)
+        : ICircleFilesFolderPicker
+    {
+        public ValueTask<CircleFilesFolderSelection?> SelectAsync(
+            CancellationToken cancellationToken = default)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            return ValueTask.FromResult<CircleFilesFolderSelection?>(
+                new CircleFilesFolderSelection(folderPath, displayName));
+        }
+    }
+
+    private sealed class StubHostProvisioner : ICircleFilesHostProvisioner
+    {
+        internal List<CircleFilesHostRequest> Requests { get; } = [];
+
+        public ValueTask<CircleFilesHostPlan> PreviewAsync(
+            CircleFilesHostRequest request,
+            CancellationToken cancellationToken)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            Requests.Add(request);
+            return ValueTask.FromResult(CreatePlan(request));
+        }
+
+        public ValueTask<CircleFilesHostApplyResult> ApplyAsync(
+            CircleFilesHostRequest request,
+            string expectedPlanId,
+            CancellationToken cancellationToken)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            Requests.Add(request);
+            var plan = CreatePlan(request);
+            Assert.AreEqual(expectedPlanId, plan.PlanId);
+            return ValueTask.FromResult(new CircleFilesHostApplyResult(
+                Requests.Count == 2
+                    ? CircleFilesHostApplyStatus.Applied
+                    : CircleFilesHostApplyStatus.AlreadyApplied,
+                plan));
+        }
+
+        private static CircleFilesHostPlan CreatePlan(CircleFilesHostRequest request) =>
+            new(
+                1,
+                new string('a', 64),
+                CircleFilesReadinessProviders.WindowsSmb311,
+                request.FolderPath,
+                "balls-test",
+                "Balls-SMB-test",
+                new string('b', 64),
+                true,
+                ["Preserve existing files and create exact owned resources."]);
+    }
 
     private sealed class TemporaryDirectory : IDisposable
     {

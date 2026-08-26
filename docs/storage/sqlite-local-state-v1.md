@@ -1,9 +1,10 @@
 # SQLite Local State
 
-**Status:** schema v8 implemented for local records, protected cryptographic authority,
+**Status:** schema v10 implemented for local records, protected cryptographic authority,
 invitations, persisted Circle admission, the first durable Circle message, and provider-neutral
 Circle Files contribution/grant authorization, grant revocation, lifecycle audit, and protected
-Windows provider credentials.
+Windows provider credentials, the joined Node's protected private Circle connection, and durable
+canonical hosted-folder bindings.
 
 This database belongs to one `ballsd` instance. It preserves local Node identity and the Circles
 known to that daemon. It is a storage adapter, not the eventual replicated Circle state model.
@@ -26,7 +27,7 @@ persistent filesystem. See
 ## Database identity and open sequence
 
 - SQLite `application_id`: `0x42414C53` (`BALS`).
-- SQLite `user_version`: `8`.
+- SQLite `user_version`: `10`.
 - Connection mode: read/write/create, private cache, pooling disabled.
 
 The store reads identity and schema metadata before applying persistent configuration. A database
@@ -74,9 +75,11 @@ timestamps use round-trip ISO 8601 format.
 | `circle_messages` | Per-Circle ordered accepted message, canonical request digest, exact signed request, and Anchor-signed receipt; unique message UUID and Circle sequence |
 | `circle_files_contributions` | Provider-neutral whole-folder Contribution ID, request ID, provider/hosting Node identity, lifecycle/generation, and exact Owner-Member/current-root authorization proof |
 | `circle_files_access_grants` | One Member Access Grant per Contribution/Member with whole-folder access, lifecycle/generation, request identity, and exact dual-signed Owner authorization proof |
+| `circle_files_hosted_folders` | One exact canonical hosted-folder binding per Contribution: Circle, provider, hosting Node, and local folder path; the Contribution ID is the primary key and all identity relationships are foreign-key constrained |
 | `circle_files_provider_credentials` | One exact provider credential binding per Access Grant: Circle, Contribution, Member, provider, account/ownership IDs, access, generation, pending/active/removed lifecycle, protection scheme, protected secret, and creation time |
 | `circle_files_access_grant_revocations` | One immutable exact-generation revocation per Access Grant with request identity, time, and dual-signed Owner/current-root proof |
 | `circle_files_lifecycle_audit_events` | Append-only redacted lifecycle requests and outcomes with Circle/Contribution, typed subject ID, stable operation/outcome tokens, bounded session count, and time |
+| `circle_connections` | One versioned provider/admission/synchronization connection per joined Circle; the provider and both private endpoints are serialized together under the local OS protection scheme rather than stored as browser state or plaintext columns |
 
 `nodes` is deliberately broader than `local_node`: admitted remote Nodes share the catalog without
 redefining the daemon's singleton identity. A joined Node stores public Circle trust and its signed
@@ -95,9 +98,13 @@ receipt but does not gain private root/Anchor authority or redefine itself as th
   Member/Node/transport credentials, root-signed transport binding, monotonic authority sequence,
   exact signed response, and bounded audit outcome. Exact request retry returns the stored response;
   a conflicting transcript cannot create another membership.
-- Joiner admission atomically inserts the signed Circle/Member/Node roster, public authority trust,
-  local Member credential, all Node security bindings, and exact receipt. Restart retains the same
-  identifiers with no duplicate rows.
+- Browser joiner admission atomically inserts the signed Circle/Member/Node roster, public
+  authority trust, local Member credential, all Node security bindings, exact receipt, and the
+  protected unsigned outer invitation connection. Exact retry validates the same connection;
+  completed legacy/recovery retry fills a missing connection without contacting the owner.
+  Restart retains the same identifiers and connection with no duplicate rows. The diagnostic
+  control/CLI join continues to accept its explicit endpoint and does not invent a durable Files
+  connection.
 - Outgoing message preparation atomically fixes the request UUID, local Member/Node attribution,
   text, and authored time. An exact retry returns that record; different Circle/text reuse fails.
 - Anchor acceptance atomically authorizes the Member/Node binding and inserts the next unique
@@ -108,6 +115,12 @@ receipt but does not gain private root/Anchor authority or redefine itself as th
 - Contribution creation atomically stores the stable provider identity, normalized definition,
   lifecycle/generation, authorizing Owner/generation/time, exact canonical transcript, and both
   signatures. Exact request retry returns the original IDs; conflicting reuse changes nothing.
+- Successful browser hosting persists the exact canonical folder/provider/Node binding after the
+  narrow host operation succeeds. Equivalent retry is idempotent; any attempt to bind the same
+  Contribution to a different folder or host fails closed. The local folder path is ordinary host
+  configuration, not credential material; its binding/store contract lives at the SQLite storage
+  edge rather than in provider-neutral Core. Provider credentials and passwords remain protected in
+  their dedicated credential records.
 - Grant creation first proves that its Contribution and Member belong to the same Circle, then
   atomically stores whole-folder access plus the same dual-signed authorization metadata. A bad
   Member/contribution, duplicate grant, or constraint failure leaves no partial grant.
@@ -143,6 +156,8 @@ receipt but does not gain private root/Anchor authority or redefine itself as th
 | `invalid_local_state` | Integrity or relationship validation failed |
 | `unsupported_state_filesystem` | WAL mode is unavailable |
 | `invalid_private_material` | A credential algorithm, key ID, public/private binding, protection scheme, or protected blob is invalid |
+| `invalid_circle_connection` | The protected joined-Circle connection has an unsupported version, malformed value, mismatched protection scheme, or unreadable blob |
+| `circle_connection_conflict` | An exact joined Circle already has different saved outer invitation connection details |
 
 ## Migration policy
 
@@ -150,13 +165,17 @@ Migrations run one boundary at a time and transactionally: v1 adds protected Nod
 (v2), v2 adds transport and invitation state (v3), v3 adds public Circle trust and admission
 state (v4), v4 adds local Member authorship plus persistent message/replay state (v5), v5 adds
 provider-neutral Circle Files contributions and Member Access Grants (v6), v6 adds protected
-Circle Files provider credentials (v7), and v7 adds grant revocations plus lifecycle audit (v8).
+Circle Files provider credentials (v7), v7 adds grant revocations plus lifecycle audit (v8), v8
+adds protected joined-Circle provider/admission/synchronization connection state (v9), and v9 adds
+the exact hosted-folder binding required to resolve graphical Owner grants server-side (v10).
 Each step records its
 own target version, so interruption between steps resumes from the last complete schema. A
 protection or database failure rolls back that schema version and every generated row; injected
-failure after the v8 DDL leaves version 7 and both lifecycle tables absent, and the next successful
-start performs one complete migration. Protected credentials and public
-Circle trust are validated on every open and are never silently regenerated when unreadable.
+failure after the v8 DDL leaves version 7 and both lifecycle tables absent; injected failure after
+the v9 DDL leaves version 8 and the connection table absent; injected failure after the v10 DDL
+leaves version 9 and the hosted-folder table absent. The next successful start performs one
+complete migration. Protected credentials, joined-Circle connections, and public Circle trust are
+validated on every open and are never silently regenerated when unreadable.
 
 Future schema changes must retain explicit transactional migrations, forward-version refusal, and
 failure/restart tests. SQLite remains local Node state, not the Circle's network replication
@@ -174,6 +193,10 @@ protocol.
   bounded `invalid_private_material` error.
 - Private material is exposed to Core consumers only through signing operations. The browser,
   local-control protocol, and ordinary CLI have no key export route.
+- Joined-Circle connection payloads use the same selected OS protection adapter and are exposed
+  only through the admission-state port. Startup corruption and provider/version mismatch return
+  bounded errors without reflecting provider or endpoint values. Failed protection rolls back the
+  entire first-join transaction, and a later exact retry can complete it.
 - Explicit Circle authority export writes a versioned envelope containing separately encrypted
   root and Anchor PKCS#8 values. PBES2 uses AES-256-CBC with PBKDF2-HMAC-SHA256 and 600,000
   iterations. A root P-256 signature authenticates the exact manifest, Circle ID, authority

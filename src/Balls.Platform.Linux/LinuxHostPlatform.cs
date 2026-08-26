@@ -21,10 +21,12 @@ public static class LinuxHostPlatform
             transport,
             transport,
             new LinuxSystemBrowserLauncher(),
+            new UnsupportedCircleFilesFolderPicker(),
             new UnsupportedCircleFilesReadinessInspector(),
             new UnsupportedCircleFilesHostProvisioner(),
             new UnsupportedCircleFilesGrantCredentialProvisioner(),
             new UnsupportedCircleFilesMemberMapper(),
+            new UnsupportedCircleFilesLocationLauncher(),
             new UnsupportedCircleFilesLifecycleManager());
     }
 

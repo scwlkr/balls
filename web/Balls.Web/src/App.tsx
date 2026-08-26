@@ -1,13 +1,8 @@
 import { useEffect, useRef, useState, type FormEvent } from "react";
 
 import { browserApi, type BrowserApi } from "./api/browserApi";
-import {
-  decodeInvitationCode,
-  encodeInvitationCode,
-  invitationHostAddress,
-} from "./api/invitationCode";
+import { decodeInvitationCode } from "./api/invitationCode";
 import type {
-  CircleFilesMemberMappingPlanDto,
   CircleDetailsDto,
   CircleMessageDto,
   CircleSummaryDto,
@@ -15,9 +10,10 @@ import type {
   StatusDto,
 } from "./api/localControl";
 import { BrandMark } from "./components/BrandMark";
-import { CircleTopology } from "./components/CircleTopology";
+import { CircleWorkspace } from "./components/CircleWorkspace";
 import { StatusBanner } from "./components/StatusBanner";
 import type { DashboardSnapshot } from "./presentation/DashboardSnapshot";
+import { toMessage } from "./presentation/toMessage";
 
 interface AppProps {
   api?: BrowserApi;
@@ -45,10 +41,6 @@ export function App({ api = browserApi }: AppProps) {
   const [workspace, setWorkspace] = useState<WorkspaceState | null>(null);
   const [error, setError] = useState<string | null>(initialError);
   const [busy, setBusy] = useState(false);
-  const [fileHosts, setFileHosts] = useState<Record<string, string>>({});
-  const [fileSyncEndpoints, setFileSyncEndpoints] = useState<
-    Record<string, string>
-  >({});
 
   useEffect(() => {
     if (started.current) return;
@@ -153,26 +145,12 @@ export function App({ api = browserApi }: AppProps) {
       const invitation = decodeInvitationCode(invitationCode);
       const selected = await api.joinCircle(
         invitation.package,
+        invitation.provider,
         invitation.endpoint,
+        invitation.syncEndpoint,
         name,
       );
       const viewer = await api.getViewer(selected.circle.id);
-      const host = invitationHostAddress(invitation.endpoint);
-      if (host) {
-        setFileHosts((current) => ({ ...current, [selected.circle.id]: host }));
-        setFileSyncEndpoints((current) => ({
-          ...current,
-          [selected.circle.id]: invitation.syncEndpoint,
-        }));
-        window.sessionStorage.setItem(
-          `balls:file-host:${selected.circle.id}`,
-          host,
-        );
-        window.sessionStorage.setItem(
-          `balls:file-sync:${selected.circle.id}`,
-          invitation.syncEndpoint,
-        );
-      }
       setWorkspace({
         ...workspace,
         circles: mergeCircle(workspace.circles, selected.circle),
@@ -219,8 +197,6 @@ export function App({ api = browserApi }: AppProps) {
               workspace={workspace}
               error={error}
               busy={busy}
-              fileHosts={fileHosts}
-              fileSyncEndpoints={fileSyncEndpoints}
               onCreate={createCircle}
               onJoin={joinCircle}
               onSelect={selectCircle}
@@ -267,29 +243,23 @@ function Masthead({
   );
 }
 
-interface WorkspaceProps {
-  api: BrowserApi;
-  workspace: WorkspaceState;
-  error: string | null;
-  busy: boolean;
-  fileHosts: Record<string, string>;
-  fileSyncEndpoints: Record<string, string>;
-  onCreate: (event: FormEvent<HTMLFormElement>) => void;
-  onJoin: (event: FormEvent<HTMLFormElement>) => void;
-  onSelect: (circleId: string) => void;
-}
-
 function Workspace({
   api,
   workspace,
   error,
   busy,
-  fileHosts,
-  fileSyncEndpoints,
   onCreate,
   onJoin,
   onSelect,
-}: WorkspaceProps) {
+}: {
+  api: BrowserApi;
+  workspace: WorkspaceState;
+  error: string | null;
+  busy: boolean;
+  onCreate: (event: FormEvent<HTMLFormElement>) => void;
+  onJoin: (event: FormEvent<HTMLFormElement>) => void;
+  onSelect: (circleId: string) => void;
+}) {
   const dashboard = workspace.selected
     ? toDashboard(workspace.status, workspace.selected)
     : null;
@@ -343,8 +313,6 @@ function Workspace({
         <CircleWorkspace
           api={api}
           dashboard={dashboard}
-          fileHost={fileHosts[dashboard.circle.id]}
-          fileSyncEndpoint={fileSyncEndpoints[dashboard.circle.id]}
           viewer={workspace.viewer}
           messages={workspace.messages}
         />
@@ -352,694 +320,6 @@ function Workspace({
         <EmptyWorkspace busy={busy} onCreate={onCreate} onJoin={onJoin} />
       )}
     </>
-  );
-}
-
-function CircleWorkspace({
-  dashboard,
-  fileHost,
-  fileSyncEndpoint,
-  viewer,
-  messages,
-  api,
-}: {
-  dashboard: DashboardSnapshot;
-  fileHost?: string;
-  fileSyncEndpoint?: string;
-  viewer: CircleViewerDto;
-  messages: CircleMessageDto[];
-  api: BrowserApi;
-}) {
-  const { circle } = dashboard;
-  return (
-    <>
-      <section
-        className="circle-intro"
-        id="circle"
-        aria-labelledby="circle-title"
-      >
-        <div>
-          <p className="eyebrow">Circle home</p>
-          <h1 id="circle-title">{circle.name}</h1>
-          <p className="circle-thesis">
-            A shared digital place owned by the people inside it.
-          </p>
-        </div>
-        <dl className="circle-identity">
-          <div>
-            <dt>Circle ID</dt>
-            <dd>{circle.id}</dd>
-          </div>
-          <div>
-            <dt>Created</dt>
-            <dd>
-              <time dateTime={circle.createdAtUtc}>
-                {formatDate(circle.createdAtUtc)}
-              </time>
-            </dd>
-          </div>
-        </dl>
-      </section>
-      <CircleTopology circle={circle} />
-      {viewer.role === "owner" ? (
-        <InvitationPanel api={api} circleId={circle.id} />
-      ) : null}
-      <FilesMappingPanel
-        key={circle.id}
-        api={api}
-        dashboard={dashboard}
-        viewer={viewer}
-        circleId={circle.id}
-        initialEndpoint={
-          fileHost ??
-          window.sessionStorage.getItem(`balls:file-host:${circle.id}`) ??
-          ""
-        }
-        syncEndpoint={
-          fileSyncEndpoint ??
-          window.sessionStorage.getItem(`balls:file-sync:${circle.id}`) ??
-          ""
-        }
-      />
-      <MessageHistory dashboard={dashboard} messages={messages} />
-    </>
-  );
-}
-
-function InvitationPanel({
-  api,
-  circleId,
-}: {
-  api: BrowserApi;
-  circleId: string;
-}) {
-  const [hostAddress, setHostAddress] = useState("");
-  const [invitationCode, setInvitationCode] = useState("");
-  const [expiresAt, setExpiresAt] = useState("");
-  const [busy, setBusy] = useState(false);
-  const [copied, setCopied] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-
-  async function createInvitation() {
-    if (busy) return;
-    setBusy(true);
-    setCopied(false);
-    setError(null);
-    try {
-      const invitation = await api.createInvitation(circleId, hostAddress);
-      setInvitationCode(encodeInvitationCode(invitation));
-      setExpiresAt(invitation.expiresAtUtc);
-    } catch (reason) {
-      setError(toMessage(reason));
-    } finally {
-      setBusy(false);
-    }
-  }
-
-  async function copyInvitation() {
-    try {
-      await navigator.clipboard.writeText(invitationCode);
-      setCopied(true);
-    } catch {
-      setError("Copy the invitation from the text box and send it privately.");
-    }
-  }
-
-  return (
-    <section
-      className="message-history invitation-panel"
-      id="invite"
-      aria-labelledby="invite-title"
-    >
-      <div className="section-heading">
-        <div>
-          <p className="eyebrow">Private, single-use invitation</p>
-          <h2 id="invite-title">Invite someone</h2>
-        </div>
-        <p>They install Balls, paste your invitation, and join this Circle.</p>
-      </div>
-      <div className="invitation-actions" aria-busy={busy}>
-        <button
-          type="button"
-          disabled={busy}
-          onClick={() => void createInvitation()}
-        >
-          {busy ? "Creating invitation…" : "Create invitation"}
-        </button>
-        <details className="invitation-advanced">
-          <summary>Advanced network settings</summary>
-          <label htmlFor="invitation-host-address">
-            Reachable private host address
-          </label>
-          <input
-            id="invitation-host-address"
-            value={hostAddress}
-            placeholder="192.168.1.20"
-            disabled={busy}
-            onChange={(event) => setHostAddress(event.target.value)}
-          />
-          <p>
-            Only set this when the server is behind a VM or port-forwarding
-            rule.
-          </p>
-        </details>
-        {invitationCode ? (
-          <div className="invitation-result">
-            <label htmlFor="invitation-code">
-              Invitation to send privately
-            </label>
-            <textarea
-              id="invitation-code"
-              readOnly
-              value={invitationCode}
-              rows={3}
-            />
-            <button type="button" onClick={() => void copyInvitation()}>
-              {copied ? "Copied" : "Copy invitation"}
-            </button>
-            <p>
-              Expires {new Date(expiresAt).toLocaleString()} and works once.
-            </p>
-          </div>
-        ) : null}
-        {error ? (
-          <p className="inline-error" role="alert">
-            {error}
-          </p>
-        ) : null}
-      </div>
-    </section>
-  );
-}
-
-function FilesMappingPanel({
-  api,
-  dashboard,
-  viewer,
-  circleId,
-  initialEndpoint,
-  syncEndpoint,
-}: {
-  api: BrowserApi;
-  dashboard: DashboardSnapshot;
-  viewer: CircleViewerDto;
-  circleId: string;
-  initialEndpoint: string;
-  syncEndpoint: string;
-}) {
-  const [contributions, setContributions] = useState<
-    Awaited<ReturnType<BrowserApi["listFilesContributions"]>>["contributions"]
-  >([]);
-  const [grants, setGrants] = useState<
-    Awaited<ReturnType<BrowserApi["listFilesGrants"]>>["grants"]
-  >([]);
-  const [contributionId, setContributionId] = useState("");
-  const [grantId, setGrantId] = useState("");
-  const [endpoint, setEndpoint] = useState(initialEndpoint);
-  const [driveLetter, setDriveLetter] = useState("");
-  const [plan, setPlan] = useState<CircleFilesMemberMappingPlanDto | null>(
-    null,
-  );
-  const [planContext, setPlanContext] = useState<{
-    contributionId: string;
-    grantId: string;
-    endpoint: string;
-    driveLetter: string;
-  } | null>(null);
-  const [mappingStatus, setMappingStatus] = useState<string | null>(null);
-  const [panelError, setPanelError] = useState<string | null>(null);
-  const [panelBusy, setPanelBusy] = useState(false);
-  const [refreshRequest, setRefreshRequest] = useState(0);
-  const guided = initialEndpoint.length > 0;
-  const memberNames = new Map(
-    dashboard.circle.members.map((member) => [member.id, member.name]),
-  );
-
-  useEffect(() => {
-    let active = true;
-    let timer: ReturnType<typeof window.setTimeout> | undefined;
-    let attempt = 0;
-    const shouldSynchronize =
-      viewer.role === "member" && syncEndpoint.length > 0;
-
-    function retry() {
-      if (!active || !shouldSynchronize || attempt >= 15) return;
-      const delay = Math.min(1000 * 2 ** attempt, 15000);
-      attempt += 1;
-      timer = window.setTimeout(() => void load(), delay);
-    }
-
-    async function load() {
-      try {
-        if (shouldSynchronize) {
-          await api.syncFiles(circleId, syncEndpoint);
-          if (!active) return;
-        }
-
-        const result = await api.listFilesContributions(circleId);
-        if (!active) return;
-        setContributions(result.contributions);
-        const first = result.contributions[0];
-        setContributionId(first?.id ?? "");
-        if (!first) {
-          retry();
-          return;
-        }
-
-        const grantList = await api.listFilesGrants(circleId, first.id);
-        if (active) {
-          const available = grantList.grants.filter(
-            (grant) =>
-              viewer.role === "owner" || grant.memberId === viewer.memberId,
-          );
-          setGrants(available);
-          setGrantId(available[0]?.id ?? "");
-          if (available.length === 0) {
-            retry();
-          }
-        }
-      } catch (reason) {
-        if (!active) return;
-        if (shouldSynchronize && attempt < 15) {
-          retry();
-        } else {
-          setPanelError(toMessage(reason));
-        }
-      }
-    }
-
-    void load();
-    return () => {
-      active = false;
-      if (timer !== undefined) window.clearTimeout(timer);
-    };
-  }, [
-    api,
-    circleId,
-    refreshRequest,
-    syncEndpoint,
-    viewer.memberId,
-    viewer.role,
-  ]);
-
-  async function chooseContribution(value: string) {
-    setContributionId(value);
-    setGrantId("");
-    setPlan(null);
-    setPlanContext(null);
-    setPanelError(null);
-    if (!value) return;
-    try {
-      const result = await api.listFilesGrants(circleId, value);
-      const available = result.grants.filter(
-        (grant) =>
-          viewer.role === "owner" || grant.memberId === viewer.memberId,
-      );
-      setGrants(available);
-      setGrantId(available[0]?.id ?? "");
-    } catch (reason) {
-      setPanelError(toMessage(reason));
-    }
-  }
-
-  async function discover() {
-    if (!contributionId || !grantId || !endpoint || panelBusy) return;
-    setPanelBusy(true);
-    setPanelError(null);
-    setPlan(null);
-    setPlanContext(null);
-    setDriveLetter("");
-    try {
-      const result = await api.previewFilesMapping(
-        circleId,
-        contributionId,
-        grantId,
-        endpoint,
-        "",
-      );
-      setPlan(result);
-      setPlanContext({ contributionId, grantId, endpoint, driveLetter: "" });
-    } catch (reason) {
-      setPanelError(toMessage(reason));
-    } finally {
-      setPanelBusy(false);
-    }
-  }
-
-  async function previewSelected() {
-    if (!driveLetter || panelBusy) return;
-    setPanelBusy(true);
-    setPanelError(null);
-    try {
-      const result = await api.previewFilesMapping(
-        circleId,
-        contributionId,
-        grantId,
-        endpoint,
-        driveLetter,
-      );
-      setPlan(result);
-      setPlanContext({ contributionId, grantId, endpoint, driveLetter });
-      setMappingStatus("ready to map");
-    } catch (reason) {
-      setPanelError(toMessage(reason));
-    } finally {
-      setPanelBusy(false);
-    }
-  }
-
-  async function mutate(operation: "map" | "inspect" | "unmap") {
-    if (
-      !plan ||
-      !driveLetter ||
-      panelBusy ||
-      plan.driveLetter !== driveLetter ||
-      planContext?.contributionId !== contributionId ||
-      planContext.grantId !== grantId ||
-      planContext.endpoint !== endpoint ||
-      planContext.driveLetter !== driveLetter
-    )
-      return;
-    setPanelBusy(true);
-    setPanelError(null);
-    try {
-      const result =
-        operation === "map"
-          ? await api.mapFiles(
-              circleId,
-              contributionId,
-              grantId,
-              endpoint,
-              driveLetter,
-              plan.planId,
-            )
-          : operation === "inspect"
-            ? await api.inspectFilesMapping(
-                circleId,
-                contributionId,
-                grantId,
-                endpoint,
-                driveLetter,
-              )
-            : await api.unmapFiles(
-                circleId,
-                contributionId,
-                grantId,
-                endpoint,
-                driveLetter,
-              );
-      setMappingStatus(result.status);
-    } catch (reason) {
-      setPanelError(toMessage(reason));
-    } finally {
-      setPanelBusy(false);
-    }
-  }
-
-  async function openSharedFolder() {
-    if (!contributionId || !grantId || !endpoint || panelBusy) return;
-    setPanelBusy(true);
-    setPanelError(null);
-    setMappingStatus(null);
-    try {
-      const available = await api.previewFilesMapping(
-        circleId,
-        contributionId,
-        grantId,
-        endpoint,
-        "",
-      );
-      const selectedDrive = available.availableDriveLetters.includes("P")
-        ? "P"
-        : available.availableDriveLetters[0];
-      if (!selectedDrive) {
-        throw new Error("No drive letters are available on this computer.");
-      }
-      const exactPlan = await api.previewFilesMapping(
-        circleId,
-        contributionId,
-        grantId,
-        endpoint,
-        selectedDrive,
-      );
-      await api.mapFiles(
-        circleId,
-        contributionId,
-        grantId,
-        endpoint,
-        selectedDrive,
-        exactPlan.planId,
-      );
-      setDriveLetter(selectedDrive);
-      setMappingStatus(
-        `Shared folder ready in File Explorer (${selectedDrive}:).`,
-      );
-    } catch (reason) {
-      setPanelError(toMessage(reason));
-    } finally {
-      setPanelBusy(false);
-    }
-  }
-
-  return (
-    <section
-      className="message-history"
-      id="files"
-      aria-labelledby="files-title"
-    >
-      <div className="section-heading">
-        <div>
-          <p className="eyebrow">Circle Files</p>
-          <h2 id="files-title">Open in Explorer</h2>
-        </div>
-        <p>The limited password stays inside this device.</p>
-      </div>
-      {contributions.length === 0 ? (
-        <div className="message-empty">
-          <p>
-            {viewer.role === "member" && syncEndpoint
-              ? "Waiting for your Circle owner to finish sharing the project folder."
-              : "No contributed folders are available yet."}
-          </p>
-          {viewer.role === "member" && syncEndpoint ? (
-            <button
-              type="button"
-              onClick={() => setRefreshRequest((value) => value + 1)}
-            >
-              Check again
-            </button>
-          ) : null}
-          {panelError ? (
-            <p className="inline-error" role="alert">
-              {panelError}
-            </p>
-          ) : null}
-        </div>
-      ) : (
-        <form
-          aria-label="Map Circle Files"
-          aria-busy={panelBusy}
-          onSubmit={(event) => event.preventDefault()}
-        >
-          <label htmlFor="files-contribution">Folder</label>
-          <select
-            id="files-contribution"
-            disabled={panelBusy}
-            value={contributionId}
-            onChange={(event) => void chooseContribution(event.target.value)}
-          >
-            {contributions.map((value) => (
-              <option key={value.id} value={value.id}>
-                {value.displayName}
-              </option>
-            ))}
-          </select>
-          {!guided || grants.length > 1 ? (
-            <>
-              <label htmlFor="files-grant">Grant</label>
-              <select
-                id="files-grant"
-                disabled={panelBusy}
-                value={grantId}
-                onChange={(event) => {
-                  setGrantId(event.target.value);
-                  setPlan(null);
-                  setPlanContext(null);
-                  setMappingStatus(null);
-                }}
-              >
-                {grants.map((value) => (
-                  <option key={value.id} value={value.id}>
-                    {value.access} ·{" "}
-                    {memberNames.get(value.memberId) ?? "Circle member"}
-                  </option>
-                ))}
-              </select>
-            </>
-          ) : null}
-          {guided ? (
-            <button
-              type="button"
-              disabled={panelBusy || !grantId}
-              onClick={() => void openSharedFolder()}
-            >
-              {panelBusy ? "Connecting…" : "Open shared folder in Explorer"}
-            </button>
-          ) : (
-            <>
-              <label htmlFor="files-endpoint">Private host IPv4 address</label>
-              <input
-                id="files-endpoint"
-                value={endpoint}
-                placeholder="192.168.1.20"
-                required
-                disabled={panelBusy}
-                onChange={(event) => {
-                  setEndpoint(event.target.value);
-                  setPlan(null);
-                  setPlanContext(null);
-                  setMappingStatus(null);
-                }}
-              />
-              <button
-                type="button"
-                disabled={panelBusy || !grantId || !endpoint}
-                onClick={() => void discover()}
-              >
-                Find available drive letters
-              </button>
-            </>
-          )}
-          {!guided && plan ? (
-            <>
-              <label htmlFor="files-drive">Drive letter</label>
-              <select
-                id="files-drive"
-                required
-                disabled={panelBusy}
-                value={driveLetter}
-                onChange={(event) => {
-                  setDriveLetter(event.target.value);
-                  setPlan((current) =>
-                    current ? { ...current, driveLetter: "" } : current,
-                  );
-                  setPlanContext(null);
-                  setMappingStatus(null);
-                }}
-              >
-                <option value="">Choose a drive letter</option>
-                {plan.availableDriveLetters.map((value) => (
-                  <option key={value} value={value}>
-                    {value}:
-                  </option>
-                ))}
-              </select>
-              <button
-                type="button"
-                disabled={panelBusy || !driveLetter}
-                onClick={() => void previewSelected()}
-              >
-                Preview exact mapping
-              </button>
-              {plan.driveLetter &&
-              plan.driveLetter === driveLetter &&
-              planContext?.contributionId === contributionId &&
-              planContext.grantId === grantId &&
-              planContext.endpoint === endpoint &&
-              planContext.driveLetter === driveLetter ? (
-                <div>
-                  <p>
-                    <strong>
-                      {plan.driveLetter}: → {plan.uncPath}
-                    </strong>
-                  </p>
-                  <button
-                    type="button"
-                    disabled={panelBusy}
-                    onClick={() => void mutate("map")}
-                  >
-                    Map in Explorer
-                  </button>{" "}
-                  <button
-                    type="button"
-                    disabled={panelBusy}
-                    onClick={() => void mutate("inspect")}
-                  >
-                    Inspect
-                  </button>{" "}
-                  <button
-                    type="button"
-                    disabled={panelBusy}
-                    onClick={() => void mutate("unmap")}
-                  >
-                    Unmap
-                  </button>
-                </div>
-              ) : null}
-            </>
-          ) : null}
-          {mappingStatus ? <p role="status">{mappingStatus}</p> : null}
-          {panelError ? (
-            <p className="inline-error" role="alert">
-              {panelError}
-            </p>
-          ) : null}
-        </form>
-      )}
-    </section>
-  );
-}
-
-function MessageHistory({
-  dashboard,
-  messages,
-}: {
-  dashboard: DashboardSnapshot;
-  messages: CircleMessageDto[];
-}) {
-  const members = new Map(
-    dashboard.circle.members.map((member) => [member.id, member.name]),
-  );
-  const nodes = new Map(
-    dashboard.circle.nodes.map((node) => [node.id, node.name]),
-  );
-  return (
-    <section
-      className="message-history"
-      id="messages"
-      aria-labelledby="messages-title"
-    >
-      <div className="section-heading">
-        <div>
-          <p className="eyebrow">Durable Circle history</p>
-          <h2 id="messages-title">Messages</h2>
-        </div>
-        <p>Authored by a Member on an admitted Node.</p>
-      </div>
-      {messages.length === 0 ? (
-        <p className="message-empty">No messages yet.</p>
-      ) : (
-        <ol className="message-list">
-          {messages.map((message) => (
-            <li key={message.id}>
-              <header>
-                <strong>
-                  {members.get(message.authorMemberId) ??
-                    message.authorMemberId}
-                  {" · "}
-                  {nodes.get(message.authorNodeId) ?? message.authorNodeId}
-                </strong>
-                <span>#{message.sequence}</span>
-              </header>
-              <p>{message.text}</p>
-              <time dateTime={message.authoredAtUtc}>
-                {new Date(message.authoredAtUtc).toLocaleString()}
-              </time>
-            </li>
-          ))}
-        </ol>
-      )}
-    </section>
   );
 }
 
@@ -1125,9 +405,8 @@ function EmptyWorkspace({
 
 function readLaunchCapability(fragment: string) {
   const prefix = "#launch=";
-  if (!fragment.startsWith(prefix) || fragment.length <= prefix.length) {
+  if (!fragment.startsWith(prefix) || fragment.length <= prefix.length)
     return null;
-  }
   try {
     return decodeURIComponent(fragment.slice(prefix.length));
   } catch {
@@ -1169,18 +448,4 @@ function toDashboard(
       })),
     },
   };
-}
-
-function formatDate(value: string) {
-  return new Intl.DateTimeFormat(undefined, {
-    year: "numeric",
-    month: "long",
-    day: "numeric",
-  }).format(new Date(value));
-}
-
-function toMessage(reason: unknown) {
-  return reason instanceof Error
-    ? reason.message
-    : "The local workspace could not be loaded.";
 }

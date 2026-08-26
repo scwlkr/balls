@@ -23,6 +23,32 @@ internal sealed class TrustedCircleAdmissionApplication(
         string encodedPackage,
         RemoteTransportAddress address,
         string memberDisplayName,
+        CancellationToken cancellationToken = default) =>
+        await JoinAsync(
+            encodedPackage,
+            address,
+            syncAddress: null,
+            memberDisplayName,
+            cancellationToken).ConfigureAwait(false);
+
+    internal async Task<CircleDetails> JoinWithConnectionAsync(
+        string encodedPackage,
+        RemoteTransportAddress admissionAddress,
+        RemoteTransportAddress syncAddress,
+        string memberDisplayName,
+        CancellationToken cancellationToken = default) =>
+        await JoinAsync(
+            encodedPackage,
+            admissionAddress,
+            syncAddress,
+            memberDisplayName,
+            cancellationToken).ConfigureAwait(false);
+
+    private async Task<CircleDetails> JoinAsync(
+        string encodedPackage,
+        RemoteTransportAddress address,
+        RemoteTransportAddress? syncAddress,
+        string memberDisplayName,
         CancellationToken cancellationToken = default)
     {
         ValidateDisplayName(memberDisplayName, "member_display_name");
@@ -32,6 +58,15 @@ internal sealed class TrustedCircleAdmissionApplication(
         var circleId = ParseCircleId(invitation.CircleId);
         var invitationId = ParseInvitationId(invitation.InvitationId);
         var now = Now();
+        var connectionState = syncAddress is null
+            ? null
+            : new CircleConnectionState(
+                circleId,
+                1,
+                address.Provider,
+                address.Value,
+                syncAddress.Value,
+                now);
         var validation = InvitationSecurity.Validate(
             package,
             new InvitationVerificationContext(
@@ -55,6 +90,12 @@ internal sealed class TrustedCircleAdmissionApplication(
             cancellationToken).ConfigureAwait(false);
         if (applicant.IsCompleted)
         {
+            if (connectionState is not null)
+            {
+                await admissionState.StoreCircleConnectionAsync(connectionState, cancellationToken)
+                    .ConfigureAwait(false);
+            }
+
             return await localState.GetCircleAsync(circleId, cancellationToken)
                 .ConfigureAwait(false)
                 ?? throw new LocalStateException(
@@ -161,6 +202,7 @@ internal sealed class TrustedCircleAdmissionApplication(
             package.RootCredential,
             package.IssuerDelegation.Delegation.IssuerCredential,
             package.Invitation.Invitation.IssuerId,
+            connectionState,
             Now());
         await admissionState.CommitJoinedCircleAsync(joined, cancellationToken)
             .ConfigureAwait(false);
@@ -601,6 +643,7 @@ internal sealed class TrustedCircleAdmissionApplication(
         PublicKeyCredential rootCredential,
         PublicKeyCredential anchorCredential,
         string issuerNodeId,
+        CircleConnectionState? connection,
         DateTimeOffset joinedAtUtc)
     {
         var response = signed.Response;
@@ -638,6 +681,7 @@ internal sealed class TrustedCircleAdmissionApplication(
                 encodedResponse),
             applicant.MemberCredential,
             security,
+            connection,
             joinedAtUtc);
     }
 

@@ -11,11 +11,12 @@ public sealed partial class SqliteLocalStateStore :
     IAdmissionStateStore,
     ICircleMessageStateStore,
     ICircleFilesStateStore,
+    ICircleFilesHostedFolderStore,
     ICircleFilesLifecycleAuditStore,
     IAsyncDisposable
 {
     public const int ApplicationId = 0x42414C53;
-    public const int CurrentSchemaVersion = 8;
+    public const int CurrentSchemaVersion = 10;
 
     private readonly SqliteConnection connection;
     private readonly IPrivateMaterialProtector privateMaterialProtector;
@@ -159,6 +160,20 @@ public sealed partial class SqliteLocalStateStore :
             if (!isFreshDatabase && version is 1 or 2 or 3 or 4 or 5 or 6 or 7)
             {
                 await MigrateV7ToV8Async(connection, cancellationToken).ConfigureAwait(false);
+                await ValidateSchemaAsync(connection, 8, cancellationToken)
+                    .ConfigureAwait(false);
+            }
+
+            if (!isFreshDatabase && version is 1 or 2 or 3 or 4 or 5 or 6 or 7 or 8)
+            {
+                await MigrateV8ToV9Async(connection, cancellationToken).ConfigureAwait(false);
+                await ValidateSchemaAsync(connection, 9, cancellationToken)
+                    .ConfigureAwait(false);
+            }
+
+            if (!isFreshDatabase && version is 1 or 2 or 3 or 4 or 5 or 6 or 7 or 8 or 9)
+            {
+                await MigrateV9ToV10Async(connection, cancellationToken).ConfigureAwait(false);
                 await ValidateSchemaAsync(connection, CurrentSchemaVersion, cancellationToken)
                     .ConfigureAwait(false);
             }
@@ -168,6 +183,10 @@ public sealed partial class SqliteLocalStateStore :
                 privateMaterialProtector,
                 cancellationToken).ConfigureAwait(false);
             await ValidateCircleFilesProviderCredentialsAsync(
+                connection,
+                privateMaterialProtector,
+                cancellationToken).ConfigureAwait(false);
+            await ValidateCircleConnectionsAsync(
                 connection,
                 privateMaterialProtector,
                 cancellationToken).ConfigureAwait(false);
@@ -587,6 +606,14 @@ public sealed partial class SqliteLocalStateStore :
         {
             AddCircleFilesLifecycleExpectedTables(expectedTables);
         }
+        if (schemaVersion >= 9)
+        {
+            AddCircleConnectionExpectedTable(expectedTables);
+        }
+        if (schemaVersion >= 10)
+        {
+            AddCircleFilesHostedFolderExpectedTable(expectedTables);
+        }
 
         using (var unexpectedObjectCommand = connection.CreateCommand())
         {
@@ -928,6 +955,10 @@ public sealed partial class SqliteLocalStateStore :
             {CircleFilesProviderCredentialSchemaSql}
 
             {CircleFilesLifecycleSchemaSql}
+
+            {CircleConnectionSchemaSql}
+
+            {CircleFilesHostedFolderSchemaSql}
 
             PRAGMA application_id = {ApplicationId};
             PRAGMA user_version = {CurrentSchemaVersion};

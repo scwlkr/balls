@@ -22,10 +22,12 @@ public static class MacOSHostPlatform
             transport,
             transport,
             new MacOSSystemBrowserLauncher(),
+            new UnsupportedCircleFilesFolderPicker(),
             new UnsupportedCircleFilesReadinessInspector(),
             new UnsupportedCircleFilesHostProvisioner(),
             new UnsupportedCircleFilesGrantCredentialProvisioner(),
             new UnsupportedCircleFilesMemberMapper(),
+            new UnsupportedCircleFilesLocationLauncher(),
             new UnsupportedCircleFilesLifecycleManager());
     }
 

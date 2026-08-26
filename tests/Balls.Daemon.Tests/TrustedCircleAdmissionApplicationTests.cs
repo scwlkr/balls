@@ -6,6 +6,7 @@ using Balls.Platform;
 using Balls.Protocol.Remote.V1;
 using Balls.Storage.Sqlite;
 using Balls.Transport.Lan;
+using Microsoft.Data.Sqlite;
 
 namespace Balls.Daemon.Tests;
 
@@ -31,6 +32,9 @@ public sealed class TrustedCircleAdmissionApplicationTests
         CircleFilesContributionId contributionId;
         MemberAccessGrantId memberGrantId;
         CircleDetails joined;
+        DateTimeOffset joinedAtUtc;
+        RemoteTransportAddress admissionAddress;
+        RemoteTransportAddress syncAddress;
         CircleMessageId messageId = new(Guid.CreateVersion7());
         var memberSecret = Enumerable.Range(1, 32).Select(value => (byte)value).ToArray();
         await using (var anchorStore = await SqliteLocalStateStore.OpenAsync(
@@ -41,11 +45,14 @@ public sealed class TrustedCircleAdmissionApplicationTests
                          protector))
         await using (var listener = new TcpLanTransportListener(
                          new IPEndPoint(IPAddress.Loopback, 0)))
+        await using (var messageListener = new TcpLanTransportListener(
+                         new IPEndPoint(IPAddress.Loopback, 0)))
         {
             // This exercises real TLS, whose certificate validation uses the system clock.
             // Keep the application clock aligned so the 24-hour transport certificates
             // cannot expire merely because this integration test's fixture date gets old.
             var now = TimeProvider.System.GetUtcNow();
+            joinedAtUtc = now;
             var time = new FixedTimeProvider(now);
             var anchorCircles = new CircleApplication(anchorStore, time, "Anchor-PC");
             var joinerCircles = new CircleApplication(joinerStore, time, "Joiner-PC");
@@ -77,13 +84,16 @@ public sealed class TrustedCircleAdmissionApplicationTests
                 new TcpLanTransportConnector(),
                 time);
             using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(20));
+            admissionAddress = listener.BoundAddress;
+            syncAddress = messageListener.BoundAddress;
             var serve = ServeOneAsync(
                 listener,
                 anchorAdmission,
                 timeout.Token);
-            joined = await joinerAdmission.JoinAsync(
+            joined = await joinerAdmission.JoinWithConnectionAsync(
                 package,
                 listener.BoundAddress,
+                messageListener.BoundAddress,
                 "Bob",
                 timeout.Token);
             await serve;
@@ -96,16 +106,23 @@ public sealed class TrustedCircleAdmissionApplicationTests
             Assert.AreEqual(2, anchorView!.Members.Count);
             Assert.AreEqual(2, anchorView.Nodes.Count);
 
-            var retried = await joinerAdmission.JoinAsync(
+            var retried = await joinerAdmission.JoinWithConnectionAsync(
                 package,
                 listener.BoundAddress,
+                messageListener.BoundAddress,
                 "Bob",
                 timeout.Token);
             Assert.AreEqual(2, retried.Members.Count);
             Assert.AreEqual(2, retried.Nodes.Count);
+            var savedConnection = await joinerStore.GetCircleConnectionAsync(circleId);
+            Assert.IsNotNull(savedConnection);
+            Assert.AreEqual(circleId, savedConnection.CircleId);
+            Assert.AreEqual(1, savedConnection.Version);
+            Assert.AreEqual(listener.BoundAddress.Provider, savedConnection.Provider);
+            Assert.AreEqual(listener.BoundAddress.Value, savedConnection.AdmissionEndpoint);
+            Assert.AreEqual(messageListener.BoundAddress.Value, savedConnection.SyncEndpoint);
+            Assert.AreEqual(now.ToUnixTimeSeconds(), savedConnection.StoredAtUtc.ToUnixTimeSeconds());
 
-            await using var messageListener = new TcpLanTransportListener(
-                new IPEndPoint(IPAddress.Loopback, 0));
             var anchorMessages = new TrustedCircleMessageApplication(
                 anchorStore,
                 anchorStore,
@@ -306,6 +323,7 @@ public sealed class TrustedCircleAdmissionApplicationTests
                 joinerStore,
                 joinerStore,
                 mapper,
+                new UnsupportedCircleFilesLocationLauncher(),
                 time,
                 joinerStore);
             var preview = await mapping.PreviewAsync(
@@ -339,15 +357,37 @@ public sealed class TrustedCircleAdmissionApplicationTests
             Assert.AreEqual(1, repeated.ImportedGrantCount);
         }
 
+        await using (var connection = new SqliteConnection(
+                         $"Data Source={Path.Combine(joinerDirectory.Path, "balls.db")};Pooling=False"))
+        {
+            await connection.OpenAsync();
+            using var removeConnection = connection.CreateCommand();
+            removeConnection.CommandText = "DELETE FROM circle_connections;";
+            Assert.AreEqual(1, await removeConnection.ExecuteNonQueryAsync());
+        }
+
         await using var reopenedAnchor = await SqliteLocalStateStore.OpenAsync(
             anchorDirectory.Path,
             protector);
         await using var reopenedJoiner = await SqliteLocalStateStore.OpenAsync(
             joinerDirectory.Path,
             protector);
+        var repaired = await new TrustedCircleAdmissionApplication(
+                reopenedJoiner,
+                reopenedJoiner,
+                reopenedJoiner,
+                reopenedJoiner,
+                new TcpLanTransportConnector(),
+                new FixedTimeProvider(joinedAtUtc))
+            .JoinWithConnectionAsync(
+                package,
+                admissionAddress,
+                syncAddress,
+                "Bob");
         var anchorRestart = await reopenedAnchor.GetCircleAsync(circleId);
         var joinerRestart = await reopenedJoiner.GetCircleAsync(circleId);
 
+        Assert.AreEqual(circleId, repaired.Circle.Id);
         Assert.AreEqual(2, anchorRestart!.Members.Count);
         Assert.AreEqual(2, anchorRestart.Nodes.Count);
         Assert.AreEqual(2, joinerRestart!.Members.Count);
@@ -358,6 +398,9 @@ public sealed class TrustedCircleAdmissionApplicationTests
             joinerRestart.Members.Select(value => value.Id.ToString())
                 .Order(StringComparer.Ordinal).ToArray());
         Assert.IsNull(await reopenedJoiner.GetCircleAuthorityAsync(circleId));
+        var reopenedConnection = await reopenedJoiner.GetCircleConnectionAsync(circleId);
+        Assert.IsNotNull(reopenedConnection);
+        Assert.AreEqual(LanTcpEndpoint.ProviderName, reopenedConnection.Provider);
         var anchorMessagesAfterRestart = await reopenedAnchor.ListCircleMessagesAsync(circleId);
         var joinerMessagesAfterRestart = await reopenedJoiner.ListCircleMessagesAsync(circleId);
         Assert.AreEqual(1, anchorMessagesAfterRestart.Count);
@@ -370,6 +413,48 @@ public sealed class TrustedCircleAdmissionApplicationTests
             await reopenedJoiner.GetActiveCircleFilesProviderCredentialAsync(memberGrantId.ToString());
         Assert.IsNotNull(reopenedCredential);
         CollectionAssert.AreEqual(memberSecret, reopenedCredential.Secret.ToArray());
+    }
+
+    [TestMethod]
+    public async Task Saved_provider_mismatch_fails_with_a_bounded_secret_free_error()
+    {
+        using var directory = new TemporaryDirectory();
+        await using var store = await SqliteLocalStateStore.OpenAsync(
+            directory.Path,
+            new PassthroughProtector());
+        var now = TimeProvider.System.GetUtcNow();
+        var circle = await new CircleApplication(
+                store,
+                new FixedTimeProvider(now),
+                "Bob-PC")
+            .CreateCircleAsync(
+                new CreateCircleCommand(
+                    new CreationRequestId(Guid.CreateVersion7()),
+                    "Provider Mismatch Circle",
+                    "Bob"));
+        const string mismatchedProvider = "unavailable-private-provider-v2";
+        const string admissionEndpoint = "192.168.50.10:43120";
+        const string syncEndpoint = "192.168.50.10:43155";
+        await store.StoreCircleConnectionAsync(
+            new CircleConnectionState(
+                circle.Circle.Id,
+                1,
+                mismatchedProvider,
+                admissionEndpoint,
+                syncEndpoint,
+                now));
+
+        var error = await Assert.ThrowsExactlyAsync<LocalStateException>(
+            () => BrowserCircleConnections.LoadAsync(
+                store,
+                circle.Circle.Id,
+                CancellationToken.None));
+
+        Assert.AreEqual("invalid_circle_connection", error.Code);
+        Assert.IsTrue(error.Message.Length <= 160);
+        Assert.IsFalse(error.Message.Contains(mismatchedProvider, StringComparison.Ordinal));
+        Assert.IsFalse(error.Message.Contains(admissionEndpoint, StringComparison.Ordinal));
+        Assert.IsFalse(error.Message.Contains(syncEndpoint, StringComparison.Ordinal));
     }
 
     private static async Task<string> SendTamperedMessageAsync(

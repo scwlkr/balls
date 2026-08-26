@@ -24,3 +24,17 @@ export interface DashboardSnapshot {
     }>;
   };
 }
+
+export interface WorkspaceViewer {
+  memberId: string;
+  role: string;
+}
+
+export interface WorkspaceMessage {
+  id: string;
+  sequence: string | number;
+  authorMemberId: string;
+  authorNodeId: string;
+  text: string;
+  authoredAtUtc: string;
+}

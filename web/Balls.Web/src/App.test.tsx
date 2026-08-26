@@ -150,8 +150,80 @@ describe("Balls browser workspace", () => {
     expect(within(nodes).getByText("This device")).toBeInTheDocument();
   });
 
+  it("cancels the Windows folder picker without previewing or mutating", async () => {
+    const api = createApi({ circles: [details.circle] });
+    let applyCount = 0;
+    api.contributeFilesFolder = async () => {
+      applyCount += 1;
+      throw new Error("The contribution must not run.");
+    };
+
+    render(<App api={api} />);
+    fireEvent.click(
+      await screen.findByRole("button", { name: "Choose existing folder" }),
+    );
+
+    expect(await screen.findByRole("status")).toHaveTextContent(
+      "No folder was selected. Nothing changed.",
+    );
+    expect(screen.queryByLabelText("Contribution preview")).toBeNull();
+    expect(applyCount).toBe(0);
+  });
+
+  it("previews the exact existing folder and retries one idempotent contribution", async () => {
+    const api = createApi({ circles: [details.circle] });
+    const selectionId = "0198f2cc-6a50-7a08-aacb-298f4ebdf689";
+    const requests: Array<[string, string, string]> = [];
+    api.selectFilesFolder = async () => ({
+      status: "selected",
+      selectionId,
+      folderPath: String.raw`C:\BallsDemo\Projects`,
+      displayName: "Projects",
+    });
+    api.contributeFilesFolder = async (...request) => {
+      requests.push(request);
+      if (requests.length === 1) {
+        throw new Error("Windows did not finish the approved hosting change.");
+      }
+      return {
+        status: "applied",
+        contributionId: "0198f2cc-6a50-7a08-aacb-298f4ebdf690",
+        displayName: "Projects",
+        folderPath: String.raw`C:\BallsDemo\Projects`,
+      };
+    };
+
+    render(<App api={api} />);
+    fireEvent.click(
+      await screen.findByRole("button", { name: "Choose existing folder" }),
+    );
+
+    const preview = await screen.findByLabelText("Contribution preview");
+    expect(preview).toHaveTextContent(String.raw`C:\BallsDemo\Projects`);
+    expect(preview).toHaveTextContent("Existing files stay in place");
+    expect(requests).toHaveLength(0);
+    fireEvent.click(
+      within(preview).getByRole("button", { name: "Contribute Projects" }),
+    );
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      "Windows did not finish",
+    );
+    fireEvent.click(
+      within(preview).getByRole("button", { name: "Contribute Projects" }),
+    );
+
+    expect(await screen.findByRole("status")).toHaveTextContent(
+      "Projects is ready to share with Circle members.",
+    );
+    expect(requests).toHaveLength(2);
+    expect(requests[0]).toEqual(requests[1]);
+    expect(requests[0]?.[0]).toBe(details.circle.id);
+    expect(requests[0]?.[2]).toBe(selectionId);
+  });
+
   it("creates a single shareable invitation without exposing connection setup", async () => {
     const api = createApi({ circles: [details.circle] });
+    const invitationRequests: string[] = [];
     api.getCircle = async () => ({
       ...details,
       nodes: [
@@ -163,14 +235,18 @@ describe("Balls browser workspace", () => {
         ...details.nodes,
       ],
     });
-    api.createInvitation = async () => ({
-      circleId: details.circle.id,
-      invitationId: "0198f2cc-6a50-7a08-aacb-298f4ebdf670",
-      expiresAtUtc: "2026-08-25T13:00:00Z",
-      package: '{"signed":"original"}',
-      endpoint: "192.168.1.20:43120",
-      syncEndpoint: "192.168.1.20:43155",
-    });
+    api.createInvitation = async (circleId) => {
+      invitationRequests.push(circleId);
+      return {
+        circleId: details.circle.id,
+        invitationId: "0198f2cc-6a50-7a08-aacb-298f4ebdf670",
+        expiresAtUtc: "2026-08-25T13:00:00Z",
+        package: '{"signed":"original"}',
+        provider: "lan-tcp-v1",
+        endpoint: "192.168.1.20:43120",
+        syncEndpoint: "192.168.1.20:43155",
+      };
+    };
 
     render(<App api={api} />);
     fireEvent.click(
@@ -184,6 +260,7 @@ describe("Balls browser workspace", () => {
       decodeInvitationCode((invitation as HTMLTextAreaElement).value),
     ).toEqual({
       version: 1,
+      provider: "lan-tcp-v1",
       endpoint: "192.168.1.20:43120",
       syncEndpoint: "192.168.1.20:43155",
       package: '{"signed":"original"}',
@@ -191,9 +268,170 @@ describe("Balls browser workspace", () => {
     expect(
       screen.getByRole("button", { name: "Copy invitation" }),
     ).toBeInTheDocument();
+    expect(invitationRequests).toEqual([details.circle.id]);
+    expect(screen.queryByText(/network settings/i)).toBeNull();
+    expect(screen.queryByLabelText(/address/i)).toBeNull();
+    expect(screen.queryByLabelText(/port/i)).toBeNull();
   });
 
-  it("joins with a pasted invitation and connects shared files without IP or grant choices", async () => {
+  it("reviews and safely retries one human Read/write Capability grant", async () => {
+    const member = {
+      id: "0198f2cc-6a50-7a08-aacb-298f4ebdf671",
+      displayName: "Bob",
+      role: "member",
+      joinedAtUtc: "2026-08-25T12:00:00Z",
+    } as const;
+    const joined = {
+      ...details,
+      circle: { ...details.circle, memberCount: 2, nodeCount: 2 },
+      members: [...details.members, member],
+    } satisfies CircleDetailsDto;
+    const api = createApi({ circles: [joined.circle] });
+    api.getCircle = async () => joined;
+    api.listFilesContributions = async (circleId) => ({
+      circleId,
+      contributions: [
+        {
+          id: "0198f2cc-6a50-7a08-aacb-298f4ebdf672",
+          circleId,
+          provider: {
+            id: "0198f2cc-6a50-7a08-aacb-298f4ebdf673",
+            nodeId: details.nodes[0].id,
+          },
+          displayName: "Projects",
+          lifecycle: "defined",
+          generation: 1,
+          createdAtUtc: "2026-08-25T12:00:00Z",
+          authorizedByMemberId: details.members[0].id,
+          authorityGeneration: 1,
+          authorizedAtUtc: "2026-08-25T12:00:00Z",
+        },
+      ],
+    });
+    const previews: Array<[string, string, string]> = [];
+    api.previewFilesGrant = async (...request) => {
+      previews.push(request);
+      return {
+        folderName: "Projects",
+        folderPath: String.raw`C:\BallsDemo\Projects`,
+        memberName: "Bob",
+        access: "Read/write",
+        summary: String.raw`Give Bob Read/write access to Projects (C:\BallsDemo\Projects).`,
+      };
+    };
+    let applyCount = 0;
+    api.applyFilesGrant = async () => {
+      applyCount += 1;
+      if (applyCount === 1) {
+        throw new Error("Windows could not complete the Member access change.");
+      }
+      return {
+        status: "applied",
+        folderName: "Projects",
+        memberName: "Bob",
+        access: "Read/write",
+        message: "Projects is now a Circle Capability for Bob.",
+      };
+    };
+
+    render(<App api={api} />);
+    const form = await screen.findByRole("form", {
+      name: "Share a Circle Capability",
+    });
+    expect(within(form).getByLabelText("Folder")).toHaveValue("Projects");
+    expect(within(form).getByLabelText("Member")).toHaveValue("Bob");
+    expect(within(form).getByLabelText("Access")).toHaveValue("read-write");
+    fireEvent.click(
+      within(form).getByRole("button", { name: "Review access" }),
+    );
+
+    const preview = await screen.findByLabelText("Access preview");
+    expect(preview).toHaveTextContent(
+      String.raw`Give Bob Read/write access to Projects (C:\BallsDemo\Projects).`,
+    );
+    expect(previews).toEqual([[details.circle.id, "Projects", "Bob"]]);
+    for (const forbidden of [
+      "SMB",
+      "account",
+      "password",
+      "plan",
+      "address",
+      "port",
+    ]) {
+      expect(preview).not.toHaveTextContent(new RegExp(forbidden, "i"));
+    }
+
+    fireEvent.click(
+      within(preview).getByRole("button", { name: "Share this Capability" }),
+    );
+    expect(await within(form).findByRole("alert")).toHaveTextContent(
+      "Windows could not complete",
+    );
+    fireEvent.click(
+      within(preview).getByRole("button", { name: "Share this Capability" }),
+    );
+    expect(await within(form).findByRole("status")).toHaveTextContent(
+      "Projects is now a Circle Capability for Bob.",
+    );
+    expect(applyCount).toBe(2);
+  });
+
+  it("refreshes joined Members in place so an Owner can select a new Member", async () => {
+    const member = {
+      id: "0198f2cc-6a50-7a08-aacb-298f4ebdf681",
+      displayName: "Bob",
+      role: "member",
+      joinedAtUtc: "2026-08-25T12:00:00Z",
+    } as const;
+    const joined = {
+      ...details,
+      circle: { ...details.circle, memberCount: 2 },
+      members: [...details.members, member],
+    } satisfies CircleDetailsDto;
+    const api = createApi({ circles: [details.circle] });
+    let memberHasJoined = false;
+    api.getCircle = async () => (memberHasJoined ? joined : details);
+    api.listFilesContributions = async (circleId) => ({
+      circleId,
+      contributions: [
+        {
+          id: "0198f2cc-6a50-7a08-aacb-298f4ebdf682",
+          circleId,
+          provider: {
+            id: "0198f2cc-6a50-7a08-aacb-298f4ebdf683",
+            nodeId: details.nodes[0].id,
+          },
+          displayName: "Projects",
+          lifecycle: "defined",
+          generation: 1,
+          createdAtUtc: "2026-08-25T12:00:00Z",
+          authorizedByMemberId: details.members[0].id,
+          authorityGeneration: 1,
+          authorizedAtUtc: "2026-08-25T12:00:00Z",
+        },
+      ],
+    });
+
+    render(<App api={api} />);
+    expect(
+      await screen.findByText(
+        "Invite someone and wait for them to join before sharing the folder.",
+      ),
+    ).toBeInTheDocument();
+
+    memberHasJoined = true;
+    fireEvent.click(screen.getByRole("button", { name: "Refresh members" }));
+
+    const form = await screen.findByRole("form", {
+      name: "Share a Circle Capability",
+    });
+    expect(within(form).getByLabelText("Member")).toHaveValue("Bob");
+    expect(screen.getByRole("status")).toHaveTextContent(
+      "Member list updated.",
+    );
+  });
+
+  it("joins with a pasted invitation and opens shared files through one no-input action", async () => {
     const api = createApi({ circles: [] });
     const joined = {
       ...details,
@@ -218,10 +456,9 @@ describe("Balls browser workspace", () => {
     } satisfies CircleDetailsDto;
     const contributionId = "0198f2cc-6a50-7a08-aacb-298f4ebdf674";
     const grantId = "0198f2cc-6a50-7a08-aacb-298f4ebdf675";
-    let joinedRequest: [string, string, string] | undefined;
-    let mappedRequest:
-      [string, string, string, string, string, string] | undefined;
-    let syncRequest: [string, string] | undefined;
+    let joinedRequest: [string, string, string, string, string] | undefined;
+    const openedRequests: [string][] = [];
+    let syncRequest: [string] | undefined;
     let syncAttempts = 0;
     api.joinCircle = async (...request) => {
       joinedRequest = request;
@@ -294,28 +531,18 @@ describe("Balls browser workspace", () => {
         },
       ],
     });
-    const mappingPlan = (driveLetter: string) => ({
-      contractVersion: 1,
-      planId: "a".repeat(64),
-      endpoint: "192.168.1.20",
-      uncPath: String.raw`\\192.168.1.20\balls-projects`,
-      credentialTarget: "192.168.1.20",
-      driveLetter,
-      friendlyName: "Project Files",
-      ownershipId: "b".repeat(64),
-      availableDriveLetters: ["M", "P"],
-      actions: ["Map exact share."],
-    });
-    api.previewFilesMapping = async (
-      _circle,
-      _contribution,
-      _grant,
-      _host,
-      drive,
-    ) => mappingPlan(drive);
-    api.mapFiles = async (...request) => {
-      mappedRequest = request;
-      return { status: "mapped", plan: mappingPlan(request[4]) };
+    api.openFiles = async (...request) => {
+      openedRequests.push(request);
+      if (openedRequests.length === 1) {
+        throw new Error(
+          "The shared folder is offline. Check that the Circle owner's computer is on, then try again.",
+        );
+      }
+      return {
+        status: "opened",
+        folderName: "Project Files",
+        message: "Opened Project Files in File Explorer.",
+      };
     };
 
     render(<App api={api} />);
@@ -327,6 +554,7 @@ describe("Balls browser workspace", () => {
       target: {
         value: encodeInvitationCode({
           package: '{"signed":"original"}',
+          provider: "lan-tcp-v1",
           endpoint: "192.168.1.20:43120",
           syncEndpoint: "192.168.1.20:43155",
         }),
@@ -342,9 +570,12 @@ describe("Balls browser workspace", () => {
         "Waiting for your Circle owner to finish sharing the project folder.",
       ),
     ).toBeInTheDocument();
+    const activeMembership = screen.getByLabelText("Active Circle membership");
+    expect(activeMembership).toHaveTextContent("Example Studio");
+    expect(activeMembership).toHaveTextContent("Bob");
     const files = await screen.findByRole(
       "form",
-      { name: "Map Circle Files" },
+      { name: "Open Circle Capability" },
       { timeout: 3000 },
     );
     const open = await within(files).findByRole("button", {
@@ -352,41 +583,60 @@ describe("Balls browser workspace", () => {
     });
     expect(joinedRequest).toEqual([
       '{"signed":"original"}',
+      "lan-tcp-v1",
       "192.168.1.20:43120",
+      "192.168.1.20:43155",
       "Bob",
     ]);
-    expect(syncRequest).toEqual([details.circle.id, "192.168.1.20:43155"]);
+    expect(syncRequest).toEqual([details.circle.id]);
     expect(syncAttempts).toBe(2);
     expect(
       within(files).queryByLabelText("Private host IPv4 address"),
     ).toBeNull();
     expect(within(files).queryByLabelText("Grant")).toBeNull();
+    expect(within(files).queryByLabelText("Approved folder")).toBeNull();
+    expect(
+      within(files).queryByText(/drive|endpoint|provider|plan/i),
+    ).toBeNull();
     expect(
       screen.queryByRole("button", { name: "Create invitation" }),
     ).toBeNull();
     fireEvent.click(open);
 
-    expect(await within(files).findByRole("status")).toHaveTextContent(
-      "Shared folder ready in File Explorer (P:).",
+    expect(await within(files).findByRole("alert")).toHaveTextContent(
+      "The shared folder is offline",
     );
-    expect(mappedRequest).toEqual([
-      details.circle.id,
-      contributionId,
-      grantId,
-      "192.168.1.20",
-      "P",
-      "a".repeat(64),
-    ]);
+    fireEvent.click(open);
+
+    expect(await within(files).findByRole("status")).toHaveTextContent(
+      "Opened Project Files in File Explorer.",
+    );
+    expect(openedRequests).toEqual([[details.circle.id], [details.circle.id]]);
   });
 
-  it("discovers drive letters before mapping through the shared browser application", async () => {
-    const api = createApi({ circles: [details.circle] });
-    api.listFilesContributions = async () => ({
-      circleId: details.circle.id,
+  it("restores a joined Member Capability after a fresh render without Web Storage", async () => {
+    const memberId = "0198f2cc-6a50-7a08-aacb-298f4ebdf654";
+    const joined = {
+      ...details,
+      members: [
+        ...details.members,
+        {
+          id: memberId,
+          displayName: "Bob",
+          role: "member",
+          joinedAtUtc: "2026-08-22T12:00:00Z",
+        },
+      ],
+    } satisfies CircleDetailsDto;
+    const api = createApi({ circles: [joined.circle] });
+    api.getCircle = async () => joined;
+    api.getViewer = async () => ({ memberId, role: "member" });
+    api.listFilesContributions = async (circleId) => ({
+      circleId,
       contributions: [
         {
           id: "0198f2cc-6a50-7a08-aacb-298f4ebdf650",
-          circleId: details.circle.id,
+          circleId,
           provider: {
             id: "0198f2cc-6a50-7a08-aacb-298f4ebdf651",
             nodeId: details.nodes[0].id,
@@ -409,21 +659,8 @@ describe("Balls browser workspace", () => {
           id: "0198f2cc-6a50-7a08-aacb-298f4ebdf652",
           circleId,
           contributionId,
-          memberId: details.members[0].id,
+          memberId,
           access: "read-write",
-          lifecycle: "defined",
-          generation: 1,
-          createdAtUtc: "2026-08-22T12:00:00Z",
-          authorizedByMemberId: details.members[0].id,
-          authorityGeneration: 1,
-          authorizedAtUtc: "2026-08-22T12:00:00Z",
-        },
-        {
-          id: "0198f2cc-6a50-7a08-aacb-298f4ebdf653",
-          circleId,
-          contributionId,
-          memberId: "0198f2cc-6a50-7a08-aacb-298f4ebdf654",
-          access: "read-only",
           lifecycle: "defined",
           generation: 1,
           createdAtUtc: "2026-08-22T12:00:00Z",
@@ -433,73 +670,39 @@ describe("Balls browser workspace", () => {
         },
       ],
     });
-    const mappingPlan = (driveLetter: string) => ({
-      contractVersion: 1,
-      planId: "a".repeat(64),
-      endpoint: "192.168.1.20",
-      uncPath: String.raw`\\192.168.1.20\balls-example`,
-      credentialTarget: "192.168.1.20",
-      driveLetter,
-      friendlyName: "Example Studio",
-      ownershipId: "b".repeat(64),
-      availableDriveLetters: ["M", "N"],
-      actions: ["Map exact share."],
-    });
-    api.previewFilesMapping = async (
-      _circle,
-      _contribution,
-      _grant,
-      _endpoint,
-      drive,
-    ) => mappingPlan(drive);
-    api.mapFiles = async (
-      _circle,
-      _contribution,
-      _grant,
-      _endpoint,
-      drive,
-    ) => ({
-      status: "mapped",
-      plan: mappingPlan(drive),
-    });
+    const storageRead = vi
+      .spyOn(Storage.prototype, "getItem")
+      .mockImplementation(() => {
+        throw new Error("Web Storage must not be read.");
+      });
+    const storageWrite = vi
+      .spyOn(Storage.prototype, "setItem")
+      .mockImplementation(() => {
+        throw new Error("Web Storage must not be written.");
+      });
 
-    render(<App api={api} />);
-    const form = await screen.findByRole("form", { name: "Map Circle Files" });
-    fireEvent.change(within(form).getByLabelText("Private host IPv4 address"), {
-      target: { value: "192.168.1.20" },
-    });
-    fireEvent.click(
-      within(form).getByRole("button", {
-        name: "Find available drive letters",
-      }),
-    );
-    const drive = await within(form).findByLabelText("Drive letter");
+    const first = render(<App api={api} />);
     expect(
-      within(drive).getByRole("option", { name: "M:" }),
+      await screen.findByRole("heading", { level: 1, name: "Example Studio" }),
     ).toBeInTheDocument();
-    fireEvent.change(drive, { target: { value: "M" } });
-    fireEvent.click(
-      within(form).getByRole("button", { name: "Preview exact mapping" }),
-    );
-    expect(await within(form).findByText(/M: →/)).toBeInTheDocument();
-    fireEvent.change(drive, { target: { value: "N" } });
     expect(
-      within(form).queryByRole("button", { name: "Unmap" }),
-    ).not.toBeInTheDocument();
-    fireEvent.click(
-      within(form).getByRole("button", { name: "Preview exact mapping" }),
-    );
-    expect(await within(form).findByText(/N: →/)).toBeInTheDocument();
-    fireEvent.click(
-      within(form).getByRole("button", { name: "Map in Explorer" }),
-    );
-    expect(await within(form).findByRole("status")).toHaveTextContent("mapped");
-    fireEvent.change(within(form).getByLabelText("Grant"), {
-      target: { value: "0198f2cc-6a50-7a08-aacb-298f4ebdf653" },
-    });
+      await screen.findByRole("button", {
+        name: "Open shared folder in Explorer",
+      }),
+    ).toBeInTheDocument();
+    first.unmount();
+    window.history.replaceState(null, "", "/#launch=fresh-capability");
+    render(<App api={api} />);
+
     expect(
-      within(form).queryByRole("button", { name: "Unmap" }),
-    ).not.toBeInTheDocument();
+      await screen.findByRole("button", {
+        name: "Open shared folder in Explorer",
+      }),
+    ).toBeInTheDocument();
+    expect(storageRead).not.toHaveBeenCalled();
+    expect(storageWrite).not.toHaveBeenCalled();
+    storageRead.mockRestore();
+    storageWrite.mockRestore();
   });
 
   it("announces when Circle creation is busy", async () => {
@@ -640,17 +843,23 @@ function createApi(circleList: CircleListDto): BrowserApi {
       contributionId,
       grants: [],
     }),
-    previewFilesMapping: async () => {
-      throw new Error("No mapping test configured.");
+    selectFilesFolder: async () => ({
+      status: "cancelled",
+      selectionId: null,
+      folderPath: null,
+      displayName: null,
+    }),
+    contributeFilesFolder: async () => {
+      throw new Error("No contribution test configured.");
     },
-    mapFiles: async () => {
-      throw new Error("No mapping test configured.");
+    previewFilesGrant: async () => {
+      throw new Error("No Member access preview configured.");
     },
-    inspectFilesMapping: async () => {
-      throw new Error("No mapping test configured.");
+    applyFilesGrant: async () => {
+      throw new Error("No Member access apply configured.");
     },
-    unmapFiles: async () => {
-      throw new Error("No mapping test configured.");
+    openFiles: async () => {
+      throw new Error("No shared-folder open test configured.");
     },
   };
 }

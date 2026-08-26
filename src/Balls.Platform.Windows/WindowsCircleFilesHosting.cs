@@ -196,21 +196,32 @@ public sealed class WindowsCircleFilesHostProvisioner : ICircleFilesHostProvisio
                 var journalPath = Path.Combine(
                     fullPath,
                     WindowsCircleFilesSystemOperations.JournalFileName);
-                var recoverable = entries.Count == 1
-                    && Path.GetFileName(entries[0]).Equals(
+                var journalEntry = entries.SingleOrDefault(entry =>
+                    Path.GetFileName(entry).Equals(
                         WindowsCircleFilesSystemOperations.JournalFileName,
-                        StringComparison.OrdinalIgnoreCase)
-                    && WindowsCircleFilesSystemOperations.IsOwnedJournalContent(
+                        StringComparison.OrdinalIgnoreCase));
+                if (journalEntry is not null
+                    && !WindowsCircleFilesSystemOperations.IsOwnedJournalContent(
                         environment.ReadAllText(journalPath),
                         ownershipId,
                         planId,
                         fullPath,
-                        environment.CurrentUserSid);
-                if (entries.Count != 0 && !recoverable && !allowOwnedContent)
+                        environment.CurrentUserSid))
                 {
                     throw new CircleFilesHostingException(
-                        "hosting_folder_not_empty",
-                        "The selected folder must be new or empty.");
+                        "hosting_ownership_collision",
+                        "The selected folder contains a different Balls operation journal.");
+                }
+                if (!allowOwnedContent
+                    && entries.Any(entry =>
+                        WindowsCircleFilesSystemOperations.IsReservedMetadataPath(entry)
+                        && !Path.GetFileName(entry).Equals(
+                            WindowsCircleFilesSystemOperations.JournalFileName,
+                            StringComparison.OrdinalIgnoreCase)))
+                {
+                    throw new CircleFilesHostingException(
+                        "hosting_ownership_collision",
+                        "The selected folder contains reserved Balls hosting metadata.");
                 }
             }
             else if (!string.Equals(marker, markerContent, StringComparison.Ordinal))
@@ -231,7 +242,7 @@ public sealed class WindowsCircleFilesHostProvisioner : ICircleFilesHostProvisio
             ownershipId,
             targetExists,
             [
-                "Create or dedicate the exact empty folder and apply its protected ACL.",
+                "Keep every existing file in place and apply the exact folder's protected hosting ACL.",
                 "Write the exact Balls ownership marker.",
                 "Create the encrypted SMB share for the current Owner only.",
                 "Allow SMB only on Private networks from the local subnet.",

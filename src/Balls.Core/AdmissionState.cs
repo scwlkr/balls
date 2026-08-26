@@ -62,7 +62,16 @@ public sealed record JoinedCircleCommit(
     CircleTrustState Trust,
     PublicIdentityCredential LocalMemberCredential,
     IReadOnlyList<CircleNodeSecurityState> NodeSecurity,
+    CircleConnectionState? Connection,
     DateTimeOffset JoinedAtUtc);
+
+public sealed record CircleConnectionState(
+    CircleId CircleId,
+    int Version,
+    string Provider,
+    string AdmissionEndpoint,
+    string SyncEndpoint,
+    DateTimeOffset StoredAtUtc);
 
 public interface IAdmissionStateStore
 {
@@ -110,6 +119,14 @@ public interface IAdmissionStateStore
 
     Task CommitJoinedCircleAsync(
         JoinedCircleCommit commit,
+        CancellationToken cancellationToken = default);
+
+    Task<CircleConnectionState?> GetCircleConnectionAsync(
+        CircleId circleId,
+        CancellationToken cancellationToken = default);
+
+    Task StoreCircleConnectionAsync(
+        CircleConnectionState connection,
         CancellationToken cancellationToken = default);
 
     Task RecordAdmissionAuditAsync(

@@ -28,16 +28,24 @@ the stream into an authenticated channel.
 
 The interfaces live under `Balls.Protocol.Remote.V1` so local-control transports and remote
 Circle providers cannot be substituted for each other accidentally. Provider implementations,
-discovery, and retries remain replaceable; v1 now includes bounded framing and one explicit LAN
-provider/listener composed into `ballsd` only when `--admission-listen <private-ip:port>` or
-`--message-listen <private-ip:port>` is selected for its respective operation.
+discovery, and retries remain replaceable; v1 now includes bounded framing and one LAN provider.
+Developer and test launches may compose each listener explicitly with
+`--admission-listen <private-ip:port>` or `--message-listen <private-ip:port>`. Normal installed
+launch uses `--automatic-private-listeners`: `ballsd` requires exactly one operational,
+non-loopback private IPv4 address, binds admission and synchronization listeners directly on it
+with ephemeral ports, and retains their actual bound addresses. It never selects a wildcard,
+hostname, public address, loopback address, or IPv6 address. No or multiple candidates leave the
+loopback workspace available but make browser invitation creation unavailable with a bounded
+error.
 
 For the two-person LAN pilot, the authenticated message listener also accepts a separately typed
 Circle Files synchronization request. The directly shared browser invitation carries the admission
 and synchronization addresses in an outer convenience envelope without modifying the canonical
 signed invitation package. Both addresses are numeric private IPv4 endpoints, never identity
 proof; the existing pinned admission channel and mutually authenticated Circle channel establish
-peer identity independently of those addresses.
+peer identity independently of those addresses. A joined Node commits that provider/address
+envelope to its protected local state with accepted membership so a daemon or browser relaunch can
+retry synchronization without asking JavaScript or the person for infrastructure details.
 
 An admitted Member signs a bounded Circle/Member/Node/request-bound synchronization request with
 both its Member and Node keys. The Owner validates that identity against the authenticated peer
@@ -279,9 +287,11 @@ the outgoing identity, author, text, and time before network I/O. Both Nodes ato
 same message/receipt; an exact UUID and canonical-message retry returns the stored receipt without
 another row or sequence, while conflicting UUID reuse returns `conflict`.
 
-The v1 `--message-listen` endpoint is explicit, numeric-private/loopback, sequential, and limited
-to exactly one admitted Circle for which the local Node is the selected Anchor. It is separate
-from admission, protected local control, and loopback browser listeners.
+The v1 message endpoint is numeric-private/loopback, sequential, and limited to exactly one
+admitted Circle for which the local Node is the selected Anchor. It is separate from admission,
+protected local control, and loopback browser listeners. Developer launches may select it
+explicitly; normal installed launch selects and binds it together with admission as described
+above.
 
 ## LAN TCP provider
 
@@ -292,9 +302,9 @@ Connect attempts are bounded and external cancellation remains distinguishable f
 Listener disposal is idempotent and cancels pending accepts.
 
 The provider never parses, creates, or authorizes a Circle or Node identity. It does not expose
-the local-control named pipe/Unix socket or the loopback browser adapter. The only listener in
-this slice is the explicit remote transport listener used by the process/lab harness; `ballsd`
-does not route local-control or browser operations through it.
+the local-control named pipe/Unix socket or the loopback browser adapter. Explicit process/lab
+listeners and automatically selected normal-launch listeners use the same remote transport seam;
+`ballsd` does not route local-control or browser operations through them.
 
 ## Validation and rejection
 
@@ -380,5 +390,6 @@ shared CLI/browser observation.
 No discovery, public bind, automatic failover, multiple-Anchor behavior, rich roles, channels,
 direct messages, edits/deletes, attachments, reactions, typing, catch-up, file, AI, or app
 operation is defined here. Admission and message listening are opt-in on separate numeric
-private/loopback endpoints; the invitation and message endpoint remain directly exchanged.
+private/loopback endpoints. The diagnostic control/CLI paths still exchange endpoints explicitly;
+the browser path persists its invitation-derived outer endpoints as protected local Node state.
 Credential rotation/import and owner-facing revocation UX remain separate work.

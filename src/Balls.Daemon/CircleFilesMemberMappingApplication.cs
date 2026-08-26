@@ -1,5 +1,6 @@
 using Balls.Core;
 using Balls.Platform;
+using Balls.Protocol.Browser.V1;
 using Balls.Protocol.Control.V1;
 
 namespace Balls.Daemon;
@@ -10,6 +11,7 @@ internal sealed class CircleFilesMemberMappingApplication(
     ICircleFilesProviderCredentialStore store,
     ICircleFilesLifecycleAuditStore audit,
     ICircleFilesMemberMapper mapper,
+    ICircleFilesLocationLauncher locationLauncher,
     TimeProvider timeProvider,
     ICircleMessageStateStore? authorities = null)
 {
@@ -67,6 +69,69 @@ internal sealed class CircleFilesMemberMappingApplication(
         CancellationToken cancellationToken) =>
         UnmapLockedAsync(
             circleId, contributionId, grantId, endpoint, driveLetter, cancellationToken);
+
+    internal Task<BrowserCircleFilesOpenResponse> OpenAsync(
+        CircleId circleId,
+        string endpoint,
+        CancellationToken cancellationToken) =>
+        OpenLockedAsync(circleId, endpoint, cancellationToken);
+
+    private async Task<BrowserCircleFilesOpenResponse> OpenLockedAsync(
+        CircleId circleId,
+        string endpoint,
+        CancellationToken cancellationToken)
+    {
+        await mutationGate.WaitAsync(cancellationToken).ConfigureAwait(false);
+        try
+        {
+            var capability = await SelectMemberCapabilityAsync(circleId, cancellationToken)
+                .ConfigureAwait(false);
+            var (unselectedRequest, material) = await CreateMapRequestAsync(
+                circleId,
+                capability.Contribution.Id,
+                capability.Grant.Id,
+                endpoint,
+                string.Empty,
+                cancellationToken).ConfigureAwait(false);
+            using (material)
+            {
+                var driveLetter = await FindExistingDriveAsync(
+                    unselectedRequest,
+                    cancellationToken).ConfigureAwait(false);
+                if (driveLetter is null)
+                {
+                    var discovery = await mapper.PreviewAsync(
+                        unselectedRequest,
+                        cancellationToken).ConfigureAwait(false);
+                    driveLetter = SelectPreferredDrive(discovery.AvailableDriveLetters);
+                }
+                if (driveLetter is null)
+                {
+                    throw new CircleFilesHostingException(
+                        "mapping_drive_unavailable",
+                        "No supported drive letter is available for this shared folder.");
+                }
+
+                var exactRequest = unselectedRequest with { DriveLetter = driveLetter };
+                var exactPlan = await mapper.PreviewAsync(exactRequest, cancellationToken)
+                    .ConfigureAwait(false);
+                _ = await mapper.MapAsync(
+                    exactRequest,
+                    exactPlan.PlanId,
+                    material.Secret,
+                    cancellationToken).ConfigureAwait(false);
+                await locationLauncher.OpenAsync(
+                    new CircleFilesMappedLocation(driveLetter),
+                    cancellationToken).ConfigureAwait(false);
+            }
+
+            return new BrowserCircleFilesOpenResponse(
+                "opened",
+                capability.Contribution.DisplayName,
+                $"Opened {capability.Contribution.DisplayName} in File Explorer.");
+        }
+        finally { mutationGate.Release(); }
+    }
 
     private async Task<CircleFilesMemberMappingResultResponse> MapLockedAsync(
         CircleId circleId,
@@ -370,6 +435,108 @@ internal sealed class CircleFilesMemberMappingApplication(
             owner.MemberCredential,
             context.RootCredential);
     }
+
+    private async Task<MemberCapability> SelectMemberCapabilityAsync(
+        CircleId circleId,
+        CancellationToken cancellationToken)
+    {
+        var context = await files.GetLocalAuthorizationContextAsync(circleId, cancellationToken)
+            .ConfigureAwait(false)
+            ?? throw new LocalStateException(
+                "circle_not_found",
+                "The requested Circle is not known.");
+        if (context.MemberRole != MemberRole.Member)
+        {
+            throw new LocalStateConflictException(
+                "circle_files_member_required",
+                "Only a joined Circle Member can open this shared folder.");
+        }
+
+        var candidates = new List<MemberCapability>();
+        var contributions = await files.ListContributionsAsync(circleId, cancellationToken)
+            .ConfigureAwait(false);
+        foreach (var contribution in contributions.Where(value =>
+                     value.Lifecycle is CircleFilesContributionLifecycle.Defined
+                         or CircleFilesContributionLifecycle.Active))
+        {
+            var grants = await files.ListAccessGrantsAsync(
+                circleId,
+                contribution.Id,
+                cancellationToken).ConfigureAwait(false);
+            foreach (var grant in grants.Where(value =>
+                         value.MemberId == context.MemberId
+                         && value.Lifecycle is MemberAccessGrantLifecycle.Defined
+                             or MemberAccessGrantLifecycle.Active))
+            {
+                if (await store.GetActiveCircleFilesProviderCredentialBindingAsync(
+                        grant.Id.ToString(),
+                        cancellationToken).ConfigureAwait(false) is not null)
+                {
+                    candidates.Add(new MemberCapability(contribution, grant));
+                }
+            }
+        }
+
+        return candidates.Count switch
+        {
+            1 => candidates[0],
+            0 => throw new LocalStateConflictException(
+                "circle_files_capability_unavailable",
+                "The shared folder is not ready yet. Ask the Circle owner to finish sharing it, then try again."),
+            _ => throw new LocalStateConflictException(
+                "circle_files_capability_ambiguous",
+                "More than one shared folder is ready. This version can open one at a time."),
+        };
+    }
+
+    private async Task<string?> FindExistingDriveAsync(
+        CircleFilesMemberMappingRequest request,
+        CancellationToken cancellationToken)
+    {
+        string? existing = null;
+        foreach (var drive in Enumerable.Range('D', 'Z' - 'D' + 1)
+                     .Select(value => ((char)value).ToString()))
+        {
+            CircleFilesMemberMappingInspection? inspection = null;
+            try
+            {
+                inspection = await mapper.InspectAsync(
+                    request with { DriveLetter = drive },
+                    cancellationToken).ConfigureAwait(false);
+            }
+            catch (CircleFilesHostingException exception)
+                when (exception.Code.Contains("collision", StringComparison.Ordinal))
+            {
+                // A different current-user resource occupies this candidate letter. Keep looking
+                // for the exact Balls-owned mapping without changing the unrelated resource.
+            }
+            if (inspection is null || inspection.Status == "unmapped")
+            {
+                continue;
+            }
+            if (existing is not null)
+            {
+                throw new CircleFilesHostingException(
+                    "mapping_resource_collision",
+                    "More than one existing mapping matches this shared folder.");
+            }
+            existing = drive;
+        }
+        return existing;
+    }
+
+    internal static string? SelectPreferredDrive(IReadOnlyList<string> availableDriveLetters)
+    {
+        var supported = availableDriveLetters.Where(value =>
+            value.Length == 1 && value[0] is >= 'D' and <= 'Z');
+        return supported.Contains("P", StringComparer.Ordinal)
+            ? "P"
+            : supported.FirstOrDefault();
+    }
+
+    private sealed record MemberCapability(
+        CircleFilesContribution Contribution,
+        MemberAccessGrant Grant);
 
     private static CircleFilesMemberMappingRequest CreateRequest(
         CircleId circleId,

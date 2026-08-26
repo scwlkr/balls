@@ -253,18 +253,22 @@ $planId = "replace-with-64-character-plan-id"
 dotnet run --project src/Balls.Cli --configuration Release --no-build -- --pipe-name balls-dev files host apply --circle $circleId --contribution $contributionId --path $circleFilesPath --plan $planId
 ```
 
-The host must report `ready`. The path must be absolute, fixed-local, dedicated, have an existing
-parent, and be new or empty;
-roots, Windows/profile roots, network paths, files, reparse traversal, existing content, and
-foreign ownership markers are refused. Preview is non-mutating and deterministic. Apply creates
-only the exact owned folder ACL, encryption-required share, and Private/LocalSubnet firewall rule;
-it does not change a network profile or global SMB policy, create Member credentials, map
-Explorer, or expose this mutation through the browser.
+The host must report `ready`. The path must be absolute, fixed-local, and have an existing parent.
+It may be new or an existing folder containing ordinary user files. Roots, Windows/profile roots,
+network paths, files, reparse traversal, foreign ownership markers, and reserved Balls metadata are
+refused. Preview is non-mutating and deterministic. Apply creates only the exact owned folder ACL,
+encryption-required share, and Private/LocalSubnet firewall rule; it does not change a network
+profile or global SMB policy, create Member credentials, or map Explorer. The graphical Owner flow
+exposes this hosting operation through the normal unelevated Windows folder picker and binds the
+exact selection to the authenticated browser session before the narrow helper mutates the host.
 
-After the exact grant credential has been applied, discover a free drive letter in `balls ui` or
-preview one explicit letter from the CLI. The endpoint must be a canonical numeric private or
-loopback IPv4 address; the share and account are derived from the authorized Contribution and
-Grant rather than accepted from network metadata:
+After the exact grant credential has synchronized to a Member, **Open shared folder in Explorer**
+loads the protected Circle connection and active grant inside `ballsd`, reuses an exact owned
+mapping or chooses `P:` then the first supported free drive, maps it without elevation, and starts
+File Explorer at the exact root. A successful mapping is preserved when Explorer fails to start so
+the same action can retry. The diagnostic CLI still accepts one explicit letter and endpoint. The
+endpoint must be a canonical numeric private or loopback IPv4 address; the share and account are
+derived from the authorized Contribution and Grant rather than accepted from network metadata:
 
 ```powershell
 $grantId = "replace-with-grant-id"

@@ -7,17 +7,45 @@ import type {
   StatusDto,
   CircleFilesContributionListDto,
   MemberAccessGrantListDto,
-  CircleFilesMemberMappingPlanDto,
-  CircleFilesMemberMappingInspectionDto,
-  CircleFilesMemberMappingResultDto,
+  BrowserCircleFilesOpenDto,
   BrowserInvitationDto,
   CircleViewerDto,
   CircleFilesSyncDto,
-  JoinCircleDto,
+  JoinBrowserCircleDto,
 } from "./localControl";
 
 interface ErrorDto {
   code: string;
+  message: string;
+}
+
+export interface CircleFilesFolderSelectionDto {
+  status: "selected" | "cancelled";
+  selectionId: string | null;
+  folderPath: string | null;
+  displayName: string | null;
+}
+
+export interface CircleFilesContributionResultDto {
+  status: "applied" | "already-applied";
+  contributionId: string;
+  displayName: string;
+  folderPath: string;
+}
+
+export interface CircleFilesGrantPreviewDto {
+  folderName: string;
+  folderPath: string;
+  memberName: string;
+  access: "Read/write";
+  summary: string;
+}
+
+export interface CircleFilesGrantResultDto {
+  status: "applied" | "already-applied";
+  folderName: string;
+  memberName: string;
+  access: "Read/write";
   message: string;
 }
 
@@ -32,52 +60,35 @@ export interface BrowserApi {
     name: string,
     ownerDisplayName: string,
   ): Promise<CircleDetailsDto>;
-  createInvitation(
-    circleId: string,
-    hostAddress?: string,
-  ): Promise<BrowserInvitationDto>;
+  createInvitation(circleId: string): Promise<BrowserInvitationDto>;
   joinCircle(
     packageValue: string,
-    endpoint: string,
+    provider: string,
+    admissionEndpoint: string,
+    syncEndpoint: string,
     memberDisplayName: string,
   ): Promise<CircleDetailsDto>;
-  syncFiles(circleId: string, endpoint: string): Promise<CircleFilesSyncDto>;
+  syncFiles(circleId: string): Promise<CircleFilesSyncDto>;
   listFilesContributions(
     circleId: string,
   ): Promise<CircleFilesContributionListDto>;
+  selectFilesFolder(circleId: string): Promise<CircleFilesFolderSelectionDto>;
+  contributeFilesFolder(
+    circleId: string,
+    requestId: string,
+    selectionId: string,
+  ): Promise<CircleFilesContributionResultDto>;
+  previewFilesGrant(
+    circleId: string,
+    folderName: string,
+    memberName: string,
+  ): Promise<CircleFilesGrantPreviewDto>;
+  applyFilesGrant(circleId: string): Promise<CircleFilesGrantResultDto>;
   listFilesGrants(
     circleId: string,
     contributionId: string,
   ): Promise<MemberAccessGrantListDto>;
-  previewFilesMapping(
-    circleId: string,
-    contributionId: string,
-    grantId: string,
-    endpoint: string,
-    driveLetter: string,
-  ): Promise<CircleFilesMemberMappingPlanDto>;
-  mapFiles(
-    circleId: string,
-    contributionId: string,
-    grantId: string,
-    endpoint: string,
-    driveLetter: string,
-    planId: string,
-  ): Promise<CircleFilesMemberMappingResultDto>;
-  inspectFilesMapping(
-    circleId: string,
-    contributionId: string,
-    grantId: string,
-    endpoint: string,
-    driveLetter: string,
-  ): Promise<CircleFilesMemberMappingInspectionDto>;
-  unmapFiles(
-    circleId: string,
-    contributionId: string,
-    grantId: string,
-    endpoint: string,
-    driveLetter: string,
-  ): Promise<CircleFilesMemberMappingResultDto>;
+  openFiles(circleId: string): Promise<BrowserCircleFilesOpenDto>;
 }
 
 class FetchBrowserApi implements BrowserApi {
@@ -139,24 +150,28 @@ class FetchBrowserApi implements BrowserApi {
     });
   }
 
-  createInvitation(circleId: string, hostAddress?: string) {
+  createInvitation(circleId: string) {
     return this.authenticatedRequest<BrowserInvitationDto>(
       `/browser/v1/circles/${encodeURIComponent(circleId)}/invitations`,
-      { validForMinutes: 60, hostAddress: hostAddress?.trim() || null },
+      { validForMinutes: 60 },
       "Run balls ui again to invite someone.",
     );
   }
 
   joinCircle(
     packageValue: string,
-    endpoint: string,
+    provider: string,
+    admissionEndpoint: string,
+    syncEndpoint: string,
     memberDisplayName: string,
   ) {
     const request = {
       package: packageValue,
-      endpoint,
+      provider,
+      admissionEndpoint,
+      syncEndpoint,
       memberDisplayName,
-    } satisfies JoinCircleDto;
+    } satisfies JoinBrowserCircleDto;
     return this.authenticatedRequest<CircleDetailsDto>(
       "/browser/v1/circles/join",
       request,
@@ -164,10 +179,10 @@ class FetchBrowserApi implements BrowserApi {
     );
   }
 
-  syncFiles(circleId: string, endpoint: string) {
+  syncFiles(circleId: string) {
     return this.authenticatedRequest<CircleFilesSyncDto>(
       `/browser/v1/circles/${encodeURIComponent(circleId)}/files/sync`,
-      { endpoint },
+      {},
       "Run balls ui again to connect your shared files.",
     );
   }
@@ -184,82 +199,47 @@ class FetchBrowserApi implements BrowserApi {
     );
   }
 
-  previewFilesMapping(
-    circleId: string,
-    contributionId: string,
-    grantId: string,
-    endpoint: string,
-    driveLetter: string,
-  ) {
-    return this.mappingRequest<CircleFilesMemberMappingPlanDto>(
-      circleId,
-      contributionId,
-      grantId,
-      "preview",
-      { endpoint, driveLetter },
+  selectFilesFolder(circleId: string) {
+    return this.authenticatedRequest<CircleFilesFolderSelectionDto>(
+      `/browser/v1/circles/${encodeURIComponent(circleId)}/files/contributions/folder-selection`,
+      {},
+      "Run balls ui again to choose a folder.",
     );
   }
 
-  mapFiles(
+  contributeFilesFolder(
     circleId: string,
-    contributionId: string,
-    grantId: string,
-    endpoint: string,
-    driveLetter: string,
-    planId: string,
+    requestId: string,
+    selectionId: string,
   ) {
-    return this.mappingRequest<CircleFilesMemberMappingResultDto>(
-      circleId,
-      contributionId,
-      grantId,
-      "map",
-      { endpoint, driveLetter, planId },
+    return this.authenticatedRequest<CircleFilesContributionResultDto>(
+      `/browser/v1/circles/${encodeURIComponent(circleId)}/files/contributions/folder-apply`,
+      { requestId, selectionId },
+      "Run balls ui again to contribute the folder.",
     );
   }
 
-  inspectFilesMapping(
-    circleId: string,
-    contributionId: string,
-    grantId: string,
-    endpoint: string,
-    driveLetter: string,
-  ) {
-    return this.mappingRequest<CircleFilesMemberMappingInspectionDto>(
-      circleId,
-      contributionId,
-      grantId,
-      "inspect",
-      { endpoint, driveLetter },
+  previewFilesGrant(circleId: string, folderName: string, memberName: string) {
+    return this.authenticatedRequest<CircleFilesGrantPreviewDto>(
+      `/browser/v1/circles/${encodeURIComponent(circleId)}/files/grant/preview`,
+      { folderName, memberName, access: "read-write" },
+      "Run balls ui again to review Member access.",
     );
   }
 
-  unmapFiles(
-    circleId: string,
-    contributionId: string,
-    grantId: string,
-    endpoint: string,
-    driveLetter: string,
-  ) {
-    return this.mappingRequest<CircleFilesMemberMappingResultDto>(
-      circleId,
-      contributionId,
-      grantId,
-      "unmap",
-      { endpoint, driveLetter },
+  applyFilesGrant(circleId: string) {
+    return this.authenticatedRequest<CircleFilesGrantResultDto>(
+      `/browser/v1/circles/${encodeURIComponent(circleId)}/files/grant/apply`,
+      {},
+      "Run balls ui again to share the folder.",
     );
   }
 
-  private mappingRequest<T>(
-    circleId: string,
-    contributionId: string,
-    grantId: string,
-    operation: "preview" | "map" | "inspect" | "unmap",
-    body: Record<string, string>,
-  ) {
-    return this.authenticatedRequest<T>(
-      `/browser/v1/circles/${encodeURIComponent(circleId)}/files/contributions/${encodeURIComponent(contributionId)}/grants/${encodeURIComponent(grantId)}/mapping/${operation}`,
-      body,
-      "Run balls ui again to change an Explorer mapping.",
+  openFiles(circleId: string) {
+    return this.authenticatedRequest<BrowserCircleFilesOpenDto>(
+      `/browser/v1/circles/${encodeURIComponent(circleId)}/files/open`,
+      {},
+      "Run balls ui again to open your shared folder.",
     );
   }
 

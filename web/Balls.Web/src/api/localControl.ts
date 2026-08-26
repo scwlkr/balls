@@ -14,7 +14,8 @@ export type CircleMessageDto = components["schemas"]["CircleMessageResponse"];
 export type CircleMessageListDto =
   components["schemas"]["CircleMessageListResponse"];
 export type CreateCircleDto = components["schemas"]["CreateCircleRequest"];
-export type JoinCircleDto = components["schemas"]["JoinCircleRequest"];
+export type JoinBrowserCircleDto =
+  components["schemas"]["JoinBrowserCircleRequest"];
 export type BrowserInvitationDto =
   components["schemas"]["BrowserCircleInvitationResponse"];
 export type CircleViewerDto =
@@ -28,9 +29,5 @@ export type CircleFilesContributionListDto =
   components["schemas"]["CircleFilesContributionListResponse"];
 export type MemberAccessGrantListDto =
   components["schemas"]["MemberAccessGrantListResponse"];
-export type CircleFilesMemberMappingPlanDto =
-  components["schemas"]["CircleFilesMemberMappingPlanResponse"];
-export type CircleFilesMemberMappingInspectionDto =
-  components["schemas"]["CircleFilesMemberMappingInspectionResponse"];
-export type CircleFilesMemberMappingResultDto =
-  components["schemas"]["CircleFilesMemberMappingResultResponse"];
+export type BrowserCircleFilesOpenDto =
+  components["schemas"]["BrowserCircleFilesOpenResponse"];

@@ -37,4 +37,21 @@ public sealed class BrowserContractTests
             json);
         Assert.IsFalse(json.Contains("session", StringComparison.OrdinalIgnoreCase));
     }
+
+    [TestMethod]
+    public void Folder_apply_echoes_only_server_bound_selection_identity()
+    {
+        var request = new ApplyBrowserCircleFilesFolderRequest(
+            "0198d000-5000-7000-8000-000000000012",
+            "0198d000-5000-7000-8000-000000000013");
+
+        var json = JsonSerializer.Serialize(request, ControlJson.Options);
+
+        Assert.AreEqual(
+            "{\"requestId\":\"0198d000-5000-7000-8000-000000000012\","
+                + "\"selectionId\":\"0198d000-5000-7000-8000-000000000013\"}",
+            json);
+        Assert.IsFalse(json.Contains("path", StringComparison.OrdinalIgnoreCase));
+        Assert.IsFalse(json.Contains("displayName", StringComparison.OrdinalIgnoreCase));
+    }
 }

@@ -1,4 +1,5 @@
 using System.Net;
+using System.Net.Sockets;
 using System.Reflection;
 using Balls.Core;
 using Balls.Host;
@@ -42,11 +43,14 @@ public static class DaemonHost
         DaemonOptions options,
         HostPlatform host,
         IPrivateMaterialProtector privateMaterialProtector,
-        CancellationToken cancellationToken = default)
+        CancellationToken cancellationToken = default,
+        Func<PrivateIPv4AddressSelection>? privateAddressSelector = null,
+        TimeProvider? timeProvider = null)
     {
         ArgumentNullException.ThrowIfNull(options);
         ArgumentNullException.ThrowIfNull(host);
         ArgumentNullException.ThrowIfNull(privateMaterialProtector);
+        var clock = timeProvider ?? TimeProvider.System;
 
         ArgumentException.ThrowIfNullOrWhiteSpace(options.DataDirectory);
         host.LocalControlServer.ValidateEndpoint(options.LocalControlEndpoint);
@@ -99,6 +103,19 @@ public static class DaemonHost
             }
         }
 
+        PrivateIPv4AddressSelection? automaticPrivateAddress = null;
+        if (options.AutomaticPrivateListeners
+            && admissionListenEndpoint is null
+            && messageListenEndpoint is null)
+        {
+            automaticPrivateAddress = (privateAddressSelector ?? PrivateIPv4AddressSelector.SelectCurrent)();
+            if (automaticPrivateAddress.Address is not null)
+            {
+                admissionListenEndpoint = new IPEndPoint(automaticPrivateAddress.Address, 0);
+                messageListenEndpoint = new IPEndPoint(automaticPrivateAddress.Address, 0);
+            }
+        }
+
         var securedDataDirectory = host.LocalState.Prepare(options.DataDirectory);
         var dataDirectoryLease = DataDirectoryLease.Acquire(securedDataDirectory);
         SqliteLocalStateStore? store = null;
@@ -118,25 +135,25 @@ public static class DaemonHost
                 .ConfigureAwait(false);
             var circleApplication = new CircleApplication(
                 store,
-                TimeProvider.System,
+                clock,
                 options.NodeDisplayName);
             var invitationApplication = new InvitationApplication(
                 store,
                 store,
                 store,
-                TimeProvider.System);
+                clock);
             var admissionApplication = new TrustedCircleAdmissionApplication(
                 store,
                 store,
                 store,
                 store,
                 new TcpLanTransportConnector(),
-                TimeProvider.System);
+                clock);
             var messageQueries = new CircleMessageQueryApplication(store);
             var filesApplication = new CircleFilesApplication(
                 store,
                 store,
-                TimeProvider.System);
+                clock);
             var filesSyncApplication = new TrustedCircleFilesSyncApplication(
                 store,
                 store,
@@ -146,41 +163,111 @@ public static class DaemonHost
                 store,
                 store,
                 new TcpLanTransportConnector(),
-                TimeProvider.System);
+                clock);
             var messageApplication = new TrustedCircleMessageApplication(
                 store,
                 store,
                 store,
                 store,
                 new TcpLanTransportConnector(),
-                TimeProvider.System,
+                clock,
                 filesSyncApplication);
             var filesHostingApplication = new CircleFilesHostingApplication(
                 filesApplication,
                 host.CircleFilesHosting);
+            var browserFilesContributionApplication =
+                new BrowserCircleFilesContributionApplication(
+                    filesApplication,
+                    filesHostingApplication,
+                    host.CircleFilesFolderPicker,
+                    store,
+                    clock);
             var filesGrantCredentialApplication = new CircleFilesGrantCredentialApplication(
                 filesApplication,
                 store,
                 host.CircleFilesGrantCredentials);
+            var browserFilesGrantApplication = new BrowserCircleFilesGrantApplication(
+                circleApplication,
+                filesApplication,
+                filesGrantCredentialApplication,
+                store,
+                clock);
             var filesMemberMappingApplication = new CircleFilesMemberMappingApplication(
                 circleApplication,
                 filesApplication,
                 store,
                 store,
                 host.CircleFilesMemberMapping,
-                TimeProvider.System,
+                host.CircleFilesLocationLauncher,
+                clock,
                 store);
             var filesLifecycleApplication = new CircleFilesLifecycleApplication(
                 filesApplication,
                 store,
                 store,
                 host.CircleFilesLifecycle,
-                TimeProvider.System);
+                clock);
             var browserAccess = new BrowserAccessBroker(
-                TimeProvider.System,
+                clock,
                 launchLifetime: TimeSpan.FromMinutes(1),
                 sessionLifetime: TimeSpan.FromMinutes(30));
             var browserEndpoint = new BrowserEndpointState();
+            var invitationListeners = BrowserInvitationListenerState.Unavailable(
+                automaticPrivateAddress?.ErrorCode ?? "private_listeners_unavailable",
+                automaticPrivateAddress?.Message
+                    ?? "Open Balls from its normal shortcut to create an invitation on a private network.");
+
+            try
+            {
+                if (admissionListenEndpoint is not null)
+                {
+                    admissionListener = new TcpLanTransportListener(admissionListenEndpoint);
+                }
+                if (messageListenEndpoint is not null)
+                {
+                    messageListener = new TcpLanTransportListener(messageListenEndpoint);
+                }
+            }
+            catch (SocketException) when (automaticPrivateAddress is not null)
+            {
+                if (admissionListener is not null)
+                {
+                    await admissionListener.DisposeAsync().ConfigureAwait(false);
+                    admissionListener = null;
+                }
+                if (messageListener is not null)
+                {
+                    await messageListener.DisposeAsync().ConfigureAwait(false);
+                    messageListener = null;
+                }
+                invitationListeners = BrowserInvitationListenerState.Unavailable(
+                    "private_network_unavailable",
+                    "Balls could not open private network connections for invitations on this device.");
+            }
+
+            if (admissionListener is not null)
+            {
+                admissionShutdown = new CancellationTokenSource();
+                admissionTask = RunAdmissionListenerAsync(
+                    admissionListener,
+                    admissionApplication,
+                    admissionShutdown.Token);
+            }
+            if (messageListener is not null)
+            {
+                messageShutdown = new CancellationTokenSource();
+                messageTask = RunMessageListenerAsync(
+                    messageListener,
+                    messageApplication,
+                    messageShutdown.Token);
+            }
+            if (admissionListener is not null && messageListener is not null)
+            {
+                invitationListeners = BrowserInvitationListenerState.Available(
+                    admissionListener.BoundAddress,
+                    messageListener.BoundAddress);
+            }
+
             await circleApplication.GetLocalNodeAsync(cancellationToken).ConfigureAwait(false);
             host.LocalState.Prepare(securedDataDirectory);
             host.LocalControlServer.PrepareEndpoint(options.LocalControlEndpoint);
@@ -998,33 +1085,17 @@ public static class DaemonHost
                 circleApplication,
                 messageQueries,
                 filesApplication,
+                browserFilesContributionApplication,
+                browserFilesGrantApplication,
                 filesMemberMappingApplication,
                 filesSyncApplication,
+                store,
                 invitationApplication,
                 admissionApplication,
-                options.AdmissionListenEndpoint,
-                options.MessageListenEndpoint,
+                invitationListeners,
                 browserAccess);
 
             await application.StartAsync(cancellationToken).ConfigureAwait(false);
-            if (admissionListenEndpoint is not null)
-            {
-                admissionListener = new TcpLanTransportListener(admissionListenEndpoint);
-                admissionShutdown = new CancellationTokenSource();
-                admissionTask = RunAdmissionListenerAsync(
-                    admissionListener,
-                    admissionApplication,
-                    admissionShutdown.Token);
-            }
-            if (messageListenEndpoint is not null)
-            {
-                messageListener = new TcpLanTransportListener(messageListenEndpoint);
-                messageShutdown = new CancellationTokenSource();
-                messageTask = RunMessageListenerAsync(
-                    messageListener,
-                    messageApplication,
-                    messageShutdown.Token);
-            }
             browserEndpoint.Initialize(FindBrowserBaseUri(application));
             host.LocalControlServer.SecureEndpoint(options.LocalControlEndpoint);
             return new DaemonInstance(

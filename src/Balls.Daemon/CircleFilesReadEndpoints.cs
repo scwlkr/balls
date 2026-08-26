@@ -102,7 +102,7 @@ internal static class CircleFilesReadEndpoints
             return circle.Error;
         }
 
-        if (!TryParseCanonicalId(contributionId, out var parsedContributionId))
+        if (!BrowserUuid.TryParse(contributionId, out var parsedContributionId))
         {
             return Results.BadRequest(
                 new ErrorResponse(
@@ -157,7 +157,7 @@ internal static class CircleFilesReadEndpoints
         string value,
         CancellationToken cancellationToken)
     {
-        if (!TryParseCanonicalId(value, out var circleId))
+        if (!BrowserUuid.TryParse(value, out var circleId))
         {
             return (
                 null,
@@ -179,8 +179,4 @@ internal static class CircleFilesReadEndpoints
             : (circle, null);
     }
 
-    private static bool TryParseCanonicalId(string value, out Guid id) =>
-        Guid.TryParseExact(value, "D", out id)
-        && id != Guid.Empty
-        && string.Equals(value, id.ToString("D"), StringComparison.Ordinal);
 }

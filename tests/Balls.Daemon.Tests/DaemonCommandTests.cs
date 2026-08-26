@@ -114,6 +114,25 @@ public sealed class DaemonCommandTests
         Assert.IsFalse(Directory.Exists(dataDirectory));
     }
 
+    [TestMethod]
+    public async Task Packaged_private_listener_mode_is_a_flag_and_requires_no_endpoint_value()
+    {
+        var output = new StringWriter();
+        var error = new StringWriter();
+
+        var exitCode = await DaemonCommand.RunAsync(
+            ["--automatic-private-listeners", "unexpected"],
+            output,
+            error);
+
+        Assert.AreEqual(DaemonExitCodes.UsageError, exitCode);
+        Assert.AreEqual(string.Empty, output.ToString());
+        StringAssert.Contains(error.ToString(), "unknown argument 'unexpected'");
+        Assert.IsFalse(error.ToString().Contains(
+            "unknown argument '--automatic-private-listeners'",
+            StringComparison.Ordinal));
+    }
+
     private sealed class TemporaryDirectory : IDisposable
     {
         public TemporaryDirectory()

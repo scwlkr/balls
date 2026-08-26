@@ -419,10 +419,12 @@ ACL grants. The SQLite adapter sees only the typed protection contract and store
 identifier; it contains no platform commands.
 
 `HostPlatform` supplies platform defaults plus independent seams for local-state preparation,
-local-control server transport, and local-control client transport. `Balls.Host` is the only
-project that selects an OS adapter. Windows, Linux, and macOS are registered; other hosts return
-one typed, fail-closed selection result. Executable entry points do not perform their own OS
-checks or construct adapter types.
+local-control server transport, local-control client transport, Circle Files mapping, and opening
+an exact mapped location. `Balls.Host` is the only project that selects an OS adapter. The Windows
+location launcher starts File Explorer with the daemon's existing user token and no elevation
+verb; Linux and macOS fail closed for this Windows Capability. Windows, Linux, and macOS are
+registered; other hosts return one typed, fail-closed selection result. Executable entry points do
+not perform their own OS checks or construct adapter types.
 
 `Balls.Windows.Helper` is the deliberate exception: it is not a cross-platform product entry
 point or adapter selector, but the Windows adapter's short-lived UAC process boundary. It directly
@@ -484,10 +486,14 @@ only public object, lifecycle, and authorizing-Member metadata; signatures, tran
 authority, and provider credential material stay behind the Core-owned persistence seam.
 
 The browser adapter reuses the same application queries for contribution and Access Grant lists.
-Protected local control and the CLI expose host, credential, mapping, exact-generation revocation,
-and ownership-proven cleanup operations. Revocation is committed with a dual-signed generation-
-bound proof before provider cleanup begins; every later active authorization query rejects that
-grant. Rotation and multi-Anchor lifecycle replication remain separate work.
+Its Member open operation resolves the protected connection and exact active grant inside
+`ballsd`, reuses an exact owned mapping or chooses `P:` then the first supported free drive, maps
+idempotently, and crosses the typed platform boundary to open the root. JavaScript never receives
+the endpoint, drive, plan, provider credential, or mapping result. Protected local control and the
+CLI retain detailed host, credential, mapping, exact-generation revocation, and ownership-proven
+cleanup operations. Revocation is committed with a dual-signed generation-bound proof before
+provider cleanup begins; every later active authorization query rejects that grant. Rotation and
+multi-Anchor lifecycle replication remain separate work.
 
 Windows SMB readiness is an implemented read-only host capability behind
 `ICircleFilesReadinessInspector` in `Balls.Platform`. `Balls.Platform.Windows` supplies the SMB
@@ -543,21 +549,22 @@ cancellation then enters reverse recovery, whose individual system commands reta
 20-second bounds. No arbitrary command, script, or caller-controlled shell argument crosses the
 elevation boundary.
 
-Both privilege levels require an absolute fixed-local path with an existing parent, outside drive roots, Windows and
-profile roots, network locations, files, and any existing reparse traversal. The target must be
-new or empty, or contain only the exact Balls ownership marker and operation journal. Preflight
-rejects any share, rule, marker, or journal collision before mutation. Apply creates a protected
-ACL granting only the local Owner and LocalSystem full control, an encryption-required SMB share
-granting only that Owner, and one inbound TCP 445 rule restricted to `Private`, `LocalSubnet`, and
-`LanmanServer`.
+Both privilege levels require an absolute fixed-local path with an existing parent, outside drive
+roots, Windows and profile roots, network locations, files, and any existing reparse traversal. The
+target may be new or an existing folder containing ordinary user files. Preflight rejects any
+share, rule, foreign ownership marker, or reserved Balls metadata collision before mutation. Apply
+creates a protected ACL granting only the local Owner and LocalSystem full control, an
+encryption-required SMB share granting only that Owner, and one inbound TCP 445 rule restricted to
+`Private`, `LocalSubnet`, and `LanmanServer`.
 
 The exact ownership ID appears in the folder marker, operation journal, share description, and
 firewall description. Each step is inspected before use; retry returns `already-applied` only for
 the complete exact state, including protected Owner/LocalSystem ACLs on both marker files. Partial
 or failed work rolls back in reverse order and removes only
-resources whose complete identity and properties prove Balls ownership. Existing content is never
-adopted or deleted, an originally empty folder has its prior ACL restored, and the journal can
-claim at most the exact target directory rather than any ancestor.
+resources whose complete identity and properties prove Balls ownership. Ordinary folder entries
+become the contributed content but are never treated as Balls-owned or deleted. A pre-existing
+folder's exact prior ACL is journaled and restored on rollback, and the journal can claim at most
+the exact target directory rather than any ancestor.
 
 The Windows grant-credential adapter revalidates the Contribution and Access Grant through Core,
 including both current Owner/root signatures, and deterministically binds Circle, Contribution,

@@ -1,3 +1,4 @@
+using System.Security.Principal;
 using Balls.Platform;
 using Balls.Platform.Windows;
 
@@ -117,6 +118,62 @@ public sealed class WindowsCircleFilesOperationTests
         Assert.AreEqual("hosting_resource_collision", exception.Code);
         Assert.AreEqual(0, operations.Applied.Count);
         Assert.AreEqual(0, operations.RolledBack.Count);
+    }
+
+    [TestMethod]
+    public async Task Existing_seed_file_bytes_survive_apply_and_rollback()
+    {
+        if (!OperatingSystem.IsWindows())
+        {
+            Assert.Inconclusive("The exact Windows folder ACL contract requires Windows.");
+            return;
+        }
+
+        var directory = Path.Combine(
+            Path.GetTempPath(),
+            "balls-existing-folder",
+            Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(directory);
+        var seedPath = Path.Combine(directory, "before-balls.txt");
+        var expected = "existing work\r\n"u8.ToArray();
+        await File.WriteAllBytesAsync(seedPath, expected);
+        var ownerSid = WindowsIdentity.GetCurrent().User?.Value;
+        Assert.IsNotNull(ownerSid);
+        var plan = Plan with
+        {
+            PublicPlan = Plan.PublicPlan with
+            {
+                FolderPath = directory,
+                TargetExists = true,
+            },
+            Request = Plan.Request with { FolderPath = directory },
+            OwnerSid = ownerSid,
+        };
+        var operations = new WindowsCircleFilesSystemOperations();
+
+        try
+        {
+            await operations.ApplyAsync(
+                plan,
+                WindowsCircleFilesOperationStep.FolderAcl,
+                CancellationToken.None);
+            CollectionAssert.AreEqual(expected, await File.ReadAllBytesAsync(seedPath));
+
+            await operations.RollbackAsync(
+                plan,
+                WindowsCircleFilesOperationStep.FolderAcl,
+                CancellationToken.None);
+
+            Assert.IsTrue(Directory.Exists(directory));
+            CollectionAssert.AreEqual(expected, await File.ReadAllBytesAsync(seedPath));
+        }
+        finally
+        {
+            if (Directory.Exists(directory))
+            {
+                Directory.Delete(directory, recursive: true);
+            }
+        }
     }
 
     [TestMethod]

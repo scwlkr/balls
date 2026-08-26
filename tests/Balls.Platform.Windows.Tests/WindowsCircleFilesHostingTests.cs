@@ -41,7 +41,13 @@ public sealed class WindowsCircleFilesHostingTests
     public async Task Apply_requires_the_exact_preview_and_calls_one_narrow_helper_operation()
     {
         var helper = new StubHelper();
-        var provisioner = CreateProvisioner(new StubEnvironment(), helper);
+        var provisioner = CreateProvisioner(
+            new StubEnvironment
+            {
+                ExistingDirectory = true,
+                Entries = [@"C:\BallsShares\Company\before-balls.txt"],
+            },
+            helper);
         var preview = await provisioner.PreviewAsync(Request, CancellationToken.None);
 
         var result = await provisioner.ApplyAsync(
@@ -95,13 +101,12 @@ public sealed class WindowsCircleFilesHostingTests
     }
 
     [TestMethod]
-    public async Task Reparse_nonempty_and_preexisting_file_collisions_fail_closed()
+    public async Task Reparse_and_preexisting_file_collisions_fail_closed()
     {
         var environments = new[]
         {
             new StubEnvironment { HasReparsePoint = true },
             new StubEnvironment { FileAtTarget = true },
-            new StubEnvironment { ExistingDirectory = true, Entries = [@"C:\BallsShares\Company\user.txt"] },
         };
 
         foreach (var environment in environments)
@@ -110,9 +115,28 @@ public sealed class WindowsCircleFilesHostingTests
                 () => CreateProvisioner(environment, new StubHelper())
                     .PreviewAsync(Request, CancellationToken.None).AsTask());
             Assert.IsTrue(
-                exception.Code is "hosting_path_invalid" or "hosting_folder_not_empty",
+                exception.Code is "hosting_path_invalid",
                 exception.Code);
         }
+    }
+
+    [TestMethod]
+    public async Task Preview_adopts_an_existing_folder_without_touching_ordinary_files()
+    {
+        var helper = new StubHelper();
+        var environment = new StubEnvironment
+        {
+            ExistingDirectory = true,
+            Entries = [@"C:\BallsShares\Company\before-balls.txt"],
+        };
+
+        var preview = await CreateProvisioner(environment, helper)
+            .PreviewAsync(Request, CancellationToken.None);
+
+        Assert.IsTrue(preview.TargetExists);
+        Assert.AreEqual(Request.FolderPath, preview.FolderPath);
+        Assert.AreEqual(0, helper.CallCount);
+        StringAssert.Contains(preview.Actions[0], "Keep every existing file in place");
     }
 
     [TestMethod]
@@ -378,7 +402,7 @@ public sealed class WindowsCircleFilesHostingTests
             () => CreateProvisioner(environment, new StubHelper())
                 .PreviewAsync(Request, CancellationToken.None).AsTask());
 
-        Assert.AreEqual("hosting_folder_not_empty", error.Code);
+        Assert.AreEqual("hosting_ownership_collision", error.Code);
     }
 
     [TestMethod]

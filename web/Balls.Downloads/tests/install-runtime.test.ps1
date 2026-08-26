@@ -1,4 +1,4 @@
-#Requires -Version 7.0
+#Requires -Version 5.1
 
 $ErrorActionPreference = 'Stop'
 Set-StrictMode -Version Latest
@@ -63,11 +63,16 @@ if ($parseErrors.Count -ne 0) {
 }
 
 $requiredFunctions = @(
+    'Assert-OfficialManifestUri',
+    'Assert-ManifestAsset',
+    'Assert-PackageIdentity',
+    'Assert-ChecksumBinding',
     'Test-X64PortableExecutable',
     'Get-X64DotnetRoot',
     'Test-RuntimeInventory',
     'Get-RuntimeRequirementLabel',
-    'Assert-RuntimeRequirements'
+    'Assert-RuntimeRequirements',
+    'Write-BallsLauncher'
 )
 foreach ($name in $requiredFunctions) {
     $definition = @($ast.FindAll({
@@ -87,6 +92,71 @@ $oldX64Root = $env:DOTNET_ROOT_X64
 $oldRoot = $env:DOTNET_ROOT
 $oldPath = $env:PATH
 try {
+    Assert-OfficialManifestUri ([uri]'https://balls.wlkrlabs.com/channels/alpha.json')
+    Assert-OfficialManifestUri ([uri]'https://balls.wlkrlabs.com/channels/development.json')
+    Assert-OfficialManifestUri ([uri]'https://balls.wlkrlabs.com/versions/development-20260826T120000Z-0123456789ab.json')
+    Assert-Throws {
+        Assert-OfficialManifestUri ([uri]'https://example.com/channels/alpha.json')
+    } 'Balls installs only from an official channel or immutable version manifest.'
+    Assert-Throws {
+        Assert-OfficialManifestUri ([uri]'https://balls.wlkrlabs.com/channels/alpha.json?next=development')
+    } 'Balls installs only from an official channel or immutable version manifest.'
+
+    $tag = 'development-20260826T120000Z-0123456789ab'
+    $asset = [pscustomobject]@{
+        name = 'balls-0.3.0-alpha.1-canary-windows-x64-0123456789ab.zip'
+        url = "https://github.com/scwlkr/balls/releases/download/$tag/balls-0.3.0-alpha.1-canary-windows-x64-0123456789ab.zip"
+        sha256 = ('a' * 64)
+    }
+    Assert-ManifestAsset $asset $tag '^balls-.+\.zip$'
+    $unsafeAsset = [pscustomobject]@{
+        name = '..\balls.zip'
+        url = "https://github.com/scwlkr/balls/releases/download/$tag/balls.zip"
+        sha256 = ('a' * 64)
+    }
+    Assert-Throws {
+        Assert-ManifestAsset $unsafeAsset $tag '^balls-.+\.zip$'
+    } 'The Balls manifest contains an invalid asset name: ..\balls.zip'
+
+    $identity = [pscustomobject]@{
+        product = 'Balls'
+        version = '0.3.0-alpha.1'
+        commit = '0123456789abcdef0123456789abcdef01234567'
+        platform = 'windows'
+        architecture = 'x64'
+    }
+    $packageIdentity = [pscustomobject]@{
+        product = 'Balls'
+        version = '0.3.0-alpha.1'
+        commit = '0123456789abcdef0123456789abcdef01234567'
+        platform = 'windows'
+        architecture = 'x64'
+        runtimeSupported = $true
+    }
+    Assert-PackageIdentity $packageIdentity $identity
+    $wrongPackageIdentity = $packageIdentity.PSObject.Copy()
+    $wrongPackageIdentity.commit = 'ffffffffffffffffffffffffffffffffffffffff'
+    Assert-Throws {
+        Assert-PackageIdentity $wrongPackageIdentity $identity
+    } 'The Windows package identity does not match the selected Balls manifest.'
+
+    New-Item -ItemType Directory -Path $testRoot | Out-Null
+    $checksumPath = Join-Path $testRoot 'package.sha256'
+    Set-Content -LiteralPath $checksumPath -Value "$('a' * 64)  $($asset.name)"
+    Assert-ChecksumBinding $checksumPath $asset
+    Set-Content -LiteralPath $checksumPath -Value "$('b' * 64)  $($asset.name)"
+    Assert-Throws {
+        Assert-ChecksumBinding $checksumPath $asset
+    } 'The package checksum file does not bind the selected Windows archive.'
+
+    $launcher = Write-BallsLauncher $testRoot '0.3.0-alpha.1-0123456789ab'
+    $launcherText = Get-Content -LiteralPath $launcher -Raw
+    if ($launcherText -notmatch 'BALLS_PIPE=balls' -or
+        $launcherText -notmatch 'versions\\0\.3\.0-alpha\.1-0123456789ab' -or
+        $launcherText -match 'ExecutionPolicy') {
+        throw 'The generated normal launcher did not preserve the supported startup contract.'
+    }
+
     $requirements = @(
         [pscustomobject]@{ name = 'Microsoft.NETCore.App'; major = 10 },
         [pscustomobject]@{ name = 'Microsoft.AspNetCore.App'; major = 10 }
@@ -113,7 +183,7 @@ try {
     Assert-Equal (Test-X64PortableExecutable $x64Executable) $true 'The x64 PE should pass.'
     Assert-Equal (Test-X64PortableExecutable $x86Executable) $false 'The x86 PE should fail.'
 
-    $runtimeError = 'The published Balls Windows Alpha requires the x64 .NET 10 and ASP.NET Core 10 runtimes.'
+    $runtimeError = 'This Balls package requires the x64 .NET 10 and ASP.NET Core 10 runtimes.'
     $env:DOTNET_ROOT_X64 = $genericRoot
     Assert-Throws { Assert-RuntimeRequirements $runtimeUnderTest } $runtimeError
 
@@ -154,7 +224,7 @@ try {
     $env:DOTNET_ROOT_X64 = $usableRoot
     Assert-Throws {
         Assert-RuntimeRequirements $wrongMajorRuntime
-    } 'The published Balls Windows Alpha requires the x64 .NET 999 and ASP.NET Core 999 runtimes.'
+    } 'This Balls package requires the x64 .NET 999 and ASP.NET Core 999 runtimes.'
 
     $selfContained = [pscustomobject]@{
         kind = 'self-contained'

@@ -63,7 +63,7 @@ state, or other secret.
 - [ ] Normal shortcut launch starts the loopback UI and required private-network listeners without
       flags, addresses, ports, or separate service setup.
 
-## 4. Prove the Owner journey
+## 4. Prove the Owner contribution and invitation
 
 - [ ] The Owner creates a new Circle through the browser.
 - [ ] The Owner selects `C:\BallsDemo\Projects` through the real Windows folder picker.
@@ -71,15 +71,17 @@ state, or other secret.
 - [ ] Only the narrow host-side operation crosses the Windows consent boundary.
 - [ ] The ordinary Balls process remains unelevated.
 - [ ] The Owner contributes the exact existing folder without changing `before-balls.txt`.
-- [ ] The Owner selects the invited human Member and `Read/write` without entering an internal ID,
-      SMB account, password, Access Grant, plan, address, or port.
 - [ ] The Owner obtains one private invitation without revealing it in captured evidence.
 
-## 5. Prove the Member journey
+## 5. Prove the join, grant, and Member journey
 
 - [ ] The Member pastes only the private invitation and human display name.
 - [ ] The browser shows clear Circle and Member join success.
-- [ ] The approved folder appears as a Circle Capability without provider terminology.
+- [ ] The Owner clicks `Refresh members`, selects the joined human Member and `Read/write`, reviews
+      the access summary, and shares the Capability without entering an internal ID, SMB account,
+      password, Access Grant, plan, address, or port.
+- [ ] The Member clicks `Check again` and the approved folder appears as a Circle Capability without
+      provider terminology.
 - [ ] Closing and reopening Balls preserves the joined Circle and guided Capability.
 - [ ] The Member sees one `Open shared folder in Explorer` action and no drive selector or mapping
       plan.

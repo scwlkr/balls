@@ -8,6 +8,7 @@ using Balls.Host;
 using Balls.Platform;
 using Balls.Protocol.Browser.V1;
 using Balls.Protocol.Control.V1;
+using Balls.Transport.Lan;
 
 namespace Balls.Daemon.Tests;
 
@@ -36,8 +37,10 @@ public sealed partial class BrowserAdapterSecurityTests
         var admissionEndpoint = AllocatePrivateEndpoint(privateAddress);
         var messageEndpoint = AllocatePrivateEndpoint(privateAddress);
         var selected = (SupportedHostPlatform)HostPlatformSelector.SelectCurrent();
+        var hostProvisioner = new SyncHostProvisioner();
         var grantProvisioner = new SyncGrantCredentialProvisioner();
         var memberMapper = new SyncMemberMapper();
+        var memberLauncher = new SyncLocationLauncher();
         await using var owner = await DaemonHost.StartAsync(
             new DaemonOptions(
                 Path.Combine(ownerDirectory.Path, "state"),
@@ -45,17 +48,16 @@ public sealed partial class BrowserAdapterSecurityTests
                 "Owner-PC",
                 admissionEndpoint,
                 messageEndpoint),
-            selected.Platform with { CircleFilesGrantCredentials = grantProvisioner },
-            selected.PrivateMaterialProtector);
-        await using var member = await DaemonHost.StartAsync(
-            new DaemonOptions(
-                Path.Combine(memberDirectory.Path, "state"),
-                GetEndpoint(memberDirectory.Path),
-                "Member-PC"),
-            selected.Platform with { CircleFilesMemberMapping = memberMapper },
+            selected.Platform with
+            {
+                CircleFilesHosting = hostProvisioner,
+                CircleFilesGrantCredentials = grantProvisioner,
+                CircleFilesFolderPicker = new StubFolderPicker(
+                    @"C:\BallsShares\Pilot",
+                    "Pilot Projects"),
+            },
             selected.PrivateMaterialProtector);
         using var ownerClient = CreateIpcClient(GetEndpoint(ownerDirectory.Path));
-        using var memberClient = CreateIpcClient(GetEndpoint(memberDirectory.Path));
         using var createCircleResponse = await ownerClient.PostAsJsonAsync(
             ControlRoutes.Circles,
             new CreateCircleRequest(
@@ -76,49 +78,214 @@ public sealed partial class BrowserAdapterSecurityTests
         var invitation = await issueResponse.Content.ReadFromJsonAsync<CreateInvitationResponse>(
             ControlJson.Options);
         Assert.IsNotNull(invitation);
+        string memberId;
+        await using (var initialMember = await DaemonHost.StartAsync(
+                         new DaemonOptions(
+                             Path.Combine(memberDirectory.Path, "state"),
+                             GetEndpoint(memberDirectory.Path),
+                             "Member-PC"),
+                         selected.Platform with
+                         {
+                             CircleFilesMemberMapping = memberMapper,
+                             CircleFilesLocationLauncher = memberLauncher,
+                         },
+                         selected.PrivateMaterialProtector))
+        using (var initialMemberClient = CreateIpcClient(GetEndpoint(memberDirectory.Path)))
+        {
+            var initialLaunch = await IssueLaunchAsync(initialMemberClient);
+            var initialBrowserBaseUri = GetBrowserBaseUri(initialLaunch);
+            using var initialBrowserClient = CreateBrowserClient(initialBrowserBaseUri);
+            var initialAuthenticated = await ExchangeAsync(initialBrowserClient, initialLaunch);
+            using var join = CreateJsonRequest(
+                HttpMethod.Post,
+                BrowserRoutes.CircleJoin,
+                new JoinBrowserCircleRequest(
+                    invitation.Package,
+                    LanTcpEndpoint.ProviderName,
+                    admissionEndpoint,
+                    messageEndpoint,
+                    "Bob"),
+                GetOrigin(initialBrowserBaseUri),
+                initialAuthenticated.Cookie,
+                initialAuthenticated.Session.AntiforgeryToken);
+            using var joinResponse = await initialBrowserClient.SendAsync(join);
+            Assert.AreEqual(HttpStatusCode.OK, joinResponse.StatusCode);
+            var joined = await joinResponse.Content.ReadFromJsonAsync<CircleDetailsResponse>(
+                ControlJson.Options);
+            Assert.IsNotNull(joined);
+            memberId = joined.Members.Single(person => person.DisplayName == "Bob").Id;
+        }
+
+        await using var relaunchedMember = await DaemonHost.StartAsync(
+            new DaemonOptions(
+                Path.Combine(memberDirectory.Path, "state"),
+                GetEndpoint(memberDirectory.Path),
+                "Member-PC"),
+            selected.Platform with
+            {
+                CircleFilesMemberMapping = memberMapper,
+                CircleFilesLocationLauncher = memberLauncher,
+            },
+            selected.PrivateMaterialProtector);
+        using var memberClient = CreateIpcClient(GetEndpoint(memberDirectory.Path));
         var launch = await IssueLaunchAsync(memberClient);
         var browserBaseUri = GetBrowserBaseUri(launch);
         using var browserClient = CreateBrowserClient(browserBaseUri);
         var authenticated = await ExchangeAsync(browserClient, launch);
 
-        using var join = CreateJsonRequest(
-            HttpMethod.Post,
-            BrowserRoutes.CircleJoin,
-            new JoinCircleRequest(invitation.Package, admissionEndpoint, "Bob"),
-            GetOrigin(browserBaseUri),
-            authenticated.Cookie,
-            authenticated.Session.AntiforgeryToken);
-        using var joinResponse = await browserClient.SendAsync(join);
-        Assert.AreEqual(HttpStatusCode.OK, joinResponse.StatusCode);
-        var joined = await joinResponse.Content.ReadFromJsonAsync<CircleDetailsResponse>(
-            ControlJson.Options);
-        Assert.IsNotNull(joined);
-        var memberId = joined.Members.Single(person => person.DisplayName == "Bob").Id;
+        ownerClient.Dispose();
+        await owner.DisposeAsync();
+        using (var offlineSync = CreateJsonRequest(
+                   HttpMethod.Post,
+                   BrowserRoutes.CircleFilesSync(circle.Circle.Id),
+                   new { },
+                   GetOrigin(browserBaseUri),
+                   authenticated.Cookie,
+                   authenticated.Session.AntiforgeryToken))
+        using (var offlineResponse = await browserClient.SendAsync(offlineSync))
+        {
+            var offlineJson = await offlineResponse.Content.ReadAsStringAsync();
+            Assert.AreEqual(HttpStatusCode.BadGateway, offlineResponse.StatusCode, offlineJson);
+            AssertSafeSyncResponse(offlineJson);
+            Assert.IsFalse(offlineJson.Contains(admissionEndpoint, StringComparison.Ordinal));
+            Assert.IsFalse(offlineJson.Contains(messageEndpoint, StringComparison.Ordinal));
+        }
 
-        var contribution = await CreateSyncContributionAsync(ownerClient, circle.Circle.Id);
+        await using var relaunchedOwner = await DaemonHost.StartAsync(
+            new DaemonOptions(
+                Path.Combine(ownerDirectory.Path, "state"),
+                GetEndpoint(ownerDirectory.Path),
+                "Owner-PC",
+                admissionEndpoint,
+                messageEndpoint),
+            selected.Platform with
+            {
+                CircleFilesHosting = hostProvisioner,
+                CircleFilesGrantCredentials = grantProvisioner,
+                CircleFilesFolderPicker = new StubFolderPicker(
+                    @"C:\BallsShares\Pilot",
+                    "Pilot Projects"),
+            },
+            selected.PrivateMaterialProtector);
+        using var relaunchedOwnerClient = CreateIpcClient(GetEndpoint(ownerDirectory.Path));
+        var ownerLaunch = await IssueLaunchAsync(relaunchedOwnerClient);
+        var ownerBrowserBaseUri = GetBrowserBaseUri(ownerLaunch);
+        using var ownerBrowserClient = CreateBrowserClient(ownerBrowserBaseUri);
+        var ownerAuthenticated = await ExchangeAsync(ownerBrowserClient, ownerLaunch);
+        using var selectFolder = CreateJsonRequest(
+            HttpMethod.Post,
+            BrowserRoutes.CircleFilesFolderSelection(circle.Circle.Id),
+            new { },
+            GetOrigin(ownerBrowserBaseUri),
+            ownerAuthenticated.Cookie,
+            ownerAuthenticated.Session.AntiforgeryToken);
+        using var selectFolderResponse = await ownerBrowserClient.SendAsync(selectFolder);
+        var folderSelection = await selectFolderResponse.Content
+            .ReadFromJsonAsync<BrowserCircleFilesFolderSelectionResponse>(ControlJson.Options);
+        Assert.AreEqual(HttpStatusCode.OK, selectFolderResponse.StatusCode);
+        Assert.IsNotNull(folderSelection?.SelectionId);
+        using var contribute = CreateJsonRequest(
+            HttpMethod.Post,
+            BrowserRoutes.CircleFilesFolderApply(circle.Circle.Id),
+            new ApplyBrowserCircleFilesFolderRequest(
+                "0198d000-6100-7000-8000-000000000002",
+                folderSelection!.SelectionId!),
+            GetOrigin(ownerBrowserBaseUri),
+            ownerAuthenticated.Cookie,
+            ownerAuthenticated.Session.AntiforgeryToken);
+        using var contributeResponse = await ownerBrowserClient.SendAsync(contribute);
+        Assert.AreEqual(HttpStatusCode.OK, contributeResponse.StatusCode);
+        var contribution = await contributeResponse.Content
+            .ReadFromJsonAsync<BrowserCircleFilesContributionResponse>(ControlJson.Options);
+        Assert.IsNotNull(contribution);
         _ = await CreateSyncGrantAsync(
-            ownerClient,
+            relaunchedOwnerClient,
             circle.Circle.Id,
-            contribution.Id,
+            contribution.ContributionId,
             "0198d000-6100-7000-8000-000000000003",
             circle.Members.Single().Id);
-        var memberGrant = await CreateSyncGrantAsync(
-            ownerClient,
-            circle.Circle.Id,
-            contribution.Id,
-            "0198d000-6100-7000-8000-000000000004",
-            memberId);
-        await ProvisionSyncGrantCredentialAsync(
-            ownerClient,
-            circle.Circle.Id,
-            contribution.Id,
-            memberGrant.Id);
+
+        using var previewGrant = CreateJsonRequest(
+            HttpMethod.Post,
+            BrowserRoutes.CircleFilesGrantPreview(circle.Circle.Id),
+            new PreviewBrowserCircleFilesGrantRequest(
+                "Pilot Projects",
+                "Bob",
+                "read-write"),
+            GetOrigin(ownerBrowserBaseUri),
+            ownerAuthenticated.Cookie,
+            ownerAuthenticated.Session.AntiforgeryToken);
+        using var previewGrantResponse = await ownerBrowserClient.SendAsync(previewGrant);
+        var previewGrantJson = await previewGrantResponse.Content.ReadAsStringAsync();
+        Assert.AreEqual(HttpStatusCode.OK, previewGrantResponse.StatusCode, previewGrantJson);
+        var grantSummary = System.Text.Json.JsonSerializer
+            .Deserialize<BrowserCircleFilesGrantPreviewResponse>(
+                previewGrantJson,
+                ControlJson.Options);
+        Assert.IsNotNull(grantSummary);
+        Assert.AreEqual("Pilot Projects", grantSummary.FolderName);
+        Assert.AreEqual("Bob", grantSummary.MemberName);
+        Assert.AreEqual("Read/write", grantSummary.Access);
+        StringAssert.Contains(grantSummary.Summary, @"C:\BallsShares\Pilot");
+        AssertSafeBrowserGrantResponse(previewGrantJson);
+
+        using (var failedApply = CreateJsonRequest(
+                   HttpMethod.Post,
+                   BrowserRoutes.CircleFilesGrantApply(circle.Circle.Id),
+                   new { },
+                   GetOrigin(ownerBrowserBaseUri),
+                   ownerAuthenticated.Cookie,
+                   ownerAuthenticated.Session.AntiforgeryToken))
+        using (var failedApplyResponse = await ownerBrowserClient.SendAsync(failedApply))
+        {
+            var failedJson = await failedApplyResponse.Content.ReadAsStringAsync();
+            Assert.AreEqual(HttpStatusCode.Conflict, failedApplyResponse.StatusCode, failedJson);
+            AssertSafeBrowserGrantResponse(failedJson);
+        }
+
+        using var retryApply = CreateJsonRequest(
+            HttpMethod.Post,
+            BrowserRoutes.CircleFilesGrantApply(circle.Circle.Id),
+            new { },
+            GetOrigin(ownerBrowserBaseUri),
+            ownerAuthenticated.Cookie,
+            ownerAuthenticated.Session.AntiforgeryToken);
+        using var retryApplyResponse = await ownerBrowserClient.SendAsync(retryApply);
+        var retryJson = await retryApplyResponse.Content.ReadAsStringAsync();
+        Assert.AreEqual(HttpStatusCode.OK, retryApplyResponse.StatusCode, retryJson);
+        AssertSafeBrowserGrantResponse(retryJson);
+
+        using var staleApply = CreateJsonRequest(
+            HttpMethod.Post,
+            BrowserRoutes.CircleFilesGrantApply(circle.Circle.Id),
+            new { },
+            GetOrigin(ownerBrowserBaseUri),
+            ownerAuthenticated.Cookie,
+            ownerAuthenticated.Session.AntiforgeryToken);
+        using var staleApplyResponse = await ownerBrowserClient.SendAsync(staleApply);
+        var staleJson = await staleApplyResponse.Content.ReadAsStringAsync();
+        Assert.AreEqual(HttpStatusCode.Conflict, staleApplyResponse.StatusCode, staleJson);
+        AssertSafeBrowserGrantResponse(staleJson);
+
+        var ownerGrants = await relaunchedOwnerClient
+            .GetFromJsonAsync<MemberAccessGrantListResponse>(
+                ControlRoutes.CircleFilesAccessGrants(
+                    circle.Circle.Id,
+                    contribution.ContributionId),
+                ControlJson.Options);
+        Assert.IsNotNull(ownerGrants);
+        var memberGrant = ownerGrants.Grants.Single(value => value.MemberId == memberId);
+        Assert.AreEqual(2, ownerGrants.Grants.Count);
         Assert.IsNotNull(grantProvisioner.IssuedSecretDigest);
+        Assert.AreEqual(2, grantProvisioner.ApplyCount);
+        Assert.IsTrue(CryptographicOperations.FixedTimeEquals(
+            grantProvisioner.FirstAttemptSecretDigest!,
+            grantProvisioner.IssuedSecretDigest!));
 
         using var synchronize = CreateJsonRequest(
             HttpMethod.Post,
             BrowserRoutes.CircleFilesSync(circle.Circle.Id),
-            new SyncBrowserCircleFilesRequest(messageEndpoint),
+            new { },
             GetOrigin(browserBaseUri),
             authenticated.Cookie,
             authenticated.Session.AntiforgeryToken);
@@ -132,6 +299,21 @@ public sealed partial class BrowserAdapterSecurityTests
         Assert.AreEqual(1, synchronized.ImportedGrantCount);
         AssertSafeSyncResponse(syncJson);
 
+        using var unauthorizedPreview = CreateJsonRequest(
+            HttpMethod.Post,
+            BrowserRoutes.CircleFilesGrantPreview(circle.Circle.Id),
+            new PreviewBrowserCircleFilesGrantRequest(
+                "Pilot Projects",
+                "Bob",
+                "read-write"),
+            GetOrigin(browserBaseUri),
+            authenticated.Cookie,
+            authenticated.Session.AntiforgeryToken);
+        using var unauthorizedPreviewResponse = await browserClient.SendAsync(unauthorizedPreview);
+        var unauthorizedJson = await unauthorizedPreviewResponse.Content.ReadAsStringAsync();
+        Assert.AreEqual(HttpStatusCode.Forbidden, unauthorizedPreviewResponse.StatusCode);
+        AssertSafeBrowserGrantResponse(unauthorizedJson);
+
         using var contributionsRequest = new HttpRequestMessage(
             HttpMethod.Get,
             BrowserRoutes.CircleFilesContributions(circle.Circle.Id));
@@ -141,11 +323,13 @@ public sealed partial class BrowserAdapterSecurityTests
         var contributions = await contributionsResponse.Content
             .ReadFromJsonAsync<CircleFilesContributionListResponse>(ControlJson.Options);
         Assert.IsNotNull(contributions);
-        Assert.AreEqual(contribution.Id, contributions.Contributions.Single().Id);
+        Assert.AreEqual(contribution.ContributionId, contributions.Contributions.Single().Id);
 
         using var grantsRequest = new HttpRequestMessage(
             HttpMethod.Get,
-            BrowserRoutes.CircleFilesAccessGrants(circle.Circle.Id, contribution.Id));
+            BrowserRoutes.CircleFilesAccessGrants(
+                circle.Circle.Id,
+                contribution.ContributionId));
         grantsRequest.Headers.TryAddWithoutValidation("Cookie", authenticated.Cookie);
         using var grantsResponse = await browserClient.SendAsync(grantsRequest);
         Assert.AreEqual(HttpStatusCode.OK, grantsResponse.StatusCode);
@@ -155,42 +339,67 @@ public sealed partial class BrowserAdapterSecurityTests
         Assert.AreEqual(memberGrant.Id, grants.Grants.Single().Id);
         Assert.AreEqual(memberId, grants.Grants.Single().MemberId);
 
-        var mappingRoute = BrowserRoutes.CircleFilesMemberMapping(
-            circle.Circle.Id,
-            contribution.Id,
-            memberGrant.Id);
-        using var previewRequest = CreateJsonRequest(
-            HttpMethod.Post,
-            mappingRoute + "/preview",
-            new PreviewCircleFilesMemberMappingRequest(privateAddress.ToString(), "P"),
-            GetOrigin(browserBaseUri),
-            authenticated.Cookie,
-            authenticated.Session.AntiforgeryToken);
-        using var previewResponse = await browserClient.SendAsync(previewRequest);
-        var previewJson = await previewResponse.Content.ReadAsStringAsync();
-        Assert.AreEqual(HttpStatusCode.OK, previewResponse.StatusCode, previewJson);
-        var plan = System.Text.Json.JsonSerializer
-            .Deserialize<CircleFilesMemberMappingPlanResponse>(previewJson, ControlJson.Options);
-        Assert.IsNotNull(plan);
-        Assert.AreEqual("P", plan.DriveLetter);
-        AssertSafeSyncResponse(previewJson);
+        memberMapper.MapFailure = new CircleFilesHostingException(
+            "mapping_endpoint_unreachable",
+            "injected endpoint detail");
+        using (var offlineOpenRequest = CreateJsonRequest(
+                   HttpMethod.Post,
+                   BrowserRoutes.CircleFilesOpen(circle.Circle.Id),
+                   new { },
+                   GetOrigin(browserBaseUri),
+                   authenticated.Cookie,
+                   authenticated.Session.AntiforgeryToken))
+        using (var offlineOpenResponse = await browserClient.SendAsync(offlineOpenRequest))
+        {
+            var offlineOpenJson = await offlineOpenResponse.Content.ReadAsStringAsync();
+            Assert.AreEqual(HttpStatusCode.BadGateway, offlineOpenResponse.StatusCode, offlineOpenJson);
+            StringAssert.Contains(offlineOpenJson, "shared_folder_offline");
+            AssertSafeOpenResponse(offlineOpenJson);
+            Assert.IsNull(memberMapper.MappedDrive);
+            Assert.IsEmpty(memberLauncher.DriveLetters);
+        }
 
-        using var mappingRequest = CreateJsonRequest(
+        memberMapper.MapFailure = null;
+        memberLauncher.Fail = true;
+        using var failedOpenRequest = CreateJsonRequest(
             HttpMethod.Post,
-            mappingRoute + "/map",
-            new ApplyCircleFilesMemberMappingRequest(privateAddress.ToString(), "P", plan.PlanId),
+            BrowserRoutes.CircleFilesOpen(circle.Circle.Id),
+            new { },
             GetOrigin(browserBaseUri),
             authenticated.Cookie,
             authenticated.Session.AntiforgeryToken);
-        using var mappingResponse = await browserClient.SendAsync(mappingRequest);
-        var mappingJson = await mappingResponse.Content.ReadAsStringAsync();
-        Assert.AreEqual(HttpStatusCode.OK, mappingResponse.StatusCode, mappingJson);
-        AssertSafeSyncResponse(mappingJson);
+        using var failedOpenResponse = await browserClient.SendAsync(failedOpenRequest);
+        var failedOpenJson = await failedOpenResponse.Content.ReadAsStringAsync();
+        Assert.AreEqual(HttpStatusCode.BadGateway, failedOpenResponse.StatusCode, failedOpenJson);
+        StringAssert.Contains(failedOpenJson, "explorer_launch_failed");
+        AssertSafeOpenResponse(failedOpenJson);
+        Assert.AreEqual("P", memberMapper.MappedDrive);
+
+        memberLauncher.Fail = false;
+        using var openRequest = CreateJsonRequest(
+            HttpMethod.Post,
+            BrowserRoutes.CircleFilesOpen(circle.Circle.Id),
+            new { },
+            GetOrigin(browserBaseUri),
+            authenticated.Cookie,
+            authenticated.Session.AntiforgeryToken);
+        using var openResponse = await browserClient.SendAsync(openRequest);
+        var openJson = await openResponse.Content.ReadAsStringAsync();
+        Assert.AreEqual(HttpStatusCode.OK, openResponse.StatusCode, openJson);
+        var opened = System.Text.Json.JsonSerializer.Deserialize<BrowserCircleFilesOpenResponse>(
+            openJson,
+            ControlJson.Options);
+        Assert.IsNotNull(opened);
+        Assert.AreEqual("opened", opened.Status);
+        Assert.AreEqual("Pilot Projects", opened.FolderName);
+        AssertSafeOpenResponse(openJson);
         Assert.IsNotNull(memberMapper.MappedSecretDigest);
         Assert.IsTrue(CryptographicOperations.FixedTimeEquals(
             grantProvisioner.IssuedSecretDigest,
             memberMapper.MappedSecretDigest));
         Assert.AreEqual(memberId, memberMapper.MappedMemberId);
+        Assert.AreEqual(2, memberMapper.MapCount);
+        CollectionAssert.AreEqual(new[] { "P", "P" }, memberLauncher.DriveLetters.ToArray());
     }
 
     private static IPAddress? FindOperationalPrivateAddress()
@@ -223,22 +432,6 @@ public sealed partial class BrowserAdapterSecurityTests
         return endpoint.ToString();
     }
 
-    private static async Task<CircleFilesContributionResponse> CreateSyncContributionAsync(
-        HttpClient owner,
-        string circleId)
-    {
-        using var response = await owner.PostAsJsonAsync(
-            ControlRoutes.CircleFilesContributions(circleId),
-            new CreateCircleFilesContributionRequest(
-                "0198d000-6100-7000-8000-000000000002",
-                "Pilot Projects"),
-            ControlJson.Options);
-        Assert.AreEqual(HttpStatusCode.Created, response.StatusCode);
-        return await response.Content.ReadFromJsonAsync<CircleFilesContributionResponse>(
-            ControlJson.Options)
-            ?? throw new AssertFailedException("Circle Files contribution was empty.");
-    }
-
     private static async Task<MemberAccessGrantResponse> CreateSyncGrantAsync(
         HttpClient owner,
         string circleId,
@@ -255,28 +448,6 @@ public sealed partial class BrowserAdapterSecurityTests
             ?? throw new AssertFailedException("Circle Files member grant was empty.");
     }
 
-    private static async Task ProvisionSyncGrantCredentialAsync(
-        HttpClient owner,
-        string circleId,
-        string contributionId,
-        string grantId)
-    {
-        const string folder = @"C:\BallsShares\Pilot";
-        using var previewResponse = await owner.PostAsJsonAsync(
-            ControlRoutes.CircleFilesGrantCredentialPreview(circleId, contributionId, grantId),
-            new PreviewCircleFilesGrantCredentialRequest(folder),
-            ControlJson.Options);
-        Assert.AreEqual(HttpStatusCode.OK, previewResponse.StatusCode);
-        var preview = await previewResponse.Content
-            .ReadFromJsonAsync<CircleFilesGrantCredentialPlanResponse>(ControlJson.Options);
-        Assert.IsNotNull(preview);
-        using var applyResponse = await owner.PostAsJsonAsync(
-            ControlRoutes.CircleFilesGrantCredentialApply(circleId, contributionId, grantId),
-            new ApplyCircleFilesGrantCredentialRequest(folder, preview.PlanId),
-            ControlJson.Options);
-        Assert.AreEqual(HttpStatusCode.OK, applyResponse.StatusCode);
-    }
-
     private static void AssertSafeSyncResponse(string response)
     {
         foreach (var forbidden in new[]
@@ -288,9 +459,76 @@ public sealed partial class BrowserAdapterSecurityTests
         }
     }
 
+    private static void AssertSafeBrowserGrantResponse(string response)
+    {
+        foreach (var forbidden in new[]
+                 {
+                     "provider", "account", "password", "plan", "secret", "signature",
+                     "transcript", "authorization", "address", "port", "grantId", "memberId",
+                     "contributionId",
+                 })
+        {
+            Assert.IsFalse(
+                response.Contains(forbidden, StringComparison.OrdinalIgnoreCase),
+                forbidden);
+        }
+    }
+
+    private static void AssertSafeOpenResponse(string response)
+    {
+        foreach (var forbidden in new[]
+                 {
+                     "provider", "account", "password", "plan", "secret", "signature",
+                     "transcript", "authorization", "address", "port", "grantId", "memberId",
+                     "contributionId", "endpoint", "driveLetter", "uncPath", "credentialTarget",
+                 })
+        {
+            Assert.IsFalse(
+                response.Contains(forbidden, StringComparison.OrdinalIgnoreCase),
+                forbidden);
+        }
+    }
+
+    private sealed class SyncHostProvisioner : ICircleFilesHostProvisioner
+    {
+        public ValueTask<CircleFilesHostPlan> PreviewAsync(
+            CircleFilesHostRequest request,
+            CancellationToken cancellationToken)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            return ValueTask.FromResult(CreatePlan(request));
+        }
+
+        public ValueTask<CircleFilesHostApplyResult> ApplyAsync(
+            CircleFilesHostRequest request,
+            string expectedPlanId,
+            CancellationToken cancellationToken)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            var plan = CreatePlan(request);
+            Assert.AreEqual(expectedPlanId, plan.PlanId);
+            return ValueTask.FromResult(new CircleFilesHostApplyResult(
+                CircleFilesHostApplyStatus.Applied,
+                plan));
+        }
+
+        private static CircleFilesHostPlan CreatePlan(CircleFilesHostRequest request) => new(
+            1,
+            new string('a', 64),
+            CircleFilesReadinessProviders.WindowsSmb311,
+            request.FolderPath,
+            "balls-pilot",
+            "Balls-SMB-pilot",
+            new string('b', 64),
+            true,
+            ["Preserve and host the selected folder."]);
+    }
+
     private sealed class SyncGrantCredentialProvisioner : ICircleFilesGrantCredentialProvisioner
     {
         internal byte[]? IssuedSecretDigest { get; private set; }
+        internal byte[]? FirstAttemptSecretDigest { get; private set; }
+        internal int ApplyCount { get; private set; }
 
         public ValueTask<CircleFilesGrantCredentialPlan> PreviewAsync(
             CircleFilesGrantCredentialRequest request,
@@ -310,7 +548,16 @@ public sealed partial class BrowserAdapterSecurityTests
             var plan = CreatePlan(request);
             Assert.AreEqual(expectedPlanId, plan.PlanId);
             Assert.IsTrue(secret.Length >= 24);
-            IssuedSecretDigest = SHA256.HashData(secret.Span);
+            ApplyCount += 1;
+            var digest = SHA256.HashData(secret.Span);
+            if (ApplyCount == 1)
+            {
+                FirstAttemptSecretDigest = digest;
+                throw new CircleFilesHostingException(
+                    "grant_apply_failed",
+                    "Provider account password plan address port must stay internal.");
+            }
+            IssuedSecretDigest = digest;
             return ValueTask.FromResult(new CircleFilesGrantCredentialApplyResult(
                 CircleFilesGrantCredentialApplyStatus.Applied,
                 plan));
@@ -337,6 +584,12 @@ public sealed partial class BrowserAdapterSecurityTests
 
         internal string? MappedMemberId { get; private set; }
 
+        internal string? MappedDrive { get; private set; }
+
+        internal int MapCount { get; private set; }
+
+        internal CircleFilesHostingException? MapFailure { get; set; }
+
         public ValueTask<CircleFilesMemberMappingPlan> PreviewAsync(
             CircleFilesMemberMappingRequest request,
             CancellationToken cancellationToken)
@@ -351,7 +604,7 @@ public sealed partial class BrowserAdapterSecurityTests
         {
             cancellationToken.ThrowIfCancellationRequested();
             return ValueTask.FromResult(new CircleFilesMemberMappingInspection(
-                "mapped",
+                request.DriveLetter == MappedDrive ? "mapped" : "unmapped",
                 CreatePlan(request)));
         }
 
@@ -365,9 +618,20 @@ public sealed partial class BrowserAdapterSecurityTests
             var plan = CreatePlan(request);
             Assert.AreEqual(expectedPlanId, plan.PlanId);
             Assert.IsTrue(secret.Length >= 24);
+            if (MapFailure is not null)
+            {
+                throw MapFailure;
+            }
             MappedSecretDigest = SHA256.HashData(secret.Span);
             MappedMemberId = request.MemberId;
-            return ValueTask.FromResult(new CircleFilesMemberMappingResult("mapped", plan));
+            MapCount++;
+            var status = MappedDrive is null ? "mapped" : "already-mapped";
+            if (MappedDrive is not null)
+            {
+                Assert.AreEqual(MappedDrive, request.DriveLetter);
+            }
+            MappedDrive = request.DriveLetter;
+            return ValueTask.FromResult(new CircleFilesMemberMappingResult(status, plan));
         }
 
         public ValueTask<CircleFilesMemberMappingResult> UnmapAsync(
@@ -380,7 +644,7 @@ public sealed partial class BrowserAdapterSecurityTests
                 CreatePlan(request)));
         }
 
-        private static CircleFilesMemberMappingPlan CreatePlan(
+        private CircleFilesMemberMappingPlan CreatePlan(
             CircleFilesMemberMappingRequest request) =>
             new(
                 1,
@@ -391,7 +655,26 @@ public sealed partial class BrowserAdapterSecurityTests
                 request.DriveLetter,
                 request.CircleName,
                 new string('f', 64),
-                ["P"],
+                MappedDrive is null ? ["M", "P"] : ["M"],
                 ["Map the exact authorized share."]);
+    }
+
+    private sealed class SyncLocationLauncher : ICircleFilesLocationLauncher
+    {
+        internal List<string> DriveLetters { get; } = [];
+        internal bool Fail { get; set; }
+
+        public ValueTask OpenAsync(
+            CircleFilesMappedLocation location,
+            CancellationToken cancellationToken)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            DriveLetters.Add(location.DriveLetter);
+            return Fail
+                ? ValueTask.FromException(new CircleFilesHostingException(
+                    "explorer_launch_failed",
+                    "injected native detail"))
+                : ValueTask.CompletedTask;
+        }
     }
 }

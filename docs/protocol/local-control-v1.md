@@ -2,8 +2,9 @@
 
 **Status:** implemented through provider-neutral Circle Files contribution and Access Grant
 definition, read-only Windows SMB readiness, dedicated Windows folder hosting, limited per-grant
-Windows SMB credential provisioning, exact unelevated Windows Explorer mapping, generation-bound
-grant revocation, and ownership-proven provider cleanup.
+Windows SMB credential provisioning, exact unelevated Windows Explorer mapping, one guided
+Member open-and-launch operation, generation-bound grant revocation, and ownership-proven provider
+cleanup.
 
 This is the versioned, machine-local contract between `balls` or another local integration and
 `ballsd`. It is not a Node-to-Node or Circle replication protocol.
@@ -21,6 +22,9 @@ This is the versioned, machine-local contract between `balls` or another local i
   protected XDG runtime location or an effective-user fallback. macOS uses a short directory below
   the current user's canonical private temporary location.
 - `--pipe-name` selects an explicit pipe for development and testing.
+- The installed Windows launcher supplies `--automatic-private-listeners`. This does not change
+  ordinary developer invocations or the explicit `--admission-listen` and `--message-listen`
+  diagnostics. Automatic selection never changes the loopback-only browser binding.
 - Maximum request body: 32 KiB. Default client timeout: 10 seconds.
 
 The transports live in outer host adapters and never become Core dependencies. Future platforms
@@ -118,10 +122,12 @@ material. Selecting JSON output for this interactive command is a usage error.
 | Circle Node | `id` (UUID), `displayName`, `joinedAtUtc` |
 | Circle details | `circle` (Circle summary), `members` (Member array), `nodes` (Circle Node array) |
 | Issued invitation | `circleId`, `invitationId`, `expiresAtUtc`, `package` (canonical JSON string) |
-| Browser invitation | issued invitation fields plus explicit private IPv4 admission `endpoint` and authenticated Circle Files `syncEndpoint` |
+| Browser invitation | issued invitation fields plus outer `provider`, private IPv4 admission `endpoint`, and authenticated Circle Files `syncEndpoint`; the signed `package` is unchanged |
 | Browser Circle viewer | local `memberId` and exact Circle `role` |
 | Browser Circle Files sync | `circleId` and `importedGrantCount`; no provider credential or authorization proof |
-| Join request | `package`, `endpoint` (numeric private/loopback IP and port), `memberDisplayName` |
+| Browser Circle Files open | `opened`, the human folder name, and a plain confirmation; no endpoint, drive, grant, plan, provider, credential, or mapping projection |
+| Control/CLI join request | `package`, `endpoint` (numeric private/loopback IP and port), `memberDisplayName` |
+| Browser join request | exact signed `package`, outer `provider`, `admissionEndpoint`, `syncEndpoint`, and `memberDisplayName` |
 | Redemption | `circleId`, `invitationId`, `redemptionId`, `status` (`accepted`) |
 | Circle Files provider | `id`, `nodeId`; provider implementation and credentials are absent |
 | File Contribution | `id`, `circleId`, provider, `displayName`, lifecycle, generation, created time, authorizing Member/generation/time |
@@ -224,8 +230,10 @@ balls files contribution create --circle <circle-id> --name <name> [--request-id
 
 Validates the persisted Contribution and its current Owner/root authorization, runs the complete
 readiness inspection, and accepts `{ "folderPath": "C:\\BallsCircleFiles\\MyCircle" }`. The path
-must canonicalize to an absolute fixed-local location with an existing parent, be new or empty, and stay outside roots,
-Windows/profile roots, files, network locations, and any existing reparse traversal.
+must canonicalize to an absolute fixed-local location with an existing parent and stay outside
+roots, Windows/profile roots, files, network locations, and any existing reparse traversal. It may
+be new or an existing folder containing ordinary user files; foreign ownership markers and
+reserved Balls hosting metadata are refused.
 
 Success returns `200 OK` with a version 1 deterministic plan containing its 64-character plan ID,
 canonical path, exact share/firewall/ownership IDs, existing-target flag, and ordered actions.
@@ -430,31 +438,95 @@ Circle returns `404 Not Found`.
 The browser listener serves the bundled production application and only these `/browser/v1`
 routes: session exchange, status, Circle list/create/details, exact local viewer identity, Owner
 invitation creation, signed invitation admission, ordered Circle message history, authenticated
-Circle Files synchronization, safe contribution/Access Grant lists, and the four mapping
-operations. The browser control plane remains narrower than `/control/v1`; control routes return
-`404` on TCP and browser routes return `404` over IPC. Readiness, host provisioning, grant creation,
-grant credential provisioning, revocation, and infrastructure cleanup remain CLI/local-control
-only. Browser mapping calls the same `CircleFilesMemberMappingApplication` as IPC; no SMB password
-or protected secret is returned to or stored by JavaScript.
+Circle Files synchronization, Owner folder selection and contribution, safe contribution/Access
+Grant lists, and one high-level Member open operation. The browser control plane remains narrower than
+`/control/v1`; control routes return `404` on TCP and browser routes return `404` over IPC.
+Readiness, arbitrary host provisioning, grant creation, grant credential provisioning, revocation,
+infrastructure cleanup, and detailed mapping operations remain CLI/local-control only. Browser
+contribution and guided open call the same application and provider behavior as IPC; no SMB
+password, authorization proof, share name, firewall rule, endpoint, drive, plan, or protected
+secret is returned to or stored by JavaScript.
 
 `GET /browser/v1/circles/{circleId}/viewer` returns the current local Member ID and role from
-persisted Circle membership rather than inferring ownership from participant ordering.
+persisted Circle membership rather than inferring ownership from participant ordering. The open
+workspace visibly names both the active Circle and that exact local Member. An Owner can refresh
+the workspace's joined-Member choices in place through ordinary browser UI after another person
+joins; daemon or browser relaunch and technical controls are not part of that discovery flow.
 `POST /browser/v1/circles/{circleId}/invitations` is Owner-authorized, preserves the existing
-signed, single-use invitation package unchanged, and adds separate numeric private IPv4 admission
-and authenticated-files synchronization endpoints. The browser wraps those public values in a
-bounded copyable invitation envelope. `POST /browser/v1/circles/join` submits the exact package,
-admission endpoint, and new Member display name to the existing signed admission behavior.
+signed, single-use invitation package unchanged, and accepts only `validForMinutes`; the Owner
+does not submit an address, port, provider, or other infrastructure value. The response adds the
+actual bound numeric private IPv4 admission and authenticated-files synchronization endpoints,
+which the browser wraps in a bounded copyable invitation envelope. Listener selection or binding
+must succeed before invitation state is created. An unavailable or ambiguous private network
+returns a bounded `409` while the loopback workspace remains usable. `POST
+/browser/v1/circles/join` submits the exact package, outer provider, admission/synchronization
+endpoints, and new Member display name to the existing signed admission behavior. After signed
+admission succeeds, `ballsd` commits that unsigned outer connection with membership under the
+local OS protection scheme. It is local transport/provider state, never Circle identity or an
+addition to the signed invitation.
 
-`POST /browser/v1/circles/{circleId}/files/sync` accepts only a private IPv4 endpoint and returns
-the Circle ID plus the number of authorized grants imported. Provider credentials remain inside
-the authenticated daemon-to-daemon channel and the recipient's protected local credential store;
-they never occur in the browser request or response.
+`POST /browser/v1/circles/{circleId}/files/sync` has no request body. It resolves the saved
+provider and synchronization endpoint from protected local Node state and returns the Circle ID
+plus the number of authorized grants imported. `POST
+/browser/v1/circles/{circleId}/files/open` also has no request body. `ballsd` loads the saved private
+Files host, selects the single protected active grant for the local Member, revalidates any exact
+owned D-Z mapping, otherwise chooses `P:` or the first supported free letter, applies the exact
+mapping idempotently, and asks the platform adapter to open `<drive>:\`. The detailed control/CLI
+mapping routes retain their explicit diagnostic endpoint/drive/plan contract and are not exposed
+on the browser listener. Provider credentials and mapping projections remain inside daemon state
+and authenticated daemon-to-daemon channels and never occur in browser requests or responses.
+
+Mapping success is committed independently of File Explorer launch. A launch failure returns the
+typed bounded `explorer_launch_failed` error and preserves the valid mapping for the same-action
+retry. Offline hosts, incompatible protected state, collisions, mapping failures, and unavailable
+drives are projected as bounded product language without reflecting native errors or private
+connection data.
+
+The web application never reads or writes Web Storage for admission or Circle Files connection
+state. A fresh browser session and a packaged daemon relaunch reconstruct the Member Capability
+from the persisted Circle plus protected connection. Unreachable owners return bounded `502`
+errors without changing that connection, and the guided panel retries with capped backoff or lets
+the person choose **Check again**. Missing, corrupt, or mismatched saved connections fail closed
+with bounded `409` errors and do not reflect provider or endpoint values.
 
 Authenticated `GET /browser/v1/circles/{circleId}/files/contributions` and
 `GET /browser/v1/circles/{circleId}/files/contributions/{contributionId}/grants` return safe list
 representations and stable ordering. An ordinary Member receives only their own authorized grants;
-an Owner may inspect the Circle's complete locally known grant list. Other mutation methods are
-not mapped.
+an Owner may inspect the Circle's complete locally known grant list.
+
+Owner-authorized `POST
+/browser/v1/circles/{circleId}/files/contributions/folder-selection` opens the normal Windows folder
+picker in the unelevated daemon and returns either `selected` with an opaque selection ID, the exact
+local path, and human folder name or `cancelled` with no selection. The daemon retains that picker
+result for at most 15 minutes, bound to the authenticated browser session and Circle. Cancellation
+creates no Contribution and performs no host mutation. `POST
+/browser/v1/circles/{circleId}/files/contributions/folder-apply` accepts only a canonical idempotency
+request ID plus the opaque selection ID; it never accepts a browser-supplied path or display name.
+Missing, expired, replaced, cross-session, or request-ID-substituted selections return a bounded
+`409`. Apply creates the signed Contribution, previews the exact server-held picker path, and applies
+it through the existing narrow helper. Its response contains only the public Contribution ID, human
+name, canonical folder path, and `applied` or `already-applied`; internal plans and infrastructure
+identifiers remain hidden. Other Circle Files mutation methods are not mapped. A successful apply
+also binds that Contribution to the exact canonical hosted folder, provider, and hosting Node in
+daemon state. An exact retry must reproduce that binding; it cannot silently substitute a different
+folder, request identity, session, or host.
+
+Owner-only `POST /browser/v1/circles/{circleId}/files/grant/preview` accepts only a contributed
+folder name, a joined human Member name, and `Read/write`. `ballsd` uniquely resolves the
+Contribution, Member, hosting Node, provider, and exact canonical hosted path; it rejects missing
+or ambiguous names. The response contains only the human folder name/path, Member name, access,
+and approval summary. It never contains an object ID, provider/account detail, endpoint,
+credential, password, plan, or approval token. The approval is held for at most 15 minutes inside
+the authenticated browser session.
+
+`POST /browser/v1/circles/{circleId}/files/grant/apply` has no request body. It re-resolves and
+revalidates the exact Owner authorization, Contribution generation, joined human Member, hosted
+folder binding, and approval fingerprint before creating or reusing the equivalent signed Access
+Grant. It then uses the existing narrow Windows credential preview/apply behavior. Success consumes
+the browser approval; a changed or expired approval returns a bounded `409` and requires a new
+preview. A helper authentication or partial credential failure keeps the same protected pending
+credential and approval so the Owner can safely retry without minting a second password, account,
+or Access Grant. Browser status remains human-only on success and failure.
 
 `POST /browser/v1/session` exchanges the launch capability once. Success sets the
 `__Host-balls-session` cookie with `HttpOnly`, `Secure`, `SameSite=Strict`, and `Path=/`, and returns
@@ -485,7 +557,7 @@ Handled application errors use this shape:
 | 400 | `owner_display_name_required` |
 | 400 | `owner_display_name_too_long` |
 | 400 | `invalid_circle_id` |
-| 400 | `invalid_invitation_validity`, `invalid_admission_endpoint`, `member_display_name`, `malformed`, `forged`, `expired`, `not_yet_valid`, `revoked`, `wrong_circle`, `wrong_node`, `downgraded`, `unsupported_version`, `unsupported_suite`, `unauthorized_issuer`, `stale_authority_state` |
+| 400 | `invalid_invitation_validity`, `invalid_admission_endpoint`, `invalid_circle_connection`, `unsupported_circle_connection`, `member_display_name`, `malformed`, `forged`, `expired`, `not_yet_valid`, `revoked`, `wrong_circle`, `wrong_node`, `downgraded`, `unsupported_version`, `unsupported_suite`, `unauthorized_issuer`, `stale_authority_state` |
 | 400 | `invalid_message_endpoint`, `invalid_message_text`, `unauthorized`, `oversized` |
 | 400 | `contribution_name_required`, `contribution_name_too_long`, `invalid_member_access`, `circle_files_owner_required`, `circle_files_authority_unavailable`, `circle_files_authorization_failed` |
 | 400 | `hosting_path_invalid`, `hosting_authorization_invalid`, `windows_required` |
@@ -496,26 +568,30 @@ Handled application errors use this shape:
 | 404 | `circle_files_contribution_not_found`, `member_not_found` |
 | 409 | `creation_request_conflict` |
 | 409 | `admission_attempt_conflict` |
+| 409 | `circle_connection_missing`, `invalid_circle_connection`, `circle_connection_conflict` |
+| 409 | `private_network_unavailable`, `private_network_ambiguous`, `private_listeners_unavailable` |
 | 409 | `message_request_conflict`, `conflict` |
 | 409 | `circle_files_contribution_request_conflict`, `circle_files_grant_request_conflict`, `circle_files_grant_exists`, `circle_files_grant_generation_changed` |
-| 409 | `hosting_plan_changed`, `hosting_prerequisites_not_ready`, `hosting_folder_not_empty`, `hosting_ownership_collision`, `hosting_resource_collision`, `hosting_helper_unavailable`, `hosting_helper_authentication_failed`, `hosting_helper_invalid_response`, `hosting_identity_unavailable`, `hosting_consent_cancelled`, `hosting_consent_timeout`, `hosting_apply_failed`, `hosting_recovery_incomplete` |
+| 409 | `folder_picker_failed`, `hosting_plan_changed`, `hosting_prerequisites_not_ready`, `hosting_ownership_collision`, `hosting_resource_collision`, `hosting_helper_unavailable`, `hosting_helper_authentication_failed`, `hosting_helper_invalid_response`, `hosting_identity_unavailable`, `hosting_consent_cancelled`, `hosting_consent_timeout`, `hosting_apply_failed`, `hosting_recovery_incomplete` |
 | 409 | `grant_plan_changed`, `grant_cleanup_plan_changed`, `host_removal_plan_changed`, `grant_resource_collision`, `grant_apply_failed`, `circle_files_provider_credential_conflict`, `circle_files_grants_remain`, `circle_files_provider_credentials_remain` |
 | 409 | `mapping_plan_changed`, `mapping_drive_collision`, `mapping_credential_collision`, `mapping_label_collision`, `mapping_resource_collision`, `mapping_share_identity_mismatch`, `mapping_recovery_incomplete` |
+| 409 | browser `circle_files_capability_unavailable`, `circle_files_capability_ambiguous`, `mapping_drive_unavailable`, `shared_folder_mapping_conflict`, `shared_folder_open_failed` |
 | 409 | `replayed` |
-| 502 | `connection_failed`, authenticated remote-channel errors |
+| 502 | `connection_failed`, authenticated remote-channel errors, browser `shared_folder_offline`, `explorer_launch_failed` |
 
 Framework-level rejection, such as malformed JSON or a request rejected before endpoint handling,
 is not guaranteed to use the application error shape.
 
 ## Explicit non-goals
 
-v1 does not expose message-authoring, Circle Files readiness, host provisioning, grant creation,
-grant-credential provisioning, revocation, or infrastructure cleanup to the browser. The local API
-and CLI implement the exact dedicated-host operation and one limited account/ACL operation per
-Access Grant. The browser supplies explicit invitation/join, authenticated Member-only grant
-synchronization, and guided Explorer mapping over the same application behavior.
+v1 does not expose message-authoring, Circle Files readiness, arbitrary host provisioning,
+revocation, or infrastructure cleanup to the browser. The local API and CLI retain the detailed
+hosting controls and one limited account/ACL operation per Access Grant. The browser supplies the
+single Owner-approved existing-folder hosting and human Member grant journey, explicit
+invitation/join, authenticated Member-only grant synchronization, and guided Explorer mapping and
+launch over the same application behavior.
 They do not enable SMB features or policy, start services, change network profiles or global firewall policy,
-adopt existing folders with content, delete user files, activate/revoke Contributions, rotate
+delete user files, activate/revoke Contributions, rotate
 provider credentials, securely erase protected recovery material, synchronize or replicate content,
 add version history/trash, discover peers, replace occupied drive letters, expose or reuse a
 credential for another Member, or add automatic/multiple-Anchor behavior. Guided mapping may

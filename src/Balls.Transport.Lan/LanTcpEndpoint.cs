@@ -41,6 +41,21 @@ public static class LanTcpEndpoint
         }
     }
 
+    public static bool IsPrivateIPv4(IPAddress address)
+    {
+        ArgumentNullException.ThrowIfNull(address);
+        if (address.AddressFamily != AddressFamily.InterNetwork || IPAddress.IsLoopback(address))
+        {
+            return false;
+        }
+
+        var bytes = address.GetAddressBytes();
+        return bytes[0] == 10
+            || (bytes[0] == 172 && bytes[1] is >= 16 and <= 31)
+            || (bytes[0] == 192 && bytes[1] == 168)
+            || (bytes[0] == 169 && bytes[1] == 254);
+    }
+
     private static bool IsPrivateOrLoopback(IPAddress address)
     {
         if (IPAddress.IsLoopback(address))
@@ -56,10 +71,7 @@ public static class LanTcpEndpoint
         var bytes = address.GetAddressBytes();
         if (address.AddressFamily == AddressFamily.InterNetwork)
         {
-            return bytes[0] == 10
-                || (bytes[0] == 172 && bytes[1] is >= 16 and <= 31)
-                || (bytes[0] == 192 && bytes[1] == 168)
-                || (bytes[0] == 169 && bytes[1] == 254);
+            return IsPrivateIPv4(address);
         }
 
         return address.AddressFamily == AddressFamily.InterNetworkV6

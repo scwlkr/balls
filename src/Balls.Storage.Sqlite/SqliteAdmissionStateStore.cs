@@ -548,6 +548,14 @@ public sealed partial class SqliteLocalStateStore
                             "The completed local admission has a different signed response.");
                     }
 
+                    if (commit.Connection is not null)
+                    {
+                        await InsertOrValidateCircleConnectionAsync(
+                            commit.Connection,
+                            transaction,
+                            token).ConfigureAwait(false);
+                    }
+
                     await transaction.CommitAsync(token).ConfigureAwait(false);
                     return;
                 }
@@ -601,6 +609,14 @@ public sealed partial class SqliteLocalStateStore
                 foreach (var nodeSecurity in commit.NodeSecurity)
                 {
                     await InsertNodeSecurityAsync(nodeSecurity, transaction, token).ConfigureAwait(false);
+                }
+
+                if (commit.Connection is not null)
+                {
+                    await InsertOrValidateCircleConnectionAsync(
+                        commit.Connection,
+                        transaction,
+                        token).ConfigureAwait(false);
                 }
 
                 using (var complete = connection.CreateCommand())
@@ -1139,6 +1155,8 @@ public sealed partial class SqliteLocalStateStore
             || commit.LocalMemberCredential.Role != IdentityKeyRole.Member
             || !IdentityCryptography.IsValidCredential(commit.LocalMemberCredential)
             || commit.NodeSecurity.Count != commit.Circle.Nodes.Count
+            || commit.Connection is not null
+                && commit.Connection.CircleId != commit.Circle.Circle.Id
             || commit.JoinedAtUtc.Offset != TimeSpan.Zero)
         {
             throw new ArgumentException("The joined Circle commit is invalid.", nameof(commit));

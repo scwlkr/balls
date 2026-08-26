@@ -1,0 +1,52 @@
+{
+  "schemaVersion": 1,
+  "channel": "alpha",
+  "release": {
+    "tag": "0.1.0-alpha.2",
+    "commit": "66b94a3fce9485ce448736f3dc996f6611f1e742",
+    "publishedAt": "2026-08-19T21:21:40Z",
+    "url": "https://github.com/scwlkr/balls/releases/tag/0.1.0-alpha.2",
+    "unsigned": true
+  },
+  "platforms": {
+    "windows-x64": {
+      "delivery": "package",
+      "identity": {
+        "product": "Balls",
+        "version": "0.1.0-alpha.2",
+        "commit": "66b94a3fce9485ce448736f3dc996f6611f1e742",
+        "platform": "windows",
+        "architecture": "x64"
+      },
+      "runtime": {
+        "kind": "framework-dependent",
+        "architecture": "x64",
+        "frameworks": [
+          {
+            "name": "Microsoft.NETCore.App",
+            "major": 10
+          },
+          {
+            "name": "Microsoft.AspNetCore.App",
+            "major": 10
+          }
+        ]
+      },
+      "archive": {
+        "name": "balls-0.1.0-alpha.2-canary-windows-x64-66b94a3fce94.zip",
+        "url": "https://github.com/scwlkr/balls/releases/download/0.1.0-alpha.2/balls-0.1.0-alpha.2-canary-windows-x64-66b94a3fce94.zip",
+        "sha256": "59990283cf05a971ea3bbcdbcf06797b9270f7b5a89050ee849db5344f5e6396"
+      },
+      "checksum": {
+        "name": "balls-0.1.0-alpha.2-canary-windows-x64-66b94a3fce94.zip.sha256",
+        "url": "https://github.com/scwlkr/balls/releases/download/0.1.0-alpha.2/balls-0.1.0-alpha.2-canary-windows-x64-66b94a3fce94.zip.sha256",
+        "sha256": "f72835bbad555940f2ec195113069fcebc9f8ec2e1c492f2501df2bc45a9e52b"
+      },
+      "installer": {
+        "name": "Install-BallsCanary.ps1",
+        "url": "https://github.com/scwlkr/balls/releases/download/0.1.0-alpha.2/Install-BallsCanary.ps1",
+        "sha256": "bef520f4d8cdd71e4af50707f209059740c1d962e84be12572c65ba4dd8b88d7"
+      }
+    }
+  }
+}

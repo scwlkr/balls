@@ -4,7 +4,10 @@ using System.Net.Sockets;
 using System.Text.Json.Nodes;
 using Balls.Core;
 using Balls.Daemon;
+using Balls.Host;
+using Balls.Platform;
 using Balls.Platform.Windows;
+using Balls.Protocol.Browser.V1;
 using Balls.Protocol.Control.V1;
 
 namespace Balls.Daemon.Tests;
@@ -165,17 +168,14 @@ public sealed class DaemonStatusTests
     [TestMethod]
     public async Task OpenApi_describes_the_versioned_local_control_routes()
     {
-        if (!OperatingSystem.IsWindows())
-        {
-            Assert.Inconclusive("The Phase 1 local control transport is currently Windows-only.");
-            return;
-        }
-
         using var directory = new TemporaryDirectory();
-        var pipeName = $"balls-tests-{Guid.NewGuid():N}";
+        var endpoint = OperatingSystem.IsWindows()
+            ? $"balls-tests-{Guid.NewGuid():N}"
+            : Path.Combine(directory.Path, "runtime", "control.sock");
         await using var daemon = await DaemonHost.StartAsync(
-            new DaemonOptions(directory.Path, pipeName, "Alice-PC"));
-        using var client = WindowsNamedPipeHttpClient.Create(pipeName);
+            new DaemonOptions(directory.Path, endpoint, "Alice-PC"));
+        var host = (SupportedHostPlatform)HostPlatformSelector.SelectCurrent();
+        using var client = host.Platform.LocalControlClient.CreateClient(endpoint);
 
         using var response = await client.GetAsync(ControlRoutes.OpenApi);
         var document = await response.Content.ReadAsStringAsync();
@@ -199,6 +199,36 @@ public sealed class DaemonStatusTests
         StringAssert.Contains(document, ControlRoutes.Circles);
         StringAssert.Contains(document, nameof(CreateCircleRequest));
         StringAssert.Contains(document, nameof(JoinCircleRequest));
+        StringAssert.Contains(document, nameof(JoinBrowserCircleRequest));
+        StringAssert.Contains(
+            document,
+            "/browser/v1/circles/{circleId}/files/contributions/folder-selection");
+        StringAssert.Contains(
+            document,
+            "/browser/v1/circles/{circleId}/files/contributions/folder-apply");
+        StringAssert.Contains(document, nameof(ApplyBrowserCircleFilesFolderRequest));
+        StringAssert.Contains(document, nameof(BrowserCircleFilesFolderSelectionResponse));
+        StringAssert.Contains(document, nameof(BrowserCircleFilesContributionResponse));
+        StringAssert.Contains(
+            document,
+            "/browser/v1/circles/{circleId}/files/grant/preview");
+        StringAssert.Contains(
+            document,
+            "/browser/v1/circles/{circleId}/files/grant/apply");
+        StringAssert.Contains(document, nameof(PreviewBrowserCircleFilesGrantRequest));
+        StringAssert.Contains(document, nameof(BrowserCircleFilesGrantPreviewResponse));
+        StringAssert.Contains(document, nameof(BrowserCircleFilesGrantApplyResponse));
+        StringAssert.Contains(
+            document,
+            "/browser/v1/circles/{circleId}/files/open");
+        StringAssert.Contains(document, nameof(BrowserCircleFilesOpenResponse));
+        Assert.IsFalse(document.Contains(
+            "/browser/v1/circles/{circleId}/files/contributions/{contributionId}/grants/{grantId}/mapping",
+            StringComparison.Ordinal));
+        var openOperation = JsonNode.Parse(document)?["paths"]?
+            ["/browser/v1/circles/{circleId}/files/open"]?["post"];
+        Assert.IsNotNull(openOperation);
+        Assert.IsNull(openOperation["requestBody"]);
         StringAssert.Contains(document, nameof(CreateInvitationRequest));
         StringAssert.Contains(document, nameof(RedeemInvitationRequest));
         StringAssert.Contains(document, nameof(SendCircleMessageRequest));
@@ -241,7 +271,12 @@ public sealed class DaemonStatusTests
                     GetCanonicalTempPath(),
                     $"bt-{Guid.NewGuid():N}"[..11])
                 : System.IO.Path.Combine(
-                    System.IO.Path.GetTempPath(),
+                    OperatingSystem.IsLinux()
+                        ? System.IO.Path.Combine(
+                            Environment.GetFolderPath(Environment.SpecialFolder.UserProfile),
+                            ".local",
+                            "state")
+                        : System.IO.Path.GetTempPath(),
                     "balls-tests",
                     Guid.NewGuid().ToString("N"));
             Directory.CreateDirectory(Path);

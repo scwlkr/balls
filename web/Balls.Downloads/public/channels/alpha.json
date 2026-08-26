@@ -11,6 +11,13 @@
   "platforms": {
     "windows-x64": {
       "delivery": "package",
+      "identity": {
+        "product": "Balls",
+        "version": "0.3.0-alpha.1",
+        "commit": "8dc39455ac432c6f295a86fad3a765d4f70a1fe9",
+        "platform": "windows",
+        "architecture": "x64"
+      },
       "runtime": {
         "kind": "framework-dependent",
         "architecture": "x64",
@@ -43,6 +50,13 @@
     },
     "linux-x64": {
       "delivery": "package",
+      "identity": {
+        "product": "Balls",
+        "version": "0.3.0-alpha.1",
+        "commit": "8dc39455ac432c6f295a86fad3a765d4f70a1fe9",
+        "platform": "linux",
+        "architecture": "x64"
+      },
       "archive": {
         "name": "balls-0.3.0-alpha.1-canary-linux-x64-8dc39455ac43.zip",
         "url": "https://github.com/scwlkr/balls/releases/download/0.3.0-alpha.1/balls-0.3.0-alpha.1-canary-linux-x64-8dc39455ac43.zip",

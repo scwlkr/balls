@@ -6,7 +6,7 @@
     <title>Download Balls</title>
     <meta
       name="description"
-      content="Install the newest published Balls Alpha on Windows or Linux, or get the exact macOS source, from one stable command."
+      content="Install the accepted Balls Alpha or an explicitly warned Development build from identity-verified GitHub Release assets."
     />
     <link rel="canonical" href="https://balls.wlkrlabs.com/" />
     <meta property="og:title" content="Download Balls" />
@@ -98,6 +98,7 @@
         <nav aria-label="Primary navigation">
           <a href="#downloads">Downloads</a>
           <a href="/channels/alpha.json">Manifest</a>
+          <a href="#previous-versions">Previous versions</a>
           <a href="https://github.com/scwlkr/balls">GitHub</a>
         </nav>
       </header>
@@ -112,7 +113,7 @@
               One command. The newest published Balls Alpha.
             </h1>
             <p class="hero-summary">
-              Pick this computer, copy two lines, and run them in its terminal.
+              Pick this computer, copy one command, and run it in its terminal.
               Rerun the same command after a new Alpha is accepted—no more
               carrying ZIP files between machines.
             </p>
@@ -189,11 +190,11 @@
               <div class="delivery-command">
                 <div class="command-block">
                   <div class="terminal-heading">
-                    <span>PowerShell 7</span>
+                    <span>Windows PowerShell</span>
                     <button
                       type="button"
                       data-copy-target="windows-command"
-                      aria-label="Copy PowerShell 7 command"
+                      aria-label="Copy Windows PowerShell command"
                     >
                       <span class="copy-icon" aria-hidden="true"></span>
                       <span data-copy-label aria-live="polite">
@@ -201,12 +202,11 @@
                       </span>
                     </button>
                   </div>
-                  <pre><code id="windows-command">Invoke-WebRequest https://balls.wlkrlabs.com/install.ps1 -OutFile .\install-balls.ps1
-pwsh -NoProfile -File .\install-balls.ps1</code></pre>
+                  <pre><code id="windows-command">Invoke-WebRequest https://balls.wlkrlabs.com/install.ps1 -OutFile "$env:TEMP\install-balls.ps1"; powershell.exe -NoLogo -NoProfile -File "$env:TEMP\install-balls.ps1"</code></pre>
                 </div>
                 <div class="command-notes">
                   <span>
-                    Windows x64 · PowerShell 7<span
+                    Windows x64 · Windows PowerShell 5.1+<span
                       data-windows-runtime-requirements
                     >
                       · runtime checked from manifest</span
@@ -299,6 +299,148 @@ bash ./get-balls-source.sh</code></pre>
               </div>
             </article>
           </div>
+        </section>
+
+        <section
+          class="development-section"
+          id="development"
+          aria-labelledby="development-title"
+        >
+          <div class="section-heading">
+            <div>
+              <p class="eyebrow development-eyebrow">Development channel</p>
+              <h2 id="development-title">
+                Testing software. It may be broken.
+              </h2>
+            </div>
+            <p>
+              Development packages are immutable public test snapshots, not
+              accepted releases. They still carry exact package identity and
+              SHA-256 metadata.
+            </p>
+          </div>
+
+          <div class="development-warning" role="note">
+            <strong>Use Development only for an active Balls test.</strong>
+            <span>
+              A functional failure is allowed. Corrupt or ambiguous packages are
+              not.
+            </span>
+          </div>
+
+          <p class="development-empty" data-development-empty>
+            No Development build is published yet. The accepted Alpha above
+            remains the only installable release.
+          </p>
+
+          <article class="development-release" data-development-release hidden>
+            <div class="delivery-meta">
+              <p class="platform-name">Latest Development</p>
+              <h3 data-development-tag></h3>
+              <p data-development-summary>
+                This identified build may be incomplete or broken.
+              </p>
+            </div>
+            <div class="delivery-command">
+              <div class="command-block development-command">
+                <div class="terminal-heading">
+                  <span>Windows PowerShell</span>
+                  <button
+                    type="button"
+                    data-copy-target="development-windows-command"
+                    aria-label="Copy Development Windows command"
+                  >
+                    <span class="copy-icon" aria-hidden="true"></span>
+                    <span data-copy-label aria-live="polite">Copy command</span>
+                  </button>
+                </div>
+                <pre><code id="development-windows-command"></code></pre>
+              </div>
+              <div class="command-notes">
+                <span>Windows x64 · Possibly broken · Unsigned prerelease</span>
+                <a data-development-manifest href="/channels/development.json">
+                  Review exact manifest
+                </a>
+              </div>
+            </div>
+          </article>
+        </section>
+
+        <section
+          class="versions-section"
+          id="previous-versions"
+          aria-labelledby="versions-title"
+        >
+          <div class="section-heading">
+            <div>
+              <p class="eyebrow">Immutable history</p>
+              <h2 id="versions-title">Previous versions</h2>
+            </div>
+            <p>
+              Every accepted release and the newest ten Development builds.
+              Historical commands select a fixed version manifest, never a
+              moving channel.
+            </p>
+          </div>
+
+          <div class="versions-table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th scope="col">Version</th>
+                  <th scope="col">Channel</th>
+                  <th scope="col">Published</th>
+                  <th scope="col">Windows</th>
+                </tr>
+              </thead>
+              <tbody data-release-history>
+                <tr>
+                  <td><strong>0.3.0-alpha.1</strong></td>
+                  <td>
+                    <span class="channel-badge alpha">Accepted Alpha</span>
+                  </td>
+                  <td>
+                    <time datetime="2026-08-21T22:25:14Z">Aug 21, 2026</time>
+                  </td>
+                  <td>
+                    <a href="/versions/0.3.0-alpha.1.json">Version manifest</a>
+                  </td>
+                </tr>
+                <tr>
+                  <td><strong>0.2.0-alpha.1</strong></td>
+                  <td>
+                    <span class="channel-badge alpha">Accepted Alpha</span>
+                  </td>
+                  <td>
+                    <time datetime="2026-08-20T17:22:28Z">Aug 20, 2026</time>
+                  </td>
+                  <td>
+                    <a href="/versions/0.2.0-alpha.1.json">Version manifest</a>
+                  </td>
+                </tr>
+                <tr>
+                  <td><strong>0.1.0-alpha.2</strong></td>
+                  <td>
+                    <span class="channel-badge alpha">Accepted Alpha</span>
+                  </td>
+                  <td>
+                    <time datetime="2026-08-19T21:21:40Z">Aug 19, 2026</time>
+                  </td>
+                  <td>
+                    <a href="/versions/0.1.0-alpha.2.json">Version manifest</a>
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+          <a
+            class="history-link"
+            data-complete-history
+            href="https://github.com/scwlkr/balls/releases"
+          >
+            View complete GitHub Releases history
+            <span aria-hidden="true">↗</span>
+          </a>
         </section>
 
         <section class="trust-section" aria-labelledby="trust-title">
