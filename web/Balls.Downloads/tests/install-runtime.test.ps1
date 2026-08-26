@@ -142,15 +142,19 @@ try {
     )
     Assert-Equal (Get-RuntimeRequirementLabel $futureRequirements) '.NET 11 and ASP.NET Core 11' 'The error label should not pin the current runtime major.'
 
+    $missingRequirements = @(
+        [pscustomobject]@{ name = 'Microsoft.NETCore.App'; major = 999 },
+        [pscustomobject]@{ name = 'Microsoft.AspNetCore.App'; major = 999 }
+    )
     $wrongMajorRuntime = [pscustomobject]@{
         kind = 'framework-dependent'
         architecture = 'x64'
-        frameworks = $futureRequirements
+        frameworks = $missingRequirements
     }
     $env:DOTNET_ROOT_X64 = $usableRoot
     Assert-Throws {
         Assert-RuntimeRequirements $wrongMajorRuntime
-    } 'The published Balls Windows Alpha requires the x64 .NET 11 and ASP.NET Core 11 runtimes.'
+    } 'The published Balls Windows Alpha requires the x64 .NET 999 and ASP.NET Core 999 runtimes.'
 
     $selfContained = [pscustomobject]@{
         kind = 'self-contained'
