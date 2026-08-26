@@ -34,9 +34,9 @@ available administrator-managed Windows laptops: one hosts the new Circle folder
 joins as the invited Member. The pilot passes when the invitation and guided mapping make the
 folder appear in Explorer and both laptops can create, open, edit, rename, and delete ordinary
 files. The owner may additionally open and save a disposable Revit project and try Revit's normal
-worksharing flow, but those observations do not change the product boundary above. Pilot delivery
-may use the self-contained package through an existing transfer channel, a separate private
-invitation, and a short numbered guide; a universal install-and-join link is deferred.
+worksharing flow, but those observations do not change the product boundary above. Supported
+software delivery follows the owner-accepted Release and downloads-portal policy. The private
+invitation is transferred separately; a universal install-and-join link is deferred.
 
 The Windows provider secures the Circle-contributed share itself: the SMB server must require
 signing, reject unencrypted access, support per-share encryption, and grant access only to the

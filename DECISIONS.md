@@ -61,9 +61,9 @@ results are compatibility evidence rather than a general Balls guarantee.
 
 The two-laptop pilot passes when one laptop hosts a new Circle folder, the other joins and receives
 guided Explorer access, and both can create, open, edit, rename, and delete ordinary files. A
-disposable Revit smoke test may be observed separately. The accepted pilot delivery is a
-self-contained package, separate private invitation, and short numbered guide; a universal join
-link is not required.
+disposable Revit smoke test may be observed separately. Supported software delivery follows the
+owner-accepted Release and downloads-portal policy; the private invitation remains a separate
+Circle capability rather than part of the public download.
 
 ### AI
 
