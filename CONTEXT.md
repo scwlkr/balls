@@ -24,3 +24,18 @@ _Avoid_: Company Circle, Revit repository
 The Circle-facing connection to Autodesk Revit Server that makes authorized use easier while Revit
 Server remains the system responsible for its service, protocol, and workshared models.
 _Avoid_: Balls Revit Server, Revit File Contribution
+
+**Revit Server Capability**:
+The bounded Office Circle service through which an authorized Member is prepared to use an existing
+Revit Server. It grants use of the service, not ownership of or direct file access to its models.
+_Avoid_: Revit share, Revit folder
+
+**Office File Access**:
+An Office Circle authorization to use one Office File Area through a mature file provider. Balls
+owns the human grant while the provider remains responsible for transferring and locking files.
+_Avoid_: SMB membership, Windows login
+
+**Break-glass Access**:
+Exceptional administrator access used only for recovery when the ordinary Circle workflow is
+unavailable. It is not a parallel employee-access path.
+_Avoid_: Fallback employee share, second login
