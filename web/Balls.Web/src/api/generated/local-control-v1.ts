@@ -2804,8 +2804,7 @@ export interface components {
   schemas: {
     ApplyBrowserCircleFilesFolderRequest: {
       requestId: string;
-      folderPath: string;
-      displayName: string;
+      selectionId: string;
     };
     ApplyCircleFilesGrantCleanupRequest: {
       folderPath: string;
@@ -2838,6 +2837,7 @@ export interface components {
     };
     BrowserCircleFilesFolderSelectionResponse: {
       status: string;
+      selectionId: null | string;
       folderPath: null | string;
       displayName: null | string;
     };

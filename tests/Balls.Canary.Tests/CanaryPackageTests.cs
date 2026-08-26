@@ -78,6 +78,24 @@ public sealed class CanaryPackageTests
     }
 
     [TestMethod]
+    public void Shared_option_parser_rejects_duplicate_manifest_inputs()
+    {
+        Assert.ThrowsExactly<CanaryUsageException>(() =>
+            DevelopmentManifestCommandParser.Parse(
+                [
+                    "development-manifest",
+                    "--public-root", "C:/site/public",
+                    "--package-path", "C:/release/balls.zip",
+                    "--checksum-path", "C:/release/balls.zip.sha256",
+                    "--installer-path", "C:/release/Install-BallsCanary.ps1",
+                    "--tag", "development-20260826T120000Z-0123456789ab",
+                    "--commit", Commit,
+                    "--published-at", "2026-08-26T12:00:00Z",
+                    "--tag", "development-20260826T130000Z-0123456789ab",
+                ]));
+    }
+
+    [TestMethod]
     public void Development_manifest_generation_binds_package_identity_and_keeps_ten_rows()
     {
         using var fixture = new DevelopmentManifestFixture(selfContained: true);

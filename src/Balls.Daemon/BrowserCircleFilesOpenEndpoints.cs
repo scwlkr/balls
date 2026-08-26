@@ -12,7 +12,7 @@ internal static class BrowserCircleFilesOpenEndpoints
         string circleId,
         CancellationToken token)
     {
-        if (!Guid.TryParseExact(circleId, "D", out var parsedCircle))
+        if (!BrowserUuid.TryParse(circleId, out var parsedCircle))
         {
             return Results.BadRequest(
                 new ErrorResponse("invalid_circle_id", "Circle ID must be a canonical UUID."));

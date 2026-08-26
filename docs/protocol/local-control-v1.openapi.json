@@ -2859,18 +2859,14 @@
       "ApplyBrowserCircleFilesFolderRequest": {
         "required": [
           "requestId",
-          "folderPath",
-          "displayName"
+          "selectionId"
         ],
         "type": "object",
         "properties": {
           "requestId": {
             "type": "string"
           },
-          "folderPath": {
-            "type": "string"
-          },
-          "displayName": {
+          "selectionId": {
             "type": "string"
           }
         }
@@ -2988,6 +2984,7 @@
       "BrowserCircleFilesFolderSelectionResponse": {
         "required": [
           "status",
+          "selectionId",
           "folderPath",
           "displayName"
         ],
@@ -2995,6 +2992,12 @@
         "properties": {
           "status": {
             "type": "string"
+          },
+          "selectionId": {
+            "type": [
+              "null",
+              "string"
+            ]
           },
           "folderPath": {
             "type": [

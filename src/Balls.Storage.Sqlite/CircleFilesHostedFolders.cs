@@ -1,4 +1,6 @@
-namespace Balls.Core;
+using Balls.Core;
+
+namespace Balls.Storage.Sqlite;
 
 public sealed record CircleFilesHostedFolderBinding(
     CircleId CircleId,

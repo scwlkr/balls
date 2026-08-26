@@ -1,8 +1,7 @@
 using System.Collections.Concurrent;
-using System.Security.Cryptography;
-using System.Text;
 using Balls.Core;
 using Balls.Protocol.Browser.V1;
+using Balls.Storage.Sqlite;
 
 namespace Balls.Daemon;
 
@@ -31,7 +30,7 @@ internal sealed class BrowserCircleFilesGrantApplication(
             memberName,
             access,
             cancellationToken).ConfigureAwait(false);
-        approvals[SessionKey(sessionToken)] = new PendingApproval(
+        approvals[BrowserSessionKey.Create(sessionToken)] = new PendingApproval(
             selection,
             new MemberAccessGrantRequestId(Guid.CreateVersion7()),
             timeProvider.GetUtcNow() + ApprovalLifetime);
@@ -49,7 +48,7 @@ internal sealed class BrowserCircleFilesGrantApplication(
         string sessionToken,
         CancellationToken cancellationToken)
     {
-        var key = SessionKey(sessionToken);
+        var key = BrowserSessionKey.Create(sessionToken);
         if (!approvals.TryGetValue(key, out var approval)
             || approval.Selection.CircleId != circleId
             || approval.ExpiresAtUtc <= timeProvider.GetUtcNow())
@@ -71,10 +70,7 @@ internal sealed class BrowserCircleFilesGrantApplication(
                 cancellationToken).ConfigureAwait(false);
             if (current.Contribution.Id != approval.Selection.Contribution.Id
                 || current.Member.Id != approval.Selection.Member.Id
-                || !string.Equals(
-                    current.Fingerprint,
-                    approval.Selection.Fingerprint,
-                    StringComparison.Ordinal))
+                || current.Fingerprint != approval.Selection.Fingerprint)
             {
                 throw PlanChanged();
             }
@@ -223,7 +219,10 @@ internal sealed class BrowserCircleFilesGrantApplication(
             authorized.Contribution,
             members[0],
             hosted,
-            ComputeFingerprint(authorized.Contribution, members[0], hosted));
+            BrowserCircleFilesGrantApprovalFingerprint.Create(
+                authorized.Contribution,
+                members[0],
+                hosted));
     }
 
     private static string NormalizeSelection(string? value, string label)
@@ -239,55 +238,6 @@ internal sealed class BrowserCircleFilesGrantApplication(
         return normalized;
     }
 
-    private static string SessionKey(string sessionToken)
-    {
-        if (string.IsNullOrWhiteSpace(sessionToken) || sessionToken.Length > 1024)
-        {
-            throw new InputValidationException(
-                "browser_session_required",
-                "A valid browser session is required.");
-        }
-
-        return Convert.ToHexStringLower(SHA256.HashData(Encoding.UTF8.GetBytes(sessionToken)));
-    }
-
-    private static string ComputeFingerprint(
-        CircleFilesContribution contribution,
-        Member member,
-        CircleFilesHostedFolderBinding hosted)
-    {
-        using var hash = IncrementalHash.CreateHash(HashAlgorithmName.SHA256);
-        Append(hash, contribution.CircleId.ToString());
-        Append(hash, contribution.Id.ToString());
-        Append(hash, contribution.Provider.Id.ToString());
-        Append(hash, contribution.Provider.NodeId.ToString());
-        Append(hash, contribution.DisplayName);
-        Append(hash, ((int)contribution.Lifecycle).ToString(System.Globalization.CultureInfo.InvariantCulture));
-        Append(hash, contribution.Generation.ToString(System.Globalization.CultureInfo.InvariantCulture));
-        Append(hash, contribution.Authorization.OwnerMemberId.ToString());
-        Append(hash, contribution.Authorization.AuthorityGeneration.ToString(
-            System.Globalization.CultureInfo.InvariantCulture));
-        Append(hash, contribution.Authorization.Transcript);
-        Append(hash, contribution.Authorization.MemberSignature);
-        Append(hash, contribution.Authorization.CircleAuthoritySignature);
-        Append(hash, member.Id.ToString());
-        Append(hash, member.DisplayName);
-        Append(hash, ((int)member.Role).ToString(System.Globalization.CultureInfo.InvariantCulture));
-        Append(hash, member.JoinedAtUtc.ToUnixTimeSeconds().ToString(
-            System.Globalization.CultureInfo.InvariantCulture));
-        Append(hash, hosted.FolderPath);
-        return Convert.ToHexStringLower(hash.GetHashAndReset());
-    }
-
-    private static void Append(IncrementalHash hash, string value) =>
-        Append(hash, Encoding.UTF8.GetBytes(value));
-
-    private static void Append(IncrementalHash hash, byte[] value)
-    {
-        hash.AppendData(BitConverter.GetBytes(System.Net.IPAddress.HostToNetworkOrder(value.Length)));
-        hash.AppendData(value);
-    }
-
     private static LocalStateConflictException PlanChanged() => new(
         "circle_files_grant_approval_changed",
         "The folder, Member, or authorization changed. Review the access again before applying.");
@@ -297,7 +247,7 @@ internal sealed class BrowserCircleFilesGrantApplication(
         CircleFilesContribution Contribution,
         Member Member,
         CircleFilesHostedFolderBinding HostedFolder,
-        string Fingerprint);
+        BrowserCircleFilesGrantApprovalFingerprint Fingerprint);
 
     private sealed record PendingApproval(
         ResolvedSelection Selection,
