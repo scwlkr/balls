@@ -20,6 +20,11 @@ The broader 2–10-person audience remains a later product direction. Open-sourc
 long-term Circle vision are unchanged. See
 [`ADR 0008`](docs/decisions/0008-company-first-lan-pilot.md).
 
+The first company use is a proof-oriented pilot while the hosting laptop and Windows Node are on.
+Always-on service, backup, and disaster recovery are not acceptance requirements for that pilot.
+After the existing two-VM proof, the owner will rehearse the guided invitation and file workflow
+on two available administrator-managed Windows laptops before involving the coworker.
+
 ### Circle
 
 The top-level object is a **Circle**.
@@ -48,6 +53,17 @@ Sharing files should become extremely easy after joining a Circle.
 Initial physical-source visibility is acceptable.
 
 Long-term unified Circle Files is desirable.
+
+Balls guarantees the authorized Circle Files capability and preserves ordinary SMB and
+application-requested locking behavior. Revit-specific central/local model, synchronization,
+recovery, and multi-user behavior remain the application's responsibility; observed Revit pilot
+results are compatibility evidence rather than a general Balls guarantee.
+
+The two-laptop pilot passes when one laptop hosts a new Circle folder, the other joins and receives
+guided Explorer access, and both can create, open, edit, rename, and delete ordinary files. A
+disposable Revit smoke test may be observed separately. Supported software delivery follows the
+owner-accepted Release and downloads-portal policy; the private invitation remains a separate
+Circle capability rather than part of the public download.
 
 ### AI
 

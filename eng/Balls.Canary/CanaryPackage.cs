@@ -195,7 +195,8 @@ internal static partial class CanaryPackageBuilder
 
               Extract the entire archive and double-click `Open Balls.cmd` to start a local
               pilot Node and open its Circle workspace in your browser. This entry point does
-              not require PowerShell 7.
+              not require PowerShell 7. If daemon startup fails, the launcher prints the path to
+              `%LOCALAPPDATA%\Balls-Pilot\logs\ballsd.stderr.log` instead of hiding the cause.
 
               From the downloaded workflow-artifact directory:
 

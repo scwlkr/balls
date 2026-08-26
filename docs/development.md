@@ -144,7 +144,9 @@ balls-<version>-canary-<windows|linux>-x64-<12-character-commit>
 
 Download and extract the Windows workflow artifact, then extract the Canary archive it contains.
 Double-click **Open Balls.cmd** to start the local pilot Node and open its Circle workspace. The
-Windows package includes its own .NET runtime and does not require PowerShell 7.
+Windows package includes its own .NET runtime and does not require PowerShell 7. The launcher
+starts the daemon as a detached process and records startup output under
+`%LOCALAPPDATA%\Balls-Pilot\logs`; a startup failure prints the exact stderr-log path.
 
 For a checksum-verifying developer installation, this command verifies the archive and every
 packaged file, installs the version, starts `ballsd`, and confirms readiness through `balls status`:
