@@ -3,12 +3,14 @@ using System.Net.Http.Json;
 using System.Net.NetworkInformation;
 using System.Net.Sockets;
 using System.Text;
+using System.Text.Json;
 using System.Text.RegularExpressions;
 using Balls.Daemon;
 using Balls.Host;
 using Balls.Platform;
 using Balls.Protocol.Browser.V1;
 using Balls.Protocol.Control.V1;
+using Balls.Transport.Lan;
 
 namespace Balls.Daemon.Tests;
 
@@ -388,15 +390,20 @@ public sealed partial class BrowserAdapterSecurityTests
     }
 
     [TestMethod]
-    public async Task Browser_invitation_requires_antiforgery_and_a_shareable_private_address()
+    public async Task Browser_invitation_requires_antiforgery_and_uses_actual_automatic_listener_addresses()
     {
         using var directory = new TemporaryDirectory();
-        var admissionEndpoint = AllocateLoopbackEndpoint();
-        var messageEndpoint = AllocateLoopbackEndpoint();
+        var privateAddress = PrivateIPv4AddressSelector.SelectCurrent();
+        if (!privateAddress.IsAvailable)
+        {
+            Assert.Inconclusive("This host does not have exactly one operational private IPv4 address.");
+            return;
+        }
+
         await using var daemon = await StartDaemonAsync(
             directory.Path,
-            admissionEndpoint,
-            messageEndpoint);
+            automaticPrivateListeners: true,
+            privateAddressSelector: () => privateAddress);
         using var ipcClient = CreateIpcClient(GetEndpoint(directory.Path));
         using var createCircleResponse = await ipcClient.PostAsJsonAsync(
             ControlRoutes.Circles,
@@ -417,53 +424,86 @@ public sealed partial class BrowserAdapterSecurityTests
         using var missingAntiforgery = CreateJsonRequest(
             HttpMethod.Post,
             route,
-            new CreateBrowserCircleInvitationRequest(60, "192.168.1.20"),
+            new CreateBrowserCircleInvitationRequest(60),
             GetOrigin(browserBaseUri),
             authenticated.Cookie);
         using var missingAntiforgeryResponse = await browserClient.SendAsync(missingAntiforgery);
 
-        using var loopbackRequest = CreateJsonRequest(
+        using var invitationRequest = CreateJsonRequest(
             HttpMethod.Post,
             route,
-            new CreateBrowserCircleInvitationRequest(60, null),
+            new CreateBrowserCircleInvitationRequest(60),
             GetOrigin(browserBaseUri),
             authenticated.Cookie,
             authenticated.Session.AntiforgeryToken);
-        using var loopbackResponse = await browserClient.SendAsync(loopbackRequest);
-
-        using var publicRequest = CreateJsonRequest(
-            HttpMethod.Post,
-            route,
-            new CreateBrowserCircleInvitationRequest(60, "8.8.8.8"),
-            GetOrigin(browserBaseUri),
-            authenticated.Cookie,
-            authenticated.Session.AntiforgeryToken);
-        using var publicResponse = await browserClient.SendAsync(publicRequest);
-
-        using var privateRequest = CreateJsonRequest(
-            HttpMethod.Post,
-            route,
-            new CreateBrowserCircleInvitationRequest(60, "192.168.1.20"),
-            GetOrigin(browserBaseUri),
-            authenticated.Cookie,
-            authenticated.Session.AntiforgeryToken);
-        using var privateResponse = await browserClient.SendAsync(privateRequest);
-        var invitation = await privateResponse.Content.ReadFromJsonAsync<BrowserCircleInvitationResponse>(
+        using var invitationResponse = await browserClient.SendAsync(invitationRequest);
+        var invitationJson = await invitationResponse.Content.ReadAsStringAsync();
+        var invitation = JsonSerializer.Deserialize<BrowserCircleInvitationResponse>(
+            invitationJson,
             ControlJson.Options);
 
         Assert.AreEqual(HttpStatusCode.Forbidden, missingAntiforgeryResponse.StatusCode);
-        Assert.AreEqual(HttpStatusCode.BadRequest, loopbackResponse.StatusCode);
-        Assert.AreEqual(HttpStatusCode.BadRequest, publicResponse.StatusCode);
-        Assert.AreEqual(HttpStatusCode.Created, privateResponse.StatusCode);
+        Assert.AreEqual(HttpStatusCode.Created, invitationResponse.StatusCode);
         Assert.IsNotNull(invitation);
         Assert.AreEqual(circle.Circle.Id, invitation.CircleId);
-        Assert.AreEqual(
-            $"192.168.1.20:{IPEndPoint.Parse(admissionEndpoint).Port}",
-            invitation.Endpoint);
-        Assert.AreEqual(
-            $"192.168.1.20:{IPEndPoint.Parse(messageEndpoint).Port}",
-            invitation.SyncEndpoint);
+        Assert.AreEqual(daemon.AdmissionAddress!.Value, invitation.Endpoint);
+        Assert.AreEqual(daemon.MessageAddress!.Value, invitation.SyncEndpoint);
+        Assert.AreEqual(privateAddress.Address, IPEndPoint.Parse(invitation.Endpoint).Address);
+        Assert.AreEqual(privateAddress.Address, IPEndPoint.Parse(invitation.SyncEndpoint).Address);
+        Assert.AreNotEqual(0, IPEndPoint.Parse(invitation.Endpoint).Port);
+        Assert.AreNotEqual(0, IPEndPoint.Parse(invitation.SyncEndpoint).Port);
         Assert.IsNotEmpty(invitation.Package);
+        using var invitationDocument = JsonDocument.Parse(invitationJson);
+        CollectionAssert.AreEquivalent(
+            new[] { "circleId", "invitationId", "expiresAtUtc", "package", "endpoint", "syncEndpoint" },
+            invitationDocument.RootElement.EnumerateObject().Select(property => property.Name).ToArray());
+    }
+
+    [TestMethod]
+    public async Task Ambiguous_automatic_private_network_keeps_browser_available_and_refuses_invitation()
+    {
+        using var directory = new TemporaryDirectory();
+        await using var daemon = await StartDaemonAsync(
+            directory.Path,
+            automaticPrivateListeners: true,
+            privateAddressSelector: () => new PrivateIPv4AddressSelection(
+                null,
+                "private_network_ambiguous",
+                "Balls found more than one private network connection and cannot safely choose one for invitations."));
+        using var ipcClient = CreateIpcClient(GetEndpoint(directory.Path));
+        using var createCircleResponse = await ipcClient.PostAsJsonAsync(
+            ControlRoutes.Circles,
+            new CreateCircleRequest(
+                "0198d000-6000-7000-8000-000000000002",
+                "Ambiguous Network Circle",
+                "Alice"),
+            ControlJson.Options);
+        var circle = await createCircleResponse.Content.ReadFromJsonAsync<CircleDetailsResponse>(
+            ControlJson.Options);
+        Assert.IsNotNull(circle);
+        var launch = await IssueLaunchAsync(ipcClient);
+        var browserBaseUri = GetBrowserBaseUri(launch);
+        using var browserClient = CreateBrowserClient(browserBaseUri);
+        var authenticated = await ExchangeAsync(browserClient, launch);
+        using var request = CreateJsonRequest(
+            HttpMethod.Post,
+            BrowserRoutes.CircleInvitations(circle.Circle.Id),
+            new CreateBrowserCircleInvitationRequest(60),
+            GetOrigin(browserBaseUri),
+            authenticated.Cookie,
+            authenticated.Session.AntiforgeryToken);
+        using var response = await browserClient.SendAsync(request);
+        var responseJson = await response.Content.ReadAsStringAsync();
+        var error = JsonSerializer.Deserialize<ErrorResponse>(responseJson, ControlJson.Options);
+
+        Assert.AreEqual(HttpStatusCode.Conflict, response.StatusCode);
+        Assert.IsNotNull(error);
+        Assert.AreEqual("private_network_ambiguous", error.Code);
+        Assert.IsTrue(error.Message.Length <= 120);
+        Assert.IsNull(daemon.AdmissionAddress);
+        Assert.IsNull(daemon.MessageAddress);
+        Assert.IsFalse(responseJson.Contains("package", StringComparison.OrdinalIgnoreCase));
+        Assert.IsFalse(responseJson.Contains("endpoint", StringComparison.OrdinalIgnoreCase));
     }
 
     [TestMethod]
@@ -621,15 +661,28 @@ public sealed partial class BrowserAdapterSecurityTests
     private static async Task<DaemonInstance> StartDaemonAsync(
         string root,
         string? admissionListenEndpoint = null,
-        string? messageListenEndpoint = null)
+        string? messageListenEndpoint = null,
+        bool automaticPrivateListeners = false,
+        Func<PrivateIPv4AddressSelection>? privateAddressSelector = null)
     {
+        var options = new DaemonOptions(
+            Path.Combine(root, "state"),
+            GetEndpoint(root),
+            "Browser-PC",
+            admissionListenEndpoint,
+            messageListenEndpoint,
+            automaticPrivateListeners);
+        if (privateAddressSelector is null)
+        {
+            return await DaemonHost.StartAsync(options);
+        }
+
+        var host = (SupportedHostPlatform)HostPlatformSelector.SelectCurrent();
         return await DaemonHost.StartAsync(
-            new DaemonOptions(
-                Path.Combine(root, "state"),
-                GetEndpoint(root),
-                "Browser-PC",
-                admissionListenEndpoint,
-                messageListenEndpoint));
+            options,
+            host.Platform,
+            host.PrivateMaterialProtector,
+            privateAddressSelector: privateAddressSelector);
     }
 
     private static string AllocateLoopbackEndpoint()

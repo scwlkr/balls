@@ -237,6 +237,7 @@ public sealed class CanaryPackageTests
         StringAssert.Contains(launcher, "Start-Process -FilePath $env:BALLS_DAEMON");
         StringAssert.Contains(launcher, "set \"BALLS_HOME=%LOCALAPPDATA%\\Balls\"");
         StringAssert.Contains(launcher, "set \"BALLS_PIPE=balls\"");
+        StringAssert.Contains(launcher, "--automatic-private-listeners");
         StringAssert.Contains(launcher, "-RedirectStandardOutput $env:BALLS_STDOUT");
         StringAssert.Contains(launcher, "-RedirectStandardError $env:BALLS_STDERR");
         StringAssert.Contains(launcher, "Startup log: %BALLS_STDERR%");
@@ -259,9 +260,19 @@ public sealed class CanaryPackageTests
         StringAssert.Contains(smoke, "$daemon.Path");
         StringAssert.Contains(smoke, "WScript.Shell");
         StringAssert.Contains(smoke, "executionPolicyUnchanged = $true");
+        StringAssert.Contains(smoke, "privateListenersVerified = $true");
+        StringAssert.Contains(smoke, "shortcutListenersVerified = $shortcutPrivateListenerCount -eq 2");
         StringAssert.Contains(smoke, "Refusing to remove a Balls shortcut not owned by this smoke run.");
         Assert.IsFalse(smoke.Contains("Set-ExecutionPolicy", StringComparison.OrdinalIgnoreCase));
         Assert.IsFalse(smoke.Contains("ExecutionPolicy Bypass", StringComparison.OrdinalIgnoreCase));
+
+        var bootstrap = File.ReadAllText(Path.Combine(
+            FindRepositoryRoot(),
+            "web",
+            "Balls.Downloads",
+            "public",
+            "install.ps1"));
+        StringAssert.Contains(bootstrap, "--automatic-private-listeners");
     }
 
     private static JsonDocument ReadJson(ZipArchive archive, string path) =>

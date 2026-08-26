@@ -437,7 +437,7 @@ set "BALLS_STATE=%BALLS_HOME%\state"
 set "BALLS_LOGS=%BALLS_HOME%\logs"
 set "BALLS_STDOUT=%BALLS_LOGS%\ballsd.stdout.log"
 set "BALLS_STDERR=%BALLS_LOGS%\ballsd.stderr.log"
-set "BALLS_DAEMON_ARGUMENTS=--data-directory "%BALLS_STATE%" --pipe-name "%BALLS_PIPE%" --node-name "%COMPUTERNAME%""
+set "BALLS_DAEMON_ARGUMENTS=--data-directory "%BALLS_STATE%" --pipe-name "%BALLS_PIPE%" --node-name "%COMPUTERNAME%" --automatic-private-listeners"
 
 if not exist "%BALLS_CLI%" goto missing_files
 if not exist "%BALLS_DAEMON%" goto missing_files
@@ -606,7 +606,8 @@ try {
     $startInfo.Arguments = @(
         '--data-directory', (ConvertTo-ProcessArgument $stateRoot),
         '--pipe-name', (ConvertTo-ProcessArgument $pipeName),
-        '--node-name', (ConvertTo-ProcessArgument ([Environment]::MachineName))
+        '--node-name', (ConvertTo-ProcessArgument ([Environment]::MachineName)),
+        '--automatic-private-listeners'
     ) -join ' '
     try {
         $daemon = [Diagnostics.Process]::Start($startInfo)

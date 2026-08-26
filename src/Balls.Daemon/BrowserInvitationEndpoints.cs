@@ -1,4 +1,3 @@
-using System.Net;
 using System.Net.Sockets;
 using Balls.Core;
 using Balls.Protocol.Browser.V1;
@@ -13,8 +12,7 @@ internal static class BrowserInvitationEndpoints
 {
     internal static async Task<IResult> CreateAsync(
         InvitationApplication invitations,
-        string? admissionListenEndpoint,
-        string? messageListenEndpoint,
+        BrowserInvitationListenerState listeners,
         string circleId,
         CreateBrowserCircleInvitationRequest request,
         CancellationToken cancellationToken)
@@ -25,24 +23,21 @@ internal static class BrowserInvitationEndpoints
                 new ErrorResponse("invalid_circle_id", "Circle ID must be a canonical UUID."));
         }
 
-        if (admissionListenEndpoint is null || messageListenEndpoint is null)
+        if (!listeners.IsAvailable)
         {
             return Results.Conflict(
                 new ErrorResponse(
-                    "admission_listener_unavailable",
-                    "This device must be configured to accept Circle and file-sharing connections on your local network before inviting someone."));
+                    listeners.ErrorCode,
+                    listeners.ErrorMessage));
         }
 
-        if (!TryResolveShareableEndpoint(admissionListenEndpoint, request.HostAddress, out var endpoint)
-            || !TryResolveShareableEndpoint(
-                messageListenEndpoint,
-                IPEndPoint.Parse(endpoint).Address.ToString(),
-                out var syncEndpoint))
+        if (!TryGetShareableEndpoint(listeners.AdmissionAddress!, out var endpoint)
+            || !TryGetShareableEndpoint(listeners.SyncAddress!, out var syncEndpoint))
         {
-            return Results.BadRequest(
+            return Results.Conflict(
                 new ErrorResponse(
-                    "invalid_shareable_host_address",
-                    "Enter the private IPv4 address that invited people can reach on your local network."));
+                    "private_listeners_unavailable",
+                    "Balls is not ready to accept invitations on a reachable private network connection."));
         }
 
         try
@@ -131,37 +126,20 @@ internal static class BrowserInvitationEndpoints
         }
     }
 
-    private static bool TryResolveShareableEndpoint(
-        string admissionListenEndpoint,
-        string? hostAddress,
+    private static bool TryGetShareableEndpoint(
+        RemoteTransportAddress address,
         out string endpoint)
     {
         endpoint = string.Empty;
-        if (!IPEndPoint.TryParse(admissionListenEndpoint, out var listenEndpoint))
-        {
-            return false;
-        }
-
-        IPAddress address;
-        if (string.IsNullOrWhiteSpace(hostAddress))
-        {
-            address = listenEndpoint.Address;
-        }
-        else if (!IPAddress.TryParse(hostAddress.Trim(), out address!))
-        {
-            return false;
-        }
-
-        if (address.AddressFamily != AddressFamily.InterNetwork || IPAddress.IsLoopback(address))
-        {
-            return false;
-        }
-
-        var candidate = $"{address}:{listenEndpoint.Port}";
         try
         {
-            LanTcpEndpoint.Parse(new RemoteTransportAddress(LanTcpEndpoint.ProviderName, candidate));
-            endpoint = candidate;
+            var parsed = LanTcpEndpoint.Parse(address);
+            if (!LanTcpEndpoint.IsPrivateIPv4(parsed.Address))
+            {
+                return false;
+            }
+
+            endpoint = parsed.ToString();
             return true;
         }
         catch (ArgumentException)
@@ -189,4 +167,23 @@ internal static class BrowserInvitationEndpoints
                 node.DisplayName,
                 node.JoinedAtUtc)).ToArray());
     }
+}
+
+internal sealed record BrowserInvitationListenerState(
+    RemoteTransportAddress? AdmissionAddress,
+    RemoteTransportAddress? SyncAddress,
+    string ErrorCode,
+    string ErrorMessage)
+{
+    internal bool IsAvailable => AdmissionAddress is not null && SyncAddress is not null;
+
+    internal static BrowserInvitationListenerState Available(
+        RemoteTransportAddress admissionAddress,
+        RemoteTransportAddress syncAddress) =>
+        new(admissionAddress, syncAddress, string.Empty, string.Empty);
+
+    internal static BrowserInvitationListenerState Unavailable(
+        string errorCode,
+        string errorMessage) =>
+        new(null, null, errorCode, errorMessage);
 }

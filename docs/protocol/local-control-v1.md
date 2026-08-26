@@ -21,6 +21,9 @@ This is the versioned, machine-local contract between `balls` or another local i
   protected XDG runtime location or an effective-user fallback. macOS uses a short directory below
   the current user's canonical private temporary location.
 - `--pipe-name` selects an explicit pipe for development and testing.
+- The installed Windows launcher supplies `--automatic-private-listeners`. This does not change
+  ordinary developer invocations or the explicit `--admission-listen` and `--message-listen`
+  diagnostics. Automatic selection never changes the loopback-only browser binding.
 - Maximum request body: 32 KiB. Default client timeout: 10 seconds.
 
 The transports live in outer host adapters and never become Core dependencies. Future platforms
@@ -441,10 +444,14 @@ firewall rule, or protected secret is returned to or stored by JavaScript.
 `GET /browser/v1/circles/{circleId}/viewer` returns the current local Member ID and role from
 persisted Circle membership rather than inferring ownership from participant ordering.
 `POST /browser/v1/circles/{circleId}/invitations` is Owner-authorized, preserves the existing
-signed, single-use invitation package unchanged, and adds separate numeric private IPv4 admission
-and authenticated-files synchronization endpoints. The browser wraps those public values in a
-bounded copyable invitation envelope. `POST /browser/v1/circles/join` submits the exact package,
-admission endpoint, and new Member display name to the existing signed admission behavior.
+signed, single-use invitation package unchanged, and accepts only `validForMinutes`; the Owner
+does not submit an address, port, provider, or other infrastructure value. The response adds the
+actual bound numeric private IPv4 admission and authenticated-files synchronization endpoints,
+which the browser wraps in a bounded copyable invitation envelope. Listener selection or binding
+must succeed before invitation state is created. An unavailable or ambiguous private network
+returns a bounded `409` while the loopback workspace remains usable. `POST
+/browser/v1/circles/join` submits the exact package, admission endpoint, and new Member display name
+to the existing signed admission behavior.
 
 `POST /browser/v1/circles/{circleId}/files/sync` accepts only a private IPv4 endpoint and returns
 the Circle ID plus the number of authorized grants imported. Provider credentials remain inside
@@ -507,6 +514,7 @@ Handled application errors use this shape:
 | 404 | `circle_files_contribution_not_found`, `member_not_found` |
 | 409 | `creation_request_conflict` |
 | 409 | `admission_attempt_conflict` |
+| 409 | `private_network_unavailable`, `private_network_ambiguous`, `private_listeners_unavailable` |
 | 409 | `message_request_conflict`, `conflict` |
 | 409 | `circle_files_contribution_request_conflict`, `circle_files_grant_request_conflict`, `circle_files_grant_exists`, `circle_files_grant_generation_changed` |
 | 409 | `folder_picker_failed`, `hosting_plan_changed`, `hosting_prerequisites_not_ready`, `hosting_ownership_collision`, `hosting_resource_collision`, `hosting_helper_unavailable`, `hosting_helper_authentication_failed`, `hosting_helper_invalid_response`, `hosting_identity_unavailable`, `hosting_consent_cancelled`, `hosting_consent_timeout`, `hosting_apply_failed`, `hosting_recovery_incomplete` |

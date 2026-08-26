@@ -70,9 +70,7 @@ public sealed record BrowserSessionResponse(
     string AntiforgeryToken,
     DateTimeOffset ExpiresAtUtc);
 
-public sealed record CreateBrowserCircleInvitationRequest(
-    int ValidForMinutes,
-    string? HostAddress);
+public sealed record CreateBrowserCircleInvitationRequest(int ValidForMinutes);
 
 public sealed record BrowserCircleInvitationResponse(
     string CircleId,

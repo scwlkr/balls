@@ -53,6 +53,7 @@ public static class DaemonCommand
         var nodeName = host.Defaults.NodeDisplayName;
         string? admissionListenEndpoint = null;
         string? messageListenEndpoint = null;
+        var automaticPrivateListeners = false;
 
         if (!TryApplyOption(tokens, "--data-directory", ref dataDirectory, out var error)
             || !TryApplyOption(tokens, "--pipe-name", ref localControlEndpoint, out error)
@@ -66,6 +67,11 @@ public static class DaemonCommand
                 tokens,
                 "--message-listen",
                 ref messageListenEndpoint,
+                out error)
+            || !TryApplyFlag(
+                tokens,
+                "--automatic-private-listeners",
+                ref automaticPrivateListeners,
                 out error))
         {
             await standardError.WriteLineAsync($"ballsd: {error}");
@@ -155,7 +161,8 @@ public static class DaemonCommand
                     localControlEndpoint,
                     nodeName,
                     admissionListenEndpoint,
-                    messageListenEndpoint),
+                    messageListenEndpoint,
+                    automaticPrivateListeners),
                 host,
                 supported.PrivateMaterialProtector,
                 cancellationToken).ConfigureAwait(false);
@@ -247,10 +254,29 @@ public static class DaemonCommand
         return true;
     }
 
+    private static bool TryApplyFlag(
+        List<string> tokens,
+        string option,
+        ref bool destination,
+        out string? error)
+    {
+        var index = tokens.FindIndex(token => string.Equals(token, option, StringComparison.Ordinal));
+        if (index < 0)
+        {
+            error = null;
+            return true;
+        }
+
+        destination = true;
+        tokens.RemoveAt(index);
+        error = null;
+        return true;
+    }
+
     private static Task WriteUsageAsync(TextWriter writer)
     {
         return writer.WriteLineAsync(
-            "usage: ballsd [--data-directory <path>] [--pipe-name <name>] [--node-name <name>] [--admission-listen <private-ip:port>] [--message-listen <private-ip:port>]");
+            "usage: ballsd [--data-directory <path>] [--pipe-name <name>] [--node-name <name>] [--admission-listen <private-ip:port>] [--message-listen <private-ip:port>] [--automatic-private-listeners]");
     }
 
     private static string GetProductVersion()

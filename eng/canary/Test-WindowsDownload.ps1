@@ -23,6 +23,51 @@ $programs = [Environment]::GetFolderPath([Environment+SpecialFolder]::Programs)
 $shortcutPath = Join-Path $programs 'Balls.lnk'
 $executionPolicyBefore = Get-ExecutionPolicy -List | Out-String
 $daemon = $null
+$shortcutLaunch = $null
+
+function Test-PrivateIPv4Address {
+    param([Parameter(Mandatory)] [string] $Address)
+
+    $parsed = [Net.IPAddress]::None
+    if (-not [Net.IPAddress]::TryParse($Address, [ref] $parsed) -or
+        $parsed.AddressFamily -ne [Net.Sockets.AddressFamily]::InterNetwork -or
+        [Net.IPAddress]::IsLoopback($parsed)) {
+        return $false
+    }
+    $bytes = $parsed.GetAddressBytes()
+    return $bytes[0] -eq 10 -or
+        ($bytes[0] -eq 172 -and $bytes[1] -ge 16 -and $bytes[1] -le 31) -or
+        ($bytes[0] -eq 192 -and $bytes[1] -eq 168) -or
+        ($bytes[0] -eq 169 -and $bytes[1] -eq 254)
+}
+
+function Test-LoopbackAddress {
+    param([Parameter(Mandatory)] [string] $Address)
+
+    $parsed = [Net.IPAddress]::None
+    return [Net.IPAddress]::TryParse($Address, [ref] $parsed) -and
+        [Net.IPAddress]::IsLoopback($parsed)
+}
+
+function Get-VerifiedPrivateListenerCount {
+    param([Parameter(Mandatory)] [int] $OwningProcessId)
+
+    $tcpListeners = @(Get-NetTCPConnection `
+        -OwningProcess $OwningProcessId `
+        -State Listen `
+        -ErrorAction Stop)
+    $privateListeners = @($tcpListeners | Where-Object {
+        Test-PrivateIPv4Address ([string] $_.LocalAddress)
+    })
+    $unsafeListeners = @($tcpListeners | Where-Object {
+        -not (Test-PrivateIPv4Address ([string] $_.LocalAddress)) -and
+        -not (Test-LoopbackAddress ([string] $_.LocalAddress))
+    })
+    if ($privateListeners.Count -ne 2 -or $unsafeListeners.Count -ne 0) {
+        throw 'Balls did not expose exactly two safe private listeners plus loopback-only browser access.'
+    }
+    return $privateListeners.Count
+}
 
 if ($env:OS -cne 'Windows_NT') {
     throw 'The Balls download smoke is Windows-only.'
@@ -76,6 +121,8 @@ try {
         throw 'The running daemon is not the exact installed release binary.'
     }
 
+    $initialPrivateListenerCount = Get-VerifiedPrivateListenerCount $daemon.Id
+
     $shell = New-Object -ComObject WScript.Shell
     $shortcut = $null
     try {
@@ -95,6 +142,28 @@ try {
         [Runtime.InteropServices.Marshal]::FinalReleaseComObject($shell) | Out-Null
     }
 
+    $daemon.Kill()
+    $daemon.WaitForExit()
+    $daemon = $null
+    $shortcutLaunch = Start-Process -FilePath $shortcutPath -PassThru
+    $deadline = [DateTimeOffset]::UtcNow.AddSeconds(20)
+    do {
+        $daemon = @(Get-Process -Name 'ballsd' -ErrorAction SilentlyContinue | Where-Object {
+            -not [string]::IsNullOrWhiteSpace($_.Path) -and
+            [IO.Path]::GetFullPath($_.Path) -ceq [IO.Path]::GetFullPath($expectedDaemon)
+        } | Select-Object -First 1)[0]
+        if ($null -eq $daemon) {
+            Start-Sleep -Milliseconds 250
+        }
+    } while ($null -eq $daemon -and [DateTimeOffset]::UtcNow -lt $deadline)
+    if ($null -eq $daemon) {
+        throw 'The normal Balls shortcut did not relaunch the installed daemon.'
+    }
+    $shortcutPrivateListenerCount = Get-VerifiedPrivateListenerCount $daemon.Id
+    if (-not $shortcutLaunch.WaitForExit(20000) -or $shortcutLaunch.ExitCode -ne 0) {
+        throw 'The normal Balls shortcut did not finish opening the loopback workspace.'
+    }
+
     $executionPolicyAfter = Get-ExecutionPolicy -List | Out-String
     if ($executionPolicyAfter -cne $executionPolicyBefore) {
         throw 'The Windows bootstrap changed execution policy.'
@@ -108,11 +177,19 @@ try {
         archive = $record.package.name
         archiveSha256 = $record.package.sha256
         daemonPathVerified = $true
+        privateListenerCount = $shortcutPrivateListenerCount
+        privateListenersVerified = $true
+        automaticFirstLaunchListenersVerified = $initialPrivateListenerCount -eq 2
+        shortcutListenersVerified = $shortcutPrivateListenerCount -eq 2
         shortcutVerified = $true
         executionPolicyUnchanged = $true
     } | ConvertTo-Json -Compress
 }
 finally {
+    if ($null -ne $shortcutLaunch -and -not $shortcutLaunch.HasExited) {
+        $shortcutLaunch.Kill()
+        $shortcutLaunch.WaitForExit()
+    }
     if ($null -ne $daemon -and -not $daemon.HasExited) {
         $daemon.Kill()
         $daemon.WaitForExit()

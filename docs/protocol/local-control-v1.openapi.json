@@ -3533,8 +3533,7 @@
       },
       "CreateBrowserCircleInvitationRequest": {
         "required": [
-          "validForMinutes",
-          "hostAddress"
+          "validForMinutes"
         ],
         "type": "object",
         "properties": {
@@ -3545,12 +3544,6 @@
               "string"
             ],
             "format": "int32"
-          },
-          "hostAddress": {
-            "type": [
-              "null",
-              "string"
-            ]
           }
         }
       },

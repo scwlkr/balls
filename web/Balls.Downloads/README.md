@@ -78,7 +78,11 @@ checks. This does not authorize Alpha, Beta, or Stable movement.
 6. Run the local gates below. After the site is deployed, run the copied live Development command
    under the authorized ordinary Windows profile and record the observed manifest, archive, and
    installed `installation.json` identity on the issue. The exact-release smoke performs that
-   install plus daemon-path, Start Menu shortcut, execution-policy, and owned-cleanup checks:
+   install plus daemon-path, Start Menu shortcut, execution-policy, and owned-cleanup checks. It
+   validates both automatic first launch and a real Start Menu shortcut relaunch, requires each
+   installed daemon to own exactly two private IPv4 TCP listeners, rejects any wildcard/public
+   listener, and reports `privateListenersVerified: true` without recording the selected private
+   address or ports:
 
    ```powershell
    .\eng\canary\Test-WindowsDownload.ps1 `
@@ -105,7 +109,9 @@ The [Private Boss Demo specification](../../docs/specs/private-boss-demo-v1.md) 
 - a previous-versions list containing every accepted release and the newest ten Development builds;
 - immutable version manifests for historical commands and a complete GitHub Releases link;
 - built-in Windows PowerShell compatibility, a self-contained current-user package, automatic first
-  launch, a normal shortcut, and persisted channel/package identity.
+  launch, a normal shortcut, and persisted channel/package identity;
+- normal first launch and shortcut launch automatically bind the two required remote services to
+  one unambiguous private IPv4 interface without user-supplied addresses, ports, or daemon setup.
 
 Development is a durable public testing lane, not Canary. It may point to an incomplete or broken
 immutable GitHub prerelease from an identified issue branch or `main` commit. An active issue may

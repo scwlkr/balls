@@ -150,8 +150,7 @@ internal static class BrowserAdapter
         TrustedCircleFilesSyncApplication filesSyncApplication,
         InvitationApplication invitationApplication,
         TrustedCircleAdmissionApplication admissionApplication,
-        string? admissionListenEndpoint,
-        string? messageListenEndpoint,
+        BrowserInvitationListenerState invitationListeners,
         BrowserAccessBroker access)
     {
         application.MapPost(
@@ -224,8 +223,7 @@ internal static class BrowserAdapter
                 (string circleId, CreateBrowserCircleInvitationRequest request, CancellationToken token) =>
                     BrowserInvitationEndpoints.CreateAsync(
                         invitationApplication,
-                        admissionListenEndpoint,
-                        messageListenEndpoint,
+                        invitationListeners,
                         circleId,
                         request,
                         token))
