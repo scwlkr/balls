@@ -150,6 +150,76 @@ describe("Balls browser workspace", () => {
     expect(within(nodes).getByText("This device")).toBeInTheDocument();
   });
 
+  it("cancels the Windows folder picker without previewing or mutating", async () => {
+    const api = createApi({ circles: [details.circle] });
+    let applyCount = 0;
+    api.contributeFilesFolder = async () => {
+      applyCount += 1;
+      throw new Error("The contribution must not run.");
+    };
+
+    render(<App api={api} />);
+    fireEvent.click(
+      await screen.findByRole("button", { name: "Choose existing folder" }),
+    );
+
+    expect(await screen.findByRole("status")).toHaveTextContent(
+      "No folder was selected. Nothing changed.",
+    );
+    expect(screen.queryByLabelText("Contribution preview")).toBeNull();
+    expect(applyCount).toBe(0);
+  });
+
+  it("previews the exact existing folder and retries one idempotent contribution", async () => {
+    const api = createApi({ circles: [details.circle] });
+    const requests: Array<[string, string, string, string]> = [];
+    api.selectFilesFolder = async () => ({
+      status: "selected",
+      folderPath: String.raw`C:\BallsDemo\Projects`,
+      displayName: "Projects",
+    });
+    api.contributeFilesFolder = async (...request) => {
+      requests.push(request);
+      if (requests.length === 1) {
+        throw new Error("Windows did not finish the approved hosting change.");
+      }
+      return {
+        status: "applied",
+        contributionId: "0198f2cc-6a50-7a08-aacb-298f4ebdf690",
+        displayName: "Projects",
+        folderPath: String.raw`C:\BallsDemo\Projects`,
+      };
+    };
+
+    render(<App api={api} />);
+    fireEvent.click(
+      await screen.findByRole("button", { name: "Choose existing folder" }),
+    );
+
+    const preview = await screen.findByLabelText("Contribution preview");
+    expect(preview).toHaveTextContent(String.raw`C:\BallsDemo\Projects`);
+    expect(preview).toHaveTextContent("Existing files stay in place");
+    expect(requests).toHaveLength(0);
+    fireEvent.click(
+      within(preview).getByRole("button", { name: "Contribute Projects" }),
+    );
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      "Windows did not finish",
+    );
+    fireEvent.click(
+      within(preview).getByRole("button", { name: "Contribute Projects" }),
+    );
+
+    expect(await screen.findByRole("status")).toHaveTextContent(
+      "Projects is ready to share with Circle members.",
+    );
+    expect(requests).toHaveLength(2);
+    expect(requests[0]).toEqual(requests[1]);
+    expect(requests[0]?.[0]).toBe(details.circle.id);
+    expect(requests[0]?.[2]).toBe(String.raw`C:\BallsDemo\Projects`);
+    expect(requests[0]?.[3]).toBe("Projects");
+  });
+
   it("creates a single shareable invitation without exposing connection setup", async () => {
     const api = createApi({ circles: [details.circle] });
     api.getCircle = async () => ({
@@ -640,6 +710,14 @@ function createApi(circleList: CircleListDto): BrowserApi {
       contributionId,
       grants: [],
     }),
+    selectFilesFolder: async () => ({
+      status: "cancelled",
+      folderPath: null,
+      displayName: null,
+    }),
+    contributeFilesFolder: async () => {
+      throw new Error("No contribution test configured.");
+    },
     previewFilesMapping: async () => {
       throw new Error("No mapping test configured.");
     },

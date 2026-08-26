@@ -21,6 +21,19 @@ interface ErrorDto {
   message: string;
 }
 
+export interface CircleFilesFolderSelectionDto {
+  status: "selected" | "cancelled";
+  folderPath: string | null;
+  displayName: string | null;
+}
+
+export interface CircleFilesContributionResultDto {
+  status: "applied" | "already-applied";
+  contributionId: string;
+  displayName: string;
+  folderPath: string;
+}
+
 export interface BrowserApi {
   exchangeLaunchCapability(capability: string): Promise<void>;
   getStatus(): Promise<StatusDto>;
@@ -45,6 +58,13 @@ export interface BrowserApi {
   listFilesContributions(
     circleId: string,
   ): Promise<CircleFilesContributionListDto>;
+  selectFilesFolder(circleId: string): Promise<CircleFilesFolderSelectionDto>;
+  contributeFilesFolder(
+    circleId: string,
+    requestId: string,
+    folderPath: string,
+    displayName: string,
+  ): Promise<CircleFilesContributionResultDto>;
   listFilesGrants(
     circleId: string,
     contributionId: string,
@@ -181,6 +201,27 @@ class FetchBrowserApi implements BrowserApi {
   listFilesGrants(circleId: string, contributionId: string) {
     return this.request<MemberAccessGrantListDto>(
       `/browser/v1/circles/${encodeURIComponent(circleId)}/files/contributions/${encodeURIComponent(contributionId)}/grants`,
+    );
+  }
+
+  selectFilesFolder(circleId: string) {
+    return this.authenticatedRequest<CircleFilesFolderSelectionDto>(
+      `/browser/v1/circles/${encodeURIComponent(circleId)}/files/contributions/folder-selection`,
+      {},
+      "Run balls ui again to choose a folder.",
+    );
+  }
+
+  contributeFilesFolder(
+    circleId: string,
+    requestId: string,
+    folderPath: string,
+    displayName: string,
+  ) {
+    return this.authenticatedRequest<CircleFilesContributionResultDto>(
+      `/browser/v1/circles/${encodeURIComponent(circleId)}/files/contributions/folder-apply`,
+      { requestId, folderPath, displayName },
+      "Run balls ui again to contribute the folder.",
     );
   }
 

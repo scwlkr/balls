@@ -153,12 +153,8 @@ internal sealed class WindowsCircleFilesSystemOperations :
         }
 
         return string.Equals(currentSddl, journal.PreMutationSddl, StringComparison.Ordinal)
-            && Directory.EnumerateFileSystemEntries(folder).All(path =>
-                path.Equals(
-                    Path.Combine(folder, JournalFileName),
-                    StringComparison.OrdinalIgnoreCase))
-                ? WindowsCircleFilesOwnedState.Missing
-                : WindowsCircleFilesOwnedState.Collision;
+            ? WindowsCircleFilesOwnedState.Missing
+            : WindowsCircleFilesOwnedState.Collision;
     }
 
     private static WindowsCircleFilesOwnedState InspectMarker(WindowsCircleFilesHelperPlan plan)
@@ -194,11 +190,7 @@ internal sealed class WindowsCircleFilesSystemOperations :
         if (existingJournal is not null)
         {
             var currentSddl = GetCurrentSddl(folder);
-            if (!string.Equals(currentSddl, existingJournal.PreMutationSddl, StringComparison.Ordinal)
-                || Directory.EnumerateFileSystemEntries(folder).Any(path =>
-                    !path.Equals(
-                        Path.Combine(folder, JournalFileName),
-                        StringComparison.OrdinalIgnoreCase)))
+            if (!string.Equals(currentSddl, existingJournal.PreMutationSddl, StringComparison.Ordinal))
             {
                 throw new InvalidOperationException("The prior folder operation cannot be resumed safely.");
             }
@@ -224,9 +216,10 @@ internal sealed class WindowsCircleFilesSystemOperations :
 
         Directory.CreateDirectory(folder);
         var entries = Directory.EnumerateFileSystemEntries(folder).ToArray();
-        if (entries.Length != 0)
+        if (entries.Any(IsReservedMetadataPath))
         {
-            throw new InvalidOperationException("The hosting folder is no longer empty.");
+            throw new InvalidOperationException(
+                "The hosting folder contains reserved Balls operation metadata.");
         }
 
         var preMutationSddl = GetCurrentSddl(folder);
@@ -550,6 +543,16 @@ internal sealed class WindowsCircleFilesSystemOperations :
         }
 
         return ParseOwnedJournal(content, ownershipId, planId, folderPath, ownerSid) is not null;
+    }
+
+    internal static bool IsReservedMetadataPath(string path)
+    {
+        var name = Path.GetFileName(path);
+        return name.Equals(JournalFileName, StringComparison.OrdinalIgnoreCase)
+            || name.Equals(FirewallRecoveryFileName, StringComparison.OrdinalIgnoreCase)
+            || name.Equals(
+                WindowsCircleFilesOwnershipMarker.FileName,
+                StringComparison.OrdinalIgnoreCase);
     }
 
     private static WindowsCircleFilesJournal? ParseOwnedJournal(

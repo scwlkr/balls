@@ -430,12 +430,13 @@ Circle returns `404 Not Found`.
 The browser listener serves the bundled production application and only these `/browser/v1`
 routes: session exchange, status, Circle list/create/details, exact local viewer identity, Owner
 invitation creation, signed invitation admission, ordered Circle message history, authenticated
-Circle Files synchronization, safe contribution/Access Grant lists, and the four mapping
-operations. The browser control plane remains narrower than `/control/v1`; control routes return
-`404` on TCP and browser routes return `404` over IPC. Readiness, host provisioning, grant creation,
-grant credential provisioning, revocation, and infrastructure cleanup remain CLI/local-control
-only. Browser mapping calls the same `CircleFilesMemberMappingApplication` as IPC; no SMB password
-or protected secret is returned to or stored by JavaScript.
+Circle Files synchronization, Owner folder selection and contribution, safe contribution/Access
+Grant lists, and the four mapping operations. The browser control plane remains narrower than
+`/control/v1`; control routes return `404` on TCP and browser routes return `404` over IPC.
+Readiness, arbitrary host provisioning, grant creation, grant credential provisioning, revocation,
+and infrastructure cleanup remain CLI/local-control only. Browser contribution and mapping call the
+same application and provider behavior as IPC; no SMB password, authorization proof, share name,
+firewall rule, or protected secret is returned to or stored by JavaScript.
 
 `GET /browser/v1/circles/{circleId}/viewer` returns the current local Member ID and role from
 persisted Circle membership rather than inferring ownership from participant ordering.
@@ -453,8 +454,18 @@ they never occur in the browser request or response.
 Authenticated `GET /browser/v1/circles/{circleId}/files/contributions` and
 `GET /browser/v1/circles/{circleId}/files/contributions/{contributionId}/grants` return safe list
 representations and stable ordering. An ordinary Member receives only their own authorized grants;
-an Owner may inspect the Circle's complete locally known grant list. Other mutation methods are
-not mapped.
+an Owner may inspect the Circle's complete locally known grant list.
+
+Owner-authorized `POST
+/browser/v1/circles/{circleId}/files/contributions/folder-selection` opens the normal Windows folder
+picker in the unelevated daemon and returns either `selected` with the exact local path and human
+folder name or `cancelled` with no path. Cancellation creates no Contribution and performs no host
+mutation. `POST /browser/v1/circles/{circleId}/files/contributions/folder-apply` accepts a canonical
+idempotency request ID plus that selected path/name, creates the signed Contribution, previews the
+exact existing host plan, and applies it through the existing narrow helper. Its response contains
+only the public Contribution ID, human name, canonical folder path, and `applied` or
+`already-applied`; internal plans and infrastructure identifiers remain hidden. Other Circle Files
+mutation methods are not mapped.
 
 `POST /browser/v1/session` exchanges the launch capability once. Success sets the
 `__Host-balls-session` cookie with `HttpOnly`, `Secure`, `SameSite=Strict`, and `Path=/`, and returns
@@ -498,7 +509,7 @@ Handled application errors use this shape:
 | 409 | `admission_attempt_conflict` |
 | 409 | `message_request_conflict`, `conflict` |
 | 409 | `circle_files_contribution_request_conflict`, `circle_files_grant_request_conflict`, `circle_files_grant_exists`, `circle_files_grant_generation_changed` |
-| 409 | `hosting_plan_changed`, `hosting_prerequisites_not_ready`, `hosting_folder_not_empty`, `hosting_ownership_collision`, `hosting_resource_collision`, `hosting_helper_unavailable`, `hosting_helper_authentication_failed`, `hosting_helper_invalid_response`, `hosting_identity_unavailable`, `hosting_consent_cancelled`, `hosting_consent_timeout`, `hosting_apply_failed`, `hosting_recovery_incomplete` |
+| 409 | `folder_picker_failed`, `hosting_plan_changed`, `hosting_prerequisites_not_ready`, `hosting_ownership_collision`, `hosting_resource_collision`, `hosting_helper_unavailable`, `hosting_helper_authentication_failed`, `hosting_helper_invalid_response`, `hosting_identity_unavailable`, `hosting_consent_cancelled`, `hosting_consent_timeout`, `hosting_apply_failed`, `hosting_recovery_incomplete` |
 | 409 | `grant_plan_changed`, `grant_cleanup_plan_changed`, `host_removal_plan_changed`, `grant_resource_collision`, `grant_apply_failed`, `circle_files_provider_credential_conflict`, `circle_files_grants_remain`, `circle_files_provider_credentials_remain` |
 | 409 | `mapping_plan_changed`, `mapping_drive_collision`, `mapping_credential_collision`, `mapping_label_collision`, `mapping_resource_collision`, `mapping_share_identity_mismatch`, `mapping_recovery_incomplete` |
 | 409 | `replayed` |
@@ -509,13 +520,14 @@ is not guaranteed to use the application error shape.
 
 ## Explicit non-goals
 
-v1 does not expose message-authoring, Circle Files readiness, host provisioning, grant creation,
-grant-credential provisioning, revocation, or infrastructure cleanup to the browser. The local API
-and CLI implement the exact dedicated-host operation and one limited account/ACL operation per
-Access Grant. The browser supplies explicit invitation/join, authenticated Member-only grant
-synchronization, and guided Explorer mapping over the same application behavior.
+v1 does not expose message-authoring, Circle Files readiness, arbitrary host provisioning, grant
+creation, grant-credential provisioning, revocation, or infrastructure cleanup to the browser. The
+local API and CLI retain the detailed hosting controls and one limited account/ACL operation per
+Access Grant. The browser supplies the single Owner-approved existing-folder hosting journey,
+explicit invitation/join, authenticated Member-only grant synchronization, and guided Explorer
+mapping over the same application behavior.
 They do not enable SMB features or policy, start services, change network profiles or global firewall policy,
-adopt existing folders with content, delete user files, activate/revoke Contributions, rotate
+delete user files, activate/revoke Contributions, rotate
 provider credentials, securely erase protected recovery material, synchronize or replicate content,
 add version history/trash, discover peers, replace occupied drive letters, expose or reuse a
 credential for another Member, or add automatic/multiple-Anchor behavior. Guided mapping may

@@ -145,6 +145,7 @@ internal static class BrowserAdapter
         CircleApplication circleApplication,
         CircleMessageQueryApplication messageQueries,
         CircleFilesApplication filesApplication,
+        BrowserCircleFilesContributionApplication filesContributionApplication,
         CircleFilesMemberMappingApplication filesMemberMappingApplication,
         TrustedCircleFilesSyncApplication filesSyncApplication,
         InvitationApplication invitationApplication,
@@ -327,6 +328,32 @@ internal static class BrowserAdapter
             .Produces<CircleFilesContributionListResponse>(StatusCodes.Status200OK)
             .Produces<ErrorResponse>(StatusCodes.Status400BadRequest)
             .Produces<ErrorResponse>(StatusCodes.Status404NotFound);
+        application.MapPost(
+                BrowserRoutes.Circles + "/{circleId}/files/contributions/folder-selection",
+                (string circleId, CancellationToken token) =>
+                    BrowserCircleFilesContributionEndpoints.SelectFolderAsync(
+                        filesContributionApplication,
+                        circleId,
+                        token))
+            .Produces<BrowserCircleFilesFolderSelectionResponse>(StatusCodes.Status200OK)
+            .Produces<ErrorResponse>(StatusCodes.Status400BadRequest)
+            .Produces<ErrorResponse>(StatusCodes.Status403Forbidden)
+            .Produces<ErrorResponse>(StatusCodes.Status404NotFound)
+            .Produces<ErrorResponse>(StatusCodes.Status409Conflict);
+        application.MapPost(
+                BrowserRoutes.Circles + "/{circleId}/files/contributions/folder-apply",
+                (string circleId, ApplyBrowserCircleFilesFolderRequest request,
+                    CancellationToken token) =>
+                    BrowserCircleFilesContributionEndpoints.ApplyAsync(
+                        filesContributionApplication,
+                        circleId,
+                        request,
+                        token))
+            .Produces<BrowserCircleFilesContributionResponse>(StatusCodes.Status200OK)
+            .Produces<ErrorResponse>(StatusCodes.Status400BadRequest)
+            .Produces<ErrorResponse>(StatusCodes.Status403Forbidden)
+            .Produces<ErrorResponse>(StatusCodes.Status404NotFound)
+            .Produces<ErrorResponse>(StatusCodes.Status409Conflict);
         application.MapGet(
                 BrowserRoutes.Circles + "/{circleId}/files/contributions/{contributionId}/grants",
                 (string circleId, string contributionId, CancellationToken token) =>
