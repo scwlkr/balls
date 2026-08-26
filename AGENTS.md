@@ -4,6 +4,31 @@
 
 This repository builds **Balls**, an open-source platform for trusted Circles.
 
+## Private pilot delivery posture
+
+Balls currently serves approximately two or three personally trusted people over a private LAN or
+an owner-managed Tailscale network. Prioritize a working end-to-end product, simple human
+workflows, and rapid feedback over security architecture for hypothetical scale or public-internet
+threats.
+
+Preserve a narrow safety floor: never bypass operating-system protections, expose private services
+publicly, mishandle credentials, delete user data, grant unapproved machine access, or weaken
+existing provider security. Add further controls only for a concrete pilot risk, observed failure,
+or accepted release requirement. Security work that does not protect the active private-pilot
+journey must not displace delivery of that journey.
+
+The urgent active outcome is the
+[Private Boss Demo](https://github.com/scwlkr/balls/issues/92): official download, graphical Circle
+join, and usable shared File Explorer access on a separate Windows computer. Balls Wizard, Circle
+AI, richer messaging, generalized providers, and further security architecture are off that
+issue's critical path.
+
+Before implementing that outcome, read
+[`docs/specs/private-boss-demo-v1.md`](docs/specs/private-boss-demo-v1.md). The broader accepted
+product contract is
+[`docs/specs/private-shared-ecosystem-v1.md`](docs/specs/private-shared-ecosystem-v1.md), but its
+later slices are not implementation authority.
+
 ## Start with current state
 
 For ordinary ticket work, read only:

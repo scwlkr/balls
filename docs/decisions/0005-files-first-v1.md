@@ -1,6 +1,6 @@
 # ADR 0005 — Make v1 a Files-first Circle Release
 
-- **Status:** Accepted
+- **Status:** Superseded by ADR 0009
 - **Date:** 2026-08-19
 
 The first supported release will prove the Circle through secure membership and one Windows
@@ -9,4 +9,3 @@ uses authenticated SMB 3.1.1, separate limited Member Access Grants, a narrow pr
 and ordinary application-requested locking. This is the fastest useful company outcome, while the
 Circle Files abstraction, explicit contribution model, and provider boundaries prevent SMB or one
 hosting Node from becoming the permanent product definition.
-

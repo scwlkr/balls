@@ -2,27 +2,33 @@
 
 ## Product
 
-**Balls is an open-source platform for trusted Circles.**
+**Balls is an open-source graphical integration platform for trusted Circles.**
 
-A Circle is a private shared workspace whose capabilities are supplied by the people and infrastructure inside it.
+A Circle is a private shared computing environment whose capabilities are supplied by the people
+and infrastructure inside it. Members use those approved capabilities without configuring the
+underlying computers or providers.
 
 Balls is people-first. Nodes matter because of what they make possible for the Circle.
 
 ## Initial user
 
-Design the immediate pilot obsessively for:
+Design the immediate private pilot obsessively for:
 
-- two personally trusted coworkers in one small company;
+- approximately two or three personally trusted people in one small company;
+- software obtained only through [`balls.wlkrlabs.com`](https://balls.wlkrlabs.com), pointing to an
+  exact owner-accepted GitHub Release;
 - a newly created project folder hosted by one Windows Node on the private LAN;
-- one invitation that makes the approved folder usable from the second coworker's Windows PC;
+- one invitation that makes the approved folder usable from the boss's separate Windows PC;
 - ordinary Windows File Explorer and the company's existing project applications.
 
-The person accepting the invitation must not need to understand IP addresses, SMB accounts,
-provider grants, or drive-mapping plans. The owner may prepare and inspect the infrastructure,
-but the coworker receives a privately verified experience.
+Neither person should handle PowerShell, daemon arguments, IP addresses, ports, SMB accounts,
+provider grants, object IDs, plan tokens, or drive-mapping plans. Exact Windows elevation remains
+acceptable for an Owner-approved host mutation, but contribution and use are graphical and
+provider-jargon-free by default.
 
-The broader 2–10-person Circle audience and future integrations remain long-term goals, not
-prerequisites for this first useful outcome.
+After that boss demo, the first complete ecosystem proof is one joined Member using Circle Files,
+Circle Messaging, and Circle AI hosted by another Node, followed by coherent access revocation.
+The broader audience and future integrations remain long-term goals.
 
 Balls should not require every user to be a systems administrator.
 
@@ -113,13 +119,12 @@ The product abstraction is **Circle Files**.
 
 SMB, sync, mounts, object storage, replication, and future protocols are implementation providers underneath that abstraction.
 
-### Files-first v1
+### Circle Files provider foundation
 
-The immediate company pilot and first supported product release are intentionally files-first.
-They prove the Circle model by letting two trusted Members join one Circle and work in the same
-newly contributed folder through Windows File Explorer. A second, ordinary Member must actually
-receive and use their approved access on a separate Windows computer; an Owner mapping a share
-on its own hosting Node is not sufficient evidence.
+The implemented Windows provider foundation lets two trusted Members join one Circle and work in
+the same newly contributed folder through Windows File Explorer. The Private Boss Demo must prove
+that a second, ordinary Member can receive and use approved access graphically on a separate Windows
+computer; an Owner mapping a share on its own hosting Node is not sufficient evidence.
 
 The initial provider is authenticated SMB 3.1.1 on a Windows hosting Node. Each Member receives a
 separate limited Access Grant with whole-folder `Read/write` or `Read-only` access. LAN access
@@ -127,7 +132,7 @@ ships before an optional Tailscale path. The normal applications opening a file 
 sharing/locking behavior; Balls certifies named application scenarios rather than promising a
 universal single-writer lock.
 
-This first provider is one live folder on one Node. Replication, offline synchronization, conflict
+This provider is one live folder on one Node. Replication, offline synchronization, conflict
 merging, version history, and Balls-managed trash are later capabilities. The product must expose
 that limitation honestly and must never delete user files while removing Balls-owned access.
 
@@ -225,6 +230,24 @@ Balls can select the best available approved Node and make that model available 
 
 Later versions may add sophisticated schedulers and distributed workloads.
 
+Circle AI is not Balls Wizard. Circle AI is contributed by an approved Node and made available to
+other authorized Members without exposing runtime addresses or credentials.
+
+## Balls Wizard
+
+Balls Wizard is an optional local product guide inside the Balls browser interface. Its character
+is a floating brand-violet ball wearing a wizard hat, derived from the canonical
+[`balls-brand.png`](balls-brand.png) visual language.
+
+When Balls Wizard is absent, a small bottom-right prompt offers to download it. Balls never
+downloads its model automatically. After the user opts in, Balls retrieves a pinned quantized
+instruction-tuned Gemma 4 E2B model and integrates it without requiring model or runtime setup.
+
+Balls Wizard runs on the computer asking the question. It retrieves user documentation matching
+the installed Balls version and can answer questions such as “How do I remove a Member from this
+Circle?” with links to the relevant guidance. It begins as read-only assistance, not an authority
+that silently performs administrative changes. Core Balls remains fully usable without it.
+
 ## Apps
 
 A Circle may install applications and services.
@@ -305,3 +328,8 @@ Balls is succeeding when a user can invite a trusted coworker and, with very lit
 - approved services can run;
 - technical users can inspect what is happening;
 - future capabilities can be added without rebuilding the foundation.
+
+The private product gate is stricter: from the official download, a fresh Member must join, open an
+approved folder, send a Circle message, and use Circle AI hosted by another Node without handling
+provider configuration. If this is not materially easier than assembling existing tools, platform
+expansion pauses and the product direction is reconsidered.

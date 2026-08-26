@@ -24,24 +24,25 @@ Read these documents in order:
 
 ## One-line product explanation
 
-**Create a Circle. Invite people you trust. Their approved computers and servers become useful parts of a shared workspace for files, chat, AI, apps, services, and compute.**
+**Create a Circle. Invite people you trust. Use the files, messages, AI, apps, and approved actions
+their computers contribute without configuring the underlying machines or providers.**
 
 ## Initial target
 
-The immediate proving ground is **one small company and two real coworkers**. One person creates a
-new Windows-hosted project folder on the private LAN, sends the other person a Balls invitation,
-and both use the folder from Windows File Explorer and their ordinary project applications.
+The urgent proving ground is **one small company and two real coworkers**. One person downloads
+Balls from [`balls.wlkrlabs.com`](https://balls.wlkrlabs.com), creates a Windows-hosted project
+folder on the private LAN, and sends the other person a private Circle invitation. The invited
+coworker downloads Balls from the same official page, joins in the local browser, and opens the
+approved folder in Windows File Explorer.
 
-The invited coworker should not need a private IP address, an SMB password, a grant identifier,
-or an infrastructure setup guide. Broader Circle integrations remain the long-term direction, but
-they do not take priority over this useful two-person outcome. Balls remains open source.
+Neither person should need PowerShell, daemon flags, IP addresses, ports, SMB passwords, object IDs,
+plan tokens, provider language, or manual drive selection. The next proof adds Circle Messaging and
+Circle AI hosted by another Node to the same joined experience. Balls remains open source.
 
 ## Current status
 
-**[`0.2.0-alpha.1`](https://github.com/scwlkr/balls/releases/tag/0.2.0-alpha.1)
-Cross-platform Node and Web UI and
-[`0.3.0-alpha.1`](https://github.com/scwlkr/balls/releases/tag/0.3.0-alpha.1)
-Trusted Circle are published.**
+**[`0.3.0-alpha.1`](https://github.com/scwlkr/balls/releases/tag/0.3.0-alpha.1) is the
+latest published Alpha. It does not contain the newer Circle Files pilot.**
 
 On Windows and Linux, `ballsd` now owns persistent local Node and Circle state, and `balls` can
 create a Circle and list its Circles, Members, and Nodes through a versioned HTTP/JSON API over
@@ -53,10 +54,12 @@ local IPC, and React workspace. It is a development compatibility lane rather th
 release; the exact remote TLS 1.3 server boundary remains explicit in
 [`ADR 0007`](docs/decisions/0007-protected-macos-developer-node.md).
 
-The files-first path now establishes public-ready delivery and fast Windows/Linux/macOS development,
-then a cross-platform daemon/CLI/browser foundation, trusted join, LAN Circle Files, operable
-remote Files, a company Beta, and a focused v1.0. See the compact [`roadmap`](ROADMAP.md), detailed
-[`files-first program`](docs/roadmap/files-first-v1.md), and [`current state`](docs/STATE.md).
+Current `main` contains the newer secure LAN Circle Files implementation and real two-computer
+ordinary-file evidence, but its human journey and official package are not yet accepted. The
+2026-08-26 product reset replaced the files-only release sequence with one urgent
+[Private Boss Demo](https://github.com/scwlkr/balls/issues/92), followed by the Files + Messaging +
+Circle AI shared-ecosystem proof. See the [`roadmap`](ROADMAP.md), [`current state`](docs/STATE.md),
+and [`reset decision`](docs/decisions/0009-reset-around-private-shared-ecosystem-proof.md).
 
 The published Alpha has platform-neutral host composition, protected native Linux state/IPC, stable
 machine-readable CLI output, and one typed React workspace generated from local-control v1.
@@ -68,12 +71,18 @@ Circle messaging now carries one bounded Member-and-Node-signed text message to 
 Anchor over admitted-peer mTLS, assigns durable Anchor order, and exposes the same restart-stable
 history through the CLI and browser workspace.
 
-On Windows, an Owner can now contribute a new dedicated folder, issue one limited SMB credential
-per Access Grant, and map the exact private IPv4/share into an explicitly selected free drive
-letter. `ballsd` keeps the password inside protected current-user state and Windows Credential
-Manager; CLI and browser preview/map/inspect/unmap responses contain only the public plan.
+On current `main`, an invited Member can paste one opaque browser invitation and use a guided
+Circle Files action that chooses `P:` or another free drive without exposing the SMB password. The
+remaining Owner setup, packaging, persistence, and real standard-user browser gaps are listed
+honestly in [`docs/STATE.md`](docs/STATE.md).
 
-## Quick start
+## Official download
+
+Use [`balls.wlkrlabs.com`](https://balls.wlkrlabs.com) for every official Balls install or update.
+The site points to exact owner-accepted GitHub Release assets; it does not host manually copied
+binaries. Private Circle invitations are exchanged separately.
+
+## Developer source quick start
 
 On Windows with the .NET SDK selected by [`global.json`](global.json):
 

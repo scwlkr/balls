@@ -39,8 +39,8 @@ guided mapping-button click. The real mapping was applied through the Balls CLI,
 same local application behavior. The joining account used a limited interactive token but may
 still have been administrator-capable.
 
-These omissions do not satisfy the complete `0.4.0-alpha.1` release-acceptance matrix in issue
-[#62](https://github.com/scwlkr/balls/issues/62). That issue still requires exact current Release
-artifacts on isolated Nodes, a genuinely nonadministrator browser-guided mapping, live revocation
-and ownership-preserving cleanup, the application compatibility matrix, release/security gates,
-and explicit owner acceptance before publication.
+These omissions did not satisfy the former `0.4.0-alpha.1` release-acceptance matrix. Issue
+[#62](https://github.com/scwlkr/balls/issues/62) was closed as superseded without a release on
+2026-08-26. The current Private Boss Demo specification separately requires exact accepted
+Release-candidate artifacts, a genuinely nonadministrator browser-guided mapping, honest evidence,
+and explicit Owner approval before publication. This record remains historical evidence only.

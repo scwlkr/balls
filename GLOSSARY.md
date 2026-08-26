@@ -12,6 +12,9 @@ Prefer **Balls** over **Balls Server** for the new project.
 
 The top-level trusted group and shared digital environment.
 
+It lets Members discover and use explicitly contributed capabilities from the group's Nodes
+without configuring the underlying machines or providers.
+
 Examples:
 
 - Example Studio
@@ -25,6 +28,11 @@ A person joins a Circle.
 A human identity inside a Circle.
 
 A Member may use multiple Nodes.
+
+## Membership
+
+A person's admitted relationship to one Circle. Membership establishes Circle identity; it does
+not by itself authorize every capability or contribute anything from the person's Nodes.
 
 ## Owner / Admin
 
@@ -106,9 +114,15 @@ Examples:
 
 ## Capability
 
-Something a Member, Node, app, or service may be allowed to use or provide.
+An explicitly bounded resource or action that a Node, app, or service provides to a Circle or that
+a Member may be permitted to use.
 
 Prefer typed capabilities over broad implied trust.
+
+## Capability Grant
+
+A Circle authorization allowing one Member to use one Capability within an explicit scope.
+Membership alone does not imply a Capability Grant.
 
 ## Circle Files
 
@@ -126,7 +140,8 @@ _Avoid_: File system, the share
 
 ## Access Grant
 
-A Circle authorization allowing one Member to use one Contribution at a defined access level.
+The Circle Files form of a Capability Grant, allowing one Member to use one File Contribution at a
+defined access level.
 
 Provider accounts or credentials may enforce an Access Grant, but they are not Member identity.
 
@@ -134,7 +149,23 @@ _Avoid_: User account, share login
 
 ## Circle AI
 
-AI service belonging to a Circle and operating with explicitly permitted Circle context, tools, apps, and compute.
+An explicitly contributed AI capability that belongs to a Circle and operates with permitted
+Circle context, tools, apps, and compute. It may run on one Node and serve other authorized Members.
+
+Circle AI is not Balls Wizard.
+
+## Balls Wizard
+
+The optional on-device Balls product guide. It appears as a floating brand-violet ball wearing a
+wizard hat, retrieves version-matched Balls user documentation, and explains how to use the product.
+
+Balls Wizard runs locally on the requesting Node and is installed only after the user selects its
+download prompt. It is not Circle AI and is not an authority for Circle administration.
+
+## Circle Messaging
+
+Human communication among Circle Members. Protocol traffic between Nodes, apps, and services is
+not Circle Messaging.
 
 ## Circle App
 
@@ -163,6 +194,17 @@ The network mechanism that lets Nodes reach one another.
 Examples may include LAN and Tailscale.
 
 Transport does not define identity.
+
+## Capability Provider
+
+An implementation integrated beneath a Circle Capability. A provider realizes the capability but
+does not define Circle identity, Membership, or authorization.
+
+## Coherent Access Revocation
+
+One revocation intent reconciled across every reachable Balls-managed capability. It stops future
+authorization and reports incomplete provider cleanup honestly; it cannot erase copies outside
+Balls' control.
 
 ## Control Plane
 

@@ -1,5 +1,10 @@
 # Files-first v1 Program
 
+> **Historical:** Superseded by the 2026-08-26 private shared-ecosystem reset in
+> [`ADR 0009`](../decisions/0009-reset-around-private-shared-ecosystem-proof.md) and the current
+> [`ROADMAP.md`](../../ROADMAP.md). Preserve this file as implementation and release-planning
+> history; it no longer defines the active issue frontier.
+
 ## Goal
 
 First make Balls useful to the owner's own company: two trusted coworkers must be able to use a
