@@ -15,3 +15,7 @@ privilege connection that simplifies Node enrollment, approved reachability, and
 This boundary keeps the Circle experience coherent, lets mature providers continue working when the
 Balls interface is unavailable, and avoids making Balls a replacement Revit server, file protocol,
 or private network.
+
+The initial office deployment supports Revit Server 2027 only. A future Revit release is a separate,
+explicitly installed and verified Capability with its own provider state; Balls never silently
+upgrades a Revit Server repository or project model.

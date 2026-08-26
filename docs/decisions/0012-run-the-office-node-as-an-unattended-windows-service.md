@@ -9,3 +9,7 @@ cleanly with Windows shutdown while the graphical interface remains a client use
 administration. This requires a deliberate service identity, protected-state custody, and narrow
 privileged-operation design, but it prevents ordinary logout or reboot from silently removing the
 Office Circle's capabilities.
+
+Server administration is a separate explicit permission from Circle ownership. The initial Office
+Circle has one Server Administrator; another documented recovery administrator may be added later
+without granting every Circle Owner control of Windows Server.

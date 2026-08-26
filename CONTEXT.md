@@ -49,3 +49,18 @@ _Avoid_: Windows group, shared login
 The Office Server Node's role in keeping the Office Circle's live membership, authorization, and
 coordination state available. A separate recovery copy prevents that Node from owning the Circle.
 _Avoid_: Master server, only copy
+
+**Circle Files Home**:
+The single member-facing location containing every Office File Area that Member is currently
+authorized to use. Unauthorized areas are absent rather than shown as inaccessible infrastructure.
+_Avoid_: Drive collection, share list
+
+**Server Administrator**:
+A person explicitly authorized to change the Office Server Node and its provider installations.
+Circle ownership does not automatically grant this separate operational authority.
+_Avoid_: Circle Owner, every administrator
+
+**Office Health**:
+The combined plain-language view of whether the Office Circle and its integrated providers are
+available, protected, and ready for their intended use.
+_Avoid_: Provider console, automatic repair

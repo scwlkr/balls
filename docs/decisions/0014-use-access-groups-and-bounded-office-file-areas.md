@@ -13,3 +13,7 @@ this is an explicit default Capability policy, not a rule that Membership author
 Capability. Every new Node still requires separate Owner approval. Because the company data layout
 is new, the initial office-server milestone creates fresh Office File Areas and does not require a
 legacy-file or legacy-permission migration feature.
+
+Accounting Office File Areas are granted only to an explicit Accounting access group. A Member's
+Capability Grants become usable from each of that Member's separately Owner-approved Nodes; Node
+approval does not create new Member authorization, and an unapproved Node receives nothing.
