@@ -864,57 +864,14 @@ function FilesMappingPanel({
     };
   }, [api, circleId, refreshRequest, viewer.memberId, viewer.role]);
 
-  async function chooseContribution(value: string) {
-    setContributionId(value);
-    setGrantId("");
-    setPanelError(null);
-    if (!value) return;
-    try {
-      const result = await api.listFilesGrants(circleId, value);
-      const available = result.grants.filter(
-        (grant) =>
-          viewer.role === "owner" || grant.memberId === viewer.memberId,
-      );
-      setGrantId(available[0]?.id ?? "");
-    } catch (reason) {
-      setPanelError(toMessage(reason));
-    }
-  }
-
   async function openSharedFolder() {
     if (!contributionId || !grantId || panelBusy) return;
     setPanelBusy(true);
     setPanelError(null);
     setMappingStatus(null);
     try {
-      const available = await api.previewFilesMapping(
-        circleId,
-        contributionId,
-        grantId,
-        "",
-      );
-      const selectedDrive = available.availableDriveLetters.includes("P")
-        ? "P"
-        : available.availableDriveLetters[0];
-      if (!selectedDrive) {
-        throw new Error("No drive letters are available on this computer.");
-      }
-      const exactPlan = await api.previewFilesMapping(
-        circleId,
-        contributionId,
-        grantId,
-        selectedDrive,
-      );
-      await api.mapFiles(
-        circleId,
-        contributionId,
-        grantId,
-        selectedDrive,
-        exactPlan.planId,
-      );
-      setMappingStatus(
-        `Shared folder ready in File Explorer (${selectedDrive}:).`,
-      );
+      const result = await api.openFiles(circleId);
+      setMappingStatus(result.message);
     } catch (reason) {
       setPanelError(toMessage(reason));
     } finally {
@@ -960,19 +917,9 @@ function FilesMappingPanel({
           aria-busy={panelBusy}
           onSubmit={(event) => event.preventDefault()}
         >
-          <label htmlFor="files-contribution">Approved folder</label>
-          <select
-            id="files-contribution"
-            disabled={panelBusy}
-            value={contributionId}
-            onChange={(event) => void chooseContribution(event.target.value)}
-          >
-            {contributions.map((value) => (
-              <option key={value.id} value={value.id}>
-                {value.displayName}
-              </option>
-            ))}
-          </select>
+          <p>
+            Approved folder: <strong>{contributions[0]?.displayName}</strong>
+          </p>
           <button
             type="button"
             disabled={panelBusy || !grantId}

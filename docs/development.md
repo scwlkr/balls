@@ -261,10 +261,13 @@ only the exact owned folder ACL, encryption-required share, and Private/LocalSub
 it does not change a network profile or global SMB policy, create Member credentials, map
 Explorer, or expose this mutation through the browser.
 
-After the exact grant credential has been applied, discover a free drive letter in `balls ui` or
-preview one explicit letter from the CLI. The endpoint must be a canonical numeric private or
-loopback IPv4 address; the share and account are derived from the authorized Contribution and
-Grant rather than accepted from network metadata:
+After the exact grant credential has synchronized to a Member, **Open shared folder in Explorer**
+loads the protected Circle connection and active grant inside `ballsd`, reuses an exact owned
+mapping or chooses `P:` then the first supported free drive, maps it without elevation, and starts
+File Explorer at the exact root. A successful mapping is preserved when Explorer fails to start so
+the same action can retry. The diagnostic CLI still accepts one explicit letter and endpoint. The
+endpoint must be a canonical numeric private or loopback IPv4 address; the share and account are
+derived from the authorized Contribution and Grant rather than accepted from network metadata:
 
 ```powershell
 $grantId = "replace-with-grant-id"

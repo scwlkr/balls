@@ -2725,7 +2725,7 @@
         }
       }
     },
-    "/browser/v1/circles/{circleId}/files/contributions/{contributionId}/grants/{grantId}/mapping/preview": {
+    "/browser/v1/circles/{circleId}/files/open": {
       "post": {
         "tags": [
           "ballsd"
@@ -2738,181 +2738,68 @@
             "schema": {
               "type": "string"
             }
-          },
-          {
-            "name": "contributionId",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          },
-          {
-            "name": "grantId",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
           }
         ],
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/PreviewBrowserCircleFilesMemberMappingRequest"
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BrowserCircleFilesOpenResponse"
+                }
               }
             }
           },
-          "required": true
-        },
-        "responses": {
-          "200": {
-            "description": "OK"
-          }
-        }
-      }
-    },
-    "/browser/v1/circles/{circleId}/files/contributions/{contributionId}/grants/{grantId}/mapping/map": {
-      "post": {
-        "tags": [
-          "ballsd"
-        ],
-        "parameters": [
-          {
-            "name": "circleId",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          },
-          {
-            "name": "contributionId",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          },
-          {
-            "name": "grantId",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/ApplyBrowserCircleFilesMemberMappingRequest"
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
               }
             }
           },
-          "required": true
-        },
-        "responses": {
-          "200": {
-            "description": "OK"
-          }
-        }
-      }
-    },
-    "/browser/v1/circles/{circleId}/files/contributions/{contributionId}/grants/{grantId}/mapping/inspect": {
-      "post": {
-        "tags": [
-          "ballsd"
-        ],
-        "parameters": [
-          {
-            "name": "circleId",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          },
-          {
-            "name": "contributionId",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          },
-          {
-            "name": "grantId",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/InspectBrowserCircleFilesMemberMappingRequest"
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
               }
             }
           },
-          "required": true
-        },
-        "responses": {
-          "200": {
-            "description": "OK"
-          }
-        }
-      }
-    },
-    "/browser/v1/circles/{circleId}/files/contributions/{contributionId}/grants/{grantId}/mapping/unmap": {
-      "post": {
-        "tags": [
-          "ballsd"
-        ],
-        "parameters": [
-          {
-            "name": "circleId",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          },
-          {
-            "name": "contributionId",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          },
-          {
-            "name": "grantId",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/UnmapBrowserCircleFilesMemberMappingRequest"
+          "404": {
+            "description": "Not Found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
               }
             }
           },
-          "required": true
-        },
-        "responses": {
-          "200": {
-            "description": "OK"
+          "409": {
+            "description": "Conflict",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "502": {
+            "description": "Bad Gateway",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
           }
         }
       }
@@ -2984,21 +2871,6 @@
             "type": "string"
           },
           "displayName": {
-            "type": "string"
-          }
-        }
-      },
-      "ApplyBrowserCircleFilesMemberMappingRequest": {
-        "required": [
-          "driveLetter",
-          "planId"
-        ],
-        "type": "object",
-        "properties": {
-          "driveLetter": {
-            "type": "string"
-          },
-          "planId": {
             "type": "string"
           }
         }
@@ -3188,6 +3060,25 @@
             "type": "string"
           },
           "summary": {
+            "type": "string"
+          }
+        }
+      },
+      "BrowserCircleFilesOpenResponse": {
+        "required": [
+          "status",
+          "folderName",
+          "message"
+        ],
+        "type": "object",
+        "properties": {
+          "status": {
+            "type": "string"
+          },
+          "folderName": {
+            "type": "string"
+          },
+          "message": {
             "type": "string"
           }
         }
@@ -4092,17 +3983,6 @@
           }
         }
       },
-      "InspectBrowserCircleFilesMemberMappingRequest": {
-        "required": [
-          "driveLetter"
-        ],
-        "type": "object",
-        "properties": {
-          "driveLetter": {
-            "type": "string"
-          }
-        }
-      },
       "InspectCircleFilesMemberMappingRequest": {
         "required": [
           "endpoint",
@@ -4397,17 +4277,6 @@
           }
         }
       },
-      "PreviewBrowserCircleFilesMemberMappingRequest": {
-        "required": [
-          "driveLetter"
-        ],
-        "type": "object",
-        "properties": {
-          "driveLetter": {
-            "type": "string"
-          }
-        }
-      },
       "PreviewCircleFilesGrantCleanupRequest": {
         "required": [
           "folderPath"
@@ -4561,17 +4430,6 @@
           },
           "node": {
             "$ref": "#/components/schemas/NodeResponse"
-          }
-        }
-      },
-      "UnmapBrowserCircleFilesMemberMappingRequest": {
-        "required": [
-          "driveLetter"
-        ],
-        "type": "object",
-        "properties": {
-          "driveLetter": {
-            "type": "string"
           }
         }
       },

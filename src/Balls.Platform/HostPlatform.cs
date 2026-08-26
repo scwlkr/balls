@@ -51,4 +51,5 @@ public sealed record HostPlatform(
     ICircleFilesHostProvisioner CircleFilesHosting,
     ICircleFilesGrantCredentialProvisioner CircleFilesGrantCredentials,
     ICircleFilesMemberMapper CircleFilesMemberMapping,
+    ICircleFilesLocationLauncher CircleFilesLocationLauncher,
     ICircleFilesLifecycleManager CircleFilesLifecycle);

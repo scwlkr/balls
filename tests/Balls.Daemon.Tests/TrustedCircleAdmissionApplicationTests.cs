@@ -323,6 +323,7 @@ public sealed class TrustedCircleAdmissionApplicationTests
                 joinerStore,
                 joinerStore,
                 mapper,
+                new UnsupportedCircleFilesLocationLauncher(),
                 time,
                 joinerStore);
             var preview = await mapping.PreviewAsync(

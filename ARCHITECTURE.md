@@ -419,10 +419,12 @@ ACL grants. The SQLite adapter sees only the typed protection contract and store
 identifier; it contains no platform commands.
 
 `HostPlatform` supplies platform defaults plus independent seams for local-state preparation,
-local-control server transport, and local-control client transport. `Balls.Host` is the only
-project that selects an OS adapter. Windows, Linux, and macOS are registered; other hosts return
-one typed, fail-closed selection result. Executable entry points do not perform their own OS
-checks or construct adapter types.
+local-control server transport, local-control client transport, Circle Files mapping, and opening
+an exact mapped location. `Balls.Host` is the only project that selects an OS adapter. The Windows
+location launcher starts File Explorer with the daemon's existing user token and no elevation
+verb; Linux and macOS fail closed for this Windows Capability. Windows, Linux, and macOS are
+registered; other hosts return one typed, fail-closed selection result. Executable entry points do
+not perform their own OS checks or construct adapter types.
 
 `Balls.Windows.Helper` is the deliberate exception: it is not a cross-platform product entry
 point or adapter selector, but the Windows adapter's short-lived UAC process boundary. It directly
@@ -484,10 +486,14 @@ only public object, lifecycle, and authorizing-Member metadata; signatures, tran
 authority, and provider credential material stay behind the Core-owned persistence seam.
 
 The browser adapter reuses the same application queries for contribution and Access Grant lists.
-Protected local control and the CLI expose host, credential, mapping, exact-generation revocation,
-and ownership-proven cleanup operations. Revocation is committed with a dual-signed generation-
-bound proof before provider cleanup begins; every later active authorization query rejects that
-grant. Rotation and multi-Anchor lifecycle replication remain separate work.
+Its Member open operation resolves the protected connection and exact active grant inside
+`ballsd`, reuses an exact owned mapping or chooses `P:` then the first supported free drive, maps
+idempotently, and crosses the typed platform boundary to open the root. JavaScript never receives
+the endpoint, drive, plan, provider credential, or mapping result. Protected local control and the
+CLI retain detailed host, credential, mapping, exact-generation revocation, and ownership-proven
+cleanup operations. Revocation is committed with a dual-signed generation-bound proof before
+provider cleanup begins; every later active authorization query rejects that grant. Rotation and
+multi-Anchor lifecycle replication remain separate work.
 
 Windows SMB readiness is an implemented read-only host capability behind
 `ICircleFilesReadinessInspector` in `Balls.Platform`. `Balls.Platform.Windows` supplies the SMB
