@@ -22,9 +22,13 @@ test("shows every delivery lane and copies the complete Linux command", async ({
       name: "Testing software. It may be broken.",
     }),
   ).toBeVisible();
-  await expect(
-    page.getByText(/No Development build is published yet/i),
-  ).toBeVisible();
+  await expect(page.locator("[data-development-release]")).toBeVisible();
+  await expect(page.locator("[data-development-tag]")).toHaveText(
+    "development-20260826T212044Z-1218b57d8d37",
+  );
+  await expect(page.locator("#development-windows-command")).toContainText(
+    "/channels/development.json",
+  );
   await expect(
     page.getByRole("heading", { level: 2, name: "Previous versions" }),
   ).toBeVisible();
