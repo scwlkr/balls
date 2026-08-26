@@ -1,0 +1,42 @@
+{
+  "schemaVersion": 1,
+  "channel": "development",
+  "release": {
+    "tag": "development-20260826T200546Z-63246c262e86",
+    "commit": "63246c262e864fbc0eae4434a8cd8f5284eae661",
+    "publishedAt": "2026-08-26T20:07:04Z",
+    "url": "https://github.com/scwlkr/balls/releases/tag/development-20260826T200546Z-63246c262e86",
+    "unsigned": true
+  },
+  "platforms": {
+    "windows-x64": {
+      "delivery": "package",
+      "identity": {
+        "product": "Balls",
+        "version": "0.3.0-alpha.1",
+        "commit": "63246c262e864fbc0eae4434a8cd8f5284eae661",
+        "platform": "windows",
+        "architecture": "x64"
+      },
+      "runtime": {
+        "kind": "self-contained",
+        "architecture": "x64"
+      },
+      "archive": {
+        "name": "balls-0.3.0-alpha.1-canary-windows-x64-63246c262e86.zip",
+        "url": "https://github.com/scwlkr/balls/releases/download/development-20260826T200546Z-63246c262e86/balls-0.3.0-alpha.1-canary-windows-x64-63246c262e86.zip",
+        "sha256": "d99910f56f3acd9ec51510c341a87fd579872df6101a4f297e0b9f22237b5c2d"
+      },
+      "checksum": {
+        "name": "balls-0.3.0-alpha.1-canary-windows-x64-63246c262e86.zip.sha256",
+        "url": "https://github.com/scwlkr/balls/releases/download/development-20260826T200546Z-63246c262e86/balls-0.3.0-alpha.1-canary-windows-x64-63246c262e86.zip.sha256",
+        "sha256": "2659b09cb39ca60773c74b7843d29c494ee15c0e6b743d67b0c9acd3270f08be"
+      },
+      "installer": {
+        "name": "Install-BallsCanary.ps1",
+        "url": "https://github.com/scwlkr/balls/releases/download/development-20260826T200546Z-63246c262e86/Install-BallsCanary.ps1",
+        "sha256": "bef520f4d8cdd71e4af50707f209059740c1d962e84be12572c65ba4dd8b88d7"
+      }
+    }
+  }
+}
