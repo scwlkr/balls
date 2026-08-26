@@ -5,4 +5,5 @@ public sealed record DaemonOptions(
     string LocalControlEndpoint,
     string NodeDisplayName,
     string? AdmissionListenEndpoint = null,
-    string? MessageListenEndpoint = null);
+    string? MessageListenEndpoint = null,
+    bool AutomaticPrivateListeners = false);

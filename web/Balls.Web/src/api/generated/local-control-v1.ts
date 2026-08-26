@@ -2804,7 +2804,6 @@ export interface components {
     CreateBrowserCircleInvitationRequest: {
       /** Format: int32 */
       validForMinutes: number | string;
-      hostAddress: null | string;
     };
     CreateCircleFilesContributionRequest: {
       requestId: string;

@@ -1,4 +1,5 @@
 using System.Net;
+using System.Net.Sockets;
 using System.Reflection;
 using Balls.Core;
 using Balls.Host;
@@ -42,7 +43,8 @@ public static class DaemonHost
         DaemonOptions options,
         HostPlatform host,
         IPrivateMaterialProtector privateMaterialProtector,
-        CancellationToken cancellationToken = default)
+        CancellationToken cancellationToken = default,
+        Func<PrivateIPv4AddressSelection>? privateAddressSelector = null)
     {
         ArgumentNullException.ThrowIfNull(options);
         ArgumentNullException.ThrowIfNull(host);
@@ -96,6 +98,19 @@ public static class DaemonHost
                 throw new InputValidationException(
                     "invalid_message_listen_endpoint",
                     "Message listening requires a numeric private or loopback IP address and non-zero port.");
+            }
+        }
+
+        PrivateIPv4AddressSelection? automaticPrivateAddress = null;
+        if (options.AutomaticPrivateListeners
+            && admissionListenEndpoint is null
+            && messageListenEndpoint is null)
+        {
+            automaticPrivateAddress = (privateAddressSelector ?? PrivateIPv4AddressSelector.SelectCurrent)();
+            if (automaticPrivateAddress.Address is not null)
+            {
+                admissionListenEndpoint = new IPEndPoint(automaticPrivateAddress.Address, 0);
+                messageListenEndpoint = new IPEndPoint(automaticPrivateAddress.Address, 0);
             }
         }
 
@@ -186,6 +201,62 @@ public static class DaemonHost
                 launchLifetime: TimeSpan.FromMinutes(1),
                 sessionLifetime: TimeSpan.FromMinutes(30));
             var browserEndpoint = new BrowserEndpointState();
+            var invitationListeners = BrowserInvitationListenerState.Unavailable(
+                automaticPrivateAddress?.ErrorCode ?? "private_listeners_unavailable",
+                automaticPrivateAddress?.Message
+                    ?? "Open Balls from its normal shortcut to create an invitation on a private network.");
+
+            try
+            {
+                if (admissionListenEndpoint is not null)
+                {
+                    admissionListener = new TcpLanTransportListener(admissionListenEndpoint);
+                }
+                if (messageListenEndpoint is not null)
+                {
+                    messageListener = new TcpLanTransportListener(messageListenEndpoint);
+                }
+            }
+            catch (SocketException) when (automaticPrivateAddress is not null)
+            {
+                if (admissionListener is not null)
+                {
+                    await admissionListener.DisposeAsync().ConfigureAwait(false);
+                    admissionListener = null;
+                }
+                if (messageListener is not null)
+                {
+                    await messageListener.DisposeAsync().ConfigureAwait(false);
+                    messageListener = null;
+                }
+                invitationListeners = BrowserInvitationListenerState.Unavailable(
+                    "private_network_unavailable",
+                    "Balls could not open private network connections for invitations on this device.");
+            }
+
+            if (admissionListener is not null)
+            {
+                admissionShutdown = new CancellationTokenSource();
+                admissionTask = RunAdmissionListenerAsync(
+                    admissionListener,
+                    admissionApplication,
+                    admissionShutdown.Token);
+            }
+            if (messageListener is not null)
+            {
+                messageShutdown = new CancellationTokenSource();
+                messageTask = RunMessageListenerAsync(
+                    messageListener,
+                    messageApplication,
+                    messageShutdown.Token);
+            }
+            if (admissionListener is not null && messageListener is not null)
+            {
+                invitationListeners = BrowserInvitationListenerState.Available(
+                    admissionListener.BoundAddress,
+                    messageListener.BoundAddress);
+            }
+
             await circleApplication.GetLocalNodeAsync(cancellationToken).ConfigureAwait(false);
             host.LocalState.Prepare(securedDataDirectory);
             host.LocalControlServer.PrepareEndpoint(options.LocalControlEndpoint);
@@ -1008,29 +1079,10 @@ public static class DaemonHost
                 filesSyncApplication,
                 invitationApplication,
                 admissionApplication,
-                options.AdmissionListenEndpoint,
-                options.MessageListenEndpoint,
+                invitationListeners,
                 browserAccess);
 
             await application.StartAsync(cancellationToken).ConfigureAwait(false);
-            if (admissionListenEndpoint is not null)
-            {
-                admissionListener = new TcpLanTransportListener(admissionListenEndpoint);
-                admissionShutdown = new CancellationTokenSource();
-                admissionTask = RunAdmissionListenerAsync(
-                    admissionListener,
-                    admissionApplication,
-                    admissionShutdown.Token);
-            }
-            if (messageListenEndpoint is not null)
-            {
-                messageListener = new TcpLanTransportListener(messageListenEndpoint);
-                messageShutdown = new CancellationTokenSource();
-                messageTask = RunMessageListenerAsync(
-                    messageListener,
-                    messageApplication,
-                    messageShutdown.Token);
-            }
             browserEndpoint.Initialize(FindBrowserBaseUri(application));
             host.LocalControlServer.SecureEndpoint(options.LocalControlEndpoint);
             return new DaemonInstance(

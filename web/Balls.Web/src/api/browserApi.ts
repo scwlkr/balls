@@ -45,10 +45,7 @@ export interface BrowserApi {
     name: string,
     ownerDisplayName: string,
   ): Promise<CircleDetailsDto>;
-  createInvitation(
-    circleId: string,
-    hostAddress?: string,
-  ): Promise<BrowserInvitationDto>;
+  createInvitation(circleId: string): Promise<BrowserInvitationDto>;
   joinCircle(
     packageValue: string,
     endpoint: string,
@@ -159,10 +156,10 @@ class FetchBrowserApi implements BrowserApi {
     });
   }
 
-  createInvitation(circleId: string, hostAddress?: string) {
+  createInvitation(circleId: string) {
     return this.authenticatedRequest<BrowserInvitationDto>(
       `/browser/v1/circles/${encodeURIComponent(circleId)}/invitations`,
-      { validForMinutes: 60, hostAddress: hostAddress?.trim() || null },
+      { validForMinutes: 60 },
       "Run balls ui again to invite someone.",
     );
   }

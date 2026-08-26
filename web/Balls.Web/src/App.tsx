@@ -566,7 +566,6 @@ function InvitationPanel({
   api: BrowserApi;
   circleId: string;
 }) {
-  const [hostAddress, setHostAddress] = useState("");
   const [invitationCode, setInvitationCode] = useState("");
   const [expiresAt, setExpiresAt] = useState("");
   const [busy, setBusy] = useState(false);
@@ -579,7 +578,7 @@ function InvitationPanel({
     setCopied(false);
     setError(null);
     try {
-      const invitation = await api.createInvitation(circleId, hostAddress);
+      const invitation = await api.createInvitation(circleId);
       setInvitationCode(encodeInvitationCode(invitation));
       setExpiresAt(invitation.expiresAtUtc);
     } catch (reason) {
@@ -619,23 +618,6 @@ function InvitationPanel({
         >
           {busy ? "Creating invitation…" : "Create invitation"}
         </button>
-        <details className="invitation-advanced">
-          <summary>Advanced network settings</summary>
-          <label htmlFor="invitation-host-address">
-            Reachable private host address
-          </label>
-          <input
-            id="invitation-host-address"
-            value={hostAddress}
-            placeholder="192.168.1.20"
-            disabled={busy}
-            onChange={(event) => setHostAddress(event.target.value)}
-          />
-          <p>
-            Only set this when the server is behind a VM or port-forwarding
-            rule.
-          </p>
-        </details>
         {invitationCode ? (
           <div className="invitation-result">
             <label htmlFor="invitation-code">

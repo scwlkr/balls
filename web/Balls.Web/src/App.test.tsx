@@ -222,6 +222,7 @@ describe("Balls browser workspace", () => {
 
   it("creates a single shareable invitation without exposing connection setup", async () => {
     const api = createApi({ circles: [details.circle] });
+    const invitationRequests: string[] = [];
     api.getCircle = async () => ({
       ...details,
       nodes: [
@@ -233,14 +234,17 @@ describe("Balls browser workspace", () => {
         ...details.nodes,
       ],
     });
-    api.createInvitation = async () => ({
-      circleId: details.circle.id,
-      invitationId: "0198f2cc-6a50-7a08-aacb-298f4ebdf670",
-      expiresAtUtc: "2026-08-25T13:00:00Z",
-      package: '{"signed":"original"}',
-      endpoint: "192.168.1.20:43120",
-      syncEndpoint: "192.168.1.20:43155",
-    });
+    api.createInvitation = async (circleId) => {
+      invitationRequests.push(circleId);
+      return {
+        circleId: details.circle.id,
+        invitationId: "0198f2cc-6a50-7a08-aacb-298f4ebdf670",
+        expiresAtUtc: "2026-08-25T13:00:00Z",
+        package: '{"signed":"original"}',
+        endpoint: "192.168.1.20:43120",
+        syncEndpoint: "192.168.1.20:43155",
+      };
+    };
 
     render(<App api={api} />);
     fireEvent.click(
@@ -261,6 +265,10 @@ describe("Balls browser workspace", () => {
     expect(
       screen.getByRole("button", { name: "Copy invitation" }),
     ).toBeInTheDocument();
+    expect(invitationRequests).toEqual([details.circle.id]);
+    expect(screen.queryByText(/network settings/i)).toBeNull();
+    expect(screen.queryByLabelText(/address/i)).toBeNull();
+    expect(screen.queryByLabelText(/port/i)).toBeNull();
   });
 
   it("joins with a pasted invitation and connects shared files without IP or grant choices", async () => {
