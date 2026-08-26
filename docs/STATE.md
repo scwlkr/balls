@@ -70,10 +70,10 @@ Reuse this machinery where it shortens #92. Do not expand it for hypothetical fu
 ## Known blockers in the human journey
 
 - `balls.wlkrlabs.com` currently points to published `0.3.0-alpha.1`, which predates Circle Files.
-- The website has no warned Development section, immutable previous-version commands, or built-in
-  Windows PowerShell bootstrap; its current Windows lane requires PowerShell 7.
-- The self-contained Canary launcher does not automatically configure the private-LAN admission and
-  Circle Files synchronization listeners required by browser invitations.
+- The live website still has no promoted #92 Development candidate. The prior staged candidate's
+  script entrypoint was correctly rejected by the clean Owner VM's effective `Restricted` policy;
+  the replacement release must use the repository's native, hash-bound current-user bootstrap and
+  pass the exact installed-shortcut smoke before the Development pointer moves.
 - The graphical Owner contribute/grant flow is automated, but its real standard-user Windows
   folder-picker, elevation, and helper retry behavior still needs checklist observation.
 - Real Windows mapping was previously triggered through the CLI. The browser now maps and launches

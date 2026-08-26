@@ -7,7 +7,7 @@ param(
     [string] $ChecksumPath,
 
     [Parameter(Mandatory)]
-    [string] $InstallerPath
+    [string] $BootstrapPath
 )
 
 $ErrorActionPreference = 'Stop'
@@ -179,14 +179,39 @@ function Test-BrowserWorkspace([string] $launchUrl, [string] $outputName) {
 }
 
 try {
-    $installerArguments = @{
-        PackagePath = $PackagePath
-        ChecksumPath = $ChecksumPath
-        InstallRoot = $installRoot
-        PipeName = $pipeName
-        NodeName = 'Balls Windows Canary Smoke'
+    if (-not (Test-Path -LiteralPath $BootstrapPath -PathType Leaf) -or
+        [IO.Path]::GetFileName($BootstrapPath) -notmatch '^balls-bootstrap-windows-x64-[0-9a-f]{12}\.exe$') {
+        throw 'The native Windows bootstrap is missing or has an invalid release identity.'
     }
-    & $InstallerPath @installerArguments
+    $policyBefore = [Environment]::GetEnvironmentVariable(
+        'PSExecutionPolicyPreference',
+        [EnvironmentVariableTarget]::Process)
+    try {
+        [Environment]::SetEnvironmentVariable(
+            'PSExecutionPolicyPreference',
+            'Restricted',
+            [EnvironmentVariableTarget]::Process)
+        if ((Get-ExecutionPolicy) -ne 'Restricted') {
+            throw 'The Windows Canary could not establish the clean-client Restricted policy precondition.'
+        }
+        & $BootstrapPath `
+            --package-path $PackagePath `
+            --checksum-path $ChecksumPath `
+            --install-root $installRoot `
+            --pipe-name $pipeName `
+            --node-name 'Balls Windows Canary Smoke' `
+            --open-ui false `
+            --create-shortcut false
+        if ($LASTEXITCODE -ne 0) {
+            throw "The native Windows bootstrap failed with exit code $LASTEXITCODE under Restricted policy."
+        }
+    }
+    finally {
+        [Environment]::SetEnvironmentVariable(
+            'PSExecutionPolicyPreference',
+            $policyBefore,
+            [EnvironmentVariableTarget]::Process)
+    }
 
     $pidPath = Join-Path $installRoot 'ballsd.pid'
     $daemonPid = [int](Get-Content -LiteralPath $pidPath -Raw)

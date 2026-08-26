@@ -46,6 +46,11 @@ docker network inspect windows_default --format '{{.Name}} {{.Driver}}'
   public exposure, or host-forwarded SMB.
 - Install in both profiles only with the command copied from the live Development or immutable
   previous-version section of `balls.wlkrlabs.com`; never copy the candidate between VMs.
+- The working Owner VM is intentionally a clean recipient environment: do not assume
+  `C:\Dev\balls`, Git, a repository checkout, release-engineering scripts, PowerShell 7, or a .NET
+  runtime exists there. The Owner pastes only the website command into the Windows PowerShell prompt.
+  `eng/canary/Test-WindowsDownload.ps1` is a release-engineering seam for an automated Windows
+  runner or development checkout, not an Owner-test instruction.
 - Use the pre-existing disposable local folder `C:\BallsDemo\Projects` and seed file
   `before-balls.txt`. Do not use a host-mounted, mapped, or network-backed contribution.
 - Keep guest passwords, SSH private keys, provider credentials, and signed-in application state
@@ -56,6 +61,9 @@ docker network inspect windows_default --format '{{.Name}} {{.Driver}}'
   fails the decisive #92 human journey. The accepted package must complete without asking the user
   to configure or bypass execution policy; never use a bypass flag, alternate execution path, or
   machine-wide or managed-policy change.
+- The public installer uses a hash-bound native bootstrap specifically so a clean recipient with
+  effective `Restricted` policy can install without running a PowerShell script. Keep that install
+  proof separate from the later privileged grant-helper policy check above.
 - Record the actual `EnableLUA` setting before describing administrator approval. On a VM with
   existing UAC disabled, the normal elevated helper can complete without displaying a consent
   prompt; do not claim that the user saw or accepted a dialog.

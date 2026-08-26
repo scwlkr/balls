@@ -65,6 +65,7 @@ public sealed class CanaryPackageTests
                 "--package-path", "C:/release/balls.zip",
                 "--checksum-path", "C:/release/balls.zip.sha256",
                 "--installer-path", "C:/release/Install-BallsCanary.ps1",
+                "--bootstrap-path", "C:/release/balls-bootstrap-windows-x64-0123456789ab.exe",
                 "--tag", "development-20260826T120000Z-0123456789ab",
                 "--commit", Commit,
                 "--published-at", "2026-08-26T12:00:00Z",
@@ -72,6 +73,9 @@ public sealed class CanaryPackageTests
 
         Assert.AreEqual("C:/site/public", request.PublicRoot);
         Assert.AreEqual("C:/release/balls.zip", request.PackagePath);
+        Assert.AreEqual(
+            "C:/release/balls-bootstrap-windows-x64-0123456789ab.exe",
+            request.BootstrapPath);
         Assert.AreEqual("development-20260826T120000Z-0123456789ab", request.Tag);
         Assert.AreEqual(Commit, request.Commit);
         Assert.AreEqual("2026-08-26T12:00:00Z", request.PublishedAt);
@@ -88,6 +92,7 @@ public sealed class CanaryPackageTests
                     "--package-path", "C:/release/balls.zip",
                     "--checksum-path", "C:/release/balls.zip.sha256",
                     "--installer-path", "C:/release/Install-BallsCanary.ps1",
+                    "--bootstrap-path", "C:/release/balls-bootstrap-windows-x64-0123456789ab.exe",
                     "--tag", "development-20260826T120000Z-0123456789ab",
                     "--commit", Commit,
                     "--published-at", "2026-08-26T12:00:00Z",
@@ -111,6 +116,8 @@ public sealed class CanaryPackageTests
         Assert.IsNotNull(result.PreviousTag);
         Assert.IsNotNull(result.PreviousSha256);
         Assert.AreEqual(64, result.PreviousSha256.Length);
+        Assert.IsNotNull(result.PreviousBootstrapSha256);
+        Assert.AreEqual(64, result.PreviousBootstrapSha256.Length);
 
         using var manifest = JsonDocument.Parse(File.ReadAllText(result.VersionManifestPath));
         var root = manifest.RootElement;
@@ -125,6 +132,15 @@ public sealed class CanaryPackageTests
         Assert.AreEqual(
             Convert.ToHexString(SHA256.HashData(File.ReadAllBytes(fixture.PackagePath))).ToLowerInvariant(),
             windows.GetProperty("archive").GetProperty("sha256").GetString());
+
+        using var bootstrap = JsonDocument.Parse(File.ReadAllText(result.BootstrapManifestPath));
+        var bootstrapRoot = bootstrap.RootElement;
+        Assert.AreEqual("Balls", bootstrapRoot.GetProperty("product").GetString());
+        Assert.AreEqual("windows", bootstrapRoot.GetProperty("platform").GetString());
+        Assert.AreEqual(Commit, bootstrapRoot.GetProperty("release").GetProperty("commit").GetString());
+        Assert.AreEqual(
+            "balls-bootstrap-windows-x64-0123456789ab.exe",
+            bootstrapRoot.GetProperty("asset").GetProperty("name").GetString());
 
         using var catalog = JsonDocument.Parse(File.ReadAllText(result.ReleaseCatalogPath));
         var development = catalog.RootElement.GetProperty("development");
@@ -288,11 +304,12 @@ public sealed class CanaryPackageTests
 
         var bootstrap = File.ReadAllText(Path.Combine(
             FindRepositoryRoot(),
-            "web",
-            "Balls.Downloads",
-            "public",
-            "install.ps1"));
+            "src",
+            "Balls.Bootstrap.Windows",
+            "WindowsBootstrapInstaller.cs"));
         StringAssert.Contains(bootstrap, "--automatic-private-listeners");
+        StringAssert.Contains(smoke, "bootstrap/windows-x64.json");
+        StringAssert.Contains(smoke, "Get-FileHash");
     }
 
     private static JsonDocument ReadJson(ZipArchive archive, string path) =>
@@ -459,6 +476,16 @@ public sealed class CanaryPackageTests
                 new UTF8Encoding(false));
             InstallerPath = Path.Combine(root, "Install-BallsCanary.ps1");
             File.WriteAllText(InstallerPath, "# test installer\n", new UTF8Encoding(false));
+            BootstrapPath = Path.Combine(root, $"balls-bootstrap-windows-x64-{Commit[..12]}.exe");
+            var bootstrapBytes = new byte[80];
+            bootstrapBytes[0] = 0x4d;
+            bootstrapBytes[1] = 0x5a;
+            bootstrapBytes[0x3c] = 0x40;
+            bootstrapBytes[0x40] = 0x50;
+            bootstrapBytes[0x41] = 0x45;
+            bootstrapBytes[0x44] = 0x64;
+            bootstrapBytes[0x45] = 0x86;
+            File.WriteAllBytes(BootstrapPath, bootstrapBytes);
         }
 
         public string PublicRoot { get; }
@@ -469,11 +496,14 @@ public sealed class CanaryPackageTests
 
         public string InstallerPath { get; }
 
+        public string BootstrapPath { get; }
+
         public DevelopmentManifestRequest Request(string tag, int hour) => new(
             PublicRoot,
             PackagePath,
             ChecksumPath,
             InstallerPath,
+            BootstrapPath,
             tag,
             Commit,
             $"2026-08-26T{hour:D2}:00:00Z");

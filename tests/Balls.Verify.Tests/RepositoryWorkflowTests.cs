@@ -131,6 +131,11 @@ public sealed partial class RepositoryWorkflowTests
         }
         StringAssert.Contains(windowsSmoke, "'circle', 'create'");
         StringAssert.Contains(windowsSmoke, "'circle', 'list'");
+        StringAssert.Contains(windowsSmoke, "'PSExecutionPolicyPreference'");
+        StringAssert.Contains(windowsSmoke, "'Restricted'");
+        StringAssert.Contains(windowsSmoke, "--package-path");
+        StringAssert.Contains(Workflow, "src/Balls.Bootstrap.Windows/Balls.Bootstrap.Windows.csproj");
+        StringAssert.Contains(Workflow, "balls-bootstrap-windows-x64-");
         StringAssert.Contains(linuxSmoke, "circle create");
         StringAssert.Contains(linuxSmoke, "circle list");
         StringAssert.Contains(linuxSmoke, "awk '{print $4}'");

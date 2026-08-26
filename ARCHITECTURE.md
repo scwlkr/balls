@@ -809,6 +809,13 @@ not either OS adapter.
 Future Windows capability adapters that implement Core-owned ports should be split by capability
 when they become real.
 
+Product delivery is also an outer edge. The Windows download page uses individual built-in
+PowerShell commands only to fetch a small official pointer, verify a native x64 bootstrap release
+asset by SHA-256, and start it. The self-contained `Balls.Bootstrap.Windows` executable owns
+manifest/package validation, current-user installation, launcher/shortcut creation, and rollback;
+it has no Core dependency and does not execute a downloaded script or change Windows execution
+policy.
+
 Avoid:
 
 ```text

@@ -18,9 +18,15 @@ required `dist/server` entry point.
   URLs, and SHA-256 values; the internal package product/version/commit/platform/architecture; and
   the runtime contract. Release tags and internal package versions may differ, so both identities
   are explicit and must agree with the actual archive.
-- `public/install.ps1` supports Windows x64 in Windows PowerShell 5.1 or newer. It installs inside
-  the current user's Local AppData, records `installation.json`, creates a normal Start Menu
-  shortcut, and opens the local workspace after a successful verified install.
+- `public/bootstrap/windows-x64.json` binds the current native Windows bootstrap executable to an
+  immutable release asset and SHA-256. The one-line website command validates that pointer,
+  downloads the executable completely, verifies its hash, and runs it with the selected channel or
+  version manifest. This works from the Windows PowerShell prompt even when its effective execution
+  policy is `Restricted`; it never runs a `.ps1`, changes policy, or requires Git, a repository,
+  PowerShell 7, or .NET.
+- The native bootstrap installs inside the current user's Local AppData, records
+  `installation.json`, creates a normal Start Menu shortcut, and opens the local workspace after a
+  successful verified install.
 - `public/install.sh` supports the published Linux x64 package.
 - `public/source.sh` downloads and verifies the accepted tag for the Apple-silicon macOS
   source-only developer lane. It is not a Mac installer.
@@ -50,8 +56,9 @@ checks. This does not authorize Alpha, Beta, or Stable movement.
 --self-contained true`; run the package-integrity and focused package tests against those bytes.
 3. Create the canonical tag `development-<yyyyMMddTHHmmssZ>-<commit12>` using the UTC package-build
    preparation time and package commit, then create an immutable GitHub prerelease. Upload the
-   archive, archive checksum, repository installer, and the normal release integrity assets. Do not
-   upload invitations, credentials, Node state, logs, or screenshots containing private data.
+   archive, archive checksum, legacy repository installer, native x64 bootstrap, and the normal
+   release integrity assets. Do not upload invitations, credentials, Node state, logs, or
+   screenshots containing private data.
 4. Read asset digests back from the GitHub Release API. Create `versions/<tag>.json` with the exact
    tag, full commit, URLs, SHA-256 values, internal `canary.json` identity, and `self-contained`
    Windows runtime. Generate and validate the immutable manifest, moving pointer, and catalog with:
@@ -62,6 +69,7 @@ checks. This does not authorize Alpha, Beta, or Stable movement.
      --package-path <release-directory>/<windows-archive>.zip \
      --checksum-path <release-directory>/<windows-archive>.zip.sha256 \
      --installer-path <release-directory>/Install-BallsCanary.ps1 \
+     --bootstrap-path <release-directory>/balls-bootstrap-windows-x64-<commit12>.exe \
      --tag <development-tag> \
      --commit <full-commit> \
      --published-at <yyyy-MM-ddTHH:mm:ssZ>
@@ -69,9 +77,11 @@ checks. This does not authorize Alpha, Beta, or Stable movement.
 
    The command refuses a framework-dependent archive, a forbidden sensitive file or common
    credential pattern, an identity/hash/filename mismatch, or a changed existing version manifest.
-   It prints the prior Development tag and manifest SHA-256 for the issue rollback record.
+   It prints the prior Development tag, channel-manifest SHA-256, and native-bootstrap-pointer
+   SHA-256 for the issue rollback record.
 
-5. Publish the immutable prerelease assets and `versions/<tag>.json` first while leaving the live
+5. Publish the immutable prerelease assets, `versions/<tag>.json`, the generated native-bootstrap
+   pointer, and the site code that displays the native command first, while leaving the live
    Development pointer and release catalog unchanged. Read that exact manifest back from
    `https://balls.wlkrlabs.com/versions/<tag>.json`, then run the exact-release smoke below against
    that immutable version URL under an authorized ordinary Windows profile. The smoke installs the
@@ -82,6 +92,7 @@ checks. This does not authorize Alpha, Beta, or Stable movement.
    address or ports:
 
    ```powershell
+   # Release-engineering seam from a repository checkout; this is not an Owner command.
    .\eng\canary\Test-WindowsDownload.ps1 `
      -ManifestUri https://balls.wlkrlabs.com/versions/<development-tag>.json `
      -ExpectedTag <development-tag> `
@@ -92,7 +103,9 @@ checks. This does not authorize Alpha, Beta, or Stable movement.
    every accepted release and only the newest ten Development rows, and preserve the
    complete-history link. Append the generator's prior-pointer output and the new exact identity to
    [`DEVELOPMENT-POINTER-LEDGER.md`](DEVELOPMENT-POINTER-LEDGER.md), then deploy the generated
-   Development pointer and catalog. Run the local gates below before each deployment. Read back the
+   Development pointer and catalog. The Owner never needs this repository script; the Owner copies
+   only the one native-bootstrap command displayed by the website. Run the local gates below before
+   each deployment. Read back the
    live warned Development entry and repeat the copied Development command once to prove it resolves
    to the same installed `installation.json` identity. Record only the observed identities and
    outcomes on the issue.

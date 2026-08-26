@@ -85,10 +85,8 @@ function parseReleaseCatalog(value: unknown): ReleaseCatalog | null {
 }
 
 function windowsInstallCommand(manifestPath?: string): string {
-  const manifestArgument = manifestPath
-    ? ` -ManifestUri 'https://balls.wlkrlabs.com${manifestPath}'`
-    : "";
-  return `Invoke-WebRequest https://balls.wlkrlabs.com/install.ps1 -OutFile "$env:TEMP\\install-balls.ps1"; powershell.exe -NoLogo -NoProfile -File "$env:TEMP\\install-balls.ps1"${manifestArgument}`;
+  const manifestUri = `https://balls.wlkrlabs.com${manifestPath ?? "/channels/alpha.json"}`;
+  return `$m='${manifestUri}'; $b=Invoke-RestMethod -UseBasicParsing https://balls.wlkrlabs.com/bootstrap/windows-x64.json; $t=[string]$b.release.tag; $c=[string]$b.release.commit; $n=[string]$b.asset.name; $u=[uri]$b.asset.url; if ($b.schemaVersion -ne 1 -or [string]$b.product -cne 'Balls' -or [string]$b.platform -cne 'windows' -or [string]$b.architecture -cne 'x64' -or $t -notmatch '^[0-9A-Za-z][0-9A-Za-z._-]{0,127}$' -or $c -notmatch '^[0-9a-f]{40}$' -or $n -cne "balls-bootstrap-windows-x64-$($c.Substring(0,12)).exe" -or [string]$b.asset.sha256 -notmatch '^[0-9a-f]{64}$' -or $u.Scheme -cne 'https' -or $u.Host -cne 'github.com' -or $u.Query.Length -ne 0 -or $u.Fragment.Length -ne 0 -or $u.AbsolutePath -cne "/scwlkr/balls/releases/download/$t/$n") { throw 'Invalid Balls bootstrap manifest.' }; $p=Join-Path $env:TEMP ("balls-bootstrap-$([guid]::NewGuid().ToString('N')).exe"); try { Invoke-WebRequest -UseBasicParsing $u -OutFile $p; if ((Get-FileHash -LiteralPath $p -Algorithm SHA256).Hash.ToLowerInvariant() -cne [string]$b.asset.sha256) { throw 'Balls bootstrap SHA-256 verification failed.' }; & $p --manifest-uri $m; if ($LASTEXITCODE -ne 0) { throw "Balls bootstrap failed with exit code $LASTEXITCODE." } } finally { Remove-Item -LiteralPath $p -Force -ErrorAction SilentlyContinue }`;
 }
 
 function appendHistoryRow(
