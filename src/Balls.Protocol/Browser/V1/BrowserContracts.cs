@@ -33,6 +33,16 @@ public static class BrowserRoutes
         return $"{Circle(circleId)}/files/contributions";
     }
 
+    public static string CircleFilesFolderSelection(string circleId)
+    {
+        return $"{CircleFilesContributions(circleId)}/folder-selection";
+    }
+
+    public static string CircleFilesFolderApply(string circleId)
+    {
+        return $"{CircleFilesContributions(circleId)}/folder-apply";
+    }
+
     public static string CircleFilesSync(string circleId)
     {
         return $"{Circle(circleId)}/files/sync";
@@ -77,3 +87,19 @@ public sealed record BrowserCircleViewerResponse(string MemberId, string Role);
 public sealed record SyncBrowserCircleFilesRequest(string Endpoint);
 
 public sealed record BrowserCircleFilesSyncResponse(string CircleId, int ImportedGrantCount);
+
+public sealed record BrowserCircleFilesFolderSelectionResponse(
+    string Status,
+    string? FolderPath,
+    string? DisplayName);
+
+public sealed record ApplyBrowserCircleFilesFolderRequest(
+    string RequestId,
+    string FolderPath,
+    string DisplayName);
+
+public sealed record BrowserCircleFilesContributionResponse(
+    string Status,
+    string ContributionId,
+    string DisplayName,
+    string FolderPath);

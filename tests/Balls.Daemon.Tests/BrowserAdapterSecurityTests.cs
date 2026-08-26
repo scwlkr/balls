@@ -6,6 +6,7 @@ using System.Text;
 using System.Text.RegularExpressions;
 using Balls.Daemon;
 using Balls.Host;
+using Balls.Platform;
 using Balls.Protocol.Browser.V1;
 using Balls.Protocol.Control.V1;
 
@@ -197,7 +198,7 @@ public sealed partial class BrowserAdapterSecurityTests
     }
 
     [TestMethod]
-    public async Task Browser_projection_lists_Circle_Files_but_exposes_no_mutation_route()
+    public async Task Browser_projection_lists_Circle_Files_but_rejects_the_raw_mutation_route()
     {
         using var directory = new TemporaryDirectory();
         await using var daemon = await StartDaemonAsync(directory.Path);
@@ -284,6 +285,106 @@ public sealed partial class BrowserAdapterSecurityTests
         Assert.HasCount(1, listedGrants.Grants);
         Assert.AreEqual("read-only", listedGrants.Grants[0].Access);
         Assert.AreEqual(HttpStatusCode.MethodNotAllowed, response.StatusCode);
+    }
+
+    [TestMethod]
+    public async Task Owner_browser_selects_and_idempotently_contributes_one_exact_existing_folder()
+    {
+        using var directory = new TemporaryDirectory();
+        var selectedHost = (SupportedHostPlatform)HostPlatformSelector.SelectCurrent();
+        var picker = new StubFolderPicker(@"C:\BallsDemo\Projects", "Projects");
+        var hosting = new StubHostProvisioner();
+        var host = selectedHost.Platform with
+        {
+            CircleFilesFolderPicker = picker,
+            CircleFilesHosting = hosting,
+        };
+        var endpoint = GetEndpoint(directory.Path);
+        await using var daemon = await DaemonHost.StartAsync(
+            new DaemonOptions(
+                Path.Combine(directory.Path, "state"),
+                endpoint,
+                "Browser-PC"),
+            host,
+            selectedHost.PrivateMaterialProtector);
+        using var ipcClient = CreateIpcClient(endpoint);
+        var circle = await (await ipcClient.PostAsJsonAsync(
+                ControlRoutes.Circles,
+                new CreateCircleRequest(
+                    "0198d000-5000-7000-8000-000000000011",
+                    "Files Circle",
+                    "Alice"),
+                ControlJson.Options))
+            .Content.ReadFromJsonAsync<CircleDetailsResponse>(ControlJson.Options);
+        Assert.IsNotNull(circle);
+        var launch = await IssueLaunchAsync(ipcClient);
+        var browserBaseUri = GetBrowserBaseUri(launch);
+        using var browserClient = CreateBrowserClient(browserBaseUri);
+        var authenticated = await ExchangeAsync(browserClient, launch);
+
+        using var selectRequest = CreateJsonRequest(
+            HttpMethod.Post,
+            BrowserRoutes.CircleFilesFolderSelection(circle.Circle.Id),
+            new { },
+            GetOrigin(browserBaseUri),
+            authenticated.Cookie,
+            authenticated.Session.AntiforgeryToken);
+        using var selectResponse = await browserClient.SendAsync(selectRequest);
+        var selection = await selectResponse.Content
+            .ReadFromJsonAsync<BrowserCircleFilesFolderSelectionResponse>(ControlJson.Options);
+        Assert.AreEqual(HttpStatusCode.OK, selectResponse.StatusCode);
+        Assert.IsNotNull(selection);
+        Assert.AreEqual("selected", selection.Status);
+        Assert.AreEqual(@"C:\BallsDemo\Projects", selection.FolderPath);
+
+        var applyBody = new ApplyBrowserCircleFilesFolderRequest(
+            "0198d000-5000-7000-8000-000000000012",
+            selection.FolderPath!,
+            selection.DisplayName!);
+        using var applyRequest = CreateJsonRequest(
+            HttpMethod.Post,
+            BrowserRoutes.CircleFilesFolderApply(circle.Circle.Id),
+            applyBody,
+            GetOrigin(browserBaseUri),
+            authenticated.Cookie,
+            authenticated.Session.AntiforgeryToken);
+        using var applyResponse = await browserClient.SendAsync(applyRequest);
+        var appliedJson = await applyResponse.Content.ReadAsStringAsync();
+        var applied = System.Text.Json.JsonSerializer
+            .Deserialize<BrowserCircleFilesContributionResponse>(appliedJson, ControlJson.Options);
+        Assert.AreEqual(HttpStatusCode.OK, applyResponse.StatusCode);
+        Assert.IsNotNull(applied);
+        Assert.AreEqual("applied", applied.Status);
+        Assert.AreEqual(selection.FolderPath, applied.FolderPath);
+
+        using var retryRequest = CreateJsonRequest(
+            HttpMethod.Post,
+            BrowserRoutes.CircleFilesFolderApply(circle.Circle.Id),
+            applyBody,
+            GetOrigin(browserBaseUri),
+            authenticated.Cookie,
+            authenticated.Session.AntiforgeryToken);
+        using var retryResponse = await browserClient.SendAsync(retryRequest);
+        var retried = await retryResponse.Content
+            .ReadFromJsonAsync<BrowserCircleFilesContributionResponse>(ControlJson.Options);
+        using var listRequest = new HttpRequestMessage(
+            HttpMethod.Get,
+            BrowserRoutes.CircleFilesContributions(circle.Circle.Id));
+        listRequest.Headers.TryAddWithoutValidation("Cookie", authenticated.Cookie);
+        using var listResponse = await browserClient.SendAsync(listRequest);
+        var listed = await listResponse.Content
+            .ReadFromJsonAsync<CircleFilesContributionListResponse>(ControlJson.Options);
+
+        Assert.AreEqual(HttpStatusCode.OK, retryResponse.StatusCode);
+        Assert.AreEqual("already-applied", retried?.Status);
+        Assert.IsNotNull(listed);
+        Assert.HasCount(1, listed.Contributions);
+        Assert.AreEqual(4, hosting.Requests.Count);
+        Assert.IsTrue(hosting.Requests.All(request =>
+            request.FolderPath == @"C:\BallsDemo\Projects"));
+        Assert.IsFalse(appliedJson.Contains("authorization", StringComparison.OrdinalIgnoreCase));
+        Assert.IsFalse(appliedJson.Contains("shareName", StringComparison.OrdinalIgnoreCase));
+        Assert.IsFalse(appliedJson.Contains("firewall", StringComparison.OrdinalIgnoreCase));
     }
 
     [TestMethod]
@@ -659,6 +760,60 @@ public sealed partial class BrowserAdapterSecurityTests
     private static partial Regex AssetPath();
 
     private sealed record AuthenticatedBrowser(string Cookie, BrowserSessionResponse Session);
+
+    private sealed class StubFolderPicker(string folderPath, string displayName)
+        : ICircleFilesFolderPicker
+    {
+        public ValueTask<CircleFilesFolderSelection?> SelectAsync(
+            CancellationToken cancellationToken = default)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            return ValueTask.FromResult<CircleFilesFolderSelection?>(
+                new CircleFilesFolderSelection(folderPath, displayName));
+        }
+    }
+
+    private sealed class StubHostProvisioner : ICircleFilesHostProvisioner
+    {
+        internal List<CircleFilesHostRequest> Requests { get; } = [];
+
+        public ValueTask<CircleFilesHostPlan> PreviewAsync(
+            CircleFilesHostRequest request,
+            CancellationToken cancellationToken)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            Requests.Add(request);
+            return ValueTask.FromResult(CreatePlan(request));
+        }
+
+        public ValueTask<CircleFilesHostApplyResult> ApplyAsync(
+            CircleFilesHostRequest request,
+            string expectedPlanId,
+            CancellationToken cancellationToken)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            Requests.Add(request);
+            var plan = CreatePlan(request);
+            Assert.AreEqual(expectedPlanId, plan.PlanId);
+            return ValueTask.FromResult(new CircleFilesHostApplyResult(
+                Requests.Count == 2
+                    ? CircleFilesHostApplyStatus.Applied
+                    : CircleFilesHostApplyStatus.AlreadyApplied,
+                plan));
+        }
+
+        private static CircleFilesHostPlan CreatePlan(CircleFilesHostRequest request) =>
+            new(
+                1,
+                new string('a', 64),
+                CircleFilesReadinessProviders.WindowsSmb311,
+                request.FolderPath,
+                "balls-test",
+                "Balls-SMB-test",
+                new string('b', 64),
+                true,
+                ["Preserve existing files and create exact owned resources."]);
+    }
 
     private sealed class TemporaryDirectory : IDisposable
     {

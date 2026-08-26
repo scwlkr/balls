@@ -43,6 +43,8 @@ public sealed class HostCompositionTests
         Assert.IsNotNull(supported.Platform.LocalState);
         Assert.IsNotNull(supported.Platform.LocalControlServer);
         Assert.IsNotNull(supported.Platform.LocalControlClient);
+        Assert.IsInstanceOfType<Balls.Platform.UnsupportedCircleFilesFolderPicker>(
+            supported.Platform.CircleFilesFolderPicker);
         Assert.IsNotNull(supported.Platform.CircleFilesReadiness);
         Assert.AreEqual("macos-owned-state-v1", supported.PrivateMaterialProtector.Scheme);
         Assert.AreEqual("Unix-domain socket", supported.Platform.Defaults.LocalControlListenerDescription);
@@ -68,6 +70,8 @@ public sealed class HostCompositionTests
         Assert.IsNotNull(supported.Platform.LocalState);
         Assert.IsNotNull(supported.Platform.LocalControlServer);
         Assert.IsNotNull(supported.Platform.LocalControlClient);
+        Assert.IsInstanceOfType<Balls.Platform.UnsupportedCircleFilesFolderPicker>(
+            supported.Platform.CircleFilesFolderPicker);
         Assert.IsNotNull(supported.Platform.CircleFilesReadiness);
         Assert.AreEqual("linux-owned-state-v1", supported.PrivateMaterialProtector.Scheme);
         Assert.AreEqual("Unix-domain socket", supported.Platform.Defaults.LocalControlListenerDescription);
@@ -90,6 +94,8 @@ public sealed class HostCompositionTests
         Assert.IsNotNull(supported.Platform.LocalState);
         Assert.IsNotNull(supported.Platform.LocalControlServer);
         Assert.IsNotNull(supported.Platform.LocalControlClient);
+        Assert.IsInstanceOfType<Balls.Platform.Windows.WindowsCircleFilesFolderPicker>(
+            supported.Platform.CircleFilesFolderPicker);
         Assert.IsNotNull(supported.Platform.CircleFilesReadiness);
         Assert.AreEqual("windows-dpapi-current-user-v1", supported.PrivateMaterialProtector.Scheme);
         Assert.AreEqual(Environment.MachineName, supported.Platform.Defaults.NodeDisplayName);

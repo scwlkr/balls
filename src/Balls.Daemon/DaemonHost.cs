@@ -158,6 +158,11 @@ public static class DaemonHost
             var filesHostingApplication = new CircleFilesHostingApplication(
                 filesApplication,
                 host.CircleFilesHosting);
+            var browserFilesContributionApplication =
+                new BrowserCircleFilesContributionApplication(
+                    filesApplication,
+                    filesHostingApplication,
+                    host.CircleFilesFolderPicker);
             var filesGrantCredentialApplication = new CircleFilesGrantCredentialApplication(
                 filesApplication,
                 store,
@@ -998,6 +1003,7 @@ public static class DaemonHost
                 circleApplication,
                 messageQueries,
                 filesApplication,
+                browserFilesContributionApplication,
                 filesMemberMappingApplication,
                 filesSyncApplication,
                 invitationApplication,

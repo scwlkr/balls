@@ -24,6 +24,7 @@ public static class WindowsHostPlatform
             transport,
             transport,
             new WindowsSystemBrowserLauncher(),
+            new WindowsCircleFilesFolderPicker(),
             new WindowsSmbReadinessInspector(),
             new WindowsCircleFilesHostProvisioner(),
             new WindowsCircleFilesGrantCredentialProvisioner(),

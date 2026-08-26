@@ -24,6 +24,29 @@
   --radius-large: 1.35rem;
 }
 
+.contribution-actions,
+.contribution-preview {
+  display: grid;
+  gap: 0.8rem;
+}
+
+.contribution-preview {
+  margin-top: 1rem;
+  padding: 1rem;
+  border: 1px solid var(--line);
+  border-radius: 0.8rem;
+  background: var(--paper);
+}
+
+.contribution-preview p,
+.contribution-preview strong {
+  margin: 0;
+}
+
+.contribution-preview strong {
+  overflow-wrap: anywhere;
+}
+
 * {
   box-sizing: border-box;
 }
