@@ -39,3 +39,13 @@ _Avoid_: SMB membership, Windows login
 Exceptional administrator access used only for recovery when the ordinary Circle workflow is
 unavailable. It is not a parallel employee-access path.
 _Avoid_: Fallback employee share, second login
+
+**Capability Access Group**:
+A named set of Office Circle Members who receive the same bounded Capabilities. It expresses human
+policy without exposing provider accounts or operating-system groups.
+_Avoid_: Windows group, shared login
+
+**Office Anchor**:
+The Office Server Node's role in keeping the Office Circle's live membership, authorization, and
+coordination state available. A separate recovery copy prevents that Node from owning the Circle.
+_Avoid_: Master server, only copy
