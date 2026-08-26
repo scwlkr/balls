@@ -113,8 +113,9 @@ checks. This does not authorize Alpha, Beta, or Stable movement.
    to the same installed `installation.json` identity. Record only the observed identities and
    outcomes on the issue.
 
-If publication or live installation fails, restore the recorded prior Development pointer. Never
-edit an already-published version manifest or overwrite a GitHub Release asset.
+If publication or live installation fails, restore both recorded moving pointers: Development and
+the native Windows bootstrap. Never edit an already-published version manifest or overwrite a
+GitHub Release asset.
 
 GitHub Release immutability must be enabled before publishing. If the repository setting is off,
 publication is blocked; do not substitute a mutable prerelease or a short-lived Actions artifact.
