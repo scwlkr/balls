@@ -160,29 +160,21 @@ public sealed partial class BrowserAdapterSecurityTests
         using var missingSyncAntiforgery = CreateJsonRequest(
             HttpMethod.Post,
             BrowserRoutes.CircleFilesSync(created.Circle.Id),
-            new SyncBrowserCircleFilesRequest("192.168.1.20:43155"),
+            new { },
             GetOrigin(browserBaseUri),
             authenticated.Cookie);
         using var missingSyncAntiforgeryResponse = await browserClient.SendAsync(
             missingSyncAntiforgery);
 
-        using var publicSync = CreateJsonRequest(
+        using var missingConnectionSync = CreateJsonRequest(
             HttpMethod.Post,
             BrowserRoutes.CircleFilesSync(created.Circle.Id),
-            new SyncBrowserCircleFilesRequest("8.8.8.8:43155"),
+            new { },
             GetOrigin(browserBaseUri),
             authenticated.Cookie,
             authenticated.Session.AntiforgeryToken);
-        using var publicSyncResponse = await browserClient.SendAsync(publicSync);
-
-        using var loopbackSync = CreateJsonRequest(
-            HttpMethod.Post,
-            BrowserRoutes.CircleFilesSync(created.Circle.Id),
-            new SyncBrowserCircleFilesRequest("127.0.0.1:43155"),
-            GetOrigin(browserBaseUri),
-            authenticated.Cookie,
-            authenticated.Session.AntiforgeryToken);
-        using var loopbackSyncResponse = await browserClient.SendAsync(loopbackSync);
+        using var missingConnectionSyncResponse = await browserClient.SendAsync(
+            missingConnectionSync);
 
         using var statusRequest = new HttpRequestMessage(HttpMethod.Get, BrowserRoutes.Status);
         statusRequest.Headers.TryAddWithoutValidation("Cookie", authenticated.Cookie);
@@ -194,8 +186,7 @@ public sealed partial class BrowserAdapterSecurityTests
         Assert.AreEqual(HttpStatusCode.Created, createResponse.StatusCode);
         Assert.AreEqual("Secure Circle", created.Circle.Name);
         Assert.AreEqual(HttpStatusCode.Forbidden, missingSyncAntiforgeryResponse.StatusCode);
-        Assert.AreEqual(HttpStatusCode.BadRequest, publicSyncResponse.StatusCode);
-        Assert.AreEqual(HttpStatusCode.BadRequest, loopbackSyncResponse.StatusCode);
+        Assert.AreEqual(HttpStatusCode.Conflict, missingConnectionSyncResponse.StatusCode);
         Assert.AreEqual(HttpStatusCode.OK, statusResponse.StatusCode);
     }
 
@@ -446,6 +437,7 @@ public sealed partial class BrowserAdapterSecurityTests
         Assert.AreEqual(HttpStatusCode.Created, invitationResponse.StatusCode);
         Assert.IsNotNull(invitation);
         Assert.AreEqual(circle.Circle.Id, invitation.CircleId);
+        Assert.AreEqual(LanTcpEndpoint.ProviderName, invitation.Provider);
         Assert.AreEqual(daemon.AdmissionAddress!.Value, invitation.Endpoint);
         Assert.AreEqual(daemon.MessageAddress!.Value, invitation.SyncEndpoint);
         Assert.AreEqual(privateAddress.Address, IPEndPoint.Parse(invitation.Endpoint).Address);
@@ -455,7 +447,7 @@ public sealed partial class BrowserAdapterSecurityTests
         Assert.IsNotEmpty(invitation.Package);
         using var invitationDocument = JsonDocument.Parse(invitationJson);
         CollectionAssert.AreEquivalent(
-            new[] { "circleId", "invitationId", "expiresAtUtc", "package", "endpoint", "syncEndpoint" },
+            new[] { "circleId", "invitationId", "expiresAtUtc", "package", "provider", "endpoint", "syncEndpoint" },
             invitationDocument.RootElement.EnumerateObject().Select(property => property.Name).ToArray());
     }
 
@@ -518,8 +510,19 @@ public sealed partial class BrowserAdapterSecurityTests
 
         using var ownerDirectory = new TemporaryDirectory();
         using var memberDirectory = new TemporaryDirectory();
-        var admissionEndpoint = AllocateLoopbackEndpoint();
-        await using var owner = await StartDaemonAsync(ownerDirectory.Path, admissionEndpoint);
+        var privateAddress = FindOperationalPrivateAddress();
+        if (privateAddress is null)
+        {
+            Assert.Inconclusive("Browser admission requires an operational private IPv4 interface.");
+            return;
+        }
+
+        var admissionEndpoint = AllocatePrivateEndpoint(privateAddress);
+        var messageEndpoint = AllocatePrivateEndpoint(privateAddress);
+        await using var owner = await StartDaemonAsync(
+            ownerDirectory.Path,
+            admissionEndpoint,
+            messageEndpoint);
         await using var member = await StartDaemonAsync(memberDirectory.Path);
         using var ownerClient = CreateIpcClient(GetEndpoint(ownerDirectory.Path));
         using var memberClient = CreateIpcClient(GetEndpoint(memberDirectory.Path));
@@ -548,7 +551,12 @@ public sealed partial class BrowserAdapterSecurityTests
         using var join = CreateJsonRequest(
             HttpMethod.Post,
             BrowserRoutes.CircleJoin,
-            new JoinCircleRequest(invitation.Package, admissionEndpoint, "Bob"),
+            new JoinBrowserCircleRequest(
+                invitation.Package,
+                LanTcpEndpoint.ProviderName,
+                admissionEndpoint,
+                messageEndpoint,
+                "Bob"),
             GetOrigin(browserBaseUri),
             authenticated.Cookie,
             authenticated.Session.AntiforgeryToken);
@@ -683,15 +691,6 @@ public sealed partial class BrowserAdapterSecurityTests
             host.Platform,
             host.PrivateMaterialProtector,
             privateAddressSelector: privateAddressSelector);
-    }
-
-    private static string AllocateLoopbackEndpoint()
-    {
-        var listener = new TcpListener(IPAddress.Loopback, 0);
-        listener.Start();
-        var endpoint = (IPEndPoint)listener.LocalEndpoint;
-        listener.Stop();
-        return endpoint.ToString();
     }
 
     private static HttpClient CreateIpcClient(string endpoint)

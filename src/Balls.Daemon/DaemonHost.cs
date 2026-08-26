@@ -1077,6 +1077,7 @@ public static class DaemonHost
                 browserFilesContributionApplication,
                 filesMemberMappingApplication,
                 filesSyncApplication,
+                store,
                 invitationApplication,
                 admissionApplication,
                 invitationListeners,

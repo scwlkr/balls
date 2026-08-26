@@ -8,6 +8,7 @@ using Balls.Host;
 using Balls.Platform;
 using Balls.Protocol.Browser.V1;
 using Balls.Protocol.Control.V1;
+using Balls.Transport.Lan;
 
 namespace Balls.Daemon.Tests;
 
@@ -47,15 +48,7 @@ public sealed partial class BrowserAdapterSecurityTests
                 messageEndpoint),
             selected.Platform with { CircleFilesGrantCredentials = grantProvisioner },
             selected.PrivateMaterialProtector);
-        await using var member = await DaemonHost.StartAsync(
-            new DaemonOptions(
-                Path.Combine(memberDirectory.Path, "state"),
-                GetEndpoint(memberDirectory.Path),
-                "Member-PC"),
-            selected.Platform with { CircleFilesMemberMapping = memberMapper },
-            selected.PrivateMaterialProtector);
         using var ownerClient = CreateIpcClient(GetEndpoint(ownerDirectory.Path));
-        using var memberClient = CreateIpcClient(GetEndpoint(memberDirectory.Path));
         using var createCircleResponse = await ownerClient.PostAsJsonAsync(
             ControlRoutes.Circles,
             new CreateCircleRequest(
@@ -76,40 +69,98 @@ public sealed partial class BrowserAdapterSecurityTests
         var invitation = await issueResponse.Content.ReadFromJsonAsync<CreateInvitationResponse>(
             ControlJson.Options);
         Assert.IsNotNull(invitation);
+        string memberId;
+        await using (var initialMember = await DaemonHost.StartAsync(
+                         new DaemonOptions(
+                             Path.Combine(memberDirectory.Path, "state"),
+                             GetEndpoint(memberDirectory.Path),
+                             "Member-PC"),
+                         selected.Platform with { CircleFilesMemberMapping = memberMapper },
+                         selected.PrivateMaterialProtector))
+        using (var initialMemberClient = CreateIpcClient(GetEndpoint(memberDirectory.Path)))
+        {
+            var initialLaunch = await IssueLaunchAsync(initialMemberClient);
+            var initialBrowserBaseUri = GetBrowserBaseUri(initialLaunch);
+            using var initialBrowserClient = CreateBrowserClient(initialBrowserBaseUri);
+            var initialAuthenticated = await ExchangeAsync(initialBrowserClient, initialLaunch);
+            using var join = CreateJsonRequest(
+                HttpMethod.Post,
+                BrowserRoutes.CircleJoin,
+                new JoinBrowserCircleRequest(
+                    invitation.Package,
+                    LanTcpEndpoint.ProviderName,
+                    admissionEndpoint,
+                    messageEndpoint,
+                    "Bob"),
+                GetOrigin(initialBrowserBaseUri),
+                initialAuthenticated.Cookie,
+                initialAuthenticated.Session.AntiforgeryToken);
+            using var joinResponse = await initialBrowserClient.SendAsync(join);
+            Assert.AreEqual(HttpStatusCode.OK, joinResponse.StatusCode);
+            var joined = await joinResponse.Content.ReadFromJsonAsync<CircleDetailsResponse>(
+                ControlJson.Options);
+            Assert.IsNotNull(joined);
+            memberId = joined.Members.Single(person => person.DisplayName == "Bob").Id;
+        }
+
+        await using var relaunchedMember = await DaemonHost.StartAsync(
+            new DaemonOptions(
+                Path.Combine(memberDirectory.Path, "state"),
+                GetEndpoint(memberDirectory.Path),
+                "Member-PC"),
+            selected.Platform with { CircleFilesMemberMapping = memberMapper },
+            selected.PrivateMaterialProtector);
+        using var memberClient = CreateIpcClient(GetEndpoint(memberDirectory.Path));
         var launch = await IssueLaunchAsync(memberClient);
         var browserBaseUri = GetBrowserBaseUri(launch);
         using var browserClient = CreateBrowserClient(browserBaseUri);
         var authenticated = await ExchangeAsync(browserClient, launch);
 
-        using var join = CreateJsonRequest(
-            HttpMethod.Post,
-            BrowserRoutes.CircleJoin,
-            new JoinCircleRequest(invitation.Package, admissionEndpoint, "Bob"),
-            GetOrigin(browserBaseUri),
-            authenticated.Cookie,
-            authenticated.Session.AntiforgeryToken);
-        using var joinResponse = await browserClient.SendAsync(join);
-        Assert.AreEqual(HttpStatusCode.OK, joinResponse.StatusCode);
-        var joined = await joinResponse.Content.ReadFromJsonAsync<CircleDetailsResponse>(
-            ControlJson.Options);
-        Assert.IsNotNull(joined);
-        var memberId = joined.Members.Single(person => person.DisplayName == "Bob").Id;
+        ownerClient.Dispose();
+        await owner.DisposeAsync();
+        using (var offlineSync = CreateJsonRequest(
+                   HttpMethod.Post,
+                   BrowserRoutes.CircleFilesSync(circle.Circle.Id),
+                   new { },
+                   GetOrigin(browserBaseUri),
+                   authenticated.Cookie,
+                   authenticated.Session.AntiforgeryToken))
+        using (var offlineResponse = await browserClient.SendAsync(offlineSync))
+        {
+            var offlineJson = await offlineResponse.Content.ReadAsStringAsync();
+            Assert.AreEqual(HttpStatusCode.BadGateway, offlineResponse.StatusCode, offlineJson);
+            AssertSafeSyncResponse(offlineJson);
+            Assert.IsFalse(offlineJson.Contains(admissionEndpoint, StringComparison.Ordinal));
+            Assert.IsFalse(offlineJson.Contains(messageEndpoint, StringComparison.Ordinal));
+        }
 
-        var contribution = await CreateSyncContributionAsync(ownerClient, circle.Circle.Id);
+        await using var relaunchedOwner = await DaemonHost.StartAsync(
+            new DaemonOptions(
+                Path.Combine(ownerDirectory.Path, "state"),
+                GetEndpoint(ownerDirectory.Path),
+                "Owner-PC",
+                admissionEndpoint,
+                messageEndpoint),
+            selected.Platform with { CircleFilesGrantCredentials = grantProvisioner },
+            selected.PrivateMaterialProtector);
+        using var relaunchedOwnerClient = CreateIpcClient(GetEndpoint(ownerDirectory.Path));
+        var contribution = await CreateSyncContributionAsync(
+            relaunchedOwnerClient,
+            circle.Circle.Id);
         _ = await CreateSyncGrantAsync(
-            ownerClient,
+            relaunchedOwnerClient,
             circle.Circle.Id,
             contribution.Id,
             "0198d000-6100-7000-8000-000000000003",
             circle.Members.Single().Id);
         var memberGrant = await CreateSyncGrantAsync(
-            ownerClient,
+            relaunchedOwnerClient,
             circle.Circle.Id,
             contribution.Id,
             "0198d000-6100-7000-8000-000000000004",
             memberId);
         await ProvisionSyncGrantCredentialAsync(
-            ownerClient,
+            relaunchedOwnerClient,
             circle.Circle.Id,
             contribution.Id,
             memberGrant.Id);
@@ -118,7 +169,7 @@ public sealed partial class BrowserAdapterSecurityTests
         using var synchronize = CreateJsonRequest(
             HttpMethod.Post,
             BrowserRoutes.CircleFilesSync(circle.Circle.Id),
-            new SyncBrowserCircleFilesRequest(messageEndpoint),
+            new { },
             GetOrigin(browserBaseUri),
             authenticated.Cookie,
             authenticated.Session.AntiforgeryToken);
@@ -162,7 +213,7 @@ public sealed partial class BrowserAdapterSecurityTests
         using var previewRequest = CreateJsonRequest(
             HttpMethod.Post,
             mappingRoute + "/preview",
-            new PreviewCircleFilesMemberMappingRequest(privateAddress.ToString(), "P"),
+            new PreviewBrowserCircleFilesMemberMappingRequest("P"),
             GetOrigin(browserBaseUri),
             authenticated.Cookie,
             authenticated.Session.AntiforgeryToken);
@@ -178,7 +229,7 @@ public sealed partial class BrowserAdapterSecurityTests
         using var mappingRequest = CreateJsonRequest(
             HttpMethod.Post,
             mappingRoute + "/map",
-            new ApplyCircleFilesMemberMappingRequest(privateAddress.ToString(), "P", plan.PlanId),
+            new ApplyBrowserCircleFilesMemberMappingRequest("P", plan.PlanId),
             GetOrigin(browserBaseUri),
             authenticated.Cookie,
             authenticated.Session.AntiforgeryToken);

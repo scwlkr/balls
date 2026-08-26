@@ -43,7 +43,9 @@ Circle Files synchronization request. The directly shared browser invitation car
 and synchronization addresses in an outer convenience envelope without modifying the canonical
 signed invitation package. Both addresses are numeric private IPv4 endpoints, never identity
 proof; the existing pinned admission channel and mutually authenticated Circle channel establish
-peer identity independently of those addresses.
+peer identity independently of those addresses. A joined Node commits that provider/address
+envelope to its protected local state with accepted membership so a daemon or browser relaunch can
+retry synchronization without asking JavaScript or the person for infrastructure details.
 
 An admitted Member signs a bounded Circle/Member/Node/request-bound synchronization request with
 both its Member and Node keys. The Owner validates that identity against the authenticated peer
@@ -388,5 +390,6 @@ shared CLI/browser observation.
 No discovery, public bind, automatic failover, multiple-Anchor behavior, rich roles, channels,
 direct messages, edits/deletes, attachments, reactions, typing, catch-up, file, AI, or app
 operation is defined here. Admission and message listening are opt-in on separate numeric
-private/loopback endpoints; the invitation and message endpoint remain directly exchanged.
+private/loopback endpoints. The diagnostic control/CLI paths still exchange endpoints explicitly;
+the browser path persists its invitation-derived outer endpoints as protected local Node state.
 Credential rotation/import and owner-facing revocation UX remain separate work.

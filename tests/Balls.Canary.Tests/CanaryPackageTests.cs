@@ -226,7 +226,7 @@ public sealed class CanaryPackageTests
     }
 
     [TestMethod]
-    public void Windows_launcher_uses_a_detached_process_with_actionable_startup_logs()
+    public void Windows_launcher_reuses_protected_local_state_and_has_actionable_startup_logs()
     {
         var launcher = File.ReadAllText(Path.Combine(
             FindRepositoryRoot(),
@@ -236,7 +236,9 @@ public sealed class CanaryPackageTests
 
         StringAssert.Contains(launcher, "Start-Process -FilePath $env:BALLS_DAEMON");
         StringAssert.Contains(launcher, "set \"BALLS_HOME=%LOCALAPPDATA%\\Balls\"");
+        StringAssert.Contains(launcher, "set \"BALLS_STATE=%BALLS_HOME%\\state\"");
         StringAssert.Contains(launcher, "set \"BALLS_PIPE=balls\"");
+        StringAssert.Contains(launcher, "--data-directory \"%BALLS_STATE%\"");
         StringAssert.Contains(launcher, "--automatic-private-listeners");
         StringAssert.Contains(launcher, "-RedirectStandardOutput $env:BALLS_STDOUT");
         StringAssert.Contains(launcher, "-RedirectStandardError $env:BALLS_STDERR");

@@ -4,10 +4,8 @@ import { browserApi, type BrowserApi } from "./api/browserApi";
 import {
   decodeInvitationCode,
   encodeInvitationCode,
-  invitationHostAddress,
 } from "./api/invitationCode";
 import type {
-  CircleFilesMemberMappingPlanDto,
   CircleDetailsDto,
   CircleMessageDto,
   CircleSummaryDto,
@@ -45,10 +43,6 @@ export function App({ api = browserApi }: AppProps) {
   const [workspace, setWorkspace] = useState<WorkspaceState | null>(null);
   const [error, setError] = useState<string | null>(initialError);
   const [busy, setBusy] = useState(false);
-  const [fileHosts, setFileHosts] = useState<Record<string, string>>({});
-  const [fileSyncEndpoints, setFileSyncEndpoints] = useState<
-    Record<string, string>
-  >({});
 
   useEffect(() => {
     if (started.current) return;
@@ -153,26 +147,12 @@ export function App({ api = browserApi }: AppProps) {
       const invitation = decodeInvitationCode(invitationCode);
       const selected = await api.joinCircle(
         invitation.package,
+        invitation.provider,
         invitation.endpoint,
+        invitation.syncEndpoint,
         name,
       );
       const viewer = await api.getViewer(selected.circle.id);
-      const host = invitationHostAddress(invitation.endpoint);
-      if (host) {
-        setFileHosts((current) => ({ ...current, [selected.circle.id]: host }));
-        setFileSyncEndpoints((current) => ({
-          ...current,
-          [selected.circle.id]: invitation.syncEndpoint,
-        }));
-        window.sessionStorage.setItem(
-          `balls:file-host:${selected.circle.id}`,
-          host,
-        );
-        window.sessionStorage.setItem(
-          `balls:file-sync:${selected.circle.id}`,
-          invitation.syncEndpoint,
-        );
-      }
       setWorkspace({
         ...workspace,
         circles: mergeCircle(workspace.circles, selected.circle),
@@ -219,8 +199,6 @@ export function App({ api = browserApi }: AppProps) {
               workspace={workspace}
               error={error}
               busy={busy}
-              fileHosts={fileHosts}
-              fileSyncEndpoints={fileSyncEndpoints}
               onCreate={createCircle}
               onJoin={joinCircle}
               onSelect={selectCircle}
@@ -272,8 +250,6 @@ interface WorkspaceProps {
   workspace: WorkspaceState;
   error: string | null;
   busy: boolean;
-  fileHosts: Record<string, string>;
-  fileSyncEndpoints: Record<string, string>;
   onCreate: (event: FormEvent<HTMLFormElement>) => void;
   onJoin: (event: FormEvent<HTMLFormElement>) => void;
   onSelect: (circleId: string) => void;
@@ -284,8 +260,6 @@ function Workspace({
   workspace,
   error,
   busy,
-  fileHosts,
-  fileSyncEndpoints,
   onCreate,
   onJoin,
   onSelect,
@@ -343,8 +317,6 @@ function Workspace({
         <CircleWorkspace
           api={api}
           dashboard={dashboard}
-          fileHost={fileHosts[dashboard.circle.id]}
-          fileSyncEndpoint={fileSyncEndpoints[dashboard.circle.id]}
           viewer={workspace.viewer}
           messages={workspace.messages}
         />
@@ -357,15 +329,11 @@ function Workspace({
 
 function CircleWorkspace({
   dashboard,
-  fileHost,
-  fileSyncEndpoint,
   viewer,
   messages,
   api,
 }: {
   dashboard: DashboardSnapshot;
-  fileHost?: string;
-  fileSyncEndpoint?: string;
   viewer: CircleViewerDto;
   messages: CircleMessageDto[];
   api: BrowserApi;
@@ -412,23 +380,15 @@ function CircleWorkspace({
           <InvitationPanel api={api} circleId={circle.id} />
         </>
       ) : null}
-      <FilesMappingPanel
-        key={`${circle.id}:${filesRevision}`}
-        api={api}
-        dashboard={dashboard}
-        viewer={viewer}
-        circleId={circle.id}
-        initialEndpoint={
-          fileHost ??
-          window.sessionStorage.getItem(`balls:file-host:${circle.id}`) ??
-          ""
-        }
-        syncEndpoint={
-          fileSyncEndpoint ??
-          window.sessionStorage.getItem(`balls:file-sync:${circle.id}`) ??
-          ""
-        }
-      />
+      {viewer.role === "member" ? (
+        <FilesMappingPanel
+          key={`${circle.id}:${filesRevision}`}
+          api={api}
+          dashboard={dashboard}
+          viewer={viewer}
+          circleId={circle.id}
+        />
+      ) : null}
       <MessageHistory dashboard={dashboard} messages={messages} />
     </>
   );
@@ -652,15 +612,11 @@ function FilesMappingPanel({
   dashboard,
   viewer,
   circleId,
-  initialEndpoint,
-  syncEndpoint,
 }: {
   api: BrowserApi;
   dashboard: DashboardSnapshot;
   viewer: CircleViewerDto;
   circleId: string;
-  initialEndpoint: string;
-  syncEndpoint: string;
 }) {
   const [contributions, setContributions] = useState<
     Awaited<ReturnType<BrowserApi["listFilesContributions"]>>["contributions"]
@@ -670,22 +626,10 @@ function FilesMappingPanel({
   >([]);
   const [contributionId, setContributionId] = useState("");
   const [grantId, setGrantId] = useState("");
-  const [endpoint, setEndpoint] = useState(initialEndpoint);
-  const [driveLetter, setDriveLetter] = useState("");
-  const [plan, setPlan] = useState<CircleFilesMemberMappingPlanDto | null>(
-    null,
-  );
-  const [planContext, setPlanContext] = useState<{
-    contributionId: string;
-    grantId: string;
-    endpoint: string;
-    driveLetter: string;
-  } | null>(null);
   const [mappingStatus, setMappingStatus] = useState<string | null>(null);
   const [panelError, setPanelError] = useState<string | null>(null);
   const [panelBusy, setPanelBusy] = useState(false);
   const [refreshRequest, setRefreshRequest] = useState(0);
-  const guided = initialEndpoint.length > 0;
   const memberNames = new Map(
     dashboard.circle.members.map((member) => [member.id, member.name]),
   );
@@ -694,8 +638,7 @@ function FilesMappingPanel({
     let active = true;
     let timer: ReturnType<typeof window.setTimeout> | undefined;
     let attempt = 0;
-    const shouldSynchronize =
-      viewer.role === "member" && syncEndpoint.length > 0;
+    const shouldSynchronize = viewer.role === "member";
 
     function retry() {
       if (!active || !shouldSynchronize || attempt >= 15) return;
@@ -707,7 +650,7 @@ function FilesMappingPanel({
     async function load() {
       try {
         if (shouldSynchronize) {
-          await api.syncFiles(circleId, syncEndpoint);
+          await api.syncFiles(circleId);
           if (!active) return;
         }
 
@@ -748,20 +691,11 @@ function FilesMappingPanel({
       active = false;
       if (timer !== undefined) window.clearTimeout(timer);
     };
-  }, [
-    api,
-    circleId,
-    refreshRequest,
-    syncEndpoint,
-    viewer.memberId,
-    viewer.role,
-  ]);
+  }, [api, circleId, refreshRequest, viewer.memberId, viewer.role]);
 
   async function chooseContribution(value: string) {
     setContributionId(value);
     setGrantId("");
-    setPlan(null);
-    setPlanContext(null);
     setPanelError(null);
     if (!value) return;
     try {
@@ -777,102 +711,8 @@ function FilesMappingPanel({
     }
   }
 
-  async function discover() {
-    if (!contributionId || !grantId || !endpoint || panelBusy) return;
-    setPanelBusy(true);
-    setPanelError(null);
-    setPlan(null);
-    setPlanContext(null);
-    setDriveLetter("");
-    try {
-      const result = await api.previewFilesMapping(
-        circleId,
-        contributionId,
-        grantId,
-        endpoint,
-        "",
-      );
-      setPlan(result);
-      setPlanContext({ contributionId, grantId, endpoint, driveLetter: "" });
-    } catch (reason) {
-      setPanelError(toMessage(reason));
-    } finally {
-      setPanelBusy(false);
-    }
-  }
-
-  async function previewSelected() {
-    if (!driveLetter || panelBusy) return;
-    setPanelBusy(true);
-    setPanelError(null);
-    try {
-      const result = await api.previewFilesMapping(
-        circleId,
-        contributionId,
-        grantId,
-        endpoint,
-        driveLetter,
-      );
-      setPlan(result);
-      setPlanContext({ contributionId, grantId, endpoint, driveLetter });
-      setMappingStatus("ready to map");
-    } catch (reason) {
-      setPanelError(toMessage(reason));
-    } finally {
-      setPanelBusy(false);
-    }
-  }
-
-  async function mutate(operation: "map" | "inspect" | "unmap") {
-    if (
-      !plan ||
-      !driveLetter ||
-      panelBusy ||
-      plan.driveLetter !== driveLetter ||
-      planContext?.contributionId !== contributionId ||
-      planContext.grantId !== grantId ||
-      planContext.endpoint !== endpoint ||
-      planContext.driveLetter !== driveLetter
-    )
-      return;
-    setPanelBusy(true);
-    setPanelError(null);
-    try {
-      const result =
-        operation === "map"
-          ? await api.mapFiles(
-              circleId,
-              contributionId,
-              grantId,
-              endpoint,
-              driveLetter,
-              plan.planId,
-            )
-          : operation === "inspect"
-            ? await api.inspectFilesMapping(
-                circleId,
-                contributionId,
-                grantId,
-                endpoint,
-                driveLetter,
-              )
-            : await api.unmapFiles(
-                circleId,
-                contributionId,
-                grantId,
-                endpoint,
-                driveLetter,
-              );
-      setMappingStatus(result.status);
-    } catch (reason) {
-      setPanelError(toMessage(reason));
-    } finally {
-      setPanelBusy(false);
-    }
-  }
-
   async function openSharedFolder() {
-    if (!contributionId || !grantId || !endpoint || panelBusy) return;
+    if (!contributionId || !grantId || panelBusy) return;
     setPanelBusy(true);
     setPanelError(null);
     setMappingStatus(null);
@@ -881,7 +721,6 @@ function FilesMappingPanel({
         circleId,
         contributionId,
         grantId,
-        endpoint,
         "",
       );
       const selectedDrive = available.availableDriveLetters.includes("P")
@@ -894,18 +733,15 @@ function FilesMappingPanel({
         circleId,
         contributionId,
         grantId,
-        endpoint,
         selectedDrive,
       );
       await api.mapFiles(
         circleId,
         contributionId,
         grantId,
-        endpoint,
         selectedDrive,
         exactPlan.planId,
       );
-      setDriveLetter(selectedDrive);
       setMappingStatus(
         `Shared folder ready in File Explorer (${selectedDrive}:).`,
       );
@@ -932,11 +768,9 @@ function FilesMappingPanel({
       {contributions.length === 0 ? (
         <div className="message-empty">
           <p>
-            {viewer.role === "member" && syncEndpoint
-              ? "Waiting for your Circle owner to finish sharing the project folder."
-              : "No contributed folders are available yet."}
+            Waiting for your Circle owner to finish sharing the project folder.
           </p>
-          {viewer.role === "member" && syncEndpoint ? (
+          {viewer.role === "member" ? (
             <button
               type="button"
               onClick={() => setRefreshRequest((value) => value + 1)}
@@ -969,7 +803,7 @@ function FilesMappingPanel({
               </option>
             ))}
           </select>
-          {!guided || grants.length > 1 ? (
+          {grants.length > 1 ? (
             <>
               <label htmlFor="files-grant">Grant</label>
               <select
@@ -978,8 +812,6 @@ function FilesMappingPanel({
                 value={grantId}
                 onChange={(event) => {
                   setGrantId(event.target.value);
-                  setPlan(null);
-                  setPlanContext(null);
                   setMappingStatus(null);
                 }}
               >
@@ -992,107 +824,13 @@ function FilesMappingPanel({
               </select>
             </>
           ) : null}
-          {guided ? (
-            <button
-              type="button"
-              disabled={panelBusy || !grantId}
-              onClick={() => void openSharedFolder()}
-            >
-              {panelBusy ? "Connecting…" : "Open shared folder in Explorer"}
-            </button>
-          ) : (
-            <>
-              <label htmlFor="files-endpoint">Private host IPv4 address</label>
-              <input
-                id="files-endpoint"
-                value={endpoint}
-                placeholder="192.168.1.20"
-                required
-                disabled={panelBusy}
-                onChange={(event) => {
-                  setEndpoint(event.target.value);
-                  setPlan(null);
-                  setPlanContext(null);
-                  setMappingStatus(null);
-                }}
-              />
-              <button
-                type="button"
-                disabled={panelBusy || !grantId || !endpoint}
-                onClick={() => void discover()}
-              >
-                Find available drive letters
-              </button>
-            </>
-          )}
-          {!guided && plan ? (
-            <>
-              <label htmlFor="files-drive">Drive letter</label>
-              <select
-                id="files-drive"
-                required
-                disabled={panelBusy}
-                value={driveLetter}
-                onChange={(event) => {
-                  setDriveLetter(event.target.value);
-                  setPlan((current) =>
-                    current ? { ...current, driveLetter: "" } : current,
-                  );
-                  setPlanContext(null);
-                  setMappingStatus(null);
-                }}
-              >
-                <option value="">Choose a drive letter</option>
-                {plan.availableDriveLetters.map((value) => (
-                  <option key={value} value={value}>
-                    {value}:
-                  </option>
-                ))}
-              </select>
-              <button
-                type="button"
-                disabled={panelBusy || !driveLetter}
-                onClick={() => void previewSelected()}
-              >
-                Preview exact mapping
-              </button>
-              {plan.driveLetter &&
-              plan.driveLetter === driveLetter &&
-              planContext?.contributionId === contributionId &&
-              planContext.grantId === grantId &&
-              planContext.endpoint === endpoint &&
-              planContext.driveLetter === driveLetter ? (
-                <div>
-                  <p>
-                    <strong>
-                      {plan.driveLetter}: → {plan.uncPath}
-                    </strong>
-                  </p>
-                  <button
-                    type="button"
-                    disabled={panelBusy}
-                    onClick={() => void mutate("map")}
-                  >
-                    Map in Explorer
-                  </button>{" "}
-                  <button
-                    type="button"
-                    disabled={panelBusy}
-                    onClick={() => void mutate("inspect")}
-                  >
-                    Inspect
-                  </button>{" "}
-                  <button
-                    type="button"
-                    disabled={panelBusy}
-                    onClick={() => void mutate("unmap")}
-                  >
-                    Unmap
-                  </button>
-                </div>
-              ) : null}
-            </>
-          ) : null}
+          <button
+            type="button"
+            disabled={panelBusy || !grantId}
+            onClick={() => void openSharedFolder()}
+          >
+            {panelBusy ? "Connecting…" : "Open shared folder in Explorer"}
+          </button>
           {mappingStatus ? <p role="status">{mappingStatus}</p> : null}
           {panelError ? (
             <p className="inline-error" role="alert">

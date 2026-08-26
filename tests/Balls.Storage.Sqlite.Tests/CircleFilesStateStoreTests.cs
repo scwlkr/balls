@@ -403,6 +403,7 @@ public sealed class CircleFilesStateStoreTests
                 downgrade.CommandText =
                     """
                     PRAGMA foreign_keys = OFF;
+                    DROP TABLE circle_connections;
                     DROP TABLE circle_files_lifecycle_audit_events;
                     DROP TABLE circle_files_access_grant_revocations;
                     PRAGMA user_version = 7;
@@ -455,6 +456,7 @@ public sealed class CircleFilesStateStoreTests
                 downgrade.CommandText =
                     """
                     PRAGMA foreign_keys = OFF;
+                    DROP TABLE circle_connections;
                     DROP TABLE circle_files_lifecycle_audit_events;
                     DROP TABLE circle_files_access_grant_revocations;
                     DROP TABLE circle_files_provider_credentials;
@@ -513,6 +515,7 @@ public sealed class CircleFilesStateStoreTests
                 downgrade.CommandText =
                     """
                     PRAGMA foreign_keys = OFF;
+                    DROP TABLE circle_connections;
                     DROP TABLE circle_files_lifecycle_audit_events;
                     DROP TABLE circle_files_access_grant_revocations;
                     DROP TABLE circle_files_provider_credentials;
@@ -572,6 +575,7 @@ public sealed class CircleFilesStateStoreTests
             using var command = connection.CreateCommand();
             command.CommandText =
                 """
+                DROP TABLE circle_connections;
                 DROP TABLE circle_files_lifecycle_audit_events;
                 DROP TABLE circle_files_access_grant_revocations;
                 DROP TABLE circle_files_provider_credentials;
@@ -625,6 +629,7 @@ public sealed class CircleFilesStateStoreTests
             {
                 downgrade.CommandText =
                     """
+                    DROP TABLE circle_connections;
                     DROP TABLE circle_files_lifecycle_audit_events;
                     DROP TABLE circle_files_access_grant_revocations;
                     DROP TABLE circle_files_provider_credentials;

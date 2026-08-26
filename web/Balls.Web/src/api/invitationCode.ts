@@ -5,6 +5,7 @@ const maximumInvitationLength = 32 * 1024;
 
 interface InvitationEnvelope {
   version: 1;
+  provider: string;
   endpoint: string;
   syncEndpoint: string;
   package: string;
@@ -13,11 +14,12 @@ interface InvitationEnvelope {
 export function encodeInvitationCode(
   invitation: Pick<
     BrowserInvitationDto,
-    "endpoint" | "syncEndpoint" | "package"
+    "provider" | "endpoint" | "syncEndpoint" | "package"
   >,
 ) {
   const envelope = JSON.stringify({
     version: 1,
+    provider: invitation.provider,
     endpoint: invitation.endpoint,
     syncEndpoint: invitation.syncEndpoint,
     package: invitation.package,
@@ -60,6 +62,8 @@ export function decodeInvitationCode(value: string): InvitationEnvelope {
       invitation.version !== 1 ||
       !("endpoint" in invitation) ||
       typeof invitation.endpoint !== "string" ||
+      !("provider" in invitation) ||
+      typeof invitation.provider !== "string" ||
       !("syncEndpoint" in invitation) ||
       typeof invitation.syncEndpoint !== "string" ||
       !("package" in invitation) ||
@@ -70,6 +74,7 @@ export function decodeInvitationCode(value: string): InvitationEnvelope {
     }
     return {
       version: 1,
+      provider: invitation.provider,
       endpoint: invitation.endpoint,
       syncEndpoint: invitation.syncEndpoint,
       package: invitation.package,
@@ -79,9 +84,4 @@ export function decodeInvitationCode(value: string): InvitationEnvelope {
       "This invitation is incomplete or invalid. Ask for a new one.",
     );
   }
-}
-
-export function invitationHostAddress(endpoint: string) {
-  const separator = endpoint.lastIndexOf(":");
-  return separator > 0 ? endpoint.slice(0, separator) : "";
 }

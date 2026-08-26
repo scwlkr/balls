@@ -53,6 +53,7 @@ internal static class BrowserInvitationEndpoints
                     issued.InvitationId.ToString(),
                     issued.ExpiresAtUtc,
                     issued.Package,
+                    LanTcpEndpoint.ProviderName,
                     endpoint,
                     syncEndpoint));
         }
@@ -76,14 +77,19 @@ internal static class BrowserInvitationEndpoints
 
     internal static async Task<IResult> JoinAsync(
         TrustedCircleAdmissionApplication admissions,
-        JoinCircleRequest request,
+        JoinBrowserCircleRequest request,
         CancellationToken cancellationToken)
     {
         try
         {
-            var circle = await admissions.JoinAsync(
+            var connection = BrowserCircleConnections.ParseInvitation(
+                request.Provider,
+                request.AdmissionEndpoint,
+                request.SyncEndpoint);
+            var circle = await admissions.JoinWithConnectionAsync(
                 request.Package,
-                new RemoteTransportAddress(LanTcpEndpoint.ProviderName, request.Endpoint),
+                connection.AdmissionAddress,
+                connection.SyncAddress,
                 request.MemberDisplayName,
                 cancellationToken).ConfigureAwait(false);
             return Results.Ok(ToResponse(circle));
@@ -91,13 +97,6 @@ internal static class BrowserInvitationEndpoints
         catch (InputValidationException exception)
         {
             return Results.BadRequest(new ErrorResponse(exception.Code, exception.Message));
-        }
-        catch (ArgumentException)
-        {
-            return Results.BadRequest(
-                new ErrorResponse(
-                    "invalid_admission_endpoint",
-                    "The invitation does not contain a valid private network address."));
         }
         catch (AdmissionRejectedException exception)
         {

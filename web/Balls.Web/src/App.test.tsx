@@ -241,6 +241,7 @@ describe("Balls browser workspace", () => {
         invitationId: "0198f2cc-6a50-7a08-aacb-298f4ebdf670",
         expiresAtUtc: "2026-08-25T13:00:00Z",
         package: '{"signed":"original"}',
+        provider: "lan-tcp-v1",
         endpoint: "192.168.1.20:43120",
         syncEndpoint: "192.168.1.20:43155",
       };
@@ -258,6 +259,7 @@ describe("Balls browser workspace", () => {
       decodeInvitationCode((invitation as HTMLTextAreaElement).value),
     ).toEqual({
       version: 1,
+      provider: "lan-tcp-v1",
       endpoint: "192.168.1.20:43120",
       syncEndpoint: "192.168.1.20:43155",
       package: '{"signed":"original"}',
@@ -296,10 +298,9 @@ describe("Balls browser workspace", () => {
     } satisfies CircleDetailsDto;
     const contributionId = "0198f2cc-6a50-7a08-aacb-298f4ebdf674";
     const grantId = "0198f2cc-6a50-7a08-aacb-298f4ebdf675";
-    let joinedRequest: [string, string, string] | undefined;
-    let mappedRequest:
-      [string, string, string, string, string, string] | undefined;
-    let syncRequest: [string, string] | undefined;
+    let joinedRequest: [string, string, string, string, string] | undefined;
+    let mappedRequest: [string, string, string, string, string] | undefined;
+    let syncRequest: [string] | undefined;
     let syncAttempts = 0;
     api.joinCircle = async (...request) => {
       joinedRequest = request;
@@ -384,16 +385,11 @@ describe("Balls browser workspace", () => {
       availableDriveLetters: ["M", "P"],
       actions: ["Map exact share."],
     });
-    api.previewFilesMapping = async (
-      _circle,
-      _contribution,
-      _grant,
-      _host,
-      drive,
-    ) => mappingPlan(drive);
+    api.previewFilesMapping = async (_circle, _contribution, _grant, drive) =>
+      mappingPlan(drive);
     api.mapFiles = async (...request) => {
       mappedRequest = request;
-      return { status: "mapped", plan: mappingPlan(request[4]) };
+      return { status: "mapped", plan: mappingPlan(request[3]) };
     };
 
     render(<App api={api} />);
@@ -405,6 +401,7 @@ describe("Balls browser workspace", () => {
       target: {
         value: encodeInvitationCode({
           package: '{"signed":"original"}',
+          provider: "lan-tcp-v1",
           endpoint: "192.168.1.20:43120",
           syncEndpoint: "192.168.1.20:43155",
         }),
@@ -430,10 +427,12 @@ describe("Balls browser workspace", () => {
     });
     expect(joinedRequest).toEqual([
       '{"signed":"original"}',
+      "lan-tcp-v1",
       "192.168.1.20:43120",
+      "192.168.1.20:43155",
       "Bob",
     ]);
-    expect(syncRequest).toEqual([details.circle.id, "192.168.1.20:43155"]);
+    expect(syncRequest).toEqual([details.circle.id]);
     expect(syncAttempts).toBe(2);
     expect(
       within(files).queryByLabelText("Private host IPv4 address"),
@@ -451,20 +450,34 @@ describe("Balls browser workspace", () => {
       details.circle.id,
       contributionId,
       grantId,
-      "192.168.1.20",
       "P",
       "a".repeat(64),
     ]);
   });
 
-  it("discovers drive letters before mapping through the shared browser application", async () => {
-    const api = createApi({ circles: [details.circle] });
-    api.listFilesContributions = async () => ({
-      circleId: details.circle.id,
+  it("restores a joined Member Capability after a fresh render without Web Storage", async () => {
+    const memberId = "0198f2cc-6a50-7a08-aacb-298f4ebdf654";
+    const joined = {
+      ...details,
+      members: [
+        ...details.members,
+        {
+          id: memberId,
+          displayName: "Bob",
+          role: "member",
+          joinedAtUtc: "2026-08-22T12:00:00Z",
+        },
+      ],
+    } satisfies CircleDetailsDto;
+    const api = createApi({ circles: [joined.circle] });
+    api.getCircle = async () => joined;
+    api.getViewer = async () => ({ memberId, role: "member" });
+    api.listFilesContributions = async (circleId) => ({
+      circleId,
       contributions: [
         {
           id: "0198f2cc-6a50-7a08-aacb-298f4ebdf650",
-          circleId: details.circle.id,
+          circleId,
           provider: {
             id: "0198f2cc-6a50-7a08-aacb-298f4ebdf651",
             nodeId: details.nodes[0].id,
@@ -487,21 +500,8 @@ describe("Balls browser workspace", () => {
           id: "0198f2cc-6a50-7a08-aacb-298f4ebdf652",
           circleId,
           contributionId,
-          memberId: details.members[0].id,
+          memberId,
           access: "read-write",
-          lifecycle: "defined",
-          generation: 1,
-          createdAtUtc: "2026-08-22T12:00:00Z",
-          authorizedByMemberId: details.members[0].id,
-          authorityGeneration: 1,
-          authorizedAtUtc: "2026-08-22T12:00:00Z",
-        },
-        {
-          id: "0198f2cc-6a50-7a08-aacb-298f4ebdf653",
-          circleId,
-          contributionId,
-          memberId: "0198f2cc-6a50-7a08-aacb-298f4ebdf654",
-          access: "read-only",
           lifecycle: "defined",
           generation: 1,
           createdAtUtc: "2026-08-22T12:00:00Z",
@@ -511,73 +511,39 @@ describe("Balls browser workspace", () => {
         },
       ],
     });
-    const mappingPlan = (driveLetter: string) => ({
-      contractVersion: 1,
-      planId: "a".repeat(64),
-      endpoint: "192.168.1.20",
-      uncPath: String.raw`\\192.168.1.20\balls-example`,
-      credentialTarget: "192.168.1.20",
-      driveLetter,
-      friendlyName: "Example Studio",
-      ownershipId: "b".repeat(64),
-      availableDriveLetters: ["M", "N"],
-      actions: ["Map exact share."],
-    });
-    api.previewFilesMapping = async (
-      _circle,
-      _contribution,
-      _grant,
-      _endpoint,
-      drive,
-    ) => mappingPlan(drive);
-    api.mapFiles = async (
-      _circle,
-      _contribution,
-      _grant,
-      _endpoint,
-      drive,
-    ) => ({
-      status: "mapped",
-      plan: mappingPlan(drive),
-    });
+    const storageRead = vi
+      .spyOn(Storage.prototype, "getItem")
+      .mockImplementation(() => {
+        throw new Error("Web Storage must not be read.");
+      });
+    const storageWrite = vi
+      .spyOn(Storage.prototype, "setItem")
+      .mockImplementation(() => {
+        throw new Error("Web Storage must not be written.");
+      });
 
-    render(<App api={api} />);
-    const form = await screen.findByRole("form", { name: "Map Circle Files" });
-    fireEvent.change(within(form).getByLabelText("Private host IPv4 address"), {
-      target: { value: "192.168.1.20" },
-    });
-    fireEvent.click(
-      within(form).getByRole("button", {
-        name: "Find available drive letters",
-      }),
-    );
-    const drive = await within(form).findByLabelText("Drive letter");
+    const first = render(<App api={api} />);
     expect(
-      within(drive).getByRole("option", { name: "M:" }),
+      await screen.findByRole("heading", { level: 1, name: "Example Studio" }),
     ).toBeInTheDocument();
-    fireEvent.change(drive, { target: { value: "M" } });
-    fireEvent.click(
-      within(form).getByRole("button", { name: "Preview exact mapping" }),
-    );
-    expect(await within(form).findByText(/M: →/)).toBeInTheDocument();
-    fireEvent.change(drive, { target: { value: "N" } });
     expect(
-      within(form).queryByRole("button", { name: "Unmap" }),
-    ).not.toBeInTheDocument();
-    fireEvent.click(
-      within(form).getByRole("button", { name: "Preview exact mapping" }),
-    );
-    expect(await within(form).findByText(/N: →/)).toBeInTheDocument();
-    fireEvent.click(
-      within(form).getByRole("button", { name: "Map in Explorer" }),
-    );
-    expect(await within(form).findByRole("status")).toHaveTextContent("mapped");
-    fireEvent.change(within(form).getByLabelText("Grant"), {
-      target: { value: "0198f2cc-6a50-7a08-aacb-298f4ebdf653" },
-    });
+      await screen.findByRole("button", {
+        name: "Open shared folder in Explorer",
+      }),
+    ).toBeInTheDocument();
+    first.unmount();
+    window.history.replaceState(null, "", "/#launch=fresh-capability");
+    render(<App api={api} />);
+
     expect(
-      within(form).queryByRole("button", { name: "Unmap" }),
-    ).not.toBeInTheDocument();
+      await screen.findByRole("button", {
+        name: "Open shared folder in Explorer",
+      }),
+    ).toBeInTheDocument();
+    expect(storageRead).not.toHaveBeenCalled();
+    expect(storageWrite).not.toHaveBeenCalled();
+    storageRead.mockRestore();
+    storageWrite.mockRestore();
   });
 
   it("announces when Circle creation is busy", async () => {

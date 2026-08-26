@@ -2037,7 +2037,7 @@
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/JoinCircleRequest"
+                "$ref": "#/components/schemas/JoinBrowserCircleRequest"
               }
             }
           },
@@ -2230,16 +2230,6 @@
             }
           }
         ],
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/SyncBrowserCircleFilesRequest"
-              }
-            }
-          },
-          "required": true
-        },
         "responses": {
           "200": {
             "description": "OK",
@@ -2382,6 +2372,154 @@
         }
       }
     },
+    "/browser/v1/circles/{circleId}/files/contributions/folder-selection": {
+      "post": {
+        "tags": [
+          "ballsd"
+        ],
+        "parameters": [
+          {
+            "name": "circleId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BrowserCircleFilesFolderSelectionResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/browser/v1/circles/{circleId}/files/contributions/folder-apply": {
+      "post": {
+        "tags": [
+          "ballsd"
+        ],
+        "parameters": [
+          {
+            "name": "circleId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ApplyBrowserCircleFilesFolderRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BrowserCircleFilesContributionResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/browser/v1/circles/{circleId}/files/contributions/{contributionId}/grants": {
       "get": {
         "tags": [
@@ -2474,7 +2612,7 @@
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/PreviewCircleFilesMemberMappingRequest"
+                "$ref": "#/components/schemas/PreviewBrowserCircleFilesMemberMappingRequest"
               }
             }
           },
@@ -2522,7 +2660,7 @@
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/ApplyCircleFilesMemberMappingRequest"
+                "$ref": "#/components/schemas/ApplyBrowserCircleFilesMemberMappingRequest"
               }
             }
           },
@@ -2570,7 +2708,7 @@
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/InspectCircleFilesMemberMappingRequest"
+                "$ref": "#/components/schemas/InspectBrowserCircleFilesMemberMappingRequest"
               }
             }
           },
@@ -2618,7 +2756,7 @@
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/UnmapCircleFilesMemberMappingRequest"
+                "$ref": "#/components/schemas/UnmapBrowserCircleFilesMemberMappingRequest"
               }
             }
           },
@@ -2683,6 +2821,40 @@
   },
   "components": {
     "schemas": {
+      "ApplyBrowserCircleFilesFolderRequest": {
+        "required": [
+          "requestId",
+          "folderPath",
+          "displayName"
+        ],
+        "type": "object",
+        "properties": {
+          "requestId": {
+            "type": "string"
+          },
+          "folderPath": {
+            "type": "string"
+          },
+          "displayName": {
+            "type": "string"
+          }
+        }
+      },
+      "ApplyBrowserCircleFilesMemberMappingRequest": {
+        "required": [
+          "driveLetter",
+          "planId"
+        ],
+        "type": "object",
+        "properties": {
+          "driveLetter": {
+            "type": "string"
+          },
+          "planId": {
+            "type": "string"
+          }
+        }
+      },
       "ApplyCircleFilesGrantCleanupRequest": {
         "required": [
           "folderPath",
@@ -2770,6 +2942,54 @@
           }
         }
       },
+      "BrowserCircleFilesContributionResponse": {
+        "required": [
+          "status",
+          "contributionId",
+          "displayName",
+          "folderPath"
+        ],
+        "type": "object",
+        "properties": {
+          "status": {
+            "type": "string"
+          },
+          "contributionId": {
+            "type": "string"
+          },
+          "displayName": {
+            "type": "string"
+          },
+          "folderPath": {
+            "type": "string"
+          }
+        }
+      },
+      "BrowserCircleFilesFolderSelectionResponse": {
+        "required": [
+          "status",
+          "folderPath",
+          "displayName"
+        ],
+        "type": "object",
+        "properties": {
+          "status": {
+            "type": "string"
+          },
+          "folderPath": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "displayName": {
+            "type": [
+              "null",
+              "string"
+            ]
+          }
+        }
+      },
       "BrowserCircleFilesSyncResponse": {
         "required": [
           "circleId",
@@ -2796,6 +3016,7 @@
           "invitationId",
           "expiresAtUtc",
           "package",
+          "provider",
           "endpoint",
           "syncEndpoint"
         ],
@@ -2812,6 +3033,9 @@
             "format": "date-time"
           },
           "package": {
+            "type": "string"
+          },
+          "provider": {
             "type": "string"
           },
           "endpoint": {
@@ -3666,6 +3890,17 @@
           }
         }
       },
+      "InspectBrowserCircleFilesMemberMappingRequest": {
+        "required": [
+          "driveLetter"
+        ],
+        "type": "object",
+        "properties": {
+          "driveLetter": {
+            "type": "string"
+          }
+        }
+      },
       "InspectCircleFilesMemberMappingRequest": {
         "required": [
           "endpoint",
@@ -3677,6 +3912,33 @@
             "type": "string"
           },
           "driveLetter": {
+            "type": "string"
+          }
+        }
+      },
+      "JoinBrowserCircleRequest": {
+        "required": [
+          "package",
+          "provider",
+          "admissionEndpoint",
+          "syncEndpoint",
+          "memberDisplayName"
+        ],
+        "type": "object",
+        "properties": {
+          "package": {
+            "type": "string"
+          },
+          "provider": {
+            "type": "string"
+          },
+          "admissionEndpoint": {
+            "type": "string"
+          },
+          "syncEndpoint": {
+            "type": "string"
+          },
+          "memberDisplayName": {
             "type": "string"
           }
         }
@@ -3914,6 +4176,17 @@
           }
         }
       },
+      "PreviewBrowserCircleFilesMemberMappingRequest": {
+        "required": [
+          "driveLetter"
+        ],
+        "type": "object",
+        "properties": {
+          "driveLetter": {
+            "type": "string"
+          }
+        }
+      },
       "PreviewCircleFilesGrantCleanupRequest": {
         "required": [
           "folderPath"
@@ -4070,13 +4343,13 @@
           }
         }
       },
-      "SyncBrowserCircleFilesRequest": {
+      "UnmapBrowserCircleFilesMemberMappingRequest": {
         "required": [
-          "endpoint"
+          "driveLetter"
         ],
         "type": "object",
         "properties": {
-          "endpoint": {
+          "driveLetter": {
             "type": "string"
           }
         }
