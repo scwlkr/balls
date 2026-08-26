@@ -541,13 +541,14 @@ verifies both P-256 Contribution authorization signatures and their exact Circle
 provider, Node, display-name, lifecycle, and generation transcript. This preserves the daemon
 Owner even when UAC uses a different administrator credential. The elevated helper recomputes
 readiness, path safety, identity, and the complete plan rather than trusting the preview. Its only
-system mutation path is a fixed PowerShell command enum (encoded for hosting; a direct fixed script
-kept under Windows' command-line budget for grant credentials); it accepts structured JSON over
-standard input and uses a 20-second timeout plus one combined 16,384-character streaming output
-budget. The elevated helper stops forward operation after two minutes even if the daemon stalls;
+system mutation path is a fixed PowerShell command enum (encoded for hosting; a direct fixed
+`-Command` argument kept under Windows' command-line budget for grant credentials); it accepts
+structured JSON over standard input and uses a 20-second timeout plus one combined 16,384-character
+streaming output budget. The elevated helper stops forward operation after two minutes even if the
+daemon stalls;
 cancellation then enters reverse recovery, whose individual system commands retain the same
-20-second bounds. No arbitrary command, script, or caller-controlled shell argument crosses the
-elevation boundary.
+20-second bounds. No `.ps1`, execution-policy override, arbitrary command, or caller-controlled
+shell argument crosses the elevation boundary.
 
 Both privilege levels require an absolute fixed-local path with an existing parent, outside drive
 roots, Windows and profile roots, network locations, files, and any existing reparse traversal. The

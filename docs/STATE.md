@@ -69,11 +69,10 @@ Reuse this machinery where it shortens #92. Do not expand it for hypothetical fu
 
 ## Known blockers in the human journey
 
-- `balls.wlkrlabs.com` currently points to published `0.3.0-alpha.1`, which predates Circle Files.
-- The live website still has no promoted #92 Development candidate. The prior staged candidate's
-  script entrypoint was correctly rejected by the clean Owner VM's effective `Restricted` policy;
-  the replacement release must use the repository's native, hash-bound current-user bootstrap and
-  pass the exact installed-shortcut smoke before the Development pointer moves.
+- The exact `1218b57d8d37` Development package is live and the clean Owner profile installed and
+  relaunched it through the normal shortcut under effective `Restricted` policy. A replacement
+  package containing the direct fixed grant-helper command must receive the same immutable release
+  and clean-profile checks before the complete rehearsal.
 - The graphical Owner contribute/grant flow is automated, but its real standard-user Windows
   folder-picker, elevation, and helper retry behavior still needs checklist observation.
 - Real Windows mapping was previously triggered through the CLI. The browser now maps and launches

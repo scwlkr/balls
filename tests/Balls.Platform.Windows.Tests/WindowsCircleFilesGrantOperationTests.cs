@@ -311,63 +311,45 @@ public sealed class WindowsCircleFilesGrantOperationTests
     }
 
     [TestMethod]
-    public async Task Protected_fixed_script_preserves_stdin_and_is_removed_after_use()
+    public async Task Direct_fixed_command_preserves_stdin_under_restricted_policy()
     {
+        const string script =
+            "$policy=(Get-ExecutionPolicy).ToString();"
+            + "$value=[Console]::In.ReadToEnd();"
+            + "[PSCustomObject]@{Value=$value;Policy=$policy}|ConvertTo-Json -Compress";
+        var startInfo = WindowsDirectPowerShellCommand.CreateStartInfo(script);
+        Assert.IsFalse(startInfo.Environment.ContainsKey("BALLS_FIXED_SCRIPT"));
+        Assert.IsFalse(startInfo.Environment.ContainsKey("PSModulePath"));
+        CollectionAssert.AreEqual(
+            new[] { "-NoLogo", "-NoProfile", "-NonInteractive", "-Command", script },
+            startInfo.ArgumentList.ToArray());
+        Assert.IsFalse(startInfo.ArgumentList.Any(value =>
+            value.StartsWith("-ExecutionPolicy", StringComparison.OrdinalIgnoreCase)
+            || value.Contains(".ps1", StringComparison.OrdinalIgnoreCase)
+            || value.Equals("-File", StringComparison.OrdinalIgnoreCase)));
+        Assert.IsTrue(
+            WindowsDirectPowerShellCommand.EstimateCommandLineCharacters(startInfo) < 31_000);
+
+        var grantStartInfo = WindowsDirectPowerShellCommand.CreateStartInfo(
+            WindowsCircleFilesGrantPowerShell.Script);
+        Assert.IsTrue(
+            WindowsDirectPowerShellCommand.EstimateCommandLineCharacters(grantStartInfo) < 31_000);
+
         if (!OperatingSystem.IsWindows())
         {
-            Assert.Inconclusive("The protected fixed-script transport requires Windows.");
             return;
         }
 
-        const string script =
-            "$value=[Console]::In.ReadToEnd();"
-            + "[PSCustomObject]@{Value=$value}|ConvertTo-Json -Compress";
-        string directoryPath;
-        string scriptPath;
-        using (var fixedScript = WindowsProtectedPowerShellScript.Create(script))
-        {
-            directoryPath = fixedScript.DirectoryPath;
-            scriptPath = fixedScript.Path;
-            Assert.AreEqual(script, File.ReadAllText(scriptPath));
-
-            var currentUser = WindowsIdentity.GetCurrent().User!;
-            var security = new FileInfo(scriptPath).GetAccessControl(AccessControlSections.All);
-            Assert.IsTrue(security.AreAccessRulesProtected);
-            var owner = security.GetOwner(typeof(SecurityIdentifier)) as SecurityIdentifier
-                ?? throw new AssertFailedException("The fixed script has no SID owner.");
-            Assert.AreEqual(
-                currentUser.Value,
-                owner.Value);
-            var expected = new HashSet<string>(StringComparer.Ordinal)
-            {
-                currentUser.Value,
-                new SecurityIdentifier(WellKnownSidType.LocalSystemSid, null).Value,
-            };
-            var rules = security.GetAccessRules(true, false, typeof(SecurityIdentifier))
-                .Cast<FileSystemAccessRule>().ToArray();
-            Assert.IsTrue(rules.All(rule =>
-                rule.AccessControlType == AccessControlType.Allow
-                && rule.FileSystemRights == FileSystemRights.FullControl
-                && rule.IdentityReference is SecurityIdentifier sid
-                && expected.Remove(sid.Value)));
-            Assert.AreEqual(0, expected.Count);
-
-            var startInfo = fixedScript.CreateStartInfo();
-            Assert.IsFalse(startInfo.Environment.ContainsKey("BALLS_FIXED_SCRIPT"));
-            Assert.AreEqual(directoryPath, startInfo.WorkingDirectory);
-            CollectionAssert.Contains(startInfo.ArgumentList.ToArray(), "-File");
-            CollectionAssert.Contains(startInfo.ArgumentList.ToArray(), scriptPath);
-            var output = await BoundedWindowsInspectionProcessRunner.RunWithInputAsync(
-                startInfo,
-                "stdin-probe",
-                TimeSpan.FromSeconds(45),
-                1024,
-                CancellationToken.None);
-            Assert.AreEqual("{\"Value\":\"stdin-probe\"}", output.Trim());
-        }
-
-        Assert.IsFalse(File.Exists(scriptPath));
-        Assert.IsFalse(Directory.Exists(directoryPath));
+        startInfo.Environment["PSExecutionPolicyPreference"] = "Restricted";
+        var output = await BoundedWindowsInspectionProcessRunner.RunWithInputAsync(
+            startInfo,
+            "stdin-probe",
+            TimeSpan.FromSeconds(45),
+            1024,
+            CancellationToken.None);
+        Assert.AreEqual(
+            "{\"Value\":\"stdin-probe\",\"Policy\":\"Restricted\"}",
+            output.Trim());
     }
 
     [TestMethod]
