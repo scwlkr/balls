@@ -6,4 +6,5 @@ public sealed record DaemonOptions(
     string NodeDisplayName,
     string? AdmissionListenEndpoint = null,
     string? MessageListenEndpoint = null,
-    bool AutomaticPrivateListeners = false);
+    bool AutomaticPrivateListeners = false,
+    string? AdvertisedPrivateAddress = null);

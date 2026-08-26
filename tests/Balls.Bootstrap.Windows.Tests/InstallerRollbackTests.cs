@@ -65,6 +65,53 @@ public sealed class InstallerRollbackTests
         }
     }
 
+    [TestMethod]
+    public async Task Running_daemon_refusal_preserves_the_existing_pid_record()
+    {
+        var root = Path.Combine(Path.GetTempPath(), $"balls-bootstrap-running-{Guid.NewGuid():N}");
+        var installRoot = Path.Combine(root, "install");
+        var packagePath = Path.Combine(root, "balls-0.3.0-alpha.1-canary-windows-x64-0123456789ab.zip");
+        var checksumPath = packagePath + ".sha256";
+        var pidPath = Path.Combine(installRoot, "ballsd.pid");
+        try
+        {
+            Directory.CreateDirectory(root);
+            WriteInvalidExecutablePackage(packagePath);
+            var hash = PackageVerifier.HashFile(packagePath);
+            await File.WriteAllTextAsync(
+                checksumPath,
+                $"{hash.ToUpperInvariant()}  {Path.GetFileName(packagePath)}\n",
+                new UTF8Encoding(false));
+            Directory.CreateDirectory(installRoot);
+            var expectedPid = Environment.ProcessId.ToString(System.Globalization.CultureInfo.InvariantCulture);
+            await File.WriteAllTextAsync(pidPath, expectedPid, new UTF8Encoding(false));
+            var options = new BootstrapOptions(
+                null,
+                packagePath,
+                checksumPath,
+                installRoot,
+                "balls-test",
+                "Balls Test Node",
+                OpenUi: false,
+                CreateShortcut: false);
+            using var installer = new WindowsBootstrapInstaller();
+
+            var error = await Assert.ThrowsExactlyAsync<InvalidOperationException>(() =>
+                installer.InstallAsync(options, CancellationToken.None));
+
+            StringAssert.Contains(error.Message, $"already running as PID {expectedPid}");
+            Assert.IsTrue(File.Exists(pidPath));
+            Assert.AreEqual(expectedPid, await File.ReadAllTextAsync(pidPath));
+        }
+        finally
+        {
+            if (Directory.Exists(root))
+            {
+                Directory.Delete(root, recursive: true);
+            }
+        }
+    }
+
     private static void WriteInvalidExecutablePackage(string packagePath)
     {
         var files = new Dictionary<string, string>(StringComparer.Ordinal)

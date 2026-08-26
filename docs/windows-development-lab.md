@@ -70,6 +70,21 @@ docker network inspect windows_default --format '{{.Name}} {{.Driver}}'
 - Treat the Hyper-V instructions below as historical Windows-host evidence. They do not describe
   the current Linux workstation or authorize creating nested Windows/Hyper-V infrastructure.
 
+### Nested-NAT development feedback
+
+The Dockur containers may share `windows_default` while each Windows guest sits behind a separate
+inner NAT and receives the same guest address. Before invitation testing, compare the actual guest
+addresses with the container addresses and prove both selected listener ports from the Member
+container. Do not assume container attachment means the Windows guests share one routable subnet.
+
+For a local package feedback iteration only, the bootstrap's typed
+`--advertised-private-address <private-ip>` option may project the container's reachable private
+address into invitations while the daemon remains bound to its selected inner private interface.
+It rejects hostnames and public addresses and does not weaken listener or firewall scope. Record
+this as a lab intervention: a manually supplied projection is not final checklist evidence. The
+mergeable result must either make the projection automatic for the accepted topology or update the
+accepted lab contract explicitly.
+
 ## Deferred physical coworker laptop
 
 The freshly installed Windows laptop is owner-approved disposable test infrastructure, but its

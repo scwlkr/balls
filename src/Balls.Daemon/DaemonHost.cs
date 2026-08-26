@@ -104,6 +104,18 @@ public static class DaemonHost
         }
 
         PrivateIPv4AddressSelection? automaticPrivateAddress = null;
+        IPAddress? advertisedPrivateAddress = null;
+        if (options.AdvertisedPrivateAddress is not null)
+        {
+            if (!options.AutomaticPrivateListeners
+                || !IPAddress.TryParse(options.AdvertisedPrivateAddress, out advertisedPrivateAddress)
+                || !LanTcpEndpoint.IsPrivateIPv4(advertisedPrivateAddress))
+            {
+                throw new InputValidationException(
+                    "invalid_advertised_private_address",
+                    "The advertised address requires automatic listeners and one numeric private IPv4 address.");
+            }
+        }
         if (options.AutomaticPrivateListeners
             && admissionListenEndpoint is null
             && messageListenEndpoint is null)
@@ -263,9 +275,15 @@ public static class DaemonHost
             }
             if (admissionListener is not null && messageListener is not null)
             {
-                invitationListeners = BrowserInvitationListenerState.Available(
+                var admissionAddress = ProjectAdvertisedAddress(
                     admissionListener.BoundAddress,
-                    messageListener.BoundAddress);
+                    advertisedPrivateAddress);
+                var messageAddress = ProjectAdvertisedAddress(
+                    messageListener.BoundAddress,
+                    advertisedPrivateAddress);
+                invitationListeners = BrowserInvitationListenerState.Available(
+                    admissionAddress,
+                    messageAddress);
             }
 
             await circleApplication.GetLocalNodeAsync(cancellationToken).ConfigureAwait(false);
@@ -1158,6 +1176,21 @@ public static class DaemonHost
 
             throw;
         }
+    }
+
+    private static RemoteTransportAddress ProjectAdvertisedAddress(
+        RemoteTransportAddress boundAddress,
+        IPAddress? advertisedAddress)
+    {
+        if (advertisedAddress is null)
+        {
+            return boundAddress;
+        }
+
+        var boundEndpoint = LanTcpEndpoint.Parse(boundAddress);
+        return new RemoteTransportAddress(
+            LanTcpEndpoint.ProviderName,
+            new IPEndPoint(advertisedAddress, boundEndpoint.Port).ToString());
     }
 
     private static async Task RunAdmissionListenerAsync(

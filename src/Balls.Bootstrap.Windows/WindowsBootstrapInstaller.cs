@@ -32,6 +32,7 @@ internal sealed class WindowsBootstrapInstaller : IDisposable
         var recordChanged = false;
         var shortcutChanged = false;
         var launcherChanged = false;
+        var pidChanged = false;
         var committed = false;
 
         try
@@ -78,12 +79,18 @@ internal sealed class WindowsBootstrapInstaller : IDisposable
             var cliPath = Path.Combine(installedVersionRoot, "balls", "balls.exe");
             launcherPath = Path.Combine(options.InstallRoot, "launchers", $"{versionId}.cmd");
             previousLauncher = ReadOptionalBytes(launcherPath);
-            WriteLauncher(launcherPath, versionId, options.PipeName, options.NodeName);
+            WriteLauncher(
+                launcherPath,
+                versionId,
+                options.PipeName,
+                options.NodeName,
+                options.AdvertisedPrivateAddress);
             launcherChanged = true;
 
             daemon = StartDaemon(daemonPath, installedVersionRoot, stateRoot, options);
             await File.WriteAllTextAsync(pidPath, daemon.Id.ToString(System.Globalization.CultureInfo.InvariantCulture), cancellationToken)
                 .ConfigureAwait(false);
+            pidChanged = true;
             var status = await WaitUntilReadyAsync(cliPath, options.PipeName, daemon, cancellationToken)
                 .ConfigureAwait(false);
             Console.WriteLine(status);
@@ -155,7 +162,7 @@ internal sealed class WindowsBootstrapInstaller : IDisposable
                 daemon.Kill(entireProcessTree: true);
                 await daemon.WaitForExitAsync(CancellationToken.None).ConfigureAwait(false);
             }
-            if (pidPath is not null && File.Exists(pidPath))
+            if (pidChanged && pidPath is not null && File.Exists(pidPath))
             {
                 File.Delete(pidPath);
             }
@@ -304,13 +311,7 @@ internal sealed class WindowsBootstrapInstaller : IDisposable
             CreateNoWindow = true,
             WorkingDirectory = Path.Combine(workingDirectory, "ballsd"),
         };
-        foreach (var argument in new[]
-        {
-            "--data-directory", stateRoot,
-            "--pipe-name", options.PipeName,
-            "--node-name", options.NodeName,
-            "--automatic-private-listeners",
-        })
+        foreach (var argument in BuildDaemonArguments(stateRoot, options))
         {
             startInfo.ArgumentList.Add(argument);
         }
@@ -325,6 +326,25 @@ internal sealed class WindowsBootstrapInstaller : IDisposable
                 $"BLOCKED: Windows did not allow Balls to start. No application policy was changed. {exception.Message}",
                 exception);
         }
+    }
+
+    internal static IReadOnlyList<string> BuildDaemonArguments(
+        string stateRoot,
+        BootstrapOptions options)
+    {
+        var arguments = new List<string>
+        {
+            "--data-directory", stateRoot,
+            "--pipe-name", options.PipeName,
+            "--node-name", options.NodeName,
+            "--automatic-private-listeners",
+        };
+        if (options.AdvertisedPrivateAddress is not null)
+        {
+            arguments.Add("--advertised-private-address");
+            arguments.Add(options.AdvertisedPrivateAddress);
+        }
+        return arguments;
     }
 
     private static async Task<string> WaitUntilReadyAsync(
@@ -380,20 +400,41 @@ internal sealed class WindowsBootstrapInstaller : IDisposable
         return new ProcessResult(process.ExitCode, await output.ConfigureAwait(false), await error.ConfigureAwait(false));
     }
 
-    private static void WriteLauncher(string path, string versionId, string pipeName, string nodeName)
+    private static void WriteLauncher(
+        string path,
+        string versionId,
+        string pipeName,
+        string nodeName,
+        string? advertisedPrivateAddress)
     {
-        if (!SafeValue(versionId) || !SafeValue(pipeName) || nodeName.IndexOfAny(['"', '\r', '\n']) >= 0)
-        {
-            throw new InvalidDataException("The installed package produced an unsafe launcher identity.");
-        }
         Directory.CreateDirectory(Path.GetDirectoryName(path)!);
-        var content = LauncherTemplate
-            .Replace("{VERSION_ID}", versionId, StringComparison.Ordinal)
-            .Replace("{PIPE_NAME}", pipeName, StringComparison.Ordinal)
-            .Replace("{NODE_NAME}", nodeName, StringComparison.Ordinal);
+        var content = RenderLauncher(versionId, pipeName, nodeName, advertisedPrivateAddress);
         var temporary = path + ".new";
         File.WriteAllText(temporary, content, new UTF8Encoding(false));
         File.Move(temporary, path, overwrite: true);
+    }
+
+    internal static string RenderLauncher(
+        string versionId,
+        string pipeName,
+        string nodeName,
+        string? advertisedPrivateAddress)
+    {
+        if (!SafeValue(versionId)
+            || !SafeValue(pipeName)
+            || nodeName.IndexOfAny(['"', '\r', '\n']) >= 0
+            || (advertisedPrivateAddress is not null && !SafeValue(advertisedPrivateAddress)))
+        {
+            throw new InvalidDataException("The installed package produced an unsafe launcher identity.");
+        }
+        var advertisedArgument = advertisedPrivateAddress is null
+            ? string.Empty
+            : $" --advertised-private-address \"{advertisedPrivateAddress}\"";
+        return LauncherTemplate
+            .Replace("{VERSION_ID}", versionId, StringComparison.Ordinal)
+            .Replace("{PIPE_NAME}", pipeName, StringComparison.Ordinal)
+            .Replace("{NODE_NAME}", nodeName, StringComparison.Ordinal)
+            .Replace("{ADVERTISED_PRIVATE_ARGUMENT}", advertisedArgument, StringComparison.Ordinal);
     }
 
     private static bool SafeValue(string value) =>
@@ -447,7 +488,8 @@ set "BALLS_STATE=%BALLS_HOME%\state"
 set "BALLS_LOGS=%BALLS_HOME%\logs"
 set "BALLS_STDOUT=%BALLS_LOGS%\ballsd.stdout.log"
 set "BALLS_STDERR=%BALLS_LOGS%\ballsd.stderr.log"
-set "BALLS_DAEMON_ARGUMENTS=--data-directory "%BALLS_STATE%" --pipe-name "%BALLS_PIPE%" --node-name "%BALLS_NODE%" --automatic-private-listeners"
+set "BALLS_PID=%BALLS_HOME%\ballsd.pid"
+set "BALLS_DAEMON_ARGUMENTS=--data-directory "%BALLS_STATE%" --pipe-name "%BALLS_PIPE%" --node-name "%BALLS_NODE%" --automatic-private-listeners{ADVERTISED_PRIVATE_ARGUMENT}"
 if not exist "%BALLS_CLI%" goto missing_files
 if not exist "%BALLS_DAEMON%" goto missing_files
 "%BALLS_CLI%" --pipe-name "%BALLS_PIPE%" status >nul 2>&1
@@ -455,7 +497,7 @@ if not errorlevel 1 goto open_workspace
 if not exist "%BALLS_STATE%" mkdir "%BALLS_STATE%"
 if not exist "%BALLS_LOGS%" mkdir "%BALLS_LOGS%"
 powershell.exe -NoLogo -NoProfile -NonInteractive -Command ^
-  "try { Start-Process -FilePath $env:BALLS_DAEMON -ArgumentList $env:BALLS_DAEMON_ARGUMENTS -WorkingDirectory $env:BALLS_DAEMON_DIRECTORY -WindowStyle Hidden -RedirectStandardOutput $env:BALLS_STDOUT -RedirectStandardError $env:BALLS_STDERR -ErrorAction Stop; exit 0 } catch { $_ | Out-String | Set-Content -LiteralPath $env:BALLS_STDERR; exit 1 }"
+  "$process = $null; try { $process = Start-Process -FilePath $env:BALLS_DAEMON -ArgumentList $env:BALLS_DAEMON_ARGUMENTS -WorkingDirectory $env:BALLS_DAEMON_DIRECTORY -WindowStyle Hidden -RedirectStandardOutput $env:BALLS_STDOUT -RedirectStandardError $env:BALLS_STDERR -PassThru -ErrorAction Stop; $process.Id | Set-Content -LiteralPath $env:BALLS_PID -Encoding ascii -ErrorAction Stop; exit 0 } catch { if ($null -ne $process -and -not $process.HasExited) { Stop-Process -Id $process.Id -Force -ErrorAction SilentlyContinue }; $_ | Out-String | Set-Content -LiteralPath $env:BALLS_STDERR; exit 1 }"
 if errorlevel 1 goto startup_failed
 set /a BALLS_ATTEMPTS=30
 :wait_for_node
