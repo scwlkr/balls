@@ -2,6 +2,9 @@
 
 - **Status:** Accepted
 - **Date:** 2026-08-26
+- **Updated by:** The issue #92 executable specification accepts an honestly labeled same-host
+  two-VM rehearsal on the current Omarchy laptop; a separate physical Windows computer is no longer
+  an issue-completion gate. ADR 0010 adds the public Development download channel.
 
 Balls is a graphical shared computing environment, not a file-server product or general remote
 shell. A Circle makes explicitly contributed capabilities from trusted computers discoverable and

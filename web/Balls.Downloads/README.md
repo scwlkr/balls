@@ -1,7 +1,7 @@
 # Balls downloads site
 
-This isolated public site is the source for `balls.wlkrlabs.com`. It gives each delivery lane one
-stable command while keeping the actual packages on the public GitHub Release.
+This isolated public site is the source for `balls.wlkrlabs.com`. It gives each delivery lane a
+copyable command while keeping the actual packages on public GitHub Releases.
 
 The page is intentionally plain Vite: static HTML, CSS, and a few lines of TypeScript for the copy
 buttons. The tiny Worker delegates requests to static assets and gives the Sites packager its
@@ -9,8 +9,9 @@ required `dist/server` entry point.
 
 ## Delivery contract
 
-- `public/channels/alpha.json` is the only moving Alpha pointer. It names one owner-accepted tag,
-  exact commit, GitHub Release asset URLs, SHA-256 values, and any package runtime contract.
+- The current implementation exposes only `public/channels/alpha.json`. It names one
+  Owner-accepted tag, exact commit, GitHub Release asset URLs, SHA-256 values, and any package
+  runtime contract.
 - `public/install.ps1` supports the published Windows x64 package.
 - `public/install.sh` supports the published Linux x64 package.
 - `public/source.sh` downloads and verifies the accepted tag for the Apple-silicon macOS
@@ -26,9 +27,27 @@ required `dist/server` entry point.
 - The current packages are unsigned prereleases. Keep that warning visible until the release
   contract changes.
 
-When publishing a new Alpha, update only the channel manifest after the release is owner-accepted.
-Use the release asset API digests for the archives, checksum files, and installers; never point the
-public channel at expiring GitHub Actions artifacts.
+When publishing a new Alpha, update only the channel manifest after the release is Owner-accepted.
+Use the release asset API digests for the archives, checksum files, and installers; never point a
+durable public channel at expiring GitHub Actions artifacts.
+
+## Issue #92 target contract
+
+The [Private Boss Demo specification](../../docs/specs/private-boss-demo-v1.md) adds:
+
+- accepted Alpha as the primary section;
+- a warned Development section below it;
+- a previous-versions list containing every accepted release and the newest ten Development builds;
+- immutable version manifests for historical commands and a complete GitHub Releases link;
+- built-in Windows PowerShell compatibility, a self-contained current-user package, automatic first
+  launch, a normal shortcut, and persisted channel/package identity.
+
+Development is a durable public testing lane, not Canary. It may point to an incomplete or broken
+immutable GitHub prerelease from an identified issue branch or `main` commit. An active issue may
+publish Development after build and package-integrity checks and must record the prior pointer.
+Alpha promotion remains Owner-gated and points to the exact green-`main` assets already rehearsed
+through Development. See
+[`ADR 0010`](../../docs/decisions/0010-public-development-download-channel.md).
 
 ## Local verification
 

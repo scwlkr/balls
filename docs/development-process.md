@@ -182,13 +182,23 @@ unverified; never convert them into implied support.
 - **Canary:** automatically built once from the exact green `main` commit; public workflow
   artifacts retained for 14 days. Windows and Linux are runnable development evidence smoked from
   fresh protected local state on their native hosted runners.
+- **Development:** durable public testing snapshot from an identified issue branch or `main`
+  commit. It may be incomplete or broken, but it is an immutable GitHub prerelease with exact
+  identity and package-integrity metadata.
 - **Alpha:** public immutable prerelease for one coherent product outcome.
 - **Beta:** accepted for the initial company pilot and broader real use.
 - **Stable:** explicitly owner-accepted and supported, with no known critical security or data-loss defect.
 
-Public publication uses an owner-gated GitHub environment. The release pipeline builds once,
-generates checksums and an SBOM, records provenance/attestation where available, and promotes the
-same artifacts. Windows public binaries must be signed before Stable.
+An agent working an active issue may create a Development tag and GitHub prerelease and move the
+Development pointer after build and package-integrity checks pass. Record the previous pointer for
+rollback. Development may fail functionally; it may not contain ambiguous identity, corrupt
+packaging, secrets, mutable assets, or policy bypasses. Alpha, Beta, and Stable publication uses an
+owner-gated GitHub environment.
+
+The release pipeline builds once, generates checksums and an SBOM, records provenance/attestation
+where available, and promotes the same artifacts. A green-`main` package rehearsed through
+Development becomes Alpha by moving the Alpha pointer to those identical assets, never by
+rebuilding. Windows public binaries must be signed before Stable.
 
 Canary publication is downstream of the successful `Required` job in the same CI workflow for a
 `main` push. It checks out the accepted SHA with read-only permissions, packages version/OS/
@@ -196,6 +206,11 @@ architecture/commit identity and checksums, smokes the Windows archive from fres
 smokes the Linux archive from fresh state with the same CLI/browser/restart outcome, then uploads
 both with a bounded retention period. Pull-request runs skip both publication jobs. It does not
 create a product tag or GitHub Release.
+
+The download page presents Alpha first, then the warned latest Development build, then immutable
+previous versions. Keep all accepted releases and the newest ten Development builds on the page;
+link the complete GitHub Releases archive. See
+[`ADR 0010`](decisions/0010-public-development-download-channel.md).
 
 ## Public security automation
 

@@ -11,15 +11,16 @@ The owner needs one boss-visible private Windows workflow working today:
 
 ```text
 balls.wlkrlabs.com
-  → install Balls
+  → paste one Windows install command
   → paste one private Circle invitation
   → join in the local browser
   → open the approved folder in File Explorer
   → edit a real ordinary work file
 ```
 
-The boss should not use PowerShell, daemon flags, IP addresses, ports, SMB passwords, object IDs,
-plan tokens, provider language, or manual drive selection.
+The install command runs in the PowerShell included with Windows. The user should not configure
+PowerShell or runtimes and should not handle daemon flags, IP addresses, ports, SMB passwords,
+object IDs, plan tokens, provider language, or manual drive selection.
 
 ## Active frontier
 
@@ -64,6 +65,8 @@ Reuse this machinery where it shortens #92. Do not expand it for hypothetical fu
 ## Known blockers in the human journey
 
 - `balls.wlkrlabs.com` currently points to published `0.3.0-alpha.1`, which predates Circle Files.
+- The website has no warned Development section, immutable previous-version commands, or built-in
+  Windows PowerShell bootstrap; its current Windows lane requires PowerShell 7.
 - The self-contained Canary launcher does not automatically configure the private-LAN admission and
   Circle Files synchronization listeners required by browser invitations.
 - The Owner still creates, hosts, grants, and provisions a folder through ID- and plan-heavy CLI
@@ -92,9 +95,20 @@ separate optional local guide and is not on today's critical path. See
 ## Distribution boundary
 
 [`balls.wlkrlabs.com`](https://balls.wlkrlabs.com) is the official human-facing software and update
-entrypoint. It points to exact owner-accepted GitHub Release assets; it does not host manually copied
-binaries. A public tag, GitHub Release, or channel-pointer change requires separate owner approval
-immediately before publication.
+entrypoint. Alpha remains the primary recommended package. A lower Development section may point to
+incomplete or broken immutable GitHub prereleases and list older exact versions; it does not host
+manually copied binaries. Active issue work may publish Development after package-integrity checks
+and must record the prior pointer. Alpha, Beta, and Stable promotion requires separate Owner
+approval. See [`ADR 0010`](decisions/0010-public-development-download-channel.md).
+
+## Issue #92 acceptance lab
+
+Use the existing Windows 11 Owner environment plus `balls-issue61-provider-desktop`; do not create
+two new VMs. Keep every other historical and GPU VM stopped, use dedicated clean Owner and
+nonadministrator Member profiles, and carry Circle traffic only over `windows_default`. The Owner
+personally performs both sides of the manual product journey. Passing evidence is same-host two-VM
+evidence and completes #92 without making a physical-device claim. Follow the
+[`manual checklist`](verification/private-boss-demo-v1-checklist.md).
 
 ## Continue
 
@@ -102,6 +116,7 @@ immediately before publication.
 2. Read and preserve the accepted boundaries in the executable specification.
 3. Reproduce the current official-download-to-boss journey before changing it.
 4. Implement the smallest missing graphical path and packaging changes.
-5. Run focused tests plus the risk-triggered Windows journey.
+5. Run focused automated tests, then the checklist-driven two-VM Windows journey.
 6. Record exact elapsed time, interventions, artifact identity, and limitations.
-7. Stop for owner approval immediately before any public tag, Release, or download-channel change.
+7. After the exact green-`main` Development package passes, stop for Owner approval before moving
+   Alpha to the identical assets.

@@ -23,15 +23,17 @@ or owner-managed Tailscale network. The immediate boss demo is:
 
 ```text
 balls.wlkrlabs.com
-  → install Balls
+  → paste one Windows install command
   → join one Circle through the local browser
   → open the approved project folder in File Explorer
   → edit a real ordinary work file
 ```
 
 Neither Owner nor invited Member should handle IP addresses, ports, SMB passwords, object IDs,
-plan tokens, daemon arguments, PowerShell, or manual drive-letter selection. Explicit Windows
-elevation remains acceptable for the exact host mutation that requires it.
+plan tokens, daemon arguments, PowerShell configuration, runtime setup, or manual drive-letter
+selection. One website-provided command in the PowerShell included with Windows is the accepted
+install/update entrypoint. Explicit Windows elevation remains acceptable for the exact host
+mutation that requires it.
 
 ### Shared-ecosystem product gate
 
@@ -73,10 +75,13 @@ risk, observed failure, or accepted release requirement.
 ### Software distribution
 
 [`balls.wlkrlabs.com`](https://balls.wlkrlabs.com) is the sole official human-facing software and
-update entrypoint. It publishes stable commands and channel metadata that point to exact
-owner-accepted GitHub Release assets identified by tag, commit, SHA-256, package identity, and
-eventually code signature. The site does not host ad hoc binaries copied from a development
-computer, and a private Circle invitation remains separate from the public software download.
+update entrypoint. Alpha is the primary recommended download. A lower Development section may point
+to incomplete or broken immutable GitHub prereleases after package-integrity checks; agents may
+publish that channel for an active issue without per-build approval. Previous versions remain
+available through immutable version manifests. Alpha, Beta, and Stable promotion remains
+Owner-gated and reuses the exact tested assets. The site does not host ad hoc binaries copied from
+a development computer, and a private Circle invitation remains separate from the public software
+download. See [`ADR 0010`](docs/decisions/0010-public-development-download-channel.md).
 
 ### Balls Wizard and Circle AI
 
