@@ -4,12 +4,12 @@
   "platform": "windows",
   "architecture": "x64",
   "release": {
-    "tag": "development-20260826T212044Z-1218b57d8d37",
-    "commit": "1218b57d8d3764b9a96b7fb9209dfbad759c335c"
+    "tag": "development-20260826T223620Z-72f6fa983b4c",
+    "commit": "72f6fa983b4c2589d76ae10e263db7243ec2cc46"
   },
   "asset": {
-    "name": "balls-bootstrap-windows-x64-1218b57d8d37.exe",
-    "url": "https://github.com/scwlkr/balls/releases/download/development-20260826T212044Z-1218b57d8d37/balls-bootstrap-windows-x64-1218b57d8d37.exe",
-    "sha256": "98fa509b3cc0ee9417b9aba031391f1d866bcdfe82697a2ed338ce77e961ff9f"
+    "name": "balls-bootstrap-windows-x64-72f6fa983b4c.exe",
+    "url": "https://github.com/scwlkr/balls/releases/download/development-20260826T223620Z-72f6fa983b4c/balls-bootstrap-windows-x64-72f6fa983b4c.exe",
+    "sha256": "b01499828e3575d4cca7bb1a992edc59d900057401437b65914a8ee095f3d345"
   }
 }
