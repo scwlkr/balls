@@ -1,0 +1,22 @@
+{
+  "schemaVersion": 1,
+  "accepted": [
+    {
+      "tag": "0.3.0-alpha.1",
+      "publishedAt": "2026-08-21T22:25:14Z",
+      "manifest": "/versions/0.3.0-alpha.1.json"
+    },
+    {
+      "tag": "0.2.0-alpha.1",
+      "publishedAt": "2026-08-20T17:22:28Z",
+      "manifest": "/versions/0.2.0-alpha.1.json"
+    },
+    {
+      "tag": "0.1.0-alpha.2",
+      "publishedAt": "2026-08-19T21:21:40Z",
+      "manifest": "/versions/0.1.0-alpha.2.json"
+    }
+  ],
+  "development": [],
+  "completeHistory": "https://github.com/scwlkr/balls/releases"
+}

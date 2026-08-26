@@ -48,10 +48,17 @@ test("presents one stable command for every supported delivery lane", async () =
   assert.match(html, /https:\/\/balls\.wlkrlabs\.com\/source\.sh/);
   assert.match(
     html,
-    /Windows x64 · PowerShell 7[\s\S]*· runtime checked from manifest/i,
+    /Windows x64 · Windows PowerShell 5\.1\+[\s\S]*· runtime checked from manifest/i,
   );
+  assert.match(html, /powershell\.exe -NoLogo -NoProfile -File/);
+  assert.doesNotMatch(html, /\bpwsh\b/);
   assert.match(html, /unsigned prerelease/i);
   assert.match(html, /macOS is source-only/i);
+  assert.match(html, /Testing software\. It may be broken\./i);
+  assert.match(html, /Previous versions/i);
+  assert.match(html, /newest ten Development builds/i);
+  assert.match(html, /https:\/\/github\.com\/scwlkr\/balls\/releases/);
+  assert.match(html, /\/versions\/0\.3\.0-alpha\.1\.json/);
   assert.doesNotMatch(html, /automatic updates/i);
   assert.doesNotMatch(html, /codex-preview/i);
 });
@@ -80,18 +87,28 @@ test("enforces the public security policy through the Worker", async () => {
   assert.equal(response.headers.get("x-frame-options"), "DENY");
 });
 
-test("pins the accepted Alpha and every packaged asset by SHA-256", async () => {
-  const manifest = JSON.parse(
-    await readFile(new URL("public/channels/alpha.json", siteRoot), "utf8"),
-  );
-
+function assertPackageManifest(manifest, expectedChannel) {
   assert.equal(manifest.schemaVersion, 1);
-  assert.equal(manifest.channel, "alpha");
-  assert.match(manifest.release.tag, /^\d+\.\d+\.\d+-alpha\.\d+$/);
+  assert.equal(manifest.channel, expectedChannel);
+  assert.match(manifest.release.tag, /^[0-9A-Za-z][0-9A-Za-z._-]{0,127}$/);
   assert.match(manifest.release.commit, /^[0-9a-f]{40}$/);
   assert.equal(manifest.release.unsigned, true);
-  assert.equal(manifest.platforms["macos-arm64"].delivery, "source-only");
-  const windowsRuntime = manifest.platforms["windows-x64"].runtime;
+  assert.equal(
+    manifest.release.url,
+    `https://github.com/scwlkr/balls/releases/tag/${manifest.release.tag}`,
+  );
+
+  const windows = manifest.platforms["windows-x64"];
+  assert.equal(windows.delivery, "package");
+  assert.deepEqual(windows.identity, {
+    product: "Balls",
+    version: windows.identity.version,
+    commit: manifest.release.commit,
+    platform: "windows",
+    architecture: "x64",
+  });
+  assert.match(windows.identity.version, /^[0-9A-Za-z][0-9A-Za-z._-]{0,127}$/);
+  const windowsRuntime = windows.runtime;
   assert.match(windowsRuntime.kind, /^(framework-dependent|self-contained)$/);
   assert.equal(windowsRuntime.architecture, "x64");
   if (windowsRuntime.kind === "framework-dependent") {
@@ -103,12 +120,22 @@ test("pins the accepted Alpha and every packaged asset by SHA-256", async () => 
     }
   }
 
-  for (const platform of ["windows-x64", "linux-x64"]) {
-    const delivery = manifest.platforms[platform];
-    assert.equal(delivery.delivery, "package");
+  for (const [platform, delivery] of Object.entries(manifest.platforms)) {
+    if (delivery.delivery !== "package") {
+      continue;
+    }
+    assert.equal(delivery.identity.product, "Balls");
+    assert.equal(delivery.identity.commit, manifest.release.commit);
+    assert.equal(
+      delivery.identity.platform,
+      platform === "windows-x64" ? "windows" : "linux",
+    );
+    assert.equal(delivery.identity.architecture, "x64");
     assert.match(
       delivery.archive.name,
-      new RegExp(`${manifest.release.commit.slice(0, 12)}\\.zip$`),
+      new RegExp(
+        `^balls-${delivery.identity.version.replaceAll(".", "\\.")}-canary-${delivery.identity.platform}-x64-${manifest.release.commit.slice(0, 12)}\\.zip$`,
+      ),
     );
     for (const asset of [
       delivery.archive,
@@ -125,6 +152,53 @@ test("pins the accepted Alpha and every packaged asset by SHA-256", async () => 
       );
     }
   }
+}
+
+test("pins moving and immutable manifests plus the release catalog", async () => {
+  const catalog = JSON.parse(
+    await readFile(new URL("public/releases.json", siteRoot), "utf8"),
+  );
+  assert.equal(catalog.schemaVersion, 1);
+  assert.equal(
+    catalog.completeHistory,
+    "https://github.com/scwlkr/balls/releases",
+  );
+  assert.deepEqual(
+    catalog.accepted.map((release) => release.tag),
+    ["0.3.0-alpha.1", "0.2.0-alpha.1", "0.1.0-alpha.2"],
+  );
+  assert.deepEqual(catalog.development, []);
+
+  for (const release of catalog.accepted) {
+    assert.equal(release.manifest, `/versions/${release.tag}.json`);
+    const manifest = JSON.parse(
+      await readFile(new URL(`public${release.manifest}`, siteRoot), "utf8"),
+    );
+    assert.equal(manifest.release.tag, release.tag);
+    assertPackageManifest(manifest, "alpha");
+  }
+
+  const alpha = JSON.parse(
+    await readFile(new URL("public/channels/alpha.json", siteRoot), "utf8"),
+  );
+  assertPackageManifest(alpha, "alpha");
+  assert.equal(alpha.platforms["macos-arm64"].delivery, "source-only");
+
+  const developmentFixture = JSON.parse(
+    await readFile(
+      new URL("tests/fixtures/development.json", siteRoot),
+      "utf8",
+    ),
+  );
+  assertPackageManifest(developmentFixture, "development");
+  assert.equal(
+    developmentFixture.platforms["windows-x64"].runtime.kind,
+    "self-contained",
+  );
+  assert.notEqual(
+    developmentFixture.release.tag,
+    developmentFixture.platforms["windows-x64"].identity.version,
+  );
 });
 
 test("bootstraps verify local files without pipe-to-shell or policy bypasses", async () => {
@@ -136,7 +210,7 @@ test("bootstraps verify local files without pipe-to-shell or policy bypasses", a
 
   assert.match(powershell, /Get-FileHash/);
   assert.match(powershell, /Install-BallsCanary\\?\.ps1/);
-  assert.match(powershell, /packageManifest\.commit/);
+  assert.match(powershell, /PackageManifest\.commit/);
   assert.match(powershell, /commit\.Substring\(0, 12\)/);
   assert.match(powershell, /--list-runtimes/);
   assert.match(powershell, /DOTNET_ROOT_X64/);
@@ -152,6 +226,17 @@ test("bootstraps verify local files without pipe-to-shell or policy bypasses", a
   );
   assert.ok(preflight > powershell.indexOf("Invoke-RestMethod"));
   assert.ok(preflight < powershell.indexOf("$temporaryRoot"));
+  assert.match(powershell, /#Requires -Version 5\.1/);
+  assert.match(powershell, /@\('alpha', 'development'\)/);
+  assert.match(powershell, /installation\.json/);
+  assert.match(powershell, /WScript\.Shell/);
+  assert.match(powershell, /Assert-InternalChecksums/);
+  assert.match(powershell, /Opened the local Balls workspace\./);
+  assert.match(powershell, /previousShortcutBytes/);
+  assert.match(powershell, /previousRecordBytes/);
+  assert.match(powershell, /installationCommitted/);
+  assert.doesNotMatch(powershell, /\$IsWindows/);
+  assert.doesNotMatch(powershell, /\.ArgumentList/);
   assert.doesNotMatch(powershell, /Invoke-Expression|\biex\b|ExecutionPolicy/i);
 
   assert.match(linux, /sha256sum/);
@@ -170,7 +255,7 @@ test(
   { skip: process.platform !== "win32" },
   () => {
     const result = spawnSync(
-      "pwsh",
+      "powershell.exe",
       [
         "-NoLogo",
         "-NoProfile",
@@ -188,9 +273,13 @@ test(
 test("copies the public channel and bootstrap files into the deployment", async () => {
   for (const path of [
     "channels/alpha.json",
+    "releases.json",
     "install.ps1",
     "install.sh",
     "source.sh",
+    "versions/0.3.0-alpha.1.json",
+    "versions/0.2.0-alpha.1.json",
+    "versions/0.1.0-alpha.2.json",
   ]) {
     const source = await readFile(new URL(`public/${path}`, siteRoot));
     const built = await readFile(new URL(`dist/client/${path}`, siteRoot));
