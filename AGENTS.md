@@ -19,9 +19,9 @@ journey must not displace delivery of that journey.
 
 The urgent active outcome is the
 [Private Boss Demo](https://github.com/scwlkr/balls/issues/92): official download, graphical Circle
-join, and usable shared File Explorer access on a separate Windows computer. Balls Wizard, Circle
-AI, richer messaging, generalized providers, and further security architecture are off that
-issue's critical path.
+join, and usable shared File Explorer access across the two authorized Windows environments on the
+current Omarchy laptop. Balls Wizard, Circle AI, richer messaging, generalized providers, and
+further security architecture are off that issue's critical path.
 
 Before implementing that outcome, read
 [`docs/specs/private-boss-demo-v1.md`](docs/specs/private-boss-demo-v1.md). The broader accepted
@@ -104,12 +104,13 @@ OS adapters
 - Preserve unrelated work and keep no more than two non-overlapping tickets in progress.
 - Use a short-lived `codex/` branch, one issue per pull request, squash merge, and delete the branch.
 - After a verified merge, take the next unblocked issue without routine owner check-ins.
-- Distribute software and updates only from an owner-accepted GitHub Release through
-  [balls.wlkrlabs.com](https://balls.wlkrlabs.com); follow
-  [`web/Balls.Downloads/README.md`](web/Balls.Downloads/README.md) and verify each published stable
-  command identifies the accepted tag and commit.
-- Stop for publication, secrets, spending, irreversible actions, or a material product/security
-  decision not already recorded.
+- Distribute software and updates only through [balls.wlkrlabs.com](https://balls.wlkrlabs.com)
+  using immutable GitHub Release assets. Follow
+  [`web/Balls.Downloads/README.md`](web/Balls.Downloads/README.md). An active issue may publish a
+  warned Development prerelease after package-integrity checks and must record the prior pointer;
+  Alpha, Beta, and Stable promotion remains owner-gated.
+- Stop for Alpha/Beta/Stable publication, secrets, spending, irreversible actions, or a material
+  product/security decision not already recorded.
 
 Every slice needs a user outcome, typed contracts, practical automated tests, explicit non-goals,
 and current documentation. Evidence must say what was actually observed; physical-machine proof
@@ -122,8 +123,9 @@ Fast checks belong on every pull request. Expensive VM, installer, migration, re
 multi-machine checks run only for a release candidate or a change that touches the corresponding
 risk. Never weaken checks merely to obtain green status, and never claim an unobserved scenario.
 
-For Windows VM automation, unsigned UI or installer execution, Canary checks, or lab recovery,
-read [`docs/windows-development-lab.md`](docs/windows-development-lab.md) before acting.
+For Windows VM automation, manual two-VM acceptance, unsigned UI or installer execution, Canary
+checks, or lab recovery, read
+[`docs/windows-development-lab.md`](docs/windows-development-lab.md) before acting.
 
 ## Prior research
 

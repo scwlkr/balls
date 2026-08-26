@@ -10,6 +10,7 @@ Use this directory for ADRs, threat models, protocol specifications, milestone d
 - [`cross-platform-lab.md`](cross-platform-lab.md) — namespaced Hyper-V/WSL lab creation, clean identity checkpoint, reset, package proof, and cleanup.
 - [`windows-development-lab.md`](windows-development-lab.md) — dedicated Windows 11 guest, secure automation entry points, unsigned build/UI/installer workflow, and recovery boundaries.
 - [`pilots/2026-08-25-two-laptop-lan-files.md`](pilots/2026-08-25-two-laptop-lan-files.md) — exact historical evidence and limits from the assisted physical-laptop Circle Files pilot.
+- [`verification/private-boss-demo-v1-checklist.md`](verification/private-boss-demo-v1-checklist.md) — decisive same-host two-VM website-command-to-Explorer acceptance checklist for issue #92.
 
 ## Roadmap
 
@@ -37,6 +38,7 @@ Use this directory for ADRs, threat models, protocol specifications, milestone d
 - [`decisions/0007-protected-macos-developer-node.md`](decisions/0007-protected-macos-developer-node.md) — Apple-Silicon source-run host, protected state/IPC, required CI, and exact remote-TLS boundary.
 - [`decisions/0008-company-first-lan-pilot.md`](decisions/0008-company-first-lan-pilot.md) — prioritize one privately verified two-person company LAN workflow without abandoning open source or the Circle vision.
 - [`decisions/0009-reset-around-private-shared-ecosystem-proof.md`](decisions/0009-reset-around-private-shared-ecosystem-proof.md) — urgent boss demo, shared-ecosystem proof, proportional pilot security, and issue reset.
+- [`decisions/0010-public-development-download-channel.md`](decisions/0010-public-development-download-channel.md) — warned public Development packages, bounded publication authority, immutable history, and exact-asset Alpha promotion.
 
 ## Contracts and state
 

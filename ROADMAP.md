@@ -12,29 +12,32 @@ before expanding the platform. See
 
 ## Now — Private Boss Demo
 
-**User outcome:** the Owner gives the boss one official download path and one private invitation.
-On a separate Windows computer, the boss installs Balls, joins through the local browser, opens the
-approved project folder in File Explorer, and edits a real ordinary work file.
+**User outcome:** the Owner proves the boss journey across the two authorized Windows environments
+on the current Omarchy laptop. Each side installs Balls from the official website command, the
+simulated boss joins through the local browser, opens the approved project folder in File Explorer,
+and edits a real ordinary work file.
 
 ```text
 balls.wlkrlabs.com
-  → install
+  → paste one Windows install command
   → join Circle
   → open shared folder
   → work
 ```
 
-**Human boundary:** no PowerShell, daemon flags, IP addresses, ports, SMB credentials, object IDs,
-plan tokens, provider jargon, or manual drive-letter selection. An explicit Windows elevation
+**Human boundary:** one copied command in the PowerShell included with Windows is acceptable. No
+PowerShell configuration, runtime setup, daemon flags, IP addresses, ports, SMB credentials, object
+IDs, plan tokens, provider jargon, or manual drive-letter selection. An explicit Windows elevation
 prompt is acceptable for the exact Owner-side host mutation that requires it.
 
 **Environment:** approximately two or three personally trusted people over a private LAN or
 owner-managed Tailscale network.
 
-**Evidence:** exact owner-accepted GitHub Release identity; `balls.wlkrlabs.com` channel readback;
-fresh separate-Windows install; real graphical invitation/join/map/open; ordinary two-way file
-editing; elapsed onboarding time; every Owner or administrator intervention; no weakened Windows
-protection or public service exposure.
+**Evidence:** exact Development and accepted Alpha identities; website channel readback; clean
+dedicated Owner and nonadministrator Member profiles; real graphical invitation/join/map/open;
+ordinary two-way file editing; elapsed time and every intervention; no weakened Windows protection
+or public service exposure. The Owner personally performs both roles, and the result is labeled
+same-host two-VM rather than physical-device evidence.
 
 **Active issue:**
 [#92 — Deliver the private boss demo from official download to shared Explorer file](https://github.com/scwlkr/balls/issues/92).
@@ -107,8 +110,9 @@ Every milestone must state:
 6. the accepted artifact and distribution path, when software leaves the development machine.
 
 Do not start a security, architecture, provider, or cross-platform expansion unless it protects or
-unblocks the active outcome. Public tags, GitHub Releases, and download-channel changes remain
-separately owner-gated.
+unblocks the active outcome. Development publication follows the bounded authority in
+[`ADR 0010`](docs/decisions/0010-public-development-download-channel.md); Alpha, Beta, and Stable
+promotion remains separately Owner-gated.
 
 ## Historical roadmap
 

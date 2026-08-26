@@ -104,10 +104,11 @@ reconsidered.
     hosted service never owns my Circle.
 30. As a user obtaining Balls, I want one official human download entrypoint, so that I do not have
     to identify a trustworthy artifact myself.
-31. As a user obtaining Balls, I want that entrypoint to resolve to an exact owner-accepted GitHub
-    Release asset, so that the website does not become a second package store.
-32. As an Owner, I want publication separately approved, so that a passing build cannot silently
-    become an official release.
+31. As a user obtaining Balls, I want that entrypoint to resolve to an exact immutable GitHub
+    Release asset with an honest channel status, so that the website does not become a second
+    package store or misrepresent a Development build as accepted.
+32. As an Owner, I want Alpha, Beta, and Stable promotion separately approved, so that a passing
+    Development build cannot silently become a recommended release.
 33. As a user, I want core Balls to work without an AI model, so that product use does not require a
     large optional download or suitable inference hardware.
 34. As a user, I want a small bottom-right offer to download Balls Wizard, so that local product
@@ -156,10 +157,12 @@ reconsidered.
   confidentiality, contributed user data, and explicit access approval. Additional security work
   must answer a concrete pilot risk, observed failure, or accepted release requirement.
 - **Distribution:** `balls.wlkrlabs.com` is the only official human entrypoint for software and
-  updates. It links to exact owner-accepted GitHub Release assets and does not host a second copy.
-  Invitations are private Circle data and never pass through the public download channel.
-- **Publication:** Creating or changing a public tag, GitHub Release, or download-channel pointer
-  requires separate Owner approval immediately before the action.
+  updates. It presents accepted Alpha first, warned Development builds below it, and exact previous
+  versions. Every lane links to immutable GitHub Release assets and the site does not host a second
+  copy. Invitations are private Circle data and never pass through the public download channel.
+- **Publication:** An agent working an active issue may publish an identity-verified Development
+  prerelease and move its pointer after package-integrity checks. Alpha, Beta, and Stable promotion
+  requires separate Owner approval and reuses the exact tested assets.
 - **Balls Wizard identity:** Balls Wizard is the optional on-device product guide represented by a
   floating brand-violet ball wearing a wizard hat. It is not Circle AI.
 - **Balls Wizard installation:** The base Balls package does not contain or automatically download
@@ -197,10 +200,11 @@ reconsidered.
   local browser offering an explicit download, completing managed setup, answering from
   version-matched docs through the real local model, citing guidance, and leaving core Balls usable
   after Wizard removal or failure.
-- Release evidence distinguishes automated isolated-Node proof, private physical-device proof, and
-  unobserved claims. One never substitutes for another.
+- Release evidence labels the exact environment observed. Same-host two-VM, separate physical
+  device, and unobserved claims never substitute for one another.
 - Public distribution is verified by exact tag, commit, package identity, SHA-256, and website
-  channel readback only after the Owner approves publication.
+  channel readback. Development uses the bounded publication authority above; accepted-channel
+  readback follows Owner approval.
 
 ## Out of Scope
 
