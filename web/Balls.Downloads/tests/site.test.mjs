@@ -1,6 +1,8 @@
 import assert from "node:assert/strict";
+import { spawnSync } from "node:child_process";
 import { readFile } from "node:fs/promises";
 import test from "node:test";
+import { fileURLToPath } from "node:url";
 
 const siteRoot = new URL("../", import.meta.url);
 
@@ -44,7 +46,10 @@ test("presents one stable command for every supported delivery lane", async () =
   assert.match(html, /https:\/\/balls\.wlkrlabs\.com\/install\.ps1/);
   assert.match(html, /https:\/\/balls\.wlkrlabs\.com\/install\.sh/);
   assert.match(html, /https:\/\/balls\.wlkrlabs\.com\/source\.sh/);
-  assert.match(html, /Windows x64 · PowerShell 7 · ASP\.NET Core 10/i);
+  assert.match(
+    html,
+    /Windows x64 · PowerShell 7[\s\S]*· runtime checked from manifest/i,
+  );
   assert.match(html, /unsigned prerelease/i);
   assert.match(html, /macOS is source-only/i);
   assert.doesNotMatch(html, /automatic updates/i);
@@ -86,6 +91,17 @@ test("pins the accepted Alpha and every packaged asset by SHA-256", async () => 
   assert.match(manifest.release.commit, /^[0-9a-f]{40}$/);
   assert.equal(manifest.release.unsigned, true);
   assert.equal(manifest.platforms["macos-arm64"].delivery, "source-only");
+  const windowsRuntime = manifest.platforms["windows-x64"].runtime;
+  assert.match(windowsRuntime.kind, /^(framework-dependent|self-contained)$/);
+  assert.equal(windowsRuntime.architecture, "x64");
+  if (windowsRuntime.kind === "framework-dependent") {
+    assert.ok(windowsRuntime.frameworks.length > 0);
+    for (const framework of windowsRuntime.frameworks) {
+      assert.match(framework.name, /^[A-Za-z][A-Za-z0-9.]{0,127}$/);
+      assert.ok(Number.isInteger(framework.major));
+      assert.ok(framework.major >= 1 && framework.major <= 999);
+    }
+  }
 
   for (const platform of ["windows-x64", "linux-x64"]) {
     const delivery = manifest.platforms[platform];
@@ -123,7 +139,19 @@ test("bootstraps verify local files without pipe-to-shell or policy bypasses", a
   assert.match(powershell, /packageManifest\.commit/);
   assert.match(powershell, /commit\.Substring\(0, 12\)/);
   assert.match(powershell, /--list-runtimes/);
-  assert.match(powershell, /Microsoft\\\.AspNetCore\\\.App\\s\+10\\\./);
+  assert.match(powershell, /DOTNET_ROOT_X64/);
+  assert.match(powershell, /RegistryView\]::Registry64/);
+  assert.match(powershell, /ProgramW6432/);
+  assert.doesNotMatch(powershell, /Get-Command\s+dotnet/);
+  assert.doesNotMatch(
+    powershell,
+    /requires the x64 \.NET 10 and ASP\.NET Core 10 runtimes/,
+  );
+  const preflight = powershell.lastIndexOf(
+    "Assert-RuntimeRequirements $delivery.runtime",
+  );
+  assert.ok(preflight > powershell.indexOf("Invoke-RestMethod"));
+  assert.ok(preflight < powershell.indexOf("$temporaryRoot"));
   assert.doesNotMatch(powershell, /Invoke-Expression|\biex\b|ExecutionPolicy/i);
 
   assert.match(linux, /sha256sum/);
@@ -136,6 +164,26 @@ test("bootstraps verify local files without pipe-to-shell or policy bypasses", a
   assert.match(macos, /source-only/i);
   assert.doesNotMatch(macos, /curl[^\n]*\|/);
 });
+
+test(
+  "executes the Windows runtime preflight unit tests",
+  { skip: process.platform !== "win32" },
+  () => {
+    const result = spawnSync(
+      "pwsh",
+      [
+        "-NoLogo",
+        "-NoProfile",
+        "-NonInteractive",
+        "-File",
+        fileURLToPath(new URL("install-runtime.test.ps1", import.meta.url)),
+      ],
+      { encoding: "utf8" },
+    );
+
+    assert.equal(result.status, 0, `${result.stdout}\n${result.stderr}`);
+  },
+);
 
 test("copies the public channel and bootstrap files into the deployment", async () => {
   for (const path of [

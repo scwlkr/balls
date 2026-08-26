@@ -11,6 +11,20 @@
   "platforms": {
     "windows-x64": {
       "delivery": "package",
+      "runtime": {
+        "kind": "framework-dependent",
+        "architecture": "x64",
+        "frameworks": [
+          {
+            "name": "Microsoft.NETCore.App",
+            "major": 10
+          },
+          {
+            "name": "Microsoft.AspNetCore.App",
+            "major": 10
+          }
+        ]
+      },
       "archive": {
         "name": "balls-0.3.0-alpha.1-canary-windows-x64-8dc39455ac43.zip",
         "url": "https://github.com/scwlkr/balls/releases/download/0.3.0-alpha.1/balls-0.3.0-alpha.1-canary-windows-x64-8dc39455ac43.zip",

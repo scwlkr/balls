@@ -10,7 +10,7 @@ required `dist/server` entry point.
 ## Delivery contract
 
 - `public/channels/alpha.json` is the only moving Alpha pointer. It names one owner-accepted tag,
-  exact commit, GitHub Release asset URLs, and SHA-256 values.
+  exact commit, GitHub Release asset URLs, SHA-256 values, and any package runtime contract.
 - `public/install.ps1` supports the published Windows x64 package.
 - `public/install.sh` supports the published Linux x64 package.
 - `public/source.sh` downloads and verifies the accepted tag for the Apple-silicon macOS
@@ -20,6 +20,9 @@ required `dist/server` entry point.
   commands.
 - Windows and Linux bootstraps bind the package filename and internal `canary.json` identity to
   the manifest's exact commit before invoking the repository installer.
+- The Windows bootstrap resolves the x64 apphost runtime location, not the first `dotnet` on
+  `PATH`, and enforces the manifest's framework list before downloading the package. A future
+  self-contained Windows package can remove that prerequisite through the manifest alone.
 - The current packages are unsigned prereleases. Keep that warning visible until the release
   contract changes.
 
