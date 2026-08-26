@@ -981,8 +981,7 @@ internal sealed class WindowsCircleFilesGrantPowerShell
         WindowsCircleFilesGrantHelperPlan plan,
         CancellationToken token)
     {
-        using var fixedScript = WindowsProtectedPowerShellScript.Create(Script);
-        var startInfo = fixedScript.CreateStartInfo();
+        var startInfo = WindowsDirectPowerShellCommand.CreateStartInfo(Script);
         var injectAccountFailure = false;
         string? injectAccountTerminationStep = null;
 #if DEBUG
@@ -1154,79 +1153,19 @@ internal sealed class WindowsCircleFilesGrantPowerShell
         """;
 }
 
-[SupportedOSPlatform("windows")]
-internal sealed class WindowsProtectedPowerShellScript : IDisposable
+internal static class WindowsDirectPowerShellCommand
 {
-    private bool disposed;
+    private const int MaximumWindowsCommandLineCharacters = 31_000;
 
-    private WindowsProtectedPowerShellScript(string directoryPath, string path)
+    internal static ProcessStartInfo CreateStartInfo(string fixedCommand)
     {
-        DirectoryPath = directoryPath;
-        Path = path;
-    }
-
-    internal string DirectoryPath { get; }
-
-    internal string Path { get; }
-
-    internal static WindowsProtectedPowerShellScript Create(string script)
-    {
-        ArgumentNullException.ThrowIfNull(script);
-        var currentUser = WindowsIdentity.GetCurrent().User
-            ?? throw new InvalidOperationException(
-                "The current Windows account has no security identifier.");
-        var localSystem = new SecurityIdentifier(WellKnownSidType.LocalSystemSid, null);
-        var directoryPath = System.IO.Path.Combine(
-            System.IO.Path.GetTempPath(),
-            "balls-grant-" + Guid.NewGuid().ToString("N"));
-        var directory = new DirectoryInfo(directoryPath);
-        var directorySecurity = CreateSecurity(
-            currentUser,
-            localSystem,
-            InheritanceFlags.ContainerInherit | InheritanceFlags.ObjectInherit);
-        directory.Create(directorySecurity);
-        var scriptPath = System.IO.Path.Combine(directoryPath, "grant.ps1");
-        try
-        {
-            using (var stream = new FileStream(
-                       scriptPath,
-                       FileMode.CreateNew,
-                       FileAccess.Write,
-                       FileShare.None,
-                       bufferSize: 4096,
-                       FileOptions.WriteThrough))
-            using (var writer = new StreamWriter(stream, new UTF8Encoding(false)))
-            {
-                writer.Write(script);
-                writer.Flush();
-                stream.Flush(flushToDisk: true);
-            }
-
-            var file = new FileInfo(scriptPath);
-            if ((file.Attributes & FileAttributes.ReparsePoint) != 0)
-            {
-                throw new UnauthorizedAccessException(
-                    "The fixed Windows grant script cannot be a filesystem reparse point.");
-            }
-            file.SetAccessControl(CreateFileSecurity(currentUser, localSystem));
-            return new WindowsProtectedPowerShellScript(directoryPath, scriptPath);
-        }
-        catch
-        {
-            TryDelete(scriptPath, directoryPath);
-            throw;
-        }
-    }
-
-    internal ProcessStartInfo CreateStartInfo()
-    {
-        ObjectDisposedException.ThrowIf(disposed, this);
+        ArgumentException.ThrowIfNullOrWhiteSpace(fixedCommand);
         var startInfo = new ProcessStartInfo
         {
             FileName = System.IO.Path.Combine(
                 Environment.GetFolderPath(Environment.SpecialFolder.System),
                 "WindowsPowerShell", "v1.0", "powershell.exe"),
-            WorkingDirectory = DirectoryPath,
+            WorkingDirectory = AppContext.BaseDirectory,
             CreateNoWindow = true,
             UseShellExecute = false,
             RedirectStandardInput = true,
@@ -1240,88 +1179,49 @@ internal sealed class WindowsProtectedPowerShellScript : IDisposable
         startInfo.ArgumentList.Add("-NoLogo");
         startInfo.ArgumentList.Add("-NoProfile");
         startInfo.ArgumentList.Add("-NonInteractive");
-        startInfo.ArgumentList.Add("-File");
-        startInfo.ArgumentList.Add(Path);
+        startInfo.ArgumentList.Add("-Command");
+        startInfo.ArgumentList.Add(fixedCommand);
+        if (EstimateCommandLineCharacters(startInfo) >= MaximumWindowsCommandLineCharacters)
+        {
+            throw new InvalidOperationException(
+                "The fixed Windows grant command exceeds the safe process command-line budget.");
+        }
         return startInfo;
     }
 
-    public void Dispose()
+    internal static int EstimateCommandLineCharacters(ProcessStartInfo startInfo)
     {
-        if (disposed)
+        ArgumentNullException.ThrowIfNull(startInfo);
+        var length = QuoteArgumentLength(startInfo.FileName);
+        foreach (var argument in startInfo.ArgumentList)
         {
-            return;
+            length += 1 + QuoteArgumentLength(argument);
         }
-        disposed = true;
-        TryDelete(Path, DirectoryPath);
+        return length + 1;
     }
 
-    private static DirectorySecurity CreateSecurity(
-        SecurityIdentifier currentUser,
-        SecurityIdentifier localSystem,
-        InheritanceFlags inheritance)
+    private static int QuoteArgumentLength(string argument)
     {
-        var security = new DirectorySecurity();
-        security.SetAccessRuleProtection(isProtected: true, preserveInheritance: false);
-        security.SetOwner(currentUser);
-        AddAccessRules(security, currentUser, localSystem, inheritance);
-        return security;
-    }
-
-    private static FileSecurity CreateFileSecurity(
-        SecurityIdentifier currentUser,
-        SecurityIdentifier localSystem)
-    {
-        var security = new FileSecurity();
-        security.SetAccessRuleProtection(isProtected: true, preserveInheritance: false);
-        security.SetOwner(currentUser);
-        foreach (var sid in DistinctPrincipals(currentUser, localSystem))
+        var length = 2;
+        var backslashes = 0;
+        foreach (var character in argument)
         {
-            security.AddAccessRule(new FileSystemAccessRule(
-                sid,
-                FileSystemRights.FullControl,
-                AccessControlType.Allow));
+            if (character == '\\')
+            {
+                backslashes++;
+                length++;
+                continue;
+            }
+            if (character == '"')
+            {
+                length += backslashes + 2;
+            }
+            else
+            {
+                length++;
+            }
+            backslashes = 0;
         }
-        return security;
-    }
-
-    private static void AddAccessRules(
-        DirectorySecurity security,
-        SecurityIdentifier currentUser,
-        SecurityIdentifier localSystem,
-        InheritanceFlags inheritance)
-    {
-        foreach (var sid in DistinctPrincipals(currentUser, localSystem))
-        {
-            security.AddAccessRule(new FileSystemAccessRule(
-                sid,
-                FileSystemRights.FullControl,
-                inheritance,
-                PropagationFlags.None,
-                AccessControlType.Allow));
-        }
-    }
-
-    private static IEnumerable<SecurityIdentifier> DistinctPrincipals(
-        SecurityIdentifier currentUser,
-        SecurityIdentifier localSystem)
-    {
-        yield return currentUser;
-        if (currentUser != localSystem)
-        {
-            yield return localSystem;
-        }
-    }
-
-    private static void TryDelete(string scriptPath, string directoryPath)
-    {
-        try
-        {
-            File.Delete(scriptPath);
-            Directory.Delete(directoryPath);
-        }
-        catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
-        {
-            // The file contains only fixed product code; request secrets are never persisted.
-        }
+        return length + backslashes;
     }
 }

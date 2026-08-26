@@ -200,36 +200,20 @@ public sealed class WindowsCircleFilesHostingTests
             WindowsCircleFilesGrantPowerShell.Script,
         })
         {
-            using var fixedScript = WindowsProtectedPowerShellScript.Create(mutationScript);
-            var escapedPath = fixedScript.Path.Replace("'", "''", StringComparison.Ordinal);
             var parser =
-                "$tokens=$null;$errors=$null;"
-                + "$null=[Management.Automation.Language.Parser]::ParseFile('"
-                + escapedPath
-                + "',[ref]$tokens,[ref]$errors);"
-                + "if($errors.Count -ne 0){exit 1}";
-            var startInfo = new ProcessStartInfo
-            {
-                FileName = Path.Combine(
-                    Environment.GetFolderPath(Environment.SpecialFolder.System),
-                    "WindowsPowerShell",
-                    "v1.0",
-                    "powershell.exe"),
-                WorkingDirectory = fixedScript.DirectoryPath,
-                UseShellExecute = false,
-                CreateNoWindow = true,
-            };
-            startInfo.ArgumentList.Add("-NoLogo");
-            startInfo.ArgumentList.Add("-NoProfile");
-            startInfo.ArgumentList.Add("-NonInteractive");
-            startInfo.ArgumentList.Add("-Command");
-            startInfo.ArgumentList.Add(parser);
-            using var process = Process.Start(startInfo);
-            Assert.IsNotNull(process);
-
-            await process.WaitForExitAsync();
-
-            Assert.AreEqual(0, process.ExitCode);
+                "$source=[Console]::In.ReadToEnd();$tokens=$null;$errors=$null;"
+                + "$null=[Management.Automation.Language.Parser]::ParseInput("
+                + "$source,[ref]$tokens,[ref]$errors);"
+                + "if($errors.Count -ne 0){exit 1};'ok'";
+            var startInfo = WindowsDirectPowerShellCommand.CreateStartInfo(parser);
+            startInfo.Environment["PSExecutionPolicyPreference"] = "Restricted";
+            var output = await BoundedWindowsInspectionProcessRunner.RunWithInputAsync(
+                startInfo,
+                mutationScript,
+                TimeSpan.FromSeconds(45),
+                1024,
+                CancellationToken.None);
+            Assert.AreEqual("ok", output.Trim());
         }
     }
 

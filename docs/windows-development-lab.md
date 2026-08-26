@@ -55,15 +55,15 @@ docker network inspect windows_default --format '{{.Name}} {{.Driver}}'
   `before-balls.txt`. Do not use a host-mounted, mapped, or network-backed contribution.
 - Keep guest passwords, SSH private keys, provider credentials, and signed-in application state
   out of command output, repository files, evidence, and issue comments.
-- Check the Owner's effective PowerShell execution policy before privileged grant provisioning.
-  The current grant helper invokes a protected local script with `-File`, which default
-  `Restricted` policy legitimately refuses. A manual policy change may diagnose that blocker but
-  fails the decisive #92 human journey. The accepted package must complete without asking the user
-  to configure or bypass execution policy; never use a bypass flag, alternate execution path, or
-  machine-wide or managed-policy change.
+- Record the Owner's effective PowerShell execution policy before privileged grant provisioning.
+  The native elevated helper passes its compiled fixed grant command directly to the built-in
+  Windows PowerShell command interface, keeps structured data on standard input, and does not use a
+  `.ps1`, `-File`, an execution-policy flag, or a policy change. The real packaged grant still needs
+  observation under the clean profile's default `Restricted` policy. Never change or bypass that
+  policy to obtain a passing result.
 - The public installer uses a hash-bound native bootstrap specifically so a clean recipient with
   effective `Restricted` policy can install without running a PowerShell script. Keep that install
-  proof separate from the later privileged grant-helper policy check above.
+  proof separate from the later privileged grant-helper observation above.
 - Record the actual `EnableLUA` setting before describing administrator approval. On a VM with
   existing UAC disabled, the normal elevated helper can complete without displaying a consent
   prompt; do not claim that the user saw or accepted a dialog.
