@@ -119,9 +119,9 @@ function Test-BrowserWorkspace([string] $launchUrl, [string] $outputName) {
         throw "Browser launch URL is not loopback-only and fragment-capability based: $uri"
     }
     $listeners = @(Get-NetTCPConnection -OwningProcess $daemon.Id -State Listen)
-    if ($listeners.Count -eq 0 -or
-        $listeners.Where({ $_.LocalPort -eq $uri.Port }).Count -eq 0 -or
-        $listeners.Where({ $_.LocalAddress -notin @('127.0.0.1', '::1') }).Count -ne 0) {
+    $browserListeners = @($listeners.Where({ $_.LocalPort -eq $uri.Port }))
+    if ($browserListeners.Count -eq 0 -or
+        $browserListeners.Where({ $_.LocalAddress -notin @('127.0.0.1', '::1') }).Count -ne 0) {
         throw 'Windows Canary browser listener is not exclusively loopback-bound.'
     }
 
