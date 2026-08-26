@@ -171,7 +171,10 @@ test("pins moving and immutable manifests plus the release catalog", async () =>
     catalog.accepted.map((release) => release.tag),
     ["0.3.0-alpha.1", "0.2.0-alpha.1", "0.1.0-alpha.2"],
   );
-  assert.deepEqual(catalog.development, []);
+  assert.deepEqual(
+    catalog.development.map((release) => release.tag),
+    ["development-20260826T212044Z-1218b57d8d37"],
+  );
 
   for (const release of catalog.accepted) {
     assert.equal(release.manifest, `/versions/${release.tag}.json`);
@@ -203,6 +206,42 @@ test("pins moving and immutable manifests plus the release catalog", async () =>
     developmentFixture.release.tag,
     developmentFixture.platforms["windows-x64"].identity.version,
   );
+
+  const development = JSON.parse(
+    await readFile(
+      new URL("public/channels/development.json", siteRoot),
+      "utf8",
+    ),
+  );
+  const immutableDevelopment = JSON.parse(
+    await readFile(
+      new URL(
+        "public/versions/development-20260826T212044Z-1218b57d8d37.json",
+        siteRoot,
+      ),
+      "utf8",
+    ),
+  );
+  assert.deepEqual(development, immutableDevelopment);
+  assertPackageManifest(development, "development");
+
+  const bootstrap = JSON.parse(
+    await readFile(
+      new URL("public/bootstrap/windows-x64.json", siteRoot),
+      "utf8",
+    ),
+  );
+  const immutableBootstrap = JSON.parse(
+    await readFile(
+      new URL(
+        "public/bootstrap/versions/development-20260826T212044Z-1218b57d8d37.json",
+        siteRoot,
+      ),
+      "utf8",
+    ),
+  );
+  assert.deepEqual(bootstrap, immutableBootstrap);
+  assert.equal(bootstrap.release.commit, development.release.commit);
 });
 
 test("bootstraps verify local files without pipe-to-shell or policy bypasses", async () => {
@@ -236,12 +275,16 @@ test("bootstraps verify local files without pipe-to-shell or policy bypasses", a
 test("copies the public channel and bootstrap files into the deployment", async () => {
   for (const path of [
     "channels/alpha.json",
+    "channels/development.json",
+    "bootstrap/windows-x64.json",
+    "bootstrap/versions/development-20260826T212044Z-1218b57d8d37.json",
     "releases.json",
     "install.sh",
     "source.sh",
     "versions/0.3.0-alpha.1.json",
     "versions/0.2.0-alpha.1.json",
     "versions/0.1.0-alpha.2.json",
+    "versions/development-20260826T212044Z-1218b57d8d37.json",
   ]) {
     const source = await readFile(new URL(`public/${path}`, siteRoot));
     const built = await readFile(new URL(`dist/client/${path}`, siteRoot));

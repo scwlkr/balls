@@ -1,0 +1,15 @@
+{
+  "schemaVersion": 1,
+  "product": "Balls",
+  "platform": "windows",
+  "architecture": "x64",
+  "release": {
+    "tag": "development-20260826T212044Z-1218b57d8d37",
+    "commit": "1218b57d8d3764b9a96b7fb9209dfbad759c335c"
+  },
+  "asset": {
+    "name": "balls-bootstrap-windows-x64-1218b57d8d37.exe",
+    "url": "https://github.com/scwlkr/balls/releases/download/development-20260826T212044Z-1218b57d8d37/balls-bootstrap-windows-x64-1218b57d8d37.exe",
+    "sha256": "98fa509b3cc0ee9417b9aba031391f1d866bcdfe82697a2ed338ce77e961ff9f"
+  }
+}

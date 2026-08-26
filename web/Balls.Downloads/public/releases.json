@@ -17,6 +17,14 @@
       "manifest": "/versions/0.1.0-alpha.2.json"
     }
   ],
-  "development": [],
+  "development": [
+    {
+      "tag": "development-20260826T212044Z-1218b57d8d37",
+      "publishedAt": "2026-08-26T21:21:12Z",
+      "manifest": "/versions/development-20260826T212044Z-1218b57d8d37.json",
+      "knownBroken": true,
+      "note": "Development test build; it may be incomplete or broken."
+    }
+  ],
   "completeHistory": "https://github.com/scwlkr/balls/releases"
 }
