@@ -48,7 +48,7 @@ test("presents one stable command for every supported delivery lane", async () =
   assert.match(html, /https:\/\/balls\.wlkrlabs\.com\/source\.sh/);
   assert.match(
     html,
-    /Windows x64 · PowerShell 7 · \.NET 10 \+ ASP\.NET Core 10/i,
+    /Windows x64 · PowerShell 7[\s\S]*· runtime checked from manifest/i,
   );
   assert.match(html, /unsigned prerelease/i);
   assert.match(html, /macOS is source-only/i);
@@ -91,14 +91,17 @@ test("pins the accepted Alpha and every packaged asset by SHA-256", async () => 
   assert.match(manifest.release.commit, /^[0-9a-f]{40}$/);
   assert.equal(manifest.release.unsigned, true);
   assert.equal(manifest.platforms["macos-arm64"].delivery, "source-only");
-  assert.deepEqual(manifest.platforms["windows-x64"].runtime, {
-    kind: "framework-dependent",
-    architecture: "x64",
-    frameworks: [
-      { name: "Microsoft.NETCore.App", major: 10 },
-      { name: "Microsoft.AspNetCore.App", major: 10 },
-    ],
-  });
+  const windowsRuntime = manifest.platforms["windows-x64"].runtime;
+  assert.match(windowsRuntime.kind, /^(framework-dependent|self-contained)$/);
+  assert.equal(windowsRuntime.architecture, "x64");
+  if (windowsRuntime.kind === "framework-dependent") {
+    assert.ok(windowsRuntime.frameworks.length > 0);
+    for (const framework of windowsRuntime.frameworks) {
+      assert.match(framework.name, /^[A-Za-z][A-Za-z0-9.]{0,127}$/);
+      assert.ok(Number.isInteger(framework.major));
+      assert.ok(framework.major >= 1 && framework.major <= 999);
+    }
+  }
 
   for (const platform of ["windows-x64", "linux-x64"]) {
     const delivery = manifest.platforms[platform];
@@ -140,6 +143,10 @@ test("bootstraps verify local files without pipe-to-shell or policy bypasses", a
   assert.match(powershell, /RegistryView\]::Registry64/);
   assert.match(powershell, /ProgramW6432/);
   assert.doesNotMatch(powershell, /Get-Command\s+dotnet/);
+  assert.doesNotMatch(
+    powershell,
+    /requires the x64 \.NET 10 and ASP\.NET Core 10 runtimes/,
+  );
   const preflight = powershell.lastIndexOf(
     "Assert-RuntimeRequirements $delivery.runtime",
   );

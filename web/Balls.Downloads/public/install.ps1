@@ -209,6 +209,32 @@ function Test-RuntimeInventory {
     return $true
 }
 
+function Get-RuntimeRequirementLabel {
+    param([Parameter(Mandatory)] [object[]] $Frameworks)
+
+    if ($Frameworks.Count -eq 0) {
+        throw 'The Alpha manifest contains an empty Windows runtime contract.'
+    }
+
+    $labels = @()
+    foreach ($framework in $Frameworks) {
+        $name = [string] $framework.name
+        $major = [string] $framework.major
+        if ($name -notmatch '^[A-Za-z][A-Za-z0-9.]{0,127}$' -or
+            $major -notmatch '^[1-9][0-9]{0,2}$') {
+            throw 'The Alpha manifest contains an invalid Windows runtime framework.'
+        }
+
+        $displayName = switch ($name) {
+            'Microsoft.NETCore.App' { '.NET' }
+            'Microsoft.AspNetCore.App' { 'ASP.NET Core' }
+            default { $name }
+        }
+        $labels += "$displayName $major"
+    }
+    return ($labels -join ' and ')
+}
+
 function Assert-RuntimeRequirements {
     param([Parameter(Mandatory)] [object] $Runtime)
 
@@ -224,16 +250,23 @@ function Assert-RuntimeRequirements {
     }
 
     $frameworks = @($Runtime.frameworks)
+    $requirementLabel = Get-RuntimeRequirementLabel $frameworks
+    $runtimeError = "The published Balls Windows Alpha requires the x64 $requirementLabel runtime"
+    if ($frameworks.Count -ne 1) {
+        $runtimeError += 's'
+    }
+    $runtimeError += '.'
+
     $runtimeRoot = Get-X64DotnetRoot
     $dotnetPath = Join-Path $runtimeRoot 'dotnet.exe'
     if (-not (Test-X64PortableExecutable $dotnetPath)) {
-        throw 'The published Balls Windows Alpha requires the x64 .NET 10 and ASP.NET Core 10 runtimes.'
+        throw $runtimeError
     }
 
     $installedRuntimes = @(& $dotnetPath --list-runtimes 2>$null)
     if ($LASTEXITCODE -ne 0 -or
         -not (Test-RuntimeInventory $installedRuntimes $frameworks)) {
-        throw 'The published Balls Windows Alpha requires the x64 .NET 10 and ASP.NET Core 10 runtimes.'
+        throw $runtimeError
     }
 }
 

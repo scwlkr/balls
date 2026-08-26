@@ -15,6 +15,25 @@ function Assert-Equal {
     }
 }
 
+function Assert-Throws {
+    param(
+        [Parameter(Mandatory)] [scriptblock] $Action,
+        [Parameter(Mandatory)] [string] $ExpectedMessage
+    )
+
+    $failure = $null
+    try {
+        & $Action
+    }
+    catch {
+        $failure = $_
+    }
+    if ($null -eq $failure) {
+        throw "Expected failure: $ExpectedMessage"
+    }
+    Assert-Equal $failure.Exception.Message $ExpectedMessage 'The failure message should match.'
+}
+
 function New-TestExecutable {
     param(
         [Parameter(Mandatory)] [string] $Path,
@@ -47,6 +66,7 @@ $requiredFunctions = @(
     'Test-X64PortableExecutable',
     'Get-X64DotnetRoot',
     'Test-RuntimeInventory',
+    'Get-RuntimeRequirementLabel',
     'Assert-RuntimeRequirements'
 )
 foreach ($name in $requiredFunctions) {
@@ -67,6 +87,19 @@ $oldX64Root = $env:DOTNET_ROOT_X64
 $oldRoot = $env:DOTNET_ROOT
 $oldPath = $env:PATH
 try {
+    $requirements = @(
+        [pscustomobject]@{ name = 'Microsoft.NETCore.App'; major = 10 },
+        [pscustomobject]@{ name = 'Microsoft.AspNetCore.App'; major = 10 }
+    )
+    $runtimeUnderTest = [pscustomobject]@{
+        kind = 'framework-dependent'
+        architecture = 'x64'
+        frameworks = $requirements
+    }
+    $usableRoot = Get-X64DotnetRoot
+    $env:DOTNET_ROOT_X64 = $usableRoot
+    Assert-RuntimeRequirements $runtimeUnderTest
+
     $x64Root = Join-Path $testRoot 'x64-root'
     $genericRoot = Join-Path $testRoot 'generic-root'
     $pathRoot = Join-Path $testRoot 'path-only-root'
@@ -80,15 +113,15 @@ try {
     Assert-Equal (Test-X64PortableExecutable $x64Executable) $true 'The x64 PE should pass.'
     Assert-Equal (Test-X64PortableExecutable $x86Executable) $false 'The x86 PE should fail.'
 
+    $runtimeError = 'The published Balls Windows Alpha requires the x64 .NET 10 and ASP.NET Core 10 runtimes.'
+    $env:DOTNET_ROOT_X64 = $genericRoot
+    Assert-Throws { Assert-RuntimeRequirements $runtimeUnderTest } $runtimeError
+
     $env:DOTNET_ROOT_X64 = $x64Root
     $env:DOTNET_ROOT = $genericRoot
     $env:PATH = "$pathRoot;$oldPath"
     Assert-Equal (Get-X64DotnetRoot) $x64Root 'DOTNET_ROOT_X64 must win over generic and PATH-only hosts.'
 
-    $requirements = @(
-        [pscustomobject]@{ name = 'Microsoft.NETCore.App'; major = 10 },
-        [pscustomobject]@{ name = 'Microsoft.AspNetCore.App'; major = 10 }
-    )
     $validInventory = @(
         'Microsoft.NETCore.App 10.0.11 [C:\dotnet\shared\Microsoft.NETCore.App]',
         'Microsoft.AspNetCore.App 10.0.11 [C:\dotnet\shared\Microsoft.AspNetCore.App]'
@@ -101,6 +134,23 @@ try {
     Assert-Equal (Test-RuntimeInventory $validInventory @($requirements[1])) $true 'One explicitly required framework should pass.'
     Assert-Equal (Test-RuntimeInventory $wrongMajorInventory $requirements) $false 'The wrong runtime major should fail.'
     Assert-Equal (Test-RuntimeInventory @($validInventory[1]) $requirements) $false 'A missing Microsoft.NETCore.App requirement should fail.'
+    Assert-Equal (Get-RuntimeRequirementLabel $requirements) '.NET 10 and ASP.NET Core 10' 'The error label should come from the manifest requirements.'
+
+    $futureRequirements = @(
+        [pscustomobject]@{ name = 'Microsoft.NETCore.App'; major = 11 },
+        [pscustomobject]@{ name = 'Microsoft.AspNetCore.App'; major = 11 }
+    )
+    Assert-Equal (Get-RuntimeRequirementLabel $futureRequirements) '.NET 11 and ASP.NET Core 11' 'The error label should not pin the current runtime major.'
+
+    $wrongMajorRuntime = [pscustomobject]@{
+        kind = 'framework-dependent'
+        architecture = 'x64'
+        frameworks = $futureRequirements
+    }
+    $env:DOTNET_ROOT_X64 = $usableRoot
+    Assert-Throws {
+        Assert-RuntimeRequirements $wrongMajorRuntime
+    } 'The published Balls Windows Alpha requires the x64 .NET 11 and ASP.NET Core 11 runtimes.'
 
     $selfContained = [pscustomobject]@{
         kind = 'self-contained'
