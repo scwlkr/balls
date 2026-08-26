@@ -50,7 +50,7 @@ public sealed partial class RepositoryWorkflowTests
             "actions/setup-node@2028fbc5c25fe9cf00d9f06a71cc4710d4507903");
         StringAssert.Contains(
             Workflow,
-            "actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830");
+            "actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9");
     }
 
     [TestMethod]
