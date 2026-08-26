@@ -395,37 +395,19 @@ internal static class BrowserAdapter
             .Produces<ErrorResponse>(StatusCodes.Status400BadRequest)
             .Produces<ErrorResponse>(StatusCodes.Status404NotFound);
         application.MapPost(
-            BrowserRoutes.Circles + "/{circleId}/files/contributions/{contributionId}/grants/{grantId}/mapping/preview",
-            (string circleId, string contributionId, string grantId,
-                PreviewBrowserCircleFilesMemberMappingRequest request, CancellationToken token) =>
-                CircleFilesMemberMappingEndpoints.PreviewBrowserAsync(
-                    filesMemberMappingApplication,
-                    circleConnections,
-                    circleId, contributionId, grantId, request, token));
-        application.MapPost(
-            BrowserRoutes.Circles + "/{circleId}/files/contributions/{contributionId}/grants/{grantId}/mapping/map",
-            (string circleId, string contributionId, string grantId,
-                ApplyBrowserCircleFilesMemberMappingRequest request, CancellationToken token) =>
-                CircleFilesMemberMappingEndpoints.MapBrowserAsync(
-                    filesMemberMappingApplication,
-                    circleConnections,
-                    circleId, contributionId, grantId, request, token));
-        application.MapPost(
-            BrowserRoutes.Circles + "/{circleId}/files/contributions/{contributionId}/grants/{grantId}/mapping/inspect",
-            (string circleId, string contributionId, string grantId,
-                InspectBrowserCircleFilesMemberMappingRequest request, CancellationToken token) =>
-                CircleFilesMemberMappingEndpoints.InspectBrowserAsync(
-                    filesMemberMappingApplication,
-                    circleConnections,
-                    circleId, contributionId, grantId, request, token));
-        application.MapPost(
-            BrowserRoutes.Circles + "/{circleId}/files/contributions/{contributionId}/grants/{grantId}/mapping/unmap",
-            (string circleId, string contributionId, string grantId,
-                UnmapBrowserCircleFilesMemberMappingRequest request, CancellationToken token) =>
-                CircleFilesMemberMappingEndpoints.UnmapBrowserAsync(
-                    filesMemberMappingApplication,
-                    circleConnections,
-                    circleId, contributionId, grantId, request, token));
+                BrowserRoutes.Circles + "/{circleId}/files/open",
+                (string circleId, CancellationToken token) =>
+                    BrowserCircleFilesOpenEndpoints.OpenAsync(
+                        filesMemberMappingApplication,
+                        circleConnections,
+                        circleId,
+                        token))
+            .Produces<BrowserCircleFilesOpenResponse>(StatusCodes.Status200OK)
+            .Produces<ErrorResponse>(StatusCodes.Status400BadRequest)
+            .Produces<ErrorResponse>(StatusCodes.Status403Forbidden)
+            .Produces<ErrorResponse>(StatusCodes.Status404NotFound)
+            .Produces<ErrorResponse>(StatusCodes.Status409Conflict)
+            .Produces<ErrorResponse>(StatusCodes.Status502BadGateway);
         application.MapGet(
                 BrowserRoutes.Circles + "/{circleId}/messages",
                 async (string circleId, CancellationToken token) =>

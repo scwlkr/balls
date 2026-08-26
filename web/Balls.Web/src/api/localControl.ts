@@ -29,9 +29,5 @@ export type CircleFilesContributionListDto =
   components["schemas"]["CircleFilesContributionListResponse"];
 export type MemberAccessGrantListDto =
   components["schemas"]["MemberAccessGrantListResponse"];
-export type CircleFilesMemberMappingPlanDto =
-  components["schemas"]["CircleFilesMemberMappingPlanResponse"];
-export type CircleFilesMemberMappingInspectionDto =
-  components["schemas"]["CircleFilesMemberMappingInspectionResponse"];
-export type CircleFilesMemberMappingResultDto =
-  components["schemas"]["CircleFilesMemberMappingResultResponse"];
+export type BrowserCircleFilesOpenDto =
+  components["schemas"]["BrowserCircleFilesOpenResponse"];

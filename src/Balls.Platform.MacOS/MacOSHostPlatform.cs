@@ -27,6 +27,7 @@ public static class MacOSHostPlatform
             new UnsupportedCircleFilesHostProvisioner(),
             new UnsupportedCircleFilesGrantCredentialProvisioner(),
             new UnsupportedCircleFilesMemberMapper(),
+            new UnsupportedCircleFilesLocationLauncher(),
             new UnsupportedCircleFilesLifecycleManager());
     }
 

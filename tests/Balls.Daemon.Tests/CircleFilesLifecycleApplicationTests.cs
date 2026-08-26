@@ -183,6 +183,7 @@ public sealed class CircleFilesLifecycleApplicationTests
                 store,
                 store,
                 new StubMemberMapper("unmapped"),
+                new UnsupportedCircleFilesLocationLauncher(),
                 time);
             var result = await application.UnmapAsync(
                 circleId,
@@ -205,6 +206,7 @@ public sealed class CircleFilesLifecycleApplicationTests
             reopened,
             reopened,
             new StubMemberMapper("already-unmapped"),
+            new UnsupportedCircleFilesLocationLauncher(),
             retryTime);
         var retryResult = await retry.UnmapAsync(
             circleId,

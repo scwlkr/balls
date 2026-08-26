@@ -375,7 +375,7 @@ describe("Balls browser workspace", () => {
     expect(applyCount).toBe(2);
   });
 
-  it("joins with a pasted invitation and connects shared files without IP or grant choices", async () => {
+  it("joins with a pasted invitation and opens shared files through one no-input action", async () => {
     const api = createApi({ circles: [] });
     const joined = {
       ...details,
@@ -401,7 +401,7 @@ describe("Balls browser workspace", () => {
     const contributionId = "0198f2cc-6a50-7a08-aacb-298f4ebdf674";
     const grantId = "0198f2cc-6a50-7a08-aacb-298f4ebdf675";
     let joinedRequest: [string, string, string, string, string] | undefined;
-    let mappedRequest: [string, string, string, string, string] | undefined;
+    const openedRequests: [string][] = [];
     let syncRequest: [string] | undefined;
     let syncAttempts = 0;
     api.joinCircle = async (...request) => {
@@ -475,23 +475,18 @@ describe("Balls browser workspace", () => {
         },
       ],
     });
-    const mappingPlan = (driveLetter: string) => ({
-      contractVersion: 1,
-      planId: "a".repeat(64),
-      endpoint: "192.168.1.20",
-      uncPath: String.raw`\\192.168.1.20\balls-projects`,
-      credentialTarget: "192.168.1.20",
-      driveLetter,
-      friendlyName: "Project Files",
-      ownershipId: "b".repeat(64),
-      availableDriveLetters: ["M", "P"],
-      actions: ["Map exact share."],
-    });
-    api.previewFilesMapping = async (_circle, _contribution, _grant, drive) =>
-      mappingPlan(drive);
-    api.mapFiles = async (...request) => {
-      mappedRequest = request;
-      return { status: "mapped", plan: mappingPlan(request[3]) };
+    api.openFiles = async (...request) => {
+      openedRequests.push(request);
+      if (openedRequests.length === 1) {
+        throw new Error(
+          "The shared folder is offline. Check that the Circle owner's computer is on, then try again.",
+        );
+      }
+      return {
+        status: "opened",
+        folderName: "Project Files",
+        message: "Opened Project Files in File Explorer.",
+      };
     };
 
     render(<App api={api} />);
@@ -540,21 +535,24 @@ describe("Balls browser workspace", () => {
       within(files).queryByLabelText("Private host IPv4 address"),
     ).toBeNull();
     expect(within(files).queryByLabelText("Grant")).toBeNull();
+    expect(within(files).queryByLabelText("Approved folder")).toBeNull();
+    expect(
+      within(files).queryByText(/drive|endpoint|provider|plan/i),
+    ).toBeNull();
     expect(
       screen.queryByRole("button", { name: "Create invitation" }),
     ).toBeNull();
     fireEvent.click(open);
 
-    expect(await within(files).findByRole("status")).toHaveTextContent(
-      "Shared folder ready in File Explorer (P:).",
+    expect(await within(files).findByRole("alert")).toHaveTextContent(
+      "The shared folder is offline",
     );
-    expect(mappedRequest).toEqual([
-      details.circle.id,
-      contributionId,
-      grantId,
-      "P",
-      "a".repeat(64),
-    ]);
+    fireEvent.click(open);
+
+    expect(await within(files).findByRole("status")).toHaveTextContent(
+      "Opened Project Files in File Explorer.",
+    );
+    expect(openedRequests).toEqual([[details.circle.id], [details.circle.id]]);
   });
 
   it("restores a joined Member Capability after a fresh render without Web Storage", async () => {
@@ -800,17 +798,8 @@ function createApi(circleList: CircleListDto): BrowserApi {
     applyFilesGrant: async () => {
       throw new Error("No Member access apply configured.");
     },
-    previewFilesMapping: async () => {
-      throw new Error("No mapping test configured.");
-    },
-    mapFiles: async () => {
-      throw new Error("No mapping test configured.");
-    },
-    inspectFilesMapping: async () => {
-      throw new Error("No mapping test configured.");
-    },
-    unmapFiles: async () => {
-      throw new Error("No mapping test configured.");
+    openFiles: async () => {
+      throw new Error("No shared-folder open test configured.");
     },
   };
 }

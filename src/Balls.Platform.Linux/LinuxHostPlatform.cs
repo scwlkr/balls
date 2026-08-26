@@ -26,6 +26,7 @@ public static class LinuxHostPlatform
             new UnsupportedCircleFilesHostProvisioner(),
             new UnsupportedCircleFilesGrantCredentialProvisioner(),
             new UnsupportedCircleFilesMemberMapper(),
+            new UnsupportedCircleFilesLocationLauncher(),
             new UnsupportedCircleFilesLifecycleManager());
     }
 

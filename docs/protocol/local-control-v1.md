@@ -2,8 +2,9 @@
 
 **Status:** implemented through provider-neutral Circle Files contribution and Access Grant
 definition, read-only Windows SMB readiness, dedicated Windows folder hosting, limited per-grant
-Windows SMB credential provisioning, exact unelevated Windows Explorer mapping, generation-bound
-grant revocation, and ownership-proven provider cleanup.
+Windows SMB credential provisioning, exact unelevated Windows Explorer mapping, one guided
+Member open-and-launch operation, generation-bound grant revocation, and ownership-proven provider
+cleanup.
 
 This is the versioned, machine-local contract between `balls` or another local integration and
 `ballsd`. It is not a Node-to-Node or Circle replication protocol.
@@ -124,6 +125,7 @@ material. Selecting JSON output for this interactive command is a usage error.
 | Browser invitation | issued invitation fields plus outer `provider`, private IPv4 admission `endpoint`, and authenticated Circle Files `syncEndpoint`; the signed `package` is unchanged |
 | Browser Circle viewer | local `memberId` and exact Circle `role` |
 | Browser Circle Files sync | `circleId` and `importedGrantCount`; no provider credential or authorization proof |
+| Browser Circle Files open | `opened`, the human folder name, and a plain confirmation; no endpoint, drive, grant, plan, provider, credential, or mapping projection |
 | Control/CLI join request | `package`, `endpoint` (numeric private/loopback IP and port), `memberDisplayName` |
 | Browser join request | exact signed `package`, outer `provider`, `admissionEndpoint`, `syncEndpoint`, and `memberDisplayName` |
 | Redemption | `circleId`, `invitationId`, `redemptionId`, `status` (`accepted`) |
@@ -435,12 +437,13 @@ The browser listener serves the bundled production application and only these `/
 routes: session exchange, status, Circle list/create/details, exact local viewer identity, Owner
 invitation creation, signed invitation admission, ordered Circle message history, authenticated
 Circle Files synchronization, Owner folder selection and contribution, safe contribution/Access
-Grant lists, and the four mapping operations. The browser control plane remains narrower than
+Grant lists, and one high-level Member open operation. The browser control plane remains narrower than
 `/control/v1`; control routes return `404` on TCP and browser routes return `404` over IPC.
 Readiness, arbitrary host provisioning, grant creation, grant credential provisioning, revocation,
-and infrastructure cleanup remain CLI/local-control only. Browser contribution and mapping call the
-same application and provider behavior as IPC; no SMB password, authorization proof, share name,
-firewall rule, or protected secret is returned to or stored by JavaScript.
+infrastructure cleanup, and detailed mapping operations remain CLI/local-control only. Browser
+contribution and guided open call the same application and provider behavior as IPC; no SMB
+password, authorization proof, share name, firewall rule, endpoint, drive, plan, or protected
+secret is returned to or stored by JavaScript.
 
 `GET /browser/v1/circles/{circleId}/viewer` returns the current local Member ID and role from
 persisted Circle membership rather than inferring ownership from participant ordering.
@@ -459,13 +462,20 @@ addition to the signed invitation.
 
 `POST /browser/v1/circles/{circleId}/files/sync` has no request body. It resolves the saved
 provider and synchronization endpoint from protected local Node state and returns the Circle ID
-plus the number of authorized grants imported. Browser mapping requests likewise contain only
-the contribution/grant path plus drive/plan values; `ballsd` derives the saved private Files host.
-The detailed control/CLI mapping routes retain their explicit diagnostic `endpoint` contract.
-The existing public browser mapping plan may describe its derived endpoint, but JavaScript never
-stores or retransmits that value; #100 replaces that multi-call plan with one high-level open
-operation. Provider credentials remain inside daemon state and authenticated daemon-to-daemon
-channels and never occur in browser requests or responses.
+plus the number of authorized grants imported. `POST
+/browser/v1/circles/{circleId}/files/open` also has no request body. `ballsd` loads the saved private
+Files host, selects the single protected active grant for the local Member, revalidates any exact
+owned D-Z mapping, otherwise chooses `P:` or the first supported free letter, applies the exact
+mapping idempotently, and asks the platform adapter to open `<drive>:\`. The detailed control/CLI
+mapping routes retain their explicit diagnostic endpoint/drive/plan contract and are not exposed
+on the browser listener. Provider credentials and mapping projections remain inside daemon state
+and authenticated daemon-to-daemon channels and never occur in browser requests or responses.
+
+Mapping success is committed independently of File Explorer launch. A launch failure returns the
+typed bounded `explorer_launch_failed` error and preserves the valid mapping for the same-action
+retry. Offline hosts, incompatible protected state, collisions, mapping failures, and unavailable
+drives are projected as bounded product language without reflecting native errors or private
+connection data.
 
 The web application never reads or writes Web Storage for admission or Circle Files connection
 state. A fresh browser session and a packaged daemon relaunch reconstruct the Member Capability
@@ -556,8 +566,9 @@ Handled application errors use this shape:
 | 409 | `folder_picker_failed`, `hosting_plan_changed`, `hosting_prerequisites_not_ready`, `hosting_ownership_collision`, `hosting_resource_collision`, `hosting_helper_unavailable`, `hosting_helper_authentication_failed`, `hosting_helper_invalid_response`, `hosting_identity_unavailable`, `hosting_consent_cancelled`, `hosting_consent_timeout`, `hosting_apply_failed`, `hosting_recovery_incomplete` |
 | 409 | `grant_plan_changed`, `grant_cleanup_plan_changed`, `host_removal_plan_changed`, `grant_resource_collision`, `grant_apply_failed`, `circle_files_provider_credential_conflict`, `circle_files_grants_remain`, `circle_files_provider_credentials_remain` |
 | 409 | `mapping_plan_changed`, `mapping_drive_collision`, `mapping_credential_collision`, `mapping_label_collision`, `mapping_resource_collision`, `mapping_share_identity_mismatch`, `mapping_recovery_incomplete` |
+| 409 | browser `circle_files_capability_unavailable`, `circle_files_capability_ambiguous`, `mapping_drive_unavailable`, `shared_folder_mapping_conflict`, `shared_folder_open_failed` |
 | 409 | `replayed` |
-| 502 | `connection_failed`, authenticated remote-channel errors |
+| 502 | `connection_failed`, authenticated remote-channel errors, browser `shared_folder_offline`, `explorer_launch_failed` |
 
 Framework-level rejection, such as malformed JSON or a request rejected before endpoint handling,
 is not guaranteed to use the application error shape.
@@ -568,8 +579,8 @@ v1 does not expose message-authoring, Circle Files readiness, arbitrary host pro
 revocation, or infrastructure cleanup to the browser. The local API and CLI retain the detailed
 hosting controls and one limited account/ACL operation per Access Grant. The browser supplies the
 single Owner-approved existing-folder hosting and human Member grant journey, explicit
-invitation/join, authenticated Member-only grant synchronization, and guided Explorer mapping over
-the same application behavior.
+invitation/join, authenticated Member-only grant synchronization, and guided Explorer mapping and
+launch over the same application behavior.
 They do not enable SMB features or policy, start services, change network profiles or global firewall policy,
 delete user files, activate/revoke Contributions, rotate
 provider credentials, securely erase protected recovery material, synchronize or replicate content,

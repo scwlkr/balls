@@ -218,6 +218,17 @@ public sealed class DaemonStatusTests
         StringAssert.Contains(document, nameof(PreviewBrowserCircleFilesGrantRequest));
         StringAssert.Contains(document, nameof(BrowserCircleFilesGrantPreviewResponse));
         StringAssert.Contains(document, nameof(BrowserCircleFilesGrantApplyResponse));
+        StringAssert.Contains(
+            document,
+            "/browser/v1/circles/{circleId}/files/open");
+        StringAssert.Contains(document, nameof(BrowserCircleFilesOpenResponse));
+        Assert.IsFalse(document.Contains(
+            "/browser/v1/circles/{circleId}/files/contributions/{contributionId}/grants/{grantId}/mapping",
+            StringComparison.Ordinal));
+        var openOperation = JsonNode.Parse(document)?["paths"]?
+            ["/browser/v1/circles/{circleId}/files/open"]?["post"];
+        Assert.IsNotNull(openOperation);
+        Assert.IsNull(openOperation["requestBody"]);
         StringAssert.Contains(document, nameof(CreateInvitationRequest));
         StringAssert.Contains(document, nameof(RedeemInvitationRequest));
         StringAssert.Contains(document, nameof(SendCircleMessageRequest));

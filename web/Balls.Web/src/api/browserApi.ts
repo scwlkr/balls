@@ -7,9 +7,7 @@ import type {
   StatusDto,
   CircleFilesContributionListDto,
   MemberAccessGrantListDto,
-  CircleFilesMemberMappingPlanDto,
-  CircleFilesMemberMappingInspectionDto,
-  CircleFilesMemberMappingResultDto,
+  BrowserCircleFilesOpenDto,
   BrowserInvitationDto,
   CircleViewerDto,
   CircleFilesSyncDto,
@@ -90,31 +88,7 @@ export interface BrowserApi {
     circleId: string,
     contributionId: string,
   ): Promise<MemberAccessGrantListDto>;
-  previewFilesMapping(
-    circleId: string,
-    contributionId: string,
-    grantId: string,
-    driveLetter: string,
-  ): Promise<CircleFilesMemberMappingPlanDto>;
-  mapFiles(
-    circleId: string,
-    contributionId: string,
-    grantId: string,
-    driveLetter: string,
-    planId: string,
-  ): Promise<CircleFilesMemberMappingResultDto>;
-  inspectFilesMapping(
-    circleId: string,
-    contributionId: string,
-    grantId: string,
-    driveLetter: string,
-  ): Promise<CircleFilesMemberMappingInspectionDto>;
-  unmapFiles(
-    circleId: string,
-    contributionId: string,
-    grantId: string,
-    driveLetter: string,
-  ): Promise<CircleFilesMemberMappingResultDto>;
+  openFiles(circleId: string): Promise<BrowserCircleFilesOpenDto>;
 }
 
 class FetchBrowserApi implements BrowserApi {
@@ -262,78 +236,11 @@ class FetchBrowserApi implements BrowserApi {
     );
   }
 
-  previewFilesMapping(
-    circleId: string,
-    contributionId: string,
-    grantId: string,
-    driveLetter: string,
-  ) {
-    return this.mappingRequest<CircleFilesMemberMappingPlanDto>(
-      circleId,
-      contributionId,
-      grantId,
-      "preview",
-      { driveLetter },
-    );
-  }
-
-  mapFiles(
-    circleId: string,
-    contributionId: string,
-    grantId: string,
-    driveLetter: string,
-    planId: string,
-  ) {
-    return this.mappingRequest<CircleFilesMemberMappingResultDto>(
-      circleId,
-      contributionId,
-      grantId,
-      "map",
-      { driveLetter, planId },
-    );
-  }
-
-  inspectFilesMapping(
-    circleId: string,
-    contributionId: string,
-    grantId: string,
-    driveLetter: string,
-  ) {
-    return this.mappingRequest<CircleFilesMemberMappingInspectionDto>(
-      circleId,
-      contributionId,
-      grantId,
-      "inspect",
-      { driveLetter },
-    );
-  }
-
-  unmapFiles(
-    circleId: string,
-    contributionId: string,
-    grantId: string,
-    driveLetter: string,
-  ) {
-    return this.mappingRequest<CircleFilesMemberMappingResultDto>(
-      circleId,
-      contributionId,
-      grantId,
-      "unmap",
-      { driveLetter },
-    );
-  }
-
-  private mappingRequest<T>(
-    circleId: string,
-    contributionId: string,
-    grantId: string,
-    operation: "preview" | "map" | "inspect" | "unmap",
-    body: Record<string, string>,
-  ) {
-    return this.authenticatedRequest<T>(
-      `/browser/v1/circles/${encodeURIComponent(circleId)}/files/contributions/${encodeURIComponent(contributionId)}/grants/${encodeURIComponent(grantId)}/mapping/${operation}`,
-      body,
-      "Run balls ui again to change an Explorer mapping.",
+  openFiles(circleId: string) {
+    return this.authenticatedRequest<BrowserCircleFilesOpenDto>(
+      `/browser/v1/circles/${encodeURIComponent(circleId)}/files/open`,
+      {},
+      "Run balls ui again to open your shared folder.",
     );
   }
 

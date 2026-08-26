@@ -29,6 +29,7 @@ public static class WindowsHostPlatform
             new WindowsCircleFilesHostProvisioner(),
             new WindowsCircleFilesGrantCredentialProvisioner(),
             new WindowsCircleFilesMemberMapper(),
+            new WindowsCircleFilesLocationLauncher(),
             new WindowsCircleFilesLifecycleManager());
     }
 
