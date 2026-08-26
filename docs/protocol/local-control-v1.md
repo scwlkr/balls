@@ -488,7 +488,26 @@ idempotency request ID plus that selected path/name, creates the signed Contribu
 exact existing host plan, and applies it through the existing narrow helper. Its response contains
 only the public Contribution ID, human name, canonical folder path, and `applied` or
 `already-applied`; internal plans and infrastructure identifiers remain hidden. Other Circle Files
-mutation methods are not mapped.
+mutation methods are not mapped. A successful apply also binds that Contribution to the exact
+canonical hosted folder, provider, and hosting Node in daemon state. An exact retry must reproduce
+that binding; it cannot silently substitute a different folder or host.
+
+Owner-only `POST /browser/v1/circles/{circleId}/files/grant/preview` accepts only a contributed
+folder name, a joined human Member name, and `Read/write`. `ballsd` uniquely resolves the
+Contribution, Member, hosting Node, provider, and exact canonical hosted path; it rejects missing
+or ambiguous names. The response contains only the human folder name/path, Member name, access,
+and approval summary. It never contains an object ID, provider/account detail, endpoint,
+credential, password, plan, or approval token. The approval is held for at most 15 minutes inside
+the authenticated browser session.
+
+`POST /browser/v1/circles/{circleId}/files/grant/apply` has no request body. It re-resolves and
+revalidates the exact Owner authorization, Contribution generation, joined human Member, hosted
+folder binding, and approval fingerprint before creating or reusing the equivalent signed Access
+Grant. It then uses the existing narrow Windows credential preview/apply behavior. Success consumes
+the browser approval; a changed or expired approval returns a bounded `409` and requires a new
+preview. A helper authentication or partial credential failure keeps the same protected pending
+credential and approval so the Owner can safely retry without minting a second password, account,
+or Access Grant. Browser status remains human-only on success and failure.
 
 `POST /browser/v1/session` exchanges the launch capability once. Success sets the
 `__Host-balls-session` cookie with `HttpOnly`, `Secure`, `SameSite=Strict`, and `Path=/`, and returns
@@ -545,12 +564,12 @@ is not guaranteed to use the application error shape.
 
 ## Explicit non-goals
 
-v1 does not expose message-authoring, Circle Files readiness, arbitrary host provisioning, grant
-creation, grant-credential provisioning, revocation, or infrastructure cleanup to the browser. The
-local API and CLI retain the detailed hosting controls and one limited account/ACL operation per
-Access Grant. The browser supplies the single Owner-approved existing-folder hosting journey,
-explicit invitation/join, authenticated Member-only grant synchronization, and guided Explorer
-mapping over the same application behavior.
+v1 does not expose message-authoring, Circle Files readiness, arbitrary host provisioning,
+revocation, or infrastructure cleanup to the browser. The local API and CLI retain the detailed
+hosting controls and one limited account/ACL operation per Access Grant. The browser supplies the
+single Owner-approved existing-folder hosting and human Member grant journey, explicit
+invitation/join, authenticated Member-only grant synchronization, and guided Explorer mapping over
+the same application behavior.
 They do not enable SMB features or policy, start services, change network profiles or global firewall policy,
 delete user files, activate/revoke Contributions, rotate
 provider credentials, securely erase protected recovery material, synchronize or replicate content,

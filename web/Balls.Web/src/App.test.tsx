@@ -273,6 +273,108 @@ describe("Balls browser workspace", () => {
     expect(screen.queryByLabelText(/port/i)).toBeNull();
   });
 
+  it("reviews and safely retries one human Read/write Capability grant", async () => {
+    const member = {
+      id: "0198f2cc-6a50-7a08-aacb-298f4ebdf671",
+      displayName: "Bob",
+      role: "member",
+      joinedAtUtc: "2026-08-25T12:00:00Z",
+    } as const;
+    const joined = {
+      ...details,
+      circle: { ...details.circle, memberCount: 2, nodeCount: 2 },
+      members: [...details.members, member],
+    } satisfies CircleDetailsDto;
+    const api = createApi({ circles: [joined.circle] });
+    api.getCircle = async () => joined;
+    api.listFilesContributions = async (circleId) => ({
+      circleId,
+      contributions: [
+        {
+          id: "0198f2cc-6a50-7a08-aacb-298f4ebdf672",
+          circleId,
+          provider: {
+            id: "0198f2cc-6a50-7a08-aacb-298f4ebdf673",
+            nodeId: details.nodes[0].id,
+          },
+          displayName: "Projects",
+          lifecycle: "defined",
+          generation: 1,
+          createdAtUtc: "2026-08-25T12:00:00Z",
+          authorizedByMemberId: details.members[0].id,
+          authorityGeneration: 1,
+          authorizedAtUtc: "2026-08-25T12:00:00Z",
+        },
+      ],
+    });
+    const previews: Array<[string, string, string]> = [];
+    api.previewFilesGrant = async (...request) => {
+      previews.push(request);
+      return {
+        folderName: "Projects",
+        folderPath: String.raw`C:\BallsDemo\Projects`,
+        memberName: "Bob",
+        access: "Read/write",
+        summary: String.raw`Give Bob Read/write access to Projects (C:\BallsDemo\Projects).`,
+      };
+    };
+    let applyCount = 0;
+    api.applyFilesGrant = async () => {
+      applyCount += 1;
+      if (applyCount === 1) {
+        throw new Error("Windows could not complete the Member access change.");
+      }
+      return {
+        status: "applied",
+        folderName: "Projects",
+        memberName: "Bob",
+        access: "Read/write",
+        message: "Projects is now a Circle Capability for Bob.",
+      };
+    };
+
+    render(<App api={api} />);
+    const form = await screen.findByRole("form", {
+      name: "Share a Circle Capability",
+    });
+    expect(within(form).getByLabelText("Folder")).toHaveValue("Projects");
+    expect(within(form).getByLabelText("Member")).toHaveValue("Bob");
+    expect(within(form).getByLabelText("Access")).toHaveValue("read-write");
+    fireEvent.click(
+      within(form).getByRole("button", { name: "Review access" }),
+    );
+
+    const preview = await screen.findByLabelText("Access preview");
+    expect(preview).toHaveTextContent(
+      String.raw`Give Bob Read/write access to Projects (C:\BallsDemo\Projects).`,
+    );
+    expect(previews).toEqual([[details.circle.id, "Projects", "Bob"]]);
+    for (const forbidden of [
+      "SMB",
+      "account",
+      "password",
+      "plan",
+      "address",
+      "port",
+    ]) {
+      expect(preview).not.toHaveTextContent(new RegExp(forbidden, "i"));
+    }
+
+    fireEvent.click(
+      within(preview).getByRole("button", { name: "Share this Capability" }),
+    );
+    expect(await within(form).findByRole("alert")).toHaveTextContent(
+      "Windows could not complete",
+    );
+    fireEvent.click(
+      within(preview).getByRole("button", { name: "Share this Capability" }),
+    );
+    expect(await within(form).findByRole("status")).toHaveTextContent(
+      "Projects is now a Circle Capability for Bob.",
+    );
+    expect(applyCount).toBe(2);
+  });
+
   it("joins with a pasted invitation and connects shared files without IP or grant choices", async () => {
     const api = createApi({ circles: [] });
     const joined = {
@@ -419,7 +521,7 @@ describe("Balls browser workspace", () => {
     ).toBeInTheDocument();
     const files = await screen.findByRole(
       "form",
-      { name: "Map Circle Files" },
+      { name: "Open Circle Capability" },
       { timeout: 3000 },
     );
     const open = await within(files).findByRole("button", {
@@ -691,6 +793,12 @@ function createApi(circleList: CircleListDto): BrowserApi {
     }),
     contributeFilesFolder: async () => {
       throw new Error("No contribution test configured.");
+    },
+    previewFilesGrant: async () => {
+      throw new Error("No Member access preview configured.");
+    },
+    applyFilesGrant: async () => {
+      throw new Error("No Member access apply configured.");
     },
     previewFilesMapping: async () => {
       throw new Error("No mapping test configured.");

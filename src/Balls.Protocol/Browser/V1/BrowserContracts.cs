@@ -48,6 +48,16 @@ public static class BrowserRoutes
         return $"{Circle(circleId)}/files/sync";
     }
 
+    public static string CircleFilesGrantPreview(string circleId)
+    {
+        return $"{Circle(circleId)}/files/grant/preview";
+    }
+
+    public static string CircleFilesGrantApply(string circleId)
+    {
+        return $"{Circle(circleId)}/files/grant/apply";
+    }
+
     public static string CircleFilesAccessGrants(string circleId, string contributionId)
     {
         return $"{CircleFilesContributions(circleId)}/{Uri.EscapeDataString(contributionId)}/grants";
@@ -117,3 +127,22 @@ public sealed record BrowserCircleFilesContributionResponse(
     string ContributionId,
     string DisplayName,
     string FolderPath);
+
+public sealed record PreviewBrowserCircleFilesGrantRequest(
+    string FolderName,
+    string MemberName,
+    string Access);
+
+public sealed record BrowserCircleFilesGrantPreviewResponse(
+    string FolderName,
+    string FolderPath,
+    string MemberName,
+    string Access,
+    string Summary);
+
+public sealed record BrowserCircleFilesGrantApplyResponse(
+    string Status,
+    string FolderName,
+    string MemberName,
+    string Access,
+    string Message);

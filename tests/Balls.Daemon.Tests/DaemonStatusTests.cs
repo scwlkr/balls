@@ -209,6 +209,15 @@ public sealed class DaemonStatusTests
         StringAssert.Contains(document, nameof(ApplyBrowserCircleFilesFolderRequest));
         StringAssert.Contains(document, nameof(BrowserCircleFilesFolderSelectionResponse));
         StringAssert.Contains(document, nameof(BrowserCircleFilesContributionResponse));
+        StringAssert.Contains(
+            document,
+            "/browser/v1/circles/{circleId}/files/grant/preview");
+        StringAssert.Contains(
+            document,
+            "/browser/v1/circles/{circleId}/files/grant/apply");
+        StringAssert.Contains(document, nameof(PreviewBrowserCircleFilesGrantRequest));
+        StringAssert.Contains(document, nameof(BrowserCircleFilesGrantPreviewResponse));
+        StringAssert.Contains(document, nameof(BrowserCircleFilesGrantApplyResponse));
         StringAssert.Contains(document, nameof(CreateInvitationRequest));
         StringAssert.Contains(document, nameof(RedeemInvitationRequest));
         StringAssert.Contains(document, nameof(SendCircleMessageRequest));

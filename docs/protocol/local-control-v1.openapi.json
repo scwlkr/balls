@@ -2520,6 +2520,154 @@
         }
       }
     },
+    "/browser/v1/circles/{circleId}/files/grant/preview": {
+      "post": {
+        "tags": [
+          "ballsd"
+        ],
+        "parameters": [
+          {
+            "name": "circleId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PreviewBrowserCircleFilesGrantRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BrowserCircleFilesGrantPreviewResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/browser/v1/circles/{circleId}/files/grant/apply": {
+      "post": {
+        "tags": [
+          "ballsd"
+        ],
+        "parameters": [
+          {
+            "name": "circleId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BrowserCircleFilesGrantApplyResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/browser/v1/circles/{circleId}/files/contributions/{contributionId}/grants": {
       "get": {
         "tags": [
@@ -2987,6 +3135,60 @@
               "null",
               "string"
             ]
+          }
+        }
+      },
+      "BrowserCircleFilesGrantApplyResponse": {
+        "required": [
+          "status",
+          "folderName",
+          "memberName",
+          "access",
+          "message"
+        ],
+        "type": "object",
+        "properties": {
+          "status": {
+            "type": "string"
+          },
+          "folderName": {
+            "type": "string"
+          },
+          "memberName": {
+            "type": "string"
+          },
+          "access": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          }
+        }
+      },
+      "BrowserCircleFilesGrantPreviewResponse": {
+        "required": [
+          "folderName",
+          "folderPath",
+          "memberName",
+          "access",
+          "summary"
+        ],
+        "type": "object",
+        "properties": {
+          "folderName": {
+            "type": "string"
+          },
+          "folderPath": {
+            "type": "string"
+          },
+          "memberName": {
+            "type": "string"
+          },
+          "access": {
+            "type": "string"
+          },
+          "summary": {
+            "type": "string"
           }
         }
       },
@@ -4173,6 +4375,25 @@
           "createdAtUtc": {
             "type": "string",
             "format": "date-time"
+          }
+        }
+      },
+      "PreviewBrowserCircleFilesGrantRequest": {
+        "required": [
+          "folderName",
+          "memberName",
+          "access"
+        ],
+        "type": "object",
+        "properties": {
+          "folderName": {
+            "type": "string"
+          },
+          "memberName": {
+            "type": "string"
+          },
+          "access": {
+            "type": "string"
           }
         }
       },

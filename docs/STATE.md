@@ -55,6 +55,9 @@ Current `main` contains substantial reusable work:
 - protected invitation-derived Member connection state that survives browser and daemon relaunch;
 - persisted Members, Nodes, and one minimal Circle message;
 - Owner-authorized Circle Files contributions and Member Access Grants;
+- one graphical Owner flow that chooses a contributed folder and joined human Member, previews
+  Read/write access, and applies the signed grant plus narrow Windows credential without exposing
+  provider, account, credential, endpoint, object-ID, or plan details;
 - a narrow Windows helper for the owned encrypted SMB share and limited per-Member credentials;
 - Member-only grant synchronization and a guided browser action that selects `P:` or another free
   drive without exposing the SMB password;
@@ -70,8 +73,8 @@ Reuse this machinery where it shortens #92. Do not expand it for hypothetical fu
   Windows PowerShell bootstrap; its current Windows lane requires PowerShell 7.
 - The self-contained Canary launcher does not automatically configure the private-LAN admission and
   Circle Files synchronization listeners required by browser invitations.
-- The Owner still creates, hosts, grants, and provisions a folder through ID- and plan-heavy CLI
-  choreography rather than one graphical flow.
+- The graphical Owner contribute/grant flow is automated, but its real standard-user Windows
+  folder-picker, elevation, and helper retry behavior still needs checklist observation.
 - Real Windows mapping was previously triggered through the CLI; the full browser click under a
   genuine standard user remains unobserved.
 - The current button maps the drive but does not itself open File Explorer.
