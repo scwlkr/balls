@@ -79,6 +79,10 @@ OS adapters
 - Preserve unrelated work and keep no more than two non-overlapping tickets in progress.
 - Use a short-lived `codex/` branch, one issue per pull request, squash merge, and delete the branch.
 - After a verified merge, take the next unblocked issue without routine owner check-ins.
+- Distribute software and updates only from an owner-accepted GitHub Release through
+  [balls.wlkrlabs.com](https://balls.wlkrlabs.com); follow
+  [`web/Balls.Downloads/README.md`](web/Balls.Downloads/README.md) and verify each published stable
+  command identifies the accepted tag and commit.
 - Stop for publication, secrets, spending, irreversible actions, or a material product/security
   decision not already recorded.
 
