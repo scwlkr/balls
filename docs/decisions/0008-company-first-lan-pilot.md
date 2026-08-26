@@ -2,6 +2,8 @@
 
 - **Status:** Accepted
 - **Date:** 2026-08-25
+- **Updated by:** ADR 0009 resets the issue frontier and makes the official-download boss demo the
+  urgent outcome while preserving this private-company target.
 
 Balls remains open source and Circle-first, but its immediate proving ground is the owner's own
 company rather than every possible organization. The Owner creates a new Windows-hosted project

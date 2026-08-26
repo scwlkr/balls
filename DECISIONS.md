@@ -1,307 +1,136 @@
 # Decisions and Open Questions
 
-This file separates **confirmed product decisions** from **recommended technical choices** and **intentionally open questions**.
-
-Codex should not treat every current technical recommendation as sacred.
-
-It should treat the confirmed product decisions as strong constraints unless explicitly changed by the owner.
+This file is the compact index of current product decisions, technical recommendations, and open
+questions. Dated implementation state belongs in [`docs/STATE.md`](docs/STATE.md); hard-to-reverse
+trade-offs belong in [`docs/decisions/`](docs/decisions/).
 
 ## Confirmed product decisions
 
-### Audience
+### Core product
 
-The immediate proving ground is two trusted coworkers in the owner's small company.
+Balls is an open-source platform for trusted Circles. A Circle is a graphical shared computing
+environment where people discover and use explicitly contributed capabilities from the group's
+computers without configuring the underlying machines or providers.
 
-The first outcome is a new Windows-hosted project folder on a private LAN, one shareable Circle
-invitation, and usable Windows Explorer access for the invited coworker. That coworker must not
-need networking or SMB administration knowledge.
+The Circle is the product. People join Circles; Nodes support them. Joining establishes Membership,
+not blanket machine access or automatic contribution. Circle policy produces explicit Capability
+Grants that Balls realizes through integrated providers.
 
-The broader 2–10-person audience remains a later product direction. Open-source licensing and the
-long-term Circle vision are unchanged. See
-[`ADR 0008`](docs/decisions/0008-company-first-lan-pilot.md).
+### Immediate private pilot
 
-The first company use is a proof-oriented pilot while the hosting laptop and Windows Node are on.
-Always-on service, backup, and disaster recovery are not acceptance requirements for that pilot.
-After the existing two-VM proof, the owner will rehearse the guided invitation and file workflow
-on two available administrator-managed Windows laptops before involving the coworker.
+The urgent proving ground is approximately two or three personally trusted people on a private LAN
+or owner-managed Tailscale network. The immediate boss demo is:
 
-### Circle
+```text
+balls.wlkrlabs.com
+  → install Balls
+  → join one Circle through the local browser
+  → open the approved project folder in File Explorer
+  → edit a real ordinary work file
+```
 
-The top-level object is a **Circle**.
+Neither Owner nor invited Member should handle IP addresses, ports, SMB passwords, object IDs,
+plan tokens, daemon arguments, PowerShell, or manual drive-letter selection. Explicit Windows
+elevation remains acceptable for the exact host mutation that requires it.
 
-People join Circles rather than connecting primarily to one server.
+### Shared-ecosystem product gate
 
-A Circle has a durable identity.
+After the boss demo, the smallest complete proof is one joined Member using:
 
-A Circle has owner/admin governance.
+1. Circle Files;
+2. Circle Messaging for human communication;
+3. Circle AI contributed by another Node.
 
-Infrastructure should be decentralized enough that one ordinary PC does not define the Circle.
+One Member-removal intent must then stop future authorization across all three and report provider
+cleanup as complete, pending, or refused. Balls does not claim to erase copies outside its control
+or revoke an unreachable offline device instantly.
 
-### Messaging
+Failure to make this whole journey materially easier than assembling existing products pauses
+platform expansion and triggers a product rethink.
 
-Support both:
+### Contribution and remote administration
 
-- Circle/group/channel messaging;
-- direct user-to-user messaging.
+Nodes contribute bounded capabilities, not whole computers. General shell, RDP, or remote-control
+access is never implied by Membership. SSH was a usability analogy for seamless connection; any
+real terminal or remote-administration capability remains separately defined and permissioned.
 
-History should persist.
+### Build versus integrate
 
-### Files
+Balls owns Circle Membership, contribution, capability discovery, authorization, lifecycle
+reconciliation, auditing, and the shared human experience. Prefer integrating mature storage,
+transport, remote-access, AI-runtime, and workload providers. Build replacements only when evidence
+shows that integration cannot satisfy an accepted requirement for usability, security, LAN/offline
+operation, ownership, or self-hostability.
 
-Sharing files should become extremely easy after joining a Circle.
+### Private-pilot safety posture
 
-Initial physical-source visibility is acceptable.
+Prioritize the working end-to-end product and rapid human feedback over security architecture for
+hypothetical scale or public-internet threats. Never bypass operating-system protections, expose
+private services publicly, mishandle credentials, delete user data, grant unapproved machine
+access, or weaken existing provider security. Additional security work requires a concrete pilot
+risk, observed failure, or accepted release requirement.
 
-Long-term unified Circle Files is desirable.
+### Software distribution
 
-Balls guarantees the authorized Circle Files capability and preserves ordinary SMB and
-application-requested locking behavior. Revit-specific central/local model, synchronization,
-recovery, and multi-user behavior remain the application's responsibility; observed Revit pilot
-results are compatibility evidence rather than a general Balls guarantee.
+[`balls.wlkrlabs.com`](https://balls.wlkrlabs.com) is the sole official human-facing software and
+update entrypoint. It publishes stable commands and channel metadata that point to exact
+owner-accepted GitHub Release assets identified by tag, commit, SHA-256, package identity, and
+eventually code signature. The site does not host ad hoc binaries copied from a development
+computer, and a private Circle invitation remains separate from the public software download.
 
-The two-laptop pilot passes when one laptop hosts a new Circle folder, the other joins and receives
-guided Explorer access, and both can create, open, edit, rename, and delete ordinary files. A
-disposable Revit smoke test may be observed separately. Supported software delivery follows the
-owner-accepted Release and downloads-portal policy; the private invitation remains a separate
-Circle capability rather than part of the public download.
+### Balls Wizard and Circle AI
 
-### AI
+**Balls Wizard** is an optional local product guide represented by a floating brand-violet ball
+wearing a wizard hat. The local browser UI offers its download; Balls never downloads the model
+automatically. The intended model is a pinned quantized instruction-tuned Gemma 4 E2B. Balls Wizard
+retrieves documentation matching the installed Balls version, cites the relevant user guidance,
+and begins as read-only help. Core Balls remains usable without it.
 
-Circle AI is central and should eventually understand and act across explicitly permitted Circle context and tools.
+**Circle AI** is different: it is an explicitly contributed AI capability running on one approved
+Node and made available to other authorized Circle Members without exposing runtime addresses or
+credentials.
 
-Running AI on one best available approved Node is a valid and useful first implementation.
+### Durable product truths
 
-### Nodes and resources
-
-Members explicitly decide what their machines contribute.
-
-Nodes may belong to multiple Circles.
-
-Dedicated servers and VPSs are valid Nodes.
-
-### Anchors
-
-A Circle can have durable Anchor Nodes.
-
-Anchors are roles, not one permanent master server.
-
-### Apps
-
-Circle Apps are part of the long-term product.
-
-Different Circles can enable very different apps and capabilities.
-
-### Offline behavior
-
-LAN-hosted Circle functionality should continue where possible when internet connectivity is unavailable.
-
-### Open source
-
-Balls is open source.
-
-Apache License 2.0 is the accepted source license. Incoming contributions use the same terms
-without a copyright assignment or CLA unless a later recorded business need changes that policy.
-
-### Hosted service
-
-An official Balls service is acceptable if basic operation can remain effectively free/very inexpensive and the Circle does not become owned by that service.
-
-Expected domain may be something like `balls.example`.
+- Balls is open source under Apache License 2.0.
+- Simple defaults and technical inspectability must coexist.
+- One ordinary PC must not permanently define the Circle.
+- LAN/offline capability matters; local first does not mean local only.
+- Cross-platform support is architectural.
+- Circle AI, Circle Apps, and honest distributed workloads remain long-term pillars.
+- Balls may provide hosted convenience infrastructure but must not own the Circle.
 
 ## Recommended technical choices
 
-These are current best recommendations and may change with evidence.
+- Keep the native cross-platform `ballsd` service, one typed application core, the local browser UI,
+  and the first-class `balls` CLI.
+- Keep platform-specific mutations behind narrow typed adapters; do not put raw OS commands in Core.
+- Reuse the implemented trusted admission and Circle Files machinery where it helps the active
+  human journey. Do not expand it for hypothetical future threats.
+- Use SMB as the current Windows Circle Files provider, not as the Circle Files product definition.
+- Use LAN and owner-managed Tailscale as early transports, not as Circle identity.
+- Keep unrestricted remote execution outside ordinary Member flows.
 
-### Fresh repository
+## Historical reset boundary
 
-Create `scwlkr/balls` as the canonical project.
+The published `0.1.0-alpha.2`, `0.2.0-alpha.1`, and `0.3.0-alpha.1` releases and their evidence
+remain historical checkpoints. The unpublished `0.4.0-alpha.1` acceptance issue and milestone were
+closed as superseded on 2026-08-26. Their secure Circle Files implementation and verification remain
+available to reuse; they no longer define the active roadmap. See
+[`ADR 0009`](docs/decisions/0009-reset-around-private-shared-ecosystem-proof.md).
 
-Do not fork/copy Git history from `balls-server`.
+## Intentionally open questions
 
-### C#/.NET core
+- Which runtime and quantized artifact best deliver Gemma 4 E2B for Balls Wizard on supported
+  Windows, Linux, and macOS hardware?
+- How should version-matched user documentation be packaged and retrieved by Balls Wizard?
+- Which existing runtime first provides shared Circle AI?
+- How far should the existing minimal Circle message protocol grow before an external messaging
+  provider is preferable?
+- What generic persistence and reconciliation model should represent Capability Grants beyond
+  Circle Files?
+- What remote-connectivity setup can remain invisible to an invited Member while preserving
+  owner-controlled LAN/Tailscale boundaries?
 
-Keep .NET initially to preserve useful experience from `balls-server` while gaining cross-platform service/CLI/API support.
-
-Re-evaluate only if a concrete engineering reason appears.
-
-### Native host daemon
-
-Run `ballsd` natively on Windows, Linux, and macOS.
-
-Do not make WSL the foundational host runtime.
-
-The initial macOS claim is Apple-Silicon source-run development through the same local browser UI,
-with dedicated protected state/IPC adapters and no native GUI. See
-[`ADR 0007`](docs/decisions/0007-protected-macos-developer-node.md).
-
-### WSL
-
-Use WSL as an optional Windows workload runtime where useful.
-
-### API
-
-Strongly typed, versioned APIs.
-
-Phase 1 starts with versioned HTTP/JSON over protected local OS IPC because its
-initial calls are unary and benefit from direct inspectability. gRPC/Protocol
-Buffers remains a candidate when streaming, code generation, or
-interoperability requirements justify it. See
-[`ADR 0001`](docs/decisions/0001-local-control-api.md) and the implemented
-[`local-control v1 contract`](docs/protocol/local-control-v1.md).
-
-### Phase 1 Slice 1 implementation checkpoint
-
-As of 2026-08-19, the first local vertical slice is implemented on Windows:
-
-- `ballsd` and `balls` communicate through versioned HTTP/JSON over a same-user named pipe;
-- Node and Circle identities persist in local SQLite state;
-- Circle creation atomically records one Owner and enrolls the local Node;
-- the CLI can inspect daemon status and list Circles, Members, and Nodes;
-- a dedicated marked state directory, Windows ACL protection, database application ID, exact
-  schema validation, and an exclusive daemon lease fail closed on unsafe state.
-
-This is a checkpoint, not Phase 1 completion. Invitation/admission, join, authenticated
-Node-to-Node transport, two-machine membership, and persistent messaging remain next-slice work.
-See the [`Slice 1 design`](docs/design/phase-1-slice-1.md),
-[`ADR 0002`](docs/decisions/0002-protected-local-state.md), and
-[`SQLite local-state v1`](docs/storage/sqlite-local-state-v1.md).
-
-### Local state
-
-SQLite is the first local durable-state provider, not the definition of Circle-wide replicated
-state. Each daemon owns a dedicated platform-protected directory, and the store identifies and
-validates its schema before use. Unknown, future, incomplete, or corrupt state is left unchanged
-and startup fails. See [`ADR 0002`](docs/decisions/0002-protected-local-state.md).
-
-### Versioning
-
-Product binaries follow Semantic Versioning from one repository-wide version; Slice 1 is
-`0.1.0-alpha.1`. Wire/API path versions and storage schema versions remain independent
-compatibility axes. A product version bump must not silently redefine either contract.
-
-### Transport
-
-Use a transport abstraction.
-
-LAN + Tailscale are sensible early providers.
-
-Do not make Tailscale a permanent definition of Balls.
-
-### Trusted Circle identity and admission
-
-Remote v1 keeps UUID object identifiers separate from cryptographic proof. The Circle root,
-delegated Anchor issuer, Member, Node, and transport certificate use distinct ECDSA P-256/SHA-256
-credentials identified by role-scoped hashes of canonical DER SPKI. Signed purpose-specific
-binary transcripts and exact Circle/Node/TLS context produce deterministic admission rejection.
-
-TCP plus `SslStream` TLS 1.3 is the first authenticated channel. Admission pins the server
-transport key from the signed invitation; admitted peers use mTLS bound to active Circle-signed
-Node transport credentials. LAN, Tailscale, and future providers remain untrusted stream
-providers. Circle authority requires explicit encrypted export and never silently transfers to an
-ordinary Node. See [`ADR 0006`](docs/decisions/0006-trusted-circle-identity-and-admission.md) and
-the [`remote Circle v1 contract`](docs/protocol/remote-circle-v1.md).
-
-### Minimal persistent Circle messaging
-
-Use the selected Anchor as the v1 ordering authority for a bounded text-only Circle history.
-Every message binds its stable UUID, Circle, author Member, author Node, protocol-second UTC time,
-and UTF-8 text in one canonical transcript signed independently by the Member and Node. The
-Anchor authenticates the admitted Node with remote-v1 mTLS, authorizes the Member-to-Node binding,
-assigns a monotonic Circle sequence, signs a receipt, and atomically stores replay state and the
-message. Sender preparation is durable so an exact retry after interruption reuses the authored
-identity and content; conflicting UUID reuse fails closed. This is a vertical proof, not rich chat:
-channels, direct messages, edits, deletes, attachments, reactions, typing state, multi-Anchor
-replication, and offline multi-peer synchronization remain deferred.
-
-### Cross-platform UI
-
-Use one React/TypeScript browser application as the primary GUI and retain `balls` as a first-class
-automation interface. `ballsd` serves the bundled UI through an authenticated loopback-only
-adapter; native shells are deferred until a proven OS-specific need appears. See
-[`ADR 0004`](docs/decisions/0004-local-typescript-browser-ui.md).
-
-### Files-first v1
-
-The first supported release focuses on Circle creation/join, Member and Node visibility, the local
-browser UI and CLI, and one secure Windows Explorer Circle Files provider. The immediate company
-pilot requires the invited non-Owner Member to receive actual authorized access on a separate
-Windows computer without manually handling provider credentials. The Balls-hosted share rejects
-guest access through required server signing, per-share encryption, and explicit Member account
-authorization; unrelated existing outbound SMB client connections remain untouched. One Anchor may
-be authoritative without automatic failover. Rich chat, replication, macOS polish, AI, Apps, and
-compute remain later milestones. See [`ADR 0005`](docs/decisions/0005-files-first-v1.md) and
-[`ADR 0008`](docs/decisions/0008-company-first-lan-pilot.md).
-
-### Development and release model
-
-Use GitHub Issues for executable tickets, one active milestone, no more than two non-overlapping
-tickets in progress, short-lived pull requests, green-main Canary artifacts, outcome-based Alphas,
-risk-triggered heavy tests, and explicit owner acceptance for public publication and Stable
-releases. See [`docs/development-process.md`](docs/development-process.md).
-
-## Intentionally open technical questions
-
-These should be resolved by prototypes, threat modeling, and performance/testing rather than ideology.
-
-### Durable state model
-
-Possible approaches include:
-
-- Anchor-hosted database;
-- append-only event log;
-- replicated database;
-- CRDTs;
-- consensus for selected state;
-- hybrid architecture.
-
-Do not choose full distributed consensus merely because the word "decentralized" sounds attractive.
-
-For v1, one selected Anchor may hold authoritative Circle state while other Nodes retain their own
-identities and membership records. Authority backup/export is required; automatic failover and
-multiple-Anchor replication remain open.
-
-### Hosted control plane scope
-
-No Balls Cloud dependency is planned for v1. Invitations are exchanged directly; LAN and an
-already configured Tailscale network provide initial reachability. The minimum future official
-service needed for exceptional onboarding remains open.
-
-### Circle Files implementation
-
-The v1 Windows provider uses authenticated SMB 3.1.1 with separate limited Access Grants. Normal
-application/SMB locking is preserved; universal single-writer enforcement is not promised. The
-provider initially exposes one live contributed folder without replication, sync, version history,
-or managed trash.
-
-The long-term unified filesystem/sync/storage architecture remains open.
-
-### App runtime
-
-Could include:
-
-- native processes;
-- containers;
-- VM-backed apps;
-- WSL;
-- platform-specific runners.
-
-### Large-scale distributed compute
-
-This is research territory and should be approached workload by workload.
-
-### Public repository transition
-
-The repository remains private until the active public-readiness milestone adds the canonical
-Apache 2.0 license, replaces identifying examples with fictional data (including history where
-needed), audits for private material, passes the full gate, and receives a final owner confirmation.
-
-## Decision rule
-
-When deciding between two technical designs, prefer the design that:
-
-1. preserves the Circle abstraction;
-2. keeps trust explicit;
-3. keeps APIs stable;
-4. keeps platform-specific behavior isolated;
-5. can be tested on real machines;
-6. solves the current milestone without making the future impossible.
+Resolve these through the smallest prototype tied to an accepted user outcome, not through
+speculative platform design.

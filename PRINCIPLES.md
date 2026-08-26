@@ -36,6 +36,9 @@ Do not choose between "magic black box" and "sysadmin console."
 
 Default UX should be approachable.
 
+That applies to both sides of an integration: contributing a capability and using it should be
+graphical and provider-jargon-free by default.
+
 The system should still expose enough detail for a slightly technical user to understand and customize it.
 
 ## 4. Explicit contribution
@@ -131,19 +134,37 @@ Examples:
 - Circle networking is the feature; Tailscale is one provider.
 - Circle Apps is the feature; containers are one possible runtime.
 
-## 18. Do not fake distributed computing
+## 18. Own the Circle experience, integrate the machinery
+
+Balls owns Circle membership, contribution, capability discovery, authorization, lifecycle
+reconciliation, and the shared human experience.
+
+Prefer integrating mature storage, transport, remote-access, AI-runtime, and workload providers.
+Build a replacement only when evidence shows that integration cannot satisfy an accepted Circle
+requirement for usability, security, LAN/offline operation, ownership, or self-hostability.
+
+## 19. Protect the private pilot proportionally
+
+The current two- or three-person private-LAN or owner-managed Tailscale pilot needs a working
+product more urgently than defenses for hypothetical public scale.
+
+Do not bypass operating-system protections, expose private services publicly, mishandle secrets,
+delete user data, or grant unapproved access. Beyond that floor, security work must answer a
+concrete pilot risk, observed failure, or accepted release requirement.
+
+## 20. Do not fake distributed computing
 
 Aggregate resources do not magically create one computer.
 
 Balls should expose real capabilities that appropriate distributed workloads can actually use.
 
-## 19. Build vertical slices
+## 21. Build vertical slices
 
 Do not attempt the entire vision at once.
 
 Each milestone should produce a coherent useful experience while preserving the architecture needed by the larger system.
 
-## 20. Preserve the dream without overbuilding the present
+## 22. Preserve the dream without overbuilding the present
 
 A milestone can be small.
 

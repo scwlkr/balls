@@ -2,90 +2,116 @@
 
 ## Purpose
 
-This is the compact delivery index. The deeper files-first program, milestone boundaries, and
-candidate ticket maps live in [`docs/roadmap/files-first-v1.md`](docs/roadmap/files-first-v1.md).
-Current execution state lives in [`docs/STATE.md`](docs/STATE.md) and GitHub Issues.
+This roadmap is an outcome index, not an architecture queue. Current execution state lives in
+[`docs/STATE.md`](docs/STATE.md), and GitHub Issues contain only the smallest active frontier.
 
-The roadmap protects both the long-term Circle vision and the need to ship small, useful releases.
-Future milestones describe outcomes, not promises that every detail is already designed.
+The 2026-08-26 product reset preserves the implemented Circle and Circle Files foundation but
+replaces the files-only release sequence. Balls now proves the working private human experience
+before expanding the platform. See
+[`ADR 0009`](docs/decisions/0009-reset-around-private-shared-ecosystem-proof.md).
 
-## Immediate company priority
+## Now — Private Boss Demo
 
-The current priority is one privately verified, two-person company workflow: create a new
-Windows-hosted project folder, invite a trusted coworker over the private LAN, and make the
-approved folder usable on that coworker's separate Windows computer through File Explorer.
+**User outcome:** the Owner gives the boss one official download path and one private invitation.
+On a separate Windows computer, the boss installs Balls, joins through the local browser, opens the
+approved project folder in File Explorer, and edits a real ordinary work file.
 
-Existing-folder adoption, remote/Tailscale access, general-purpose providers, AI, Apps, and other
-future integrations must not delay this first useful company outcome. The source remains open and
-the broader Circle architecture remains intact.
+```text
+balls.wlkrlabs.com
+  → install
+  → join Circle
+  → open shared folder
+  → work
+```
 
-## Current checkpoint
+**Human boundary:** no PowerShell, daemon flags, IP addresses, ports, SMB credentials, object IDs,
+plan tokens, provider jargon, or manual drive-letter selection. An explicit Windows elevation
+prompt is acceptable for the exact Owner-side host mutation that requires it.
 
-[`0.2.0-alpha.1`](https://github.com/scwlkr/balls/releases/tag/0.2.0-alpha.1) is published: the
-same native daemon, structured CLI, protected state, local IPC, and hardened React workspace run
-on Windows and Linux. [`0.3.0-alpha.1`](https://github.com/scwlkr/balls/releases/tag/0.3.0-alpha.1)
-Trusted Circle is also published. Its remote v1 identity/admission security design, protected
-production credentials, bounded single-use invitations, authenticated LAN transport, persisted
-two-Node Circle admission, and one persistent Circle message passed exact-artifact independent
-and shared verification. The executable LAN Circle Files successor includes completed #56–#61
-and the verified two-Windows onboarding/file-sharing outcome in #73; #62 is the next ready final
-acceptance gate for exact artifacts, standard-user browser access, safe revocation, and any
-owner-approved release decision.
+**Environment:** approximately two or three personally trusted people over a private LAN or
+owner-managed Tailscale network.
 
-In parallel, [#48](https://github.com/scwlkr/balls/issues/48) establishes an Apple-Silicon,
-source-run macOS developer Node and required Mac fast lane. This accelerates portable, browser,
-brand, and macOS compatibility work without expanding the supported files-first v1 platform claim
-or introducing a native Mac GUI. A physical Mac joining client has now joined a Windows-anchored
-Circle over private LAN, persisted one message on both Nodes, and retained the outcome across both
-daemon restarts; a Mac Anchor/listener remains outside the claim.
+**Evidence:** exact owner-accepted GitHub Release identity; `balls.wlkrlabs.com` channel readback;
+fresh separate-Windows install; real graphical invitation/join/map/open; ordinary two-way file
+editing; elapsed onboarding time; every Owner or administrator intervention; no weakened Windows
+protection or public service exposure.
 
-## Files-first path to v1
+**Active issue:**
+[#92 — Deliver the private boss demo from official download to shared Explorer file](https://github.com/scwlkr/balls/issues/92).
 
-| Target | Outcome | State |
-| --- | --- | --- |
-| `0.1.0-alpha.2` | **Open and Fast Foundation** — public-readiness, compact agent context, fast test lanes, issue workflow, and canary artifacts | Published |
-| `0.2.0-alpha.1` | **Cross-platform Node and Web UI** — real Windows/Linux daemon and CLI plus the local TypeScript browser shell | Published |
-| `0.3.0-alpha.1` | **Trusted Circle** — invitation, authenticated membership/transport, two virtual Nodes, and one minimal persistent message | Published |
-| `0.4.0-alpha.1` | **LAN Circle Files** — privately verified two-person company onboarding and secure Windows Explorer folder access | Active |
-| `0.5.0-alpha.1` | **Operable Remote Files** — Tailscale path, existing-folder adoption, repair, revocation, installer, and updates | Planned |
-| `0.6.0-beta.1` | **Company Pilot** — formal supported Beta after the immediate two-person LAN pilot is already useful | Planned |
-| `1.0.0` | **Public Files Release** — a supported files-first Circle product | Planned |
+**Executable specification:**
+[`docs/specs/private-boss-demo-v1.md`](docs/specs/private-boss-demo-v1.md).
 
-## v1 boundary
+**Non-goals:** Balls Wizard, shared Circle AI, rich messaging, SSH/RDP, generalized providers,
+multi-Anchor replication, public-internet exposure, speculative security architecture, and broad
+release-matrix expansion.
 
-The supported v1 outcome is focused:
+## Next — Shared Ecosystem Proof
 
-- create and join a Circle;
-- see Members and Nodes;
-- run native Windows and Linux Nodes;
-- use the local browser UI and first-class CLI;
-- contribute one Windows folder to a Circle;
-- map and edit it through Windows File Explorer;
-- grant, revoke, repair, install, update, and remove access safely;
-- use LAN first and Tailscale as an optional remote transport provider.
+**User outcome:** after one installation and one Circle invitation, one Member can:
 
-One Anchor may be authoritative in v1, without automatic failover. Circle Files v1 is one live
-folder on one Node: no replication, offline sync, conflict merging, version history, or
-Balls-managed trash. Rich messaging, multiple Anchors, macOS polish, Circle AI, Circle Apps,
-distributed storage, and Circle Compute remain later work.
+1. use an approved Circle Files folder;
+2. send and receive Circle Messaging;
+3. use Circle AI running on another approved Node.
+
+The Member handles no provider address, credential, or machine configuration. One Member-removal
+intent stops future authorization for all three and reports provider cleanup honestly.
+
+**Product proof:** capabilities supplied by different computers and providers feel like one shared
+Circle rather than three unrelated tools. If this journey is not materially easier than assembling
+existing products, platform expansion pauses and the product is reconsidered.
+
+**Non-goals:** arbitrary terminal access, RDP, general app orchestration, distributed inference,
+automatic multi-Anchor failover, and broad public release.
+
+Create executable issues only after the Private Boss Demo is observed and its friction is recorded.
+The accepted cross-stage product contract is
+[`docs/specs/private-shared-ecosystem-v1.md`](docs/specs/private-shared-ecosystem-v1.md); its later
+stages are not implementation authority until they receive their own executable specifications.
+
+## Optional product-guide lane — Balls Wizard
+
+Balls Wizard is an optional on-device guide, not shared Circle AI and not a dependency of the boss
+demo. The local browser offers a bottom-right download prompt; the user explicitly chooses whether
+to install it. Balls then retrieves a pinned quantized instruction-tuned Gemma 4 E2B artifact and
+integrates it without requiring model or runtime setup.
+
+The character is a floating brand-violet ball wearing a wizard hat, derived from the canonical
+[`balls-brand.png`](balls-brand.png) visual language. It retrieves version-matched user
+documentation, cites the relevant guidance, and begins as read-only product help. Balls itself must
+remain fully usable when Balls Wizard is absent or unsupported by the local hardware.
+
+This lane starts only after the boss demo unless a tiny non-model visual placeholder directly helps
+that demo.
 
 ## Later horizons
 
-After the files-first release, grow the same Circle foundation into:
+After the shared-ecosystem proof:
 
-1. rich chat, durable history, roles, and multiple Anchors;
-2. macOS and headless/VPS polish;
-3. resilient and replicated Circle Files;
-4. Circle AI;
-5. Circle Apps and services;
-6. honest distributed workloads and Circle Compute.
+1. make the same experience operable across owner-managed Tailscale without Member setup;
+2. add Circle Apps and typed approved actions;
+3. add separately permissioned SSH/RDP integrations for technical users when evidence requires them;
+4. improve resilient Circle Files, messaging, and multiple-Anchor behavior;
+5. expand Circle AI providers and approved context;
+6. add honest workload scheduling and Circle Compute.
 
-## Roadmap rule
+## Roadmap rules
 
 Every milestone must state:
 
-1. the useful user outcome;
-2. the architectural capability proved;
-3. explicit non-goals;
-4. the smallest honest automated or environment-specific evidence;
-5. the exact artifact promoted to the next release channel.
+1. the visible human outcome;
+2. the time or intervention budget;
+3. the smallest technical capability needed for that outcome;
+4. explicit non-goals;
+5. exact observed evidence;
+6. the accepted artifact and distribution path, when software leaves the development machine.
+
+Do not start a security, architecture, provider, or cross-platform expansion unless it protects or
+unblocks the active outcome. Public tags, GitHub Releases, and download-channel changes remain
+separately owner-gated.
+
+## Historical roadmap
+
+The former files-first v1 program and unpublished `0.4.0-alpha.1` milestone are historical. Their
+implementation and verification remain valid evidence, but they no longer define current execution.
+See [`docs/roadmap/files-first-v1.md`](docs/roadmap/files-first-v1.md).

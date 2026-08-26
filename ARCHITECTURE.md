@@ -6,6 +6,11 @@ This document defines the **recommended starting architecture**, not an immutabl
 
 The product principles are more durable than specific language/framework choices.
 
+This document is also not the roadmap. The active private-pilot outcome in
+[`docs/STATE.md`](docs/STATE.md) wins over speculative platform completeness. Reuse the implemented
+security and provider machinery when it shortens that outcome; do not extend it unless a concrete
+pilot blocker or accepted release requirement demands the work.
+
 Current recommendation: keep C#/.NET as the core implementation because the existing prototype already uses it and .NET is capable of cross-platform services, networking, APIs, CLI tooling, and OS integration.
 
 Windows remains the first polished desktop platform.

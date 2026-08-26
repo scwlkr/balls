@@ -13,7 +13,14 @@ Use this directory for ADRs, threat models, protocol specifications, milestone d
 
 ## Roadmap
 
-- [`roadmap/files-first-v1.md`](roadmap/files-first-v1.md) — detailed outcome path and candidate ticket maps through v1.0.
+- [`roadmap/files-first-v1.md`](roadmap/files-first-v1.md) — historical files-first outcome path superseded by the current private shared-ecosystem reset.
+
+## Specifications
+
+- [`specs/private-shared-ecosystem-v1.md`](specs/private-shared-ecosystem-v1.md) — accepted product
+  contract and staged proof boundary.
+- [`specs/private-boss-demo-v1.md`](specs/private-boss-demo-v1.md) — the only executable product
+  specification currently ready for implementation.
 
 ## Design checkpoints
 
@@ -29,6 +36,7 @@ Use this directory for ADRs, threat models, protocol specifications, milestone d
 - [`decisions/0006-trusted-circle-identity-and-admission.md`](decisions/0006-trusted-circle-identity-and-admission.md) — remote v1 identity, admission, authenticated-channel, rejection, and recovery decision.
 - [`decisions/0007-protected-macos-developer-node.md`](decisions/0007-protected-macos-developer-node.md) — Apple-Silicon source-run host, protected state/IPC, required CI, and exact remote-TLS boundary.
 - [`decisions/0008-company-first-lan-pilot.md`](decisions/0008-company-first-lan-pilot.md) — prioritize one privately verified two-person company LAN workflow without abandoning open source or the Circle vision.
+- [`decisions/0009-reset-around-private-shared-ecosystem-proof.md`](decisions/0009-reset-around-private-shared-ecosystem-proof.md) — urgent boss demo, shared-ecosystem proof, proportional pilot security, and issue reset.
 
 ## Contracts and state
 

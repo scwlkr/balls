@@ -73,21 +73,26 @@ people • chat • files • AI • apps • nodes
 
 The magic is not that the user learned how to configure networking.
 
-The magic is that **joining the Circle made their computer useful to the group.**
+The magic is that **joining the Circle made the Circle's approved capabilities immediately useful
+to them.** Contributing anything from their computer remains a separate, explicit choice.
 
 ## Immediate proving ground
 
-The first Circle does not need to serve every organization. It needs to help two real coworkers
-share a newly created project folder over their private local network and open it in the Windows
-applications they already use.
+The first Circle does not need to serve every organization. It first needs to help two real
+coworkers download Balls, join one Circle, and work in one shared project folder through the
+Windows applications they already use.
 
 One coworker creates the Circle and folder. The other receives an invitation, joins without
 configuring networking or SMB credentials, and sees the approved folder in File Explorer. The
 owner verifies this experience privately before inviting the actual coworker.
 
-Balls remains open source, and its larger Circle vision remains intact. General-purpose
-integrations, remote connectivity, and additional product pillars follow the first working
-company experience instead of delaying it.
+The next proof must demonstrate the shared ecosystem rather than another isolated provider: the
+same Member uses Circle Files, Circle Messaging, and a Circle AI capability hosted by another Node,
+then loses those authorizations through one coherent removal intent.
+
+Balls remains open source, and its larger Circle vision remains intact. General-purpose remote
+administration and additional product pillars follow these working human experiences instead of
+delaying them.
 
 ## The workspace idea
 
