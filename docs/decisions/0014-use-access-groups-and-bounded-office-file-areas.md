@@ -17,3 +17,8 @@ legacy-file or legacy-permission migration feature.
 Accounting Office File Areas are granted only to an explicit Accounting access group. A Member's
 Capability Grants become usable from each of that Member's separately Owner-approved Nodes; Node
 approval does not create new Member authorization, and an unapproved Node receives nothing.
+
+The ordinary policy needs only Shared Office File Areas for everyone and Restricted Office File
+Areas for selected groups or people. Removing a Member stops their future Balls-managed provider
+authorization and approved-device reachability, preserves company data, and reports unreachable
+cleanup as pending without requiring an enterprise identity or offboarding system.

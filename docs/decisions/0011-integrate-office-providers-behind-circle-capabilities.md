@@ -25,3 +25,7 @@ frozen MagicDNS name. Balls enrolls each Node only after Owner approval by using
 created through a narrowly scoped, Owner-configured Tailscale trust credential; no employee handles
 a reusable network key. All Office Circle Members may use the Revit model service, while only a
 Server Administrator may reach or change the Revit Server administration surface.
+
+The initial integration has no Revit Server Accelerator. A future Accelerator is outside this
+version and may be reconsidered only through a new explicit Owner decision supported by measured
+remote-performance failure; Balls never adds one automatically.

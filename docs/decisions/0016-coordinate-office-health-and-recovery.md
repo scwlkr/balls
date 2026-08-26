@@ -17,3 +17,8 @@ The initial Revit backup operation runs after office hours, refuses to copy an u
 repository, uses Autodesk's supported whole-Host lock and status operations, stages a consistent
 copy, and unlocks before slow removable-disk or cloud transfer. Active work, incomplete lock, copy
 failure, or failed unlock produces an alert rather than a forced or silently incomplete backup.
+
+The initial product reports Office Health in Balls without requiring email or SMS delivery. Backup
+timing and recurring restore reminders are simple Owner configuration rather than separate product
+decisions. One successful coordinated restore is required before real company data becomes
+authoritative; enterprise recovery schedules are not part of this pilot.

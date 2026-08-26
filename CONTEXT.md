@@ -69,3 +69,16 @@ _Avoid_: Provider console, automatic repair
 The Owner-approved process that joins one Member's device to both the Office Circle and its private
 network without making the Member handle a separate network credential.
 _Avoid_: Shared network key, automatic Member device
+
+**Shared Office File Area**:
+An Office File Area granted to every current Office Circle Member.
+_Avoid_: Public folder, unrestricted share
+
+**Restricted Office File Area**:
+An Office File Area granted only to one or more named Capability Access Groups or Members.
+_Avoid_: Secret share, hidden folder
+
+**Run-and-gun Office Pilot**:
+The initial working deployment for two or three trusted people using exact Development software and
+simple configurable operations without claiming enterprise production maturity.
+_Avoid_: Production release, enterprise deployment

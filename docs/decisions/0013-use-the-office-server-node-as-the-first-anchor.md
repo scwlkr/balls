@@ -8,3 +8,7 @@ invitation, catalog, and coordination state remain available when an Owner's per
 offline. The Circle Authority and accepted recovery material must also have a separately protected,
 tested recovery copy; the server is the first durable home of Circle state, not the permanent owner
 or only recoverable copy of the Circle.
+
+One Office Server Node is sufficient for the initial two- or three-person deployment. Automatic
+failover and a second live server are not launch requirements; planned downtime or server failure
+temporarily removes the capabilities hosted there.
