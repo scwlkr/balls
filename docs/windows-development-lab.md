@@ -89,6 +89,32 @@ Automatic admission and synchronization ports are allocated once and stored in t
 state directory. Preserve that state during local package updates, and verify a normal shortcut
 relaunch reuses the same two ports; rotating either port strands previously joined Members.
 
+Dockur reserves TCP 445 for its `host.lan` shared-drive service instead of forwarding that port
+through its normal catch-all guest NAT. In the accepted same-host, two-container lab, add one exact
+private-bridge ingress rule after the Owner container starts. First verify the actual Owner
+container address and the Owner guest address; never copy the example addresses blindly. Then run
+the equivalent of:
+
+```bash
+owner_container=omarchy-windows
+owner_outer_address=172.18.0.2
+owner_guest_address=172.30.0.2
+
+docker exec -u 0 "$owner_container" sh -lc \
+  "iptables -t nat -C PREROUTING -i eth0 -d $owner_outer_address/32 \
+    -p tcp --dport 445 -m comment --comment BALLS_PRIVATE_SMB_DNAT \
+    -j DNAT --to-destination $owner_guest_address:445 2>/dev/null || \
+   iptables -t nat -I PREROUTING 1 -i eth0 -d $owner_outer_address/32 \
+    -p tcp --dport 445 -m comment --comment BALLS_PRIVATE_SMB_DNAT \
+    -j DNAT --to-destination $owner_guest_address:445"
+```
+
+The rule is deliberately limited to the Owner container's private `eth0` address and does not
+publish SMB on the Linux host. Reapply it after the Owner container is recreated, verify TCP 445
+from the Member container, and keep the Windows firewall Private-profile SMB rule unchanged. This
+is an accepted transport intervention for this nested-NAT lab, not a Circle identity or
+authorization mechanism and not permission to expose SMB publicly.
+
 ## Deferred physical coworker laptop
 
 The freshly installed Windows laptop is owner-approved disposable test infrastructure, but its
