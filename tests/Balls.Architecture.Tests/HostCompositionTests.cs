@@ -48,6 +48,10 @@ public sealed class HostCompositionTests
         Assert.IsInstanceOfType<Balls.Platform.UnsupportedCircleFilesLocationLauncher>(
             supported.Platform.CircleFilesLocationLauncher);
         Assert.IsNotNull(supported.Platform.CircleFilesReadiness);
+        Assert.IsInstanceOfType<Balls.Platform.UnsupportedRevitServerReadinessInspector>(
+            supported.Platform.RevitServerReadiness);
+        Assert.IsInstanceOfType<Balls.Platform.UnsupportedRevitServerMediaPicker>(
+            supported.Platform.RevitServerMediaPicker);
         Assert.AreEqual("macos-owned-state-v1", supported.PrivateMaterialProtector.Scheme);
         Assert.AreEqual("Unix-domain socket", supported.Platform.Defaults.LocalControlListenerDescription);
         Assert.AreEqual("socket", supported.Platform.Defaults.LocalControlEndpointDescription);
@@ -77,6 +81,10 @@ public sealed class HostCompositionTests
         Assert.IsInstanceOfType<Balls.Platform.UnsupportedCircleFilesLocationLauncher>(
             supported.Platform.CircleFilesLocationLauncher);
         Assert.IsNotNull(supported.Platform.CircleFilesReadiness);
+        Assert.IsInstanceOfType<Balls.Platform.UnsupportedRevitServerReadinessInspector>(
+            supported.Platform.RevitServerReadiness);
+        Assert.IsInstanceOfType<Balls.Platform.UnsupportedRevitServerMediaPicker>(
+            supported.Platform.RevitServerMediaPicker);
         Assert.AreEqual("linux-owned-state-v1", supported.PrivateMaterialProtector.Scheme);
         Assert.AreEqual("Unix-domain socket", supported.Platform.Defaults.LocalControlListenerDescription);
         Assert.AreEqual("socket", supported.Platform.Defaults.LocalControlEndpointDescription);
@@ -103,6 +111,10 @@ public sealed class HostCompositionTests
         Assert.IsInstanceOfType<Balls.Platform.Windows.WindowsCircleFilesLocationLauncher>(
             supported.Platform.CircleFilesLocationLauncher);
         Assert.IsNotNull(supported.Platform.CircleFilesReadiness);
+        Assert.IsInstanceOfType<Balls.Platform.Windows.WindowsRevitServerReadinessInspector>(
+            supported.Platform.RevitServerReadiness);
+        Assert.IsInstanceOfType<Balls.Platform.Windows.WindowsRevitServerMediaPicker>(
+            supported.Platform.RevitServerMediaPicker);
         Assert.AreEqual("windows-dpapi-current-user-v1", supported.PrivateMaterialProtector.Scheme);
         Assert.AreEqual(Environment.MachineName, supported.Platform.Defaults.NodeDisplayName);
         Assert.AreEqual(

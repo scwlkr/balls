@@ -29,6 +29,35 @@
         }
       }
     },
+    "/control/v1/revit-server/setup/inspection": {
+      "post": {
+        "tags": [
+          "ballsd"
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/InspectRevitServerSetupRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RevitServerSetupInspectionResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/control/v1/ui/launch": {
       "post": {
         "tags": [
@@ -1962,6 +1991,64 @@
         }
       }
     },
+    "/browser/v1/revit-server/setup/media-selection": {
+      "post": {
+        "tags": [
+          "ballsd"
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BrowserRevitServerMediaSelectionResponse"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/browser/v1/revit-server/setup/inspection": {
+      "post": {
+        "tags": [
+          "ballsd"
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/InspectBrowserRevitServerSetupRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RevitServerSetupInspectionResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/browser/v1/circles": {
       "get": {
         "tags": [
@@ -3157,6 +3244,31 @@
           }
         }
       },
+      "BrowserRevitServerMediaSelectionResponse": {
+        "required": [
+          "status",
+          "selectionId",
+          "fileName"
+        ],
+        "type": "object",
+        "properties": {
+          "status": {
+            "type": "string"
+          },
+          "selectionId": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "fileName": {
+            "type": [
+              "null",
+              "string"
+            ]
+          }
+        }
+      },
       "BrowserSessionResponse": {
         "required": [
           "antiforgeryToken",
@@ -3986,6 +4098,17 @@
           }
         }
       },
+      "InspectBrowserRevitServerSetupRequest": {
+        "required": [
+          "selectionId"
+        ],
+        "type": "object",
+        "properties": {
+          "selectionId": {
+            "type": "string"
+          }
+        }
+      },
       "InspectCircleFilesMemberMappingRequest": {
         "required": [
           "endpoint",
@@ -3997,6 +4120,17 @@
             "type": "string"
           },
           "driveLetter": {
+            "type": "string"
+          }
+        }
+      },
+      "InspectRevitServerSetupRequest": {
+        "required": [
+          "mediaPath"
+        ],
+        "type": "object",
+        "properties": {
+          "mediaPath": {
             "type": "string"
           }
         }
@@ -4370,6 +4504,166 @@
           },
           "status": {
             "type": "string"
+          }
+        }
+      },
+      "RevitServerReadinessCheckResponse": {
+        "required": [
+          "id",
+          "status",
+          "code",
+          "summary"
+        ],
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "code": {
+            "type": "string"
+          },
+          "summary": {
+            "type": "string"
+          }
+        }
+      },
+      "RevitServerSetupInspectionResponse": {
+        "required": [
+          "status",
+          "summary",
+          "checks",
+          "plan"
+        ],
+        "type": "object",
+        "properties": {
+          "status": {
+            "type": "string"
+          },
+          "summary": {
+            "type": "string"
+          },
+          "checks": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/RevitServerReadinessCheckResponse"
+            }
+          },
+          "plan": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/RevitServerSetupPlanResponse"
+              }
+            ]
+          }
+        }
+      },
+      "RevitServerSetupPlanResponse": {
+        "required": [
+          "planDigest",
+          "machine",
+          "windows",
+          "media",
+          "mediaSha256",
+          "enabledRoles",
+          "forbiddenRoles",
+          "dataPaths",
+          "windowsPrerequisites",
+          "aclIntent",
+          "defaultWebSiteEffects",
+          "rsnIni",
+          "firewallEffects",
+          "verificationActions",
+          "ballsOwnedState",
+          "autodeskOwnedState"
+        ],
+        "type": "object",
+        "properties": {
+          "planDigest": {
+            "type": "string"
+          },
+          "machine": {
+            "type": "string"
+          },
+          "windows": {
+            "type": "string"
+          },
+          "media": {
+            "type": "string"
+          },
+          "mediaSha256": {
+            "type": "string"
+          },
+          "enabledRoles": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "forbiddenRoles": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "dataPaths": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "windowsPrerequisites": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "aclIntent": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "defaultWebSiteEffects": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "rsnIni": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "firewallEffects": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "verificationActions": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "ballsOwnedState": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "autodeskOwnedState": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
           }
         }
       },

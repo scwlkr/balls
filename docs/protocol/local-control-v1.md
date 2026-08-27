@@ -133,6 +133,7 @@ material. Selecting JSON output for this interactive command is a usage error.
 | File Contribution | `id`, `circleId`, provider, `displayName`, lifecycle, generation, created time, authorizing Member/generation/time |
 | Member Access Grant | `id`, `circleId`, `contributionId`, `memberId`, access, lifecycle, generation, created time, authorizing Member/generation/time |
 | Circle Files readiness | `provider`, aggregate `status`, ordered checks with `id`, `status`, stable `code`, and bounded safe `summary` |
+| Revit Server setup inspection | `ready` or `blocked`, ordered stable redacted checks, and one exact digest-bound Host+Admin/no-Accelerator plan only when Ready |
 | Circle Files host plan | contract version, deterministic `planId`, provider, canonical folder path, share/rule/ownership IDs, whether the target exists, and ordered exact actions |
 | Circle Files host apply | `status` (`applied` or `already-applied`) and the unchanged host plan |
 | Circle Files grant credential plan | contract version, deterministic `planId`, provider, canonical folder/share/account/ownership IDs, access, generation, and ordered exact actions |
@@ -188,6 +189,19 @@ balls files readiness
 
 This route has no Circle identifier because it reports the local Node's host capability before any
 Contribution/provider mutation.
+
+### `POST /control/v1/revit-server/setup/inspection`
+
+Accepts `{ "mediaPath": "C:\\Media\\Revit_Server_2027_win_db.sfx.exe" }` over protected local IPC
+and returns the same read-only application result used by the browser. `blocked` has no approvable
+plan and gives stable codes plus plain next actions. `ready` includes only bounded Windows/media
+identity and the exact immutable plan: Host+Admin, Accelerator forbidden, version-isolated paths,
+documented prerequisites, portable ACL intent, Default Web Site effect, server-local `RSN.ini`,
+Private/LocalSubnet TCP 80/808 and ICMP intent, postflight checks, and ownership boundaries.
+
+The digest binds the internal media location and every inspected approval-relevant observation.
+The response does not expose raw commands, certificate dumps, SIDs, IP inventory, or internal
+object IDs. This endpoint never applies prerequisites or launches Autodesk setup.
 
 ### `POST /control/v1/circles`
 
@@ -424,6 +438,7 @@ protected local IPC; it is not reachable from the browser listener.
 | `GET /control/v1/circles/{circleId}/nodes` | `200` with `{ "circleId": "...", "nodes": [Circle Node] }` |
 | `GET /control/v1/circles/{circleId}/messages` | `200` with `{ "circleId": "...", "messages": [Circle message] }` |
 | `GET /control/v1/files/readiness` | `200` with the local Node's ordered Circle Files readiness report |
+| `POST /control/v1/revit-server/setup/inspection` | `200` with a read-only Ready/Blocked result and an exact plan only when Ready |
 | `GET /control/v1/circles/{circleId}/files/contributions` | `200` with stable ordered Contribution projections |
 | `GET /control/v1/circles/{circleId}/files/contributions/{contributionId}/grants` | `200` with stable ordered Access Grant projections |
 | `POST .../grants/{grantId}/revoke` | `200` after exact-generation revocation commits |
@@ -436,12 +451,12 @@ Circle returns `404 Not Found`.
 ## Browser adapter
 
 The browser listener serves the bundled production application and only these `/browser/v1`
-routes: session exchange, status, Circle list/create/details, exact local viewer identity, Owner
+routes: session exchange, status, Revit Server media selection/read-only setup inspection, Circle list/create/details, exact local viewer identity, Owner
 invitation creation, signed invitation admission, ordered Circle message history, authenticated
 Circle Files synchronization, Owner folder selection and contribution, safe contribution/Access
 Grant lists, and one high-level Member open operation. The browser control plane remains narrower than
 `/control/v1`; control routes return `404` on TCP and browser routes return `404` over IPC.
-Readiness, arbitrary host provisioning, grant creation, grant credential provisioning, revocation,
+Circle Files readiness, arbitrary host provisioning, grant creation, grant credential provisioning, revocation,
 infrastructure cleanup, and detailed mapping operations remain CLI/local-control only. Browser
 contribution and guided open call the same application and provider behavior as IPC; no SMB
 password, authorization proof, share name, firewall rule, endpoint, drive, plan, or protected

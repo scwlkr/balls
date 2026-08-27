@@ -21,6 +21,8 @@ public static class LinuxHostPlatform
             transport,
             transport,
             new LinuxSystemBrowserLauncher(),
+            new UnsupportedRevitServerReadinessInspector(),
+            new UnsupportedRevitServerMediaPicker(),
             new UnsupportedCircleFilesFolderPicker(),
             new UnsupportedCircleFilesReadinessInspector(),
             new UnsupportedCircleFilesHostProvisioner(),

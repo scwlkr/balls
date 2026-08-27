@@ -218,6 +218,11 @@ public sealed class DaemonStatusTests
         StringAssert.Contains(document, nameof(PreviewBrowserCircleFilesGrantRequest));
         StringAssert.Contains(document, nameof(BrowserCircleFilesGrantPreviewResponse));
         StringAssert.Contains(document, nameof(BrowserCircleFilesGrantApplyResponse));
+        StringAssert.Contains(document, ControlRoutes.RevitServerSetupInspection);
+        StringAssert.Contains(document, BrowserRoutes.RevitServerMediaSelection);
+        StringAssert.Contains(document, BrowserRoutes.RevitServerSetupInspection);
+        StringAssert.Contains(document, nameof(RevitServerSetupInspectionResponse));
+        StringAssert.Contains(document, nameof(RevitServerSetupPlanResponse));
         StringAssert.Contains(
             document,
             "/browser/v1/circles/{circleId}/files/open");

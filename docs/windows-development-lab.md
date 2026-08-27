@@ -151,6 +151,78 @@ Restrict any later cleanup to lab-owned access and rules. Do not disable unrelat
 controls, expose SSH/SMB publicly, reuse an execution path to evade a firewall block, or treat
 administrative automation access as permission to bypass an explicit operating-system decision.
 
+## Reserved Revit Server 2027 rapid-setup lab
+
+This section is the pre-operation contract for issues #114-#116. As of 2026-08-27 the disposable
+server VM is **not created and not operated**. The existing `omarchy-windows` and
+`balls-issue61-provider-desktop` guests were both running during the read-only host inventory, and
+the 23 GiB host had less than 4 GiB available across the recorded observations. Stop both before creating or starting this
+8 GiB server. Do not run Neptune or another high-memory guest concurrently.
+
+The reserved identity and ownership are:
+
+| Resource | Exact reserved value |
+| --- | --- |
+| Compose project / container | `balls-revit-server-2027-lab` |
+| Configuration owner | repository directory `eng/windows-lab/revit-server-rapid-v0/`, owned by #114; installed config root `/home/scwlkr/.config/balls-labs/revit-server-2027` |
+| Private compose values | `/home/scwlkr/.config/balls-labs/revit-server-2027/private.env`, mode `0600`; never print or commit it |
+| VM state root | `/home/scwlkr/.local/share/balls-lab/revit-server-2027` |
+| Existing storage excluded | `/home/scwlkr/.windows` and every existing VM/container disk |
+| System disk | `/home/scwlkr/.local/share/balls-lab/revit-server-2027/system/data.img`, 160 GiB sparse raw |
+| Data disk | `/home/scwlkr/.local/share/balls-lab/revit-server-2027/data/data2.img`, 128 GiB sparse raw backing one fixed local NTFS `D:` in the guest |
+| Bootstrap network | `balls-revit-server-2027-bootstrap`, `172.29.26.0/24`, container `172.29.26.2`; temporary Docker bridge NAT |
+| Acceptance network | `balls-revit-server-2027-lab`, internal private bridge `172.29.27.0/24`, container `172.29.27.2` |
+| Windows identity | hostname `BALLS-RS27-LAB`; final guest address must be recorded before setup |
+| Browser console | host `127.0.0.1:8027` to container TCP 8006 |
+| RDP diagnostic | host `127.0.0.1:3397` to container TCP/UDP 3389; never bind beyond loopback |
+| Compute | 4 vCPU, 8 GiB RAM |
+| Runtime | Dockurr Windows 6.05, source `efe47da76d49c9d77c0a26799c70315fa4d91055`, pinned image digest `sha256:0cff9eb0e7aee9953e55bc682852ca4fdca233145a58ae1ec94f0b0c01a2ed30` |
+| Installer | official `Revit_Server_2027_win_db.sfx.exe` cached inside the guest; current complete host cache is 912,600,144 bytes with SHA-256 `295b30779868b9d58d78d9ff4353e4b9c6412418274a8034db6c6e7e0d348518`, but Windows must independently verify publisher/product/version/hash; never use the company-content Revit ZIP |
+
+Before operating the #114 configuration, re-inspect live containers, memory, routes, Docker networks,
+and listeners. Stop if any reserved subnet, identity, path, or port is already in use. The compose
+configuration must not mount a Linux shared folder at or beneath `D:\RevitServer`, publish a public
+port, attach an existing VM network, or reference an existing disk.
+
+Install the repository-owned configuration and manager into the owner-only config root before first
+use, without copying any private environment file into Git. Then use only the manager commands:
+
+```bash
+install -d -m 700 /home/scwlkr/.config/balls-labs/revit-server-2027
+install -m 600 eng/windows-lab/revit-server-rapid-v0/compose*.yaml \
+  /home/scwlkr/.config/balls-labs/revit-server-2027/
+install -m 700 eng/windows-lab/revit-server-rapid-v0/manage.sh \
+  /home/scwlkr/.config/balls-labs/revit-server-2027/manage.sh
+/home/scwlkr/.config/balls-labs/revit-server-2027/manage.sh preflight
+/home/scwlkr/.config/balls-labs/revit-server-2027/manage.sh bootstrap-start
+/home/scwlkr/.config/balls-labs/revit-server-2027/manage.sh isolate
+/home/scwlkr/.config/balls-labs/revit-server-2027/manage.sh start
+/home/scwlkr/.config/balls-labs/revit-server-2027/manage.sh console
+/home/scwlkr/.config/balls-labs/revit-server-2027/manage.sh status
+/home/scwlkr/.config/balls-labs/revit-server-2027/manage.sh stop
+/home/scwlkr/.config/balls-labs/revit-server-2027/manage.sh logs
+/home/scwlkr/.config/balls-labs/revit-server-2027/manage.sh recover
+```
+
+`bootstrap-start` attaches only the temporary NAT bridge for Windows installation/update and
+official in-guest downloads. `isolate` requires a clean shutdown, removes that container/network,
+and selects the acceptance overlay. `start` attaches only the Docker-internal acceptance network.
+Verify `docker network inspect balls-revit-server-2027-lab` reports `"Internal": true` before #114
+evidence. Never use the bootstrap overlay during the setup timer or Ready/Blocked proof.
+
+`stop` is the normal shutdown and preserves both reserved disks. If Windows or Autodesk setup
+fails, stop the container, preserve the compose configuration and both disk files, record the
+failure, and diagnose from the loopback console. Do not restore, replace, truncate, or delete a
+disk to obtain a green result. Because this lab is disposable and must never contain company/model
+data, destructive rebuild is a later explicit recovery decision: first verify the exact reserved
+paths, preserve required redacted evidence, obtain Owner confirmation, and remove only the reserved
+container/network/storage. Never touch `/home/scwlkr/.windows`.
+
+The #114 path is read-only. It may select and hash the official installer and inspect Windows, IIS,
+paths, shares/mounts, roles, network/firewall state, and pending restart. It must not start the setup
+timer, add Windows features, create directories, change ACLs/firewall/IIS, launch Autodesk setup, or
+install Revit Server.
+
 ## Historical Windows-host Hyper-V environment
 
 The machine-local lab owns these resources:

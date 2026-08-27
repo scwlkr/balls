@@ -22,6 +22,8 @@ public static class MacOSHostPlatform
             transport,
             transport,
             new MacOSSystemBrowserLauncher(),
+            new UnsupportedRevitServerReadinessInspector(),
+            new UnsupportedRevitServerMediaPicker(),
             new UnsupportedCircleFilesFolderPicker(),
             new UnsupportedCircleFilesReadinessInspector(),
             new UnsupportedCircleFilesHostProvisioner(),

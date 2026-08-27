@@ -48,6 +48,8 @@ public sealed record HostPlatform(
     ILocalControlServerTransport LocalControlServer,
     ILocalControlClientTransport LocalControlClient,
     ISystemBrowserLauncher SystemBrowser,
+    IRevitServerReadinessInspector RevitServerReadiness,
+    IRevitServerMediaPicker RevitServerMediaPicker,
     ICircleFilesFolderPicker CircleFilesFolderPicker,
     ICircleFilesReadinessInspector CircleFilesReadiness,
     ICircleFilesHostProvisioner CircleFilesHosting,

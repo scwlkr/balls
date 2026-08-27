@@ -12,6 +12,7 @@ import type {
 import { BrandMark } from "./components/BrandMark";
 import { CircleWorkspace } from "./components/CircleWorkspace";
 import { StatusBanner } from "./components/StatusBanner";
+import { RevitServerSetupPanel } from "./components/RevitServerSetupPanel";
 import type { DashboardSnapshot } from "./presentation/DashboardSnapshot";
 import { toMessage } from "./presentation/toMessage";
 
@@ -276,6 +277,7 @@ function Workspace({
   return (
     <>
       <StatusBanner snapshot={statusSnapshot} />
+      <RevitServerSetupPanel api={api} />
       {workspace.circles.length > 0 ? (
         <nav
           className="circle-switcher"

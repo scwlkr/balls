@@ -24,6 +24,8 @@ public static class WindowsHostPlatform
             transport,
             transport,
             new WindowsSystemBrowserLauncher(),
+            new WindowsRevitServerReadinessInspector(),
+            new WindowsRevitServerMediaPicker(),
             new WindowsCircleFilesFolderPicker(),
             new WindowsSmbReadinessInspector(),
             new WindowsCircleFilesHostProvisioner(),

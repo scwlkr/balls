@@ -121,6 +121,12 @@ data in the lab. A graphical console is allowed for Windows and Autodesk setup; 
 be headless. Follow the [`manual checklist`](verification/revit-server-rapid-setup-v0-checklist.md)
 and update [`windows-development-lab.md`](windows-development-lab.md) before operating the new VM.
 
+Issue #114's source implementation provides the separate read-only Windows inspection, session-bound
+native media selection, local-control/browser application path, and exact digest-bound preview. Its
+deterministic focused tests pass, but the disposable Windows Server graphical and no-mutation risk
+gate is `NOT RUN`; no Revit installation or health is claimed. See the
+[dated verification record](verification/2026-08-27-revit-server-readiness-preview.md).
+
 ## Continue
 
 1. Complete #114's read-only Windows Server/media inspection and graphical setup preview.
