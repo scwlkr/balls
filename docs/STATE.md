@@ -1,6 +1,6 @@
 # Current State
 
-**Updated:** 2026-08-26
+**Updated:** 2026-08-27
 
 This is the compact execution entry point. Read [`AGENTS.md`](../AGENTS.md), this file, and the one
 active issue before loading deeper design or verification records.
@@ -26,8 +26,11 @@ object IDs, plan tokens, provider language, or manual drive selection.
 
 **Milestone:** [Private Boss Demo](https://github.com/scwlkr/balls/milestone/8)
 
-**Only active issue:**
+**Active parent:**
 [#92 — Deliver the private boss demo from official download to shared Explorer file](https://github.com/scwlkr/balls/issues/92)
+
+**Only ready child:**
+[#103 — Promote the rehearsed assets to Alpha and verify live startup](https://github.com/scwlkr/balls/issues/103)
 
 **Executable specification:**
 [`specs/private-boss-demo-v1.md`](specs/private-boss-demo-v1.md)
@@ -67,20 +70,19 @@ Current `main` contains substantial reusable work:
 
 Reuse this machinery where it shortens #92. Do not expand it for hypothetical future requirements.
 
-## Known blockers in the human journey
+## Rehearsed human journey
 
-- The exact `1218b57d8d37` Development package is live and the clean Owner profile installed and
-  relaunched it through the normal shortcut under effective `Restricted` policy. A replacement
-  package containing the direct fixed grant-helper command must receive the same immutable release
-  and clean-profile checks before the complete rehearsal.
-- The graphical Owner contribute/grant flow is automated, but its real standard-user Windows
-  folder-picker, elevation, and helper retry behavior still needs checklist observation.
-- Real Windows mapping was previously triggered through the CLI. The browser now maps and launches
-  File Explorer through one action, but that complete packaged click under a genuine standard user
-  remains unobserved.
-- Published Windows packages are unsigned; do not bypass Windows application-control policy.
-
-Issue #92 owns only the smallest fixes and evidence needed to cross these blockers.
+- The immutable `development-20260827T045203Z-39cd15e5ffdf` package is the exact green-`main`
+  candidate for Alpha.
+- The Owner confirmed normal shortcut launch, the graphical contribution and grant flow, and the
+  preserved pre-existing file in `C:\BallsDemo\Projects`.
+- A genuine nonadministrator Member confirmed normal shortcut launch, the one-action Explorer open,
+  reading the pre-existing file, and creating, renaming, and deleting a disposable file with the
+  same result visible on the Owner.
+- This is same-host two-VM evidence over the current nested-NAT lab, not a physical-device claim.
+- The final gate is to move only the Alpha pointer to those exact assets, read it back, and verify
+  normal startup. Published Windows packages remain unsigned; do not bypass Windows
+  application-control policy.
 
 ## Product reset boundary
 
@@ -114,11 +116,8 @@ evidence and completes #92 without making a physical-device claim. Follow the
 
 ## Continue
 
-1. Work only #92.
-2. Read and preserve the accepted boundaries in the executable specification.
-3. Reproduce the current official-download-to-boss journey before changing it.
-4. Implement the smallest missing graphical path and packaging changes.
-5. Run focused automated tests, then the checklist-driven two-VM Windows journey.
-6. Record exact elapsed time, interventions, artifact identity, and limitations.
-7. After the exact green-`main` Development package passes, stop for Owner approval before moving
-   Alpha to the identical assets.
+1. Complete #103 without rebuilding or replacing the rehearsed assets.
+2. Merge the Alpha-pointer change after one required PR CI cycle.
+3. Deploy the exact merged download site, then read back the live pointer and asset identities.
+4. Verify copied Alpha install and normal shortcut startup on an authorized Windows profile.
+5. Record the observed evidence and limitations, then close #103 and #92.

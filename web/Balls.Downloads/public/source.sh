@@ -1,8 +1,9 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# macOS is source-only: this fetches one accepted release and does not install an app.
-manifest_url="https://balls.wlkrlabs.com/channels/alpha.json"
+# macOS is source-only: keep it on the exact hash-pinned cross-platform manifest
+# that preceded the current Windows-only Alpha package.
+manifest_url="https://balls.wlkrlabs.com/legacy/0.3.0-alpha.1-cross-platform.json"
 
 if [[ "$(uname -s)" != "Darwin" || "$(uname -m)" != "arm64" ]]; then
   echo "The Balls macOS developer lane currently targets Apple silicon." >&2
