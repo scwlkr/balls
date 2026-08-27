@@ -60,6 +60,7 @@ public static class WindowsDataDirectorySecurity
                 "balls.db-wal",
                 "balls.db-shm",
                 "ballsd.lock",
+                "automatic-private-listeners-v1.json",
             };
             if (entries.Any(entry => !allowedNames.Contains(Path.GetFileName(entry))))
             {
@@ -107,6 +108,7 @@ public static class WindowsDataDirectorySecurity
                      "balls.db-wal",
                      "balls.db-shm",
                      "ballsd.lock",
+                     "automatic-private-listeners-v1.json",
                  })
         {
             var file = new FileInfo(Path.Combine(fullPath, fileName));

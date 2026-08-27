@@ -29,6 +29,9 @@ public sealed class LinuxStateSecurityTests
         var database = Path.Combine(stateDirectory, "balls.db");
         File.WriteAllText(database, string.Empty);
         File.SetUnixFileMode(database, UnixFileMode.UserRead | UnixFileMode.UserWrite | UnixFileMode.OtherRead);
+        var listeners = Path.Combine(stateDirectory, "automatic-private-listeners-v1.json");
+        File.WriteAllText(listeners, "{}");
+        File.SetUnixFileMode(listeners, UnixFileMode.UserRead | UnixFileMode.OtherRead);
         LinuxDataDirectorySecurity.Prepare(stateDirectory);
 
         Assert.AreEqual(PrivateDirectoryMode, File.GetUnixFileMode(stateDirectory));
@@ -36,6 +39,7 @@ public sealed class LinuxStateSecurityTests
             PrivateFileMode,
             File.GetUnixFileMode(Path.Combine(stateDirectory, ".balls-state")));
         Assert.AreEqual(PrivateFileMode, File.GetUnixFileMode(database));
+        Assert.AreEqual(PrivateFileMode, File.GetUnixFileMode(listeners));
     }
 
     [TestMethod]

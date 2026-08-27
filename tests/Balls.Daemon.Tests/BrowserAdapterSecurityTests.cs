@@ -537,22 +537,12 @@ public sealed partial class BrowserAdapterSecurityTests
     public async Task Browser_invitation_can_project_a_private_nat_address_without_changing_listener_bindings()
     {
         using var directory = new TemporaryDirectory();
-        var bindAddress = NetworkInterface.GetAllNetworkInterfaces()
-            .Where(network => network.OperationalStatus == OperationalStatus.Up)
-            .SelectMany(network => network.GetIPProperties().UnicastAddresses)
-            .Select(unicast => unicast.Address)
-            .Where(LanTcpEndpoint.IsPrivateIPv4)
-            .OrderBy(address => address.ToString(), StringComparer.Ordinal)
-            .FirstOrDefault();
-        if (bindAddress is null)
+        var privateAddress = SelectBindablePrivateAddress();
+        if (privateAddress?.Address is not { } bindAddress)
         {
             Assert.Inconclusive("This host does not have an operational private IPv4 address.");
             return;
         }
-        var privateAddress = new PrivateIPv4AddressSelection(
-            bindAddress,
-            null,
-            "One private network connection is ready.");
         var advertisedAddress = bindAddress.Equals(IPAddress.Parse("10.254.254.254"))
             ? IPAddress.Parse("10.254.254.253")
             : IPAddress.Parse("10.254.254.254");
@@ -600,6 +590,69 @@ public sealed partial class BrowserAdapterSecurityTests
         Assert.AreEqual(
             IPEndPoint.Parse(daemon.MessageAddress.Value).Port,
             IPEndPoint.Parse(invitation.SyncEndpoint).Port);
+    }
+
+    [TestMethod]
+    public async Task Automatic_private_listener_ports_survive_daemon_relaunch()
+    {
+        using var directory = new TemporaryDirectory();
+        var privateAddress = SelectBindablePrivateAddress();
+        if (privateAddress is null)
+        {
+            Assert.Inconclusive("This host does not have an operational private IPv4 address.");
+            return;
+        }
+
+        string admissionAddress;
+        string messageAddress;
+        await using (var first = await StartDaemonAsync(
+                         directory.Path,
+                         automaticPrivateListeners: true,
+                         privateAddressSelector: () => privateAddress))
+        {
+            admissionAddress = first.AdmissionAddress!.Value;
+            messageAddress = first.MessageAddress!.Value;
+        }
+
+        await using var relaunched = await StartDaemonAsync(
+            directory.Path,
+            automaticPrivateListeners: true,
+            privateAddressSelector: () => privateAddress);
+
+        Assert.AreEqual(admissionAddress, relaunched.AdmissionAddress!.Value);
+        Assert.AreEqual(messageAddress, relaunched.MessageAddress!.Value);
+    }
+
+    [TestMethod]
+    public async Task Invalid_automatic_private_listener_port_record_fails_closed()
+    {
+        using var directory = new TemporaryDirectory();
+        var privateAddress = SelectBindablePrivateAddress();
+        if (privateAddress is null)
+        {
+            Assert.Inconclusive("This host does not have an operational private IPv4 address.");
+            return;
+        }
+
+        await using (var daemon = await StartDaemonAsync(
+                         directory.Path,
+                         automaticPrivateListeners: true,
+                         privateAddressSelector: () => privateAddress))
+        {
+        }
+
+        await File.WriteAllTextAsync(
+            Path.Combine(
+                directory.Path,
+                "state",
+                AutomaticPrivateListenerPortStore.FileName),
+            "{\"schemaVersion\":1,\"admissionPort\":40321,\"messagePort\":40321}");
+
+        await Assert.ThrowsExactlyAsync<InvalidDataException>(
+            () => StartDaemonAsync(
+                directory.Path,
+                automaticPrivateListeners: true,
+                privateAddressSelector: () => privateAddress));
     }
 
     [TestMethod]
@@ -925,6 +978,23 @@ public sealed partial class BrowserAdapterSecurityTests
     {
         var launchUri = new Uri(launch.Url, UriKind.Absolute);
         return new Uri(launchUri.GetLeftPart(UriPartial.Authority) + "/", UriKind.Absolute);
+    }
+
+    private static PrivateIPv4AddressSelection? SelectBindablePrivateAddress()
+    {
+        var bindAddress = NetworkInterface.GetAllNetworkInterfaces()
+            .Where(network => network.OperationalStatus == OperationalStatus.Up)
+            .SelectMany(network => network.GetIPProperties().UnicastAddresses)
+            .Select(unicast => unicast.Address)
+            .Where(LanTcpEndpoint.IsPrivateIPv4)
+            .OrderBy(address => address.ToString(), StringComparer.Ordinal)
+            .FirstOrDefault();
+        return bindAddress is null
+            ? null
+            : new PrivateIPv4AddressSelection(
+                bindAddress,
+                null,
+                "One private network connection is ready.");
     }
 
     private static string ReadCapability(string launchUrl)

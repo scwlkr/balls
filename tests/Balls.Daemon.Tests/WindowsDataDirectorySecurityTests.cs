@@ -24,7 +24,9 @@ public sealed class WindowsDataDirectorySecurityTests
         Directory.CreateDirectory(stateDirectory);
 
         WindowsDataDirectorySecurity.Prepare(stateDirectory);
-        var existingStateFile = Path.Combine(stateDirectory, "ballsd.lock");
+        var existingStateFile = Path.Combine(
+            stateDirectory,
+            "automatic-private-listeners-v1.json");
         File.WriteAllText(existingStateFile, "existing");
         WindowsDataDirectorySecurity.Prepare(stateDirectory);
 

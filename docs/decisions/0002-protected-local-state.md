@@ -36,7 +36,8 @@ The Linux platform adapter provides the equivalent native boundary:
   to the effective user (a root-owned sticky parent is accepted only when creating a private
   runtime directory, not state directly);
 - the state directory must belong to the effective user and is set to `0700`; the marker, database,
-  sidecars, and lease must be regular user-owned files and are set to `0600`;
+  sidecars, lease, and automatic private-listener port record must be regular user-owned files and
+  are set to `0600`;
 - the same exact marker and allowlist used on Windows distinguish dedicated Balls state from an
   arbitrary directory. Unknown entries and ownership/type mismatches fail before modification.
 

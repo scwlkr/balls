@@ -18,6 +18,7 @@ public static class MacOSDataDirectorySecurity
         "balls.db-wal",
         "balls.db-shm",
         "ballsd.lock",
+        "automatic-private-listeners-v1.json",
     };
 
     public static string Prepare(string path)

@@ -18,6 +18,7 @@ public static class LinuxDataDirectorySecurity
         "balls.db-wal",
         "balls.db-shm",
         "ballsd.lock",
+        "automatic-private-listeners-v1.json",
     };
     private static readonly HashSet<string> SupportedLocalFileSystems = new(StringComparer.Ordinal)
     {

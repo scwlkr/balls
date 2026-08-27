@@ -85,6 +85,10 @@ this as a lab intervention: a manually supplied projection is not final checklis
 mergeable result must either make the projection automatic for the accepted topology or update the
 accepted lab contract explicitly.
 
+Automatic admission and synchronization ports are allocated once and stored in the protected Balls
+state directory. Preserve that state during local package updates, and verify a normal shortcut
+relaunch reuses the same two ports; rotating either port strands previously joined Members.
+
 ## Deferred physical coworker laptop
 
 The freshly installed Windows laptop is owner-approved disposable test infrastructure, but its

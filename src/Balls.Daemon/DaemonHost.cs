@@ -121,11 +121,6 @@ public static class DaemonHost
             && messageListenEndpoint is null)
         {
             automaticPrivateAddress = (privateAddressSelector ?? PrivateIPv4AddressSelector.SelectCurrent)();
-            if (automaticPrivateAddress.Address is not null)
-            {
-                admissionListenEndpoint = new IPEndPoint(automaticPrivateAddress.Address, 0);
-                messageListenEndpoint = new IPEndPoint(automaticPrivateAddress.Address, 0);
-            }
         }
 
         var securedDataDirectory = host.LocalState.Prepare(options.DataDirectory);
@@ -142,6 +137,17 @@ public static class DaemonHost
 
         try
         {
+            if (automaticPrivateAddress?.Address is not null)
+            {
+                var savedPorts = AutomaticPrivateListenerPortStore.Load(securedDataDirectory);
+                admissionListenEndpoint = new IPEndPoint(
+                    automaticPrivateAddress.Address,
+                    savedPorts?.AdmissionPort ?? 0);
+                messageListenEndpoint = new IPEndPoint(
+                    automaticPrivateAddress.Address,
+                    savedPorts?.MessagePort ?? 0);
+            }
+
             store = await SqliteLocalStateStore
                 .OpenAsync(securedDataDirectory, privateMaterialProtector, cancellationToken)
                 .ConfigureAwait(false);
@@ -255,6 +261,18 @@ public static class DaemonHost
                 invitationListeners = BrowserInvitationListenerState.Unavailable(
                     "private_network_unavailable",
                     "Balls could not open private network connections for invitations on this device.");
+            }
+
+            if (automaticPrivateAddress is not null
+                && admissionListener is not null
+                && messageListener is not null)
+            {
+                AutomaticPrivateListenerPortStore.SaveIfMissing(
+                    securedDataDirectory,
+                    AutomaticPrivateListenerPorts.FromBoundAddresses(
+                        admissionListener.BoundAddress,
+                        messageListener.BoundAddress));
+                host.LocalState.Prepare(securedDataDirectory);
             }
 
             if (admissionListener is not null)
