@@ -38,6 +38,12 @@ object IDs, plan tokens, provider language, or manual drive selection.
 Do not create or begin another feature issue until #92 is observed end to end or a concrete blocker
 is split from it.
 
+**Owner-authorized isolated exception:**
+[#118 — Install and use the local Balls Wizard product guide](https://github.com/scwlkr/balls/issues/118)
+may proceed in `/home/scwlkr/Dev/balls-wizard` without modifying or operating the active delivery
+worktrees or lab. It remains an optional lane, does not replace the urgent frontier, and stops
+before merge. See [`specs/balls-wizard-v0.md`](specs/balls-wizard-v0.md).
+
 ## Private-pilot delivery posture
 
 Balls currently serves approximately two or three personally trusted people over a private LAN or

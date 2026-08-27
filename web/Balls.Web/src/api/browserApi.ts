@@ -12,6 +12,9 @@ import type {
   CircleViewerDto,
   CircleFilesSyncDto,
   JoinBrowserCircleDto,
+  BrowserBallsWizardStatusDto,
+  BrowserBallsWizardChatDto,
+  BrowserBallsWizardChatMessageDto,
 } from "./localControl";
 
 interface ErrorDto {
@@ -89,6 +92,14 @@ export interface BrowserApi {
     contributionId: string,
   ): Promise<MemberAccessGrantListDto>;
   openFiles(circleId: string): Promise<BrowserCircleFilesOpenDto>;
+  getWizardStatus(): Promise<BrowserBallsWizardStatusDto>;
+  installWizard(): Promise<BrowserBallsWizardStatusDto>;
+  cancelWizardInstall(): Promise<BrowserBallsWizardStatusDto>;
+  removeWizard(): Promise<BrowserBallsWizardStatusDto>;
+  chatWithWizard(
+    localRole: "owner" | "member" | "none",
+    messages: BrowserBallsWizardChatMessageDto[],
+  ): Promise<BrowserBallsWizardChatDto>;
 }
 
 class FetchBrowserApi implements BrowserApi {
@@ -240,6 +251,47 @@ class FetchBrowserApi implements BrowserApi {
       `/browser/v1/circles/${encodeURIComponent(circleId)}/files/open`,
       {},
       "Run balls ui again to open your shared folder.",
+    );
+  }
+
+  getWizardStatus() {
+    return this.request<BrowserBallsWizardStatusDto>("/browser/v1/wizard");
+  }
+
+  installWizard() {
+    return this.authenticatedRequest<BrowserBallsWizardStatusDto>(
+      "/browser/v1/wizard/install",
+      {},
+      "Run balls ui again to download Wizard.",
+    );
+  }
+
+  cancelWizardInstall() {
+    return this.authenticatedRequest<BrowserBallsWizardStatusDto>(
+      "/browser/v1/wizard/cancel",
+      {},
+      "Run balls ui again to pause the Wizard download.",
+    );
+  }
+
+  removeWizard() {
+    if (!this.antiforgeryToken) {
+      throw new Error("Run balls ui again to remove Wizard.");
+    }
+    return this.request<BrowserBallsWizardStatusDto>("/browser/v1/wizard", {
+      method: "DELETE",
+      headers: { "X-Balls-Antiforgery": this.antiforgeryToken },
+    });
+  }
+
+  chatWithWizard(
+    localRole: "owner" | "member" | "none",
+    messages: BrowserBallsWizardChatMessageDto[],
+  ) {
+    return this.authenticatedRequest<BrowserBallsWizardChatDto>(
+      "/browser/v1/wizard/chat",
+      { localRole, messages },
+      "Run balls ui again to ask Wizard.",
     );
   }
 

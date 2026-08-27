@@ -48,6 +48,8 @@ public sealed class HostCompositionTests
         Assert.IsInstanceOfType<Balls.Platform.UnsupportedCircleFilesLocationLauncher>(
             supported.Platform.CircleFilesLocationLauncher);
         Assert.IsNotNull(supported.Platform.CircleFilesReadiness);
+        Assert.IsInstanceOfType<Balls.Platform.UnsupportedBallsWizardPlatform>(
+            supported.Platform.BallsWizard);
         Assert.AreEqual("macos-owned-state-v1", supported.PrivateMaterialProtector.Scheme);
         Assert.AreEqual("Unix-domain socket", supported.Platform.Defaults.LocalControlListenerDescription);
         Assert.AreEqual("socket", supported.Platform.Defaults.LocalControlEndpointDescription);
@@ -77,6 +79,8 @@ public sealed class HostCompositionTests
         Assert.IsInstanceOfType<Balls.Platform.UnsupportedCircleFilesLocationLauncher>(
             supported.Platform.CircleFilesLocationLauncher);
         Assert.IsNotNull(supported.Platform.CircleFilesReadiness);
+        Assert.IsInstanceOfType<Balls.Platform.UnsupportedBallsWizardPlatform>(
+            supported.Platform.BallsWizard);
         Assert.AreEqual("linux-owned-state-v1", supported.PrivateMaterialProtector.Scheme);
         Assert.AreEqual("Unix-domain socket", supported.Platform.Defaults.LocalControlListenerDescription);
         Assert.AreEqual("socket", supported.Platform.Defaults.LocalControlEndpointDescription);
@@ -103,6 +107,8 @@ public sealed class HostCompositionTests
         Assert.IsInstanceOfType<Balls.Platform.Windows.WindowsCircleFilesLocationLauncher>(
             supported.Platform.CircleFilesLocationLauncher);
         Assert.IsNotNull(supported.Platform.CircleFilesReadiness);
+        Assert.IsInstanceOfType<Balls.Platform.Windows.WindowsBallsWizardPlatform>(
+            supported.Platform.BallsWizard);
         Assert.AreEqual("windows-dpapi-current-user-v1", supported.PrivateMaterialProtector.Scheme);
         Assert.AreEqual(Environment.MachineName, supported.Platform.Defaults.NodeDisplayName);
         Assert.AreEqual(

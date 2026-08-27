@@ -153,7 +153,8 @@ internal static class BrowserAdapter
         InvitationApplication invitationApplication,
         TrustedCircleAdmissionApplication admissionApplication,
         BrowserInvitationListenerState invitationListeners,
-        BrowserAccessBroker access)
+        BrowserAccessBroker access,
+        BallsWizardApplication wizardApplication)
     {
         application.MapPost(
                 BrowserRoutes.Session,
@@ -190,6 +191,35 @@ internal static class BrowserAdapter
             .WithMetadata(BrowserSessionBootstrapMetadata.Instance)
             .Produces<BrowserSessionResponse>(StatusCodes.Status200OK)
             .Produces<ErrorResponse>(StatusCodes.Status401Unauthorized);
+        application.MapGet(
+                BrowserRoutes.Wizard,
+                (CancellationToken token) =>
+                    BrowserBallsWizardEndpoints.GetStatusAsync(wizardApplication, token))
+            .Produces<BrowserBallsWizardStatusResponse>(StatusCodes.Status200OK);
+        application.MapPost(
+                BrowserRoutes.WizardInstall,
+                (CancellationToken token) =>
+                    BrowserBallsWizardEndpoints.StartInstallAsync(wizardApplication, token))
+            .Produces<BrowserBallsWizardStatusResponse>(StatusCodes.Status202Accepted)
+            .Produces<ErrorResponse>(StatusCodes.Status400BadRequest);
+        application.MapPost(
+                BrowserRoutes.WizardCancel,
+                (CancellationToken token) =>
+                    BrowserBallsWizardEndpoints.CancelInstallAsync(wizardApplication, token))
+            .Produces<BrowserBallsWizardStatusResponse>(StatusCodes.Status200OK);
+        application.MapPost(
+                BrowserRoutes.WizardChat,
+                (BrowserBallsWizardChatRequest request, CancellationToken token) =>
+                    BrowserBallsWizardEndpoints.ChatAsync(wizardApplication, request, token))
+            .Produces<BrowserBallsWizardChatResponse>(StatusCodes.Status200OK)
+            .Produces<ErrorResponse>(StatusCodes.Status400BadRequest)
+            .Produces<ErrorResponse>(StatusCodes.Status502BadGateway);
+        application.MapDelete(
+                BrowserRoutes.Wizard,
+                (CancellationToken token) =>
+                    BrowserBallsWizardEndpoints.RemoveAsync(wizardApplication, token))
+            .Produces<BrowserBallsWizardStatusResponse>(StatusCodes.Status200OK)
+            .Produces<ErrorResponse>(StatusCodes.Status409Conflict);
         application.MapGet(
                 BrowserRoutes.Status,
                 async (CancellationToken token) =>
@@ -496,7 +526,7 @@ internal static class BrowserAdapter
             context.RequestAborted);
     }
 
-    private static string GetProductVersion()
+    internal static string GetProductVersion()
     {
         var informationalVersion = typeof(BrowserAdapter).Assembly
             .GetCustomAttribute<AssemblyInformationalVersionAttribute>()?

@@ -7,6 +7,10 @@ public static class BrowserRoutes
     public const string Status = BasePath + "/status";
     public const string Circles = BasePath + "/circles";
     public const string CircleJoin = Circles + "/join";
+    public const string Wizard = BasePath + "/wizard";
+    public const string WizardInstall = Wizard + "/install";
+    public const string WizardCancel = Wizard + "/cancel";
+    public const string WizardChat = Wizard + "/chat";
 
     public static string Circle(string circleId)
     {
@@ -139,3 +143,51 @@ public sealed record BrowserCircleFilesGrantApplyResponse(
     string MemberName,
     string Access,
     string Message);
+
+public sealed record BrowserBallsWizardArtifactResponse(
+    string Id,
+    string DisplayName,
+    string Version,
+    string Source,
+    long SizeBytes,
+    string Sha256,
+    string License);
+
+public sealed record BrowserBallsWizardSystemContextResponse(
+    string OperatingSystem,
+    string OperatingSystemArchitecture,
+    string ProcessArchitecture,
+    string Cpu,
+    IReadOnlyList<string> Gpus,
+    long TotalMemoryBytes,
+    long AvailableMemoryBytes,
+    long FreeStorageBytes);
+
+public sealed record BrowserBallsWizardStatusResponse(
+    string Support,
+    string Installation,
+    string Stage,
+    string Code,
+    string Message,
+    string WizardVersion,
+    long DownloadedBytes,
+    long TotalDownloadBytes,
+    long RequiredStorageBytes,
+    bool CanInstall,
+    bool CanCancel,
+    bool CanChat,
+    bool CanRemove,
+    BrowserBallsWizardSystemContextResponse SystemContext,
+    IReadOnlyList<BrowserBallsWizardArtifactResponse> Artifacts);
+
+public sealed record BrowserBallsWizardChatMessageRequest(string Role, string Content);
+
+public sealed record BrowserBallsWizardChatRequest(
+    string LocalRole,
+    IReadOnlyList<BrowserBallsWizardChatMessageRequest> Messages);
+
+public sealed record BrowserBallsWizardSourceResponse(string Id, string Title);
+
+public sealed record BrowserBallsWizardChatResponse(
+    string Answer,
+    IReadOnlyList<BrowserBallsWizardSourceResponse> Sources);

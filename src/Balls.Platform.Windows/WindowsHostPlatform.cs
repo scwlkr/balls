@@ -30,7 +30,8 @@ public static class WindowsHostPlatform
             new WindowsCircleFilesGrantCredentialProvisioner(),
             new WindowsCircleFilesMemberMapper(),
             new WindowsCircleFilesLocationLauncher(),
-            new WindowsCircleFilesLifecycleManager());
+            new WindowsCircleFilesLifecycleManager(),
+            new WindowsBallsWizardPlatform());
     }
 
     private sealed class WindowsLocalStatePreparer : ILocalStatePreparer

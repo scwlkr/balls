@@ -1943,6 +1943,149 @@
         }
       }
     },
+    "/browser/v1/wizard": {
+      "get": {
+        "tags": [
+          "ballsd"
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BrowserBallsWizardStatusResponse"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "ballsd"
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BrowserBallsWizardStatusResponse"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/browser/v1/wizard/install": {
+      "post": {
+        "tags": [
+          "ballsd"
+        ],
+        "responses": {
+          "202": {
+            "description": "Accepted",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BrowserBallsWizardStatusResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/browser/v1/wizard/cancel": {
+      "post": {
+        "tags": [
+          "ballsd"
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BrowserBallsWizardStatusResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/browser/v1/wizard/chat": {
+      "post": {
+        "tags": [
+          "ballsd"
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/BrowserBallsWizardChatRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BrowserBallsWizardChatResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "502": {
+            "description": "Bad Gateway",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/browser/v1/status": {
       "get": {
         "tags": [
@@ -2955,6 +3098,254 @@
           },
           "planId": {
             "type": "string"
+          }
+        }
+      },
+      "BrowserBallsWizardArtifactResponse": {
+        "required": [
+          "id",
+          "displayName",
+          "version",
+          "source",
+          "sizeBytes",
+          "sha256",
+          "license"
+        ],
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "displayName": {
+            "type": "string"
+          },
+          "version": {
+            "type": "string"
+          },
+          "source": {
+            "type": "string"
+          },
+          "sizeBytes": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int64"
+          },
+          "sha256": {
+            "type": "string"
+          },
+          "license": {
+            "type": "string"
+          }
+        }
+      },
+      "BrowserBallsWizardChatMessageRequest": {
+        "required": [
+          "role",
+          "content"
+        ],
+        "type": "object",
+        "properties": {
+          "role": {
+            "type": "string"
+          },
+          "content": {
+            "type": "string"
+          }
+        }
+      },
+      "BrowserBallsWizardChatRequest": {
+        "required": [
+          "localRole",
+          "messages"
+        ],
+        "type": "object",
+        "properties": {
+          "localRole": {
+            "type": "string"
+          },
+          "messages": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/BrowserBallsWizardChatMessageRequest"
+            }
+          }
+        }
+      },
+      "BrowserBallsWizardChatResponse": {
+        "required": [
+          "answer",
+          "sources"
+        ],
+        "type": "object",
+        "properties": {
+          "answer": {
+            "type": "string"
+          },
+          "sources": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/BrowserBallsWizardSourceResponse"
+            }
+          }
+        }
+      },
+      "BrowserBallsWizardSourceResponse": {
+        "required": [
+          "id",
+          "title"
+        ],
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "title": {
+            "type": "string"
+          }
+        }
+      },
+      "BrowserBallsWizardStatusResponse": {
+        "required": [
+          "support",
+          "installation",
+          "stage",
+          "code",
+          "message",
+          "wizardVersion",
+          "downloadedBytes",
+          "totalDownloadBytes",
+          "requiredStorageBytes",
+          "canInstall",
+          "canCancel",
+          "canChat",
+          "canRemove",
+          "systemContext",
+          "artifacts"
+        ],
+        "type": "object",
+        "properties": {
+          "support": {
+            "type": "string"
+          },
+          "installation": {
+            "type": "string"
+          },
+          "stage": {
+            "type": "string"
+          },
+          "code": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "wizardVersion": {
+            "type": "string"
+          },
+          "downloadedBytes": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int64"
+          },
+          "totalDownloadBytes": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int64"
+          },
+          "requiredStorageBytes": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int64"
+          },
+          "canInstall": {
+            "type": "boolean"
+          },
+          "canCancel": {
+            "type": "boolean"
+          },
+          "canChat": {
+            "type": "boolean"
+          },
+          "canRemove": {
+            "type": "boolean"
+          },
+          "systemContext": {
+            "$ref": "#/components/schemas/BrowserBallsWizardSystemContextResponse"
+          },
+          "artifacts": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/BrowserBallsWizardArtifactResponse"
+            }
+          }
+        }
+      },
+      "BrowserBallsWizardSystemContextResponse": {
+        "required": [
+          "operatingSystem",
+          "operatingSystemArchitecture",
+          "processArchitecture",
+          "cpu",
+          "gpus",
+          "totalMemoryBytes",
+          "availableMemoryBytes",
+          "freeStorageBytes"
+        ],
+        "type": "object",
+        "properties": {
+          "operatingSystem": {
+            "type": "string"
+          },
+          "operatingSystemArchitecture": {
+            "type": "string"
+          },
+          "processArchitecture": {
+            "type": "string"
+          },
+          "cpu": {
+            "type": "string"
+          },
+          "gpus": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "totalMemoryBytes": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int64"
+          },
+          "availableMemoryBytes": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int64"
+          },
+          "freeStorageBytes": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int64"
           }
         }
       },

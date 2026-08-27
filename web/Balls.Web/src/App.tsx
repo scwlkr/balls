@@ -10,6 +10,7 @@ import type {
   StatusDto,
 } from "./api/localControl";
 import { BrandMark } from "./components/BrandMark";
+import { BallsWizard } from "./components/BallsWizard";
 import { CircleWorkspace } from "./components/CircleWorkspace";
 import { StatusBanner } from "./components/StatusBanner";
 import type { DashboardSnapshot } from "./presentation/DashboardSnapshot";
@@ -209,6 +210,18 @@ export function App({ api = browserApi }: AppProps) {
           {workspace ? <code>{workspace.status.node.id}</code> : null}
         </footer>
       </div>
+      {workspace ? (
+        <BallsWizard
+          api={api}
+          localRole={
+            workspace.viewer?.role === "owner"
+              ? "owner"
+              : workspace.viewer?.role === "member"
+                ? "member"
+                : "none"
+          }
+        />
+      ) : null}
     </>
   );
 }

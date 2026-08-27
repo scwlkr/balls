@@ -133,6 +133,7 @@ public static class DaemonHost
         TcpLanTransportListener? messageListener = null;
         CancellationTokenSource? messageShutdown = null;
         Task? messageTask = null;
+        BallsWizardApplication? wizardApplication = null;
         var endpointPrepared = false;
 
         try
@@ -230,6 +231,11 @@ public static class DaemonHost
                 launchLifetime: TimeSpan.FromMinutes(1),
                 sessionLifetime: TimeSpan.FromMinutes(30));
             var browserEndpoint = new BrowserEndpointState();
+            wizardApplication = new BallsWizardApplication(
+                host.BallsWizard,
+                WizardKnowledge.LoadEmbedded(),
+                securedDataDirectory,
+                BrowserAdapter.GetProductVersion());
             var invitationListeners = BrowserInvitationListenerState.Unavailable(
                 automaticPrivateAddress?.ErrorCode ?? "private_listeners_unavailable",
                 automaticPrivateAddress?.Message
@@ -1130,7 +1136,8 @@ public static class DaemonHost
                 invitationApplication,
                 admissionApplication,
                 invitationListeners,
-                browserAccess);
+                browserAccess,
+                wizardApplication);
 
             await application.StartAsync(cancellationToken).ConfigureAwait(false);
             browserEndpoint.Initialize(FindBrowserBaseUri(application));
@@ -1146,7 +1153,8 @@ public static class DaemonHost
                 admissionTask,
                 messageListener,
                 messageShutdown,
-                messageTask);
+                messageTask,
+                wizardApplication);
         }
         catch
         {
@@ -1166,6 +1174,10 @@ public static class DaemonHost
                 if (application is not null)
                 {
                     await application.DisposeAsync().ConfigureAwait(false);
+                }
+                if (wizardApplication is not null)
+                {
+                    await wizardApplication.DisposeAsync().ConfigureAwait(false);
                 }
             }
             finally
@@ -1428,6 +1440,7 @@ public sealed class DaemonInstance : IAsyncDisposable
     private readonly TcpLanTransportListener? messageListener;
     private readonly CancellationTokenSource? messageShutdown;
     private readonly Task? messageTask;
+    private readonly BallsWizardApplication wizardApplication;
     private int disposed;
 
     internal DaemonInstance(
@@ -1441,7 +1454,8 @@ public sealed class DaemonInstance : IAsyncDisposable
         Task? admissionTask,
         TcpLanTransportListener? messageListener,
         CancellationTokenSource? messageShutdown,
-        Task? messageTask)
+        Task? messageTask,
+        BallsWizardApplication wizardApplication)
     {
         this.application = application;
         this.store = store;
@@ -1454,6 +1468,7 @@ public sealed class DaemonInstance : IAsyncDisposable
         this.messageListener = messageListener;
         this.messageShutdown = messageShutdown;
         this.messageTask = messageTask;
+        this.wizardApplication = wizardApplication;
     }
 
     public RemoteTransportAddress? AdmissionAddress => admissionListener?.BoundAddress;
@@ -1495,6 +1510,7 @@ public sealed class DaemonInstance : IAsyncDisposable
             {
                 await application.StopAsync().ConfigureAwait(false);
                 await application.DisposeAsync().ConfigureAwait(false);
+                await wizardApplication.DisposeAsync().ConfigureAwait(false);
             }
         }
         finally

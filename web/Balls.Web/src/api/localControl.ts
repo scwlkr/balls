@@ -31,3 +31,9 @@ export type MemberAccessGrantListDto =
   components["schemas"]["MemberAccessGrantListResponse"];
 export type BrowserCircleFilesOpenDto =
   components["schemas"]["BrowserCircleFilesOpenResponse"];
+export type BrowserBallsWizardStatusDto =
+  components["schemas"]["BrowserBallsWizardStatusResponse"];
+export type BrowserBallsWizardChatDto =
+  components["schemas"]["BrowserBallsWizardChatResponse"];
+export type BrowserBallsWizardChatMessageDto =
+  components["schemas"]["BrowserBallsWizardChatMessageRequest"];
