@@ -198,6 +198,65 @@ public sealed partial class BrowserAdapterSecurityTests
         var contribution = await contributeResponse.Content
             .ReadFromJsonAsync<BrowserCircleFilesContributionResponse>(ControlJson.Options);
         Assert.IsNotNull(contribution);
+        hostProvisioner.ApplyFailure = new CircleFilesHostingException(
+            "circle_files_host_collision",
+            "The selected folder has a different ownership marker.");
+        using var duplicateSelectFolder = CreateJsonRequest(
+            HttpMethod.Post,
+            BrowserRoutes.CircleFilesFolderSelection(circle.Circle.Id),
+            new { },
+            GetOrigin(ownerBrowserBaseUri),
+            ownerAuthenticated.Cookie,
+            ownerAuthenticated.Session.AntiforgeryToken);
+        using var duplicateSelectFolderResponse = await ownerBrowserClient.SendAsync(
+            duplicateSelectFolder);
+        var duplicateFolderSelection = await duplicateSelectFolderResponse.Content
+            .ReadFromJsonAsync<BrowserCircleFilesFolderSelectionResponse>(ControlJson.Options);
+        Assert.AreEqual(HttpStatusCode.OK, duplicateSelectFolderResponse.StatusCode);
+        Assert.IsNotNull(duplicateFolderSelection?.SelectionId);
+        using var duplicateContribution = CreateJsonRequest(
+            HttpMethod.Post,
+            BrowserRoutes.CircleFilesFolderApply(circle.Circle.Id),
+            new ApplyBrowserCircleFilesFolderRequest(
+                "0198d000-6100-7000-8000-000000000004",
+                duplicateFolderSelection!.SelectionId!),
+            GetOrigin(ownerBrowserBaseUri),
+            ownerAuthenticated.Cookie,
+            ownerAuthenticated.Session.AntiforgeryToken);
+        using var duplicateContributionResponse = await ownerBrowserClient.SendAsync(
+            duplicateContribution);
+        var duplicateContributionJson = await duplicateContributionResponse.Content.ReadAsStringAsync();
+        Assert.AreEqual(
+            HttpStatusCode.Conflict,
+            duplicateContributionResponse.StatusCode,
+            duplicateContributionJson);
+        StringAssert.Contains(duplicateContributionJson, "different ownership marker");
+        hostProvisioner.ApplyFailure = null;
+        var contributionsAfterCollision = await relaunchedOwnerClient
+            .GetFromJsonAsync<CircleFilesContributionListResponse>(
+                ControlRoutes.CircleFilesContributions(circle.Circle.Id),
+                ControlJson.Options);
+        Assert.IsNotNull(contributionsAfterCollision);
+        Assert.HasCount(2, contributionsAfterCollision.Contributions);
+        await using (var inspectionStore = await Balls.Storage.Sqlite.SqliteLocalStateStore
+                         .OpenAsync(
+                             Path.Combine(ownerDirectory.Path, "state"),
+                             selected.PrivateMaterialProtector))
+        {
+            var hostedBindingCount = 0;
+            foreach (var candidate in contributionsAfterCollision.Contributions)
+            {
+                var hosted = await inspectionStore.GetCircleFilesHostedFolderAsync(
+                    new Balls.Core.CircleId(Guid.Parse(circle.Circle.Id)),
+                    new Balls.Core.CircleFilesContributionId(Guid.Parse(candidate.Id)));
+                if (hosted is not null)
+                {
+                    hostedBindingCount += 1;
+                }
+            }
+
+            Assert.AreEqual(1, hostedBindingCount);
+        }
         _ = await CreateSyncGrantAsync(
             relaunchedOwnerClient,
             circle.Circle.Id,
@@ -491,6 +550,8 @@ public sealed partial class BrowserAdapterSecurityTests
 
     private sealed class SyncHostProvisioner : ICircleFilesHostProvisioner
     {
+        internal CircleFilesHostingException? ApplyFailure { get; set; }
+
         public ValueTask<CircleFilesHostPlan> PreviewAsync(
             CircleFilesHostRequest request,
             CancellationToken cancellationToken)
@@ -505,6 +566,10 @@ public sealed partial class BrowserAdapterSecurityTests
             CancellationToken cancellationToken)
         {
             cancellationToken.ThrowIfCancellationRequested();
+            if (ApplyFailure is not null)
+            {
+                throw ApplyFailure;
+            }
             var plan = CreatePlan(request);
             Assert.AreEqual(expectedPlanId, plan.PlanId);
             return ValueTask.FromResult(new CircleFilesHostApplyResult(
