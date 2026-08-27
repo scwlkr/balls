@@ -225,6 +225,10 @@ public static class DaemonHost
                 store,
                 host.CircleFilesLifecycle,
                 clock);
+            var revitServerSetupApplication = new RevitServerSetupApplication(
+                host.RevitServerMediaPicker,
+                host.RevitServerReadiness,
+                clock);
             var browserAccess = new BrowserAccessBroker(
                 clock,
                 launchLifetime: TimeSpan.FromMinutes(1),
@@ -342,6 +346,11 @@ public static class DaemonHost
                             node.CreatedAtUtc));
                 })
                 .Produces<StatusResponse>(StatusCodes.Status200OK);
+            application.MapPost(
+                    ControlRoutes.RevitServerSetupInspection,
+                    (InspectRevitServerSetupRequest request, CancellationToken token) =>
+                        revitServerSetupApplication.InspectPathAsync(request.MediaPath, token))
+                .Produces<RevitServerSetupInspectionResponse>(StatusCodes.Status200OK);
             application.MapPost(
                     ControlRoutes.BrowserLaunch,
                     () =>
@@ -1130,7 +1139,8 @@ public static class DaemonHost
                 invitationApplication,
                 admissionApplication,
                 invitationListeners,
-                browserAccess);
+                browserAccess,
+                revitServerSetupApplication);
 
             await application.StartAsync(cancellationToken).ConfigureAwait(false);
             browserEndpoint.Initialize(FindBrowserBaseUri(application));

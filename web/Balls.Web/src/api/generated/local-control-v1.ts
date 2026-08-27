@@ -34,6 +34,45 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  "/control/v1/revit-server/setup/inspection": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    post: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path?: never;
+        cookie?: never;
+      };
+      requestBody: {
+        content: {
+          "application/json": components["schemas"]["InspectRevitServerSetupRequest"];
+        };
+      };
+      responses: {
+        /** @description OK */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["RevitServerSetupInspectionResponse"];
+          };
+        };
+      };
+    };
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   "/control/v1/ui/launch": {
     parameters: {
       query?: never;
@@ -1857,6 +1896,89 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  "/browser/v1/revit-server/setup/media-selection": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    post: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path?: never;
+        cookie?: never;
+      };
+      requestBody?: never;
+      responses: {
+        /** @description OK */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["BrowserRevitServerMediaSelectionResponse"];
+          };
+        };
+        /** @description Conflict */
+        409: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["ErrorResponse"];
+          };
+        };
+      };
+    };
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/browser/v1/revit-server/setup/inspection": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    post: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path?: never;
+        cookie?: never;
+      };
+      requestBody: {
+        content: {
+          "application/json": components["schemas"]["InspectBrowserRevitServerSetupRequest"];
+        };
+      };
+      responses: {
+        /** @description OK */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["RevitServerSetupInspectionResponse"];
+          };
+        };
+      };
+    };
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   "/browser/v1/circles": {
     parameters: {
       query?: never;
@@ -2879,6 +3001,11 @@ export interface components {
       memberId: string;
       role: string;
     };
+    BrowserRevitServerMediaSelectionResponse: {
+      status: string;
+      selectionId: null | string;
+      fileName: null | string;
+    };
     BrowserSessionResponse: {
       antiforgeryToken: string;
       /** Format: date-time */
@@ -3087,9 +3214,15 @@ export interface components {
     ExchangeBrowserSessionRequest: {
       capability: string;
     };
+    InspectBrowserRevitServerSetupRequest: {
+      selectionId: string;
+    };
     InspectCircleFilesMemberMappingRequest: {
       endpoint: string;
       driveLetter: string;
+    };
+    InspectRevitServerSetupRequest: {
+      mediaPath: string;
     };
     JoinBrowserCircleRequest: {
       package: string;
@@ -3189,6 +3322,36 @@ export interface components {
       invitationId: string;
       redemptionId: string;
       status: string;
+    };
+    RevitServerReadinessCheckResponse: {
+      id: string;
+      status: string;
+      code: string;
+      summary: string;
+    };
+    RevitServerSetupInspectionResponse: {
+      status: string;
+      summary: string;
+      checks: components["schemas"]["RevitServerReadinessCheckResponse"][];
+      plan: null | components["schemas"]["RevitServerSetupPlanResponse"];
+    };
+    RevitServerSetupPlanResponse: {
+      planDigest: string;
+      machine: string;
+      windows: string;
+      media: string;
+      mediaSha256: string;
+      enabledRoles: string[];
+      forbiddenRoles: string[];
+      dataPaths: string[];
+      windowsPrerequisites: string[];
+      aclIntent: string[];
+      defaultWebSiteEffects: string[];
+      rsnIni: string[];
+      firewallEffects: string[];
+      verificationActions: string[];
+      ballsOwnedState: string[];
+      autodeskOwnedState: string[];
     };
     RevokeMemberAccessGrantRequest: {
       requestId: string;

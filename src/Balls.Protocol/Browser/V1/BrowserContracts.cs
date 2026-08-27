@@ -7,6 +7,8 @@ public static class BrowserRoutes
     public const string Status = BasePath + "/status";
     public const string Circles = BasePath + "/circles";
     public const string CircleJoin = Circles + "/join";
+    public const string RevitServerMediaSelection = BasePath + "/revit-server/setup/media-selection";
+    public const string RevitServerSetupInspection = BasePath + "/revit-server/setup/inspection";
 
     public static string Circle(string circleId)
     {
@@ -139,3 +141,10 @@ public sealed record BrowserCircleFilesGrantApplyResponse(
     string MemberName,
     string Access,
     string Message);
+
+public sealed record BrowserRevitServerMediaSelectionResponse(
+    string Status,
+    string? SelectionId,
+    string? FileName);
+
+public sealed record InspectBrowserRevitServerSetupRequest(string SelectionId);

@@ -1,0 +1,36 @@
+name: balls-revit-server-2027-lab
+
+services:
+  windows:
+    image: docker.io/dockurr/windows@sha256:0cff9eb0e7aee9953e55bc682852ca4fdca233145a58ae1ec94f0b0c01a2ed30
+    container_name: balls-revit-server-2027-lab
+    environment:
+      VERSION: "2022"
+      EDITION: "standard"
+      HOST: "BALLS-RS27-LAB"
+      RAM_SIZE: "8G"
+      CPU_CORES: "4"
+      DISK_FMT: "raw"
+      DISK_SIZE: "160G"
+      DISK2_SIZE: "128G"
+      ALLOCATE: "N"
+      SAMBA: "N"
+      SHORTCUT: "N"
+      USERNAME: "${BALLS_REVIT_SERVER_USERNAME:-BallsAdmin}"
+      PASSWORD: "${BALLS_REVIT_SERVER_PASSWORD:?set BALLS_REVIT_SERVER_PASSWORD without printing it}"
+      TZ: "America/Chicago"
+      ARGUMENTS: "-rtc base=localtime,clock=host,driftfix=slew"
+    devices:
+      - /dev/kvm
+      - /dev/net/tun
+    cap_add:
+      - NET_ADMIN
+    ports:
+      - "127.0.0.1:8027:8006/tcp"
+      - "127.0.0.1:3397:3389/tcp"
+      - "127.0.0.1:3397:3389/udp"
+    volumes:
+      - /home/scwlkr/.local/share/balls-lab/revit-server-2027/system:/storage
+      - /home/scwlkr/.local/share/balls-lab/revit-server-2027/data:/storage2
+    restart: "no"
+    stop_grace_period: 2m

@@ -153,7 +153,8 @@ internal static class BrowserAdapter
         InvitationApplication invitationApplication,
         TrustedCircleAdmissionApplication admissionApplication,
         BrowserInvitationListenerState invitationListeners,
-        BrowserAccessBroker access)
+        BrowserAccessBroker access,
+        RevitServerSetupApplication revitServerSetup)
     {
         application.MapPost(
                 BrowserRoutes.Session,
@@ -204,6 +205,37 @@ internal static class BrowserAdapter
                             node.CreatedAtUtc));
                 })
             .Produces<StatusResponse>(StatusCodes.Status200OK);
+        application.MapPost(
+                BrowserRoutes.RevitServerMediaSelection,
+                async (HttpContext context, CancellationToken token) =>
+                {
+                    try
+                    {
+                        var selected = await revitServerSetup.SelectMediaAsync(
+                            context.Request.Cookies[SessionCookieName] ?? string.Empty,
+                            token).ConfigureAwait(false);
+                        return Results.Ok(selected is null
+                            ? new BrowserRevitServerMediaSelectionResponse("cancelled", null, null)
+                            : new BrowserRevitServerMediaSelectionResponse(
+                                "selected", selected.Value.Id, selected.Value.FileName));
+                    }
+                    catch (PlatformNotSupportedException)
+                    {
+                        return Results.Conflict(new ErrorResponse(
+                            "windows_server_required",
+                            "Choose media from Balls running on Windows Server 2022 Desktop Experience."));
+                    }
+                })
+            .Produces<BrowserRevitServerMediaSelectionResponse>(StatusCodes.Status200OK)
+            .Produces<ErrorResponse>(StatusCodes.Status409Conflict);
+        application.MapPost(
+                BrowserRoutes.RevitServerSetupInspection,
+                (InspectBrowserRevitServerSetupRequest request, HttpContext context, CancellationToken token) =>
+                    revitServerSetup.InspectSelectedAsync(
+                        context.Request.Cookies[SessionCookieName] ?? string.Empty,
+                        request.SelectionId,
+                        token))
+            .Produces<RevitServerSetupInspectionResponse>(StatusCodes.Status200OK);
         application.MapGet(
                 BrowserRoutes.Circles,
                 async (CancellationToken token) =>

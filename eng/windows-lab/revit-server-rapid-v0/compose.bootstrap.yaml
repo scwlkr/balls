@@ -1,0 +1,14 @@
+services:
+  windows:
+    networks:
+      bootstrap:
+        ipv4_address: 172.29.26.2
+
+networks:
+  bootstrap:
+    name: balls-revit-server-2027-bootstrap
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.29.26.0/24
+          gateway: 172.29.26.1

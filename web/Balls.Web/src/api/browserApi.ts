@@ -49,6 +49,43 @@ export interface CircleFilesGrantResultDto {
   message: string;
 }
 
+export interface RevitServerMediaSelectionDto {
+  status: "selected" | "cancelled";
+  selectionId: string | null;
+  fileName: string | null;
+}
+
+export interface RevitServerSetupPlanDto {
+  planDigest: string;
+  machine: string;
+  windows: string;
+  media: string;
+  mediaSha256: string;
+  enabledRoles: string[];
+  forbiddenRoles: string[];
+  dataPaths: string[];
+  windowsPrerequisites: string[];
+  aclIntent: string[];
+  defaultWebSiteEffects: string[];
+  rsnIni: string[];
+  firewallEffects: string[];
+  verificationActions: string[];
+  ballsOwnedState: string[];
+  autodeskOwnedState: string[];
+}
+
+export interface RevitServerSetupInspectionDto {
+  status: "ready" | "blocked";
+  summary: string;
+  checks: Array<{
+    id: string;
+    status: "ready" | "blocked";
+    code: string;
+    summary: string;
+  }>;
+  plan: RevitServerSetupPlanDto | null;
+}
+
 export interface BrowserApi {
   exchangeLaunchCapability(capability: string): Promise<void>;
   getStatus(): Promise<StatusDto>;
@@ -89,6 +126,10 @@ export interface BrowserApi {
     contributionId: string,
   ): Promise<MemberAccessGrantListDto>;
   openFiles(circleId: string): Promise<BrowserCircleFilesOpenDto>;
+  selectRevitServerMedia(): Promise<RevitServerMediaSelectionDto>;
+  inspectRevitServerSetup(
+    selectionId: string,
+  ): Promise<RevitServerSetupInspectionDto>;
 }
 
 class FetchBrowserApi implements BrowserApi {
@@ -240,6 +281,22 @@ class FetchBrowserApi implements BrowserApi {
       `/browser/v1/circles/${encodeURIComponent(circleId)}/files/open`,
       {},
       "Run balls ui again to open your shared folder.",
+    );
+  }
+
+  selectRevitServerMedia() {
+    return this.authenticatedRequest<RevitServerMediaSelectionDto>(
+      "/browser/v1/revit-server/setup/media-selection",
+      {},
+      "Run balls ui again to choose the Autodesk installer.",
+    );
+  }
+
+  inspectRevitServerSetup(selectionId: string) {
+    return this.authenticatedRequest<RevitServerSetupInspectionDto>(
+      "/browser/v1/revit-server/setup/inspection",
+      { selectionId },
+      "Run balls ui again to inspect Revit Server setup.",
     );
   }
 

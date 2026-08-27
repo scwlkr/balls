@@ -112,6 +112,117 @@ describe("Balls browser workspace", () => {
     expect(home.querySelector(".brand-mark")).not.toHaveTextContent("B");
   });
 
+  it("offers the read-only Revit Server setup before any Circle exists", async () => {
+    render(<App api={createApi({ circles: [] })} />);
+
+    expect(
+      await screen.findByRole("heading", {
+        level: 2,
+        name: "Set up Revit Server 2027",
+      }),
+    ).toBeInTheDocument();
+    expect(screen.getByText(/This step is read-only\./)).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "Choose official installer" }),
+    ).toBeInTheDocument();
+  });
+
+  it("renders one exact Ready Host and Admin plan without exposing the media path", async () => {
+    const api = createApi({ circles: [] });
+    api.selectRevitServerMedia = async () => ({
+      status: "selected",
+      selectionId: "selection-1",
+      fileName: "Revit_Server_2027_win_db.sfx.exe",
+    });
+    api.inspectRevitServerSetup = async () => ({
+      status: "ready",
+      summary:
+        "Ready to review the exact Host + Admin setup plan. Nothing has changed yet.",
+      checks: [
+        {
+          id: "windows-server",
+          status: "ready",
+          code: "windows_server_2022_desktop_ready",
+          summary: "Windows Server 2022 Desktop Experience is supported.",
+        },
+      ],
+      plan: {
+        planDigest: "a".repeat(64),
+        machine: "BALLS-RS27",
+        windows: "Windows Server 2022 Standard build 20348 (Server)",
+        media:
+          "Autodesk, Inc. — Autodesk Revit 2027 27.0 (Revit_Server_2027_win_db.sfx.exe)",
+        mediaSha256: "b".repeat(64),
+        enabledRoles: ["Host", "Admin"],
+        forbiddenRoles: ["Accelerator"],
+        dataPaths: [String.raw`D:\RevitServer\2027\Projects`],
+        windowsPrerequisites: ["Web Server (IIS)"],
+        aclIntent: ["NETWORK SERVICE: Full control"],
+        defaultWebSiteEffects: ["Keep Default Web Site"],
+        rsnIni: ["Write BALLS-RS27 as the only line"],
+        firewallEffects: [
+          "Allow TCP 80 and TCP 808 from LocalSubnet on the Private profile only",
+        ],
+        verificationActions: ["Verify exactly Host + Admin"],
+        ballsOwnedState: ["Windows prerequisites"],
+        autodeskOwnedState: ["Autodesk installed product"],
+      },
+    });
+
+    render(<App api={api} />);
+    fireEvent.click(
+      await screen.findByRole("button", { name: "Choose official installer" }),
+    );
+
+    const result = await screen.findByLabelText(
+      "Revit Server setup inspection",
+    );
+    expect(result).toHaveTextContent("Ready");
+    expect(result).toHaveTextContent("Host + Admin");
+    expect(result).toHaveTextContent("Accelerator off");
+    expect(result).toHaveTextContent(String.raw`D:\RevitServer\2027\Projects`);
+    expect(result).toHaveTextContent("TCP 80 and TCP 808");
+    expect(result).toHaveTextContent("Review only");
+    expect(result).not.toHaveTextContent(String.raw`C:\Users\Alice`);
+  });
+
+  it("shows a plain Blocked action and no approvable plan", async () => {
+    const api = createApi({ circles: [] });
+    api.selectRevitServerMedia = async () => ({
+      status: "selected",
+      selectionId: "selection-2",
+      fileName: "substituted.exe",
+    });
+    api.inspectRevitServerSetup = async () => ({
+      status: "blocked",
+      summary:
+        "Setup is blocked. Resolve the listed items, then inspect again. Nothing was changed.",
+      checks: [
+        {
+          id: "installer",
+          status: "blocked",
+          code: "installer_signature_untrusted",
+          summary: "Choose official Autodesk Revit Server 2027 media.",
+        },
+      ],
+      plan: null,
+    });
+
+    render(<App api={api} />);
+    fireEvent.click(
+      await screen.findByRole("button", { name: "Choose official installer" }),
+    );
+
+    const result = await screen.findByLabelText(
+      "Revit Server setup inspection",
+    );
+    expect(result).toHaveTextContent("Blocked");
+    expect(result).toHaveTextContent("Choose official Autodesk");
+    expect(
+      screen.queryByLabelText("Exact Host and Admin setup plan"),
+    ).toBeNull();
+  });
+
   it("announces the workspace loading state", () => {
     const api = createApi({ circles: [] });
     api.exchangeLaunchCapability = () => new Promise(() => undefined);
@@ -878,6 +989,14 @@ function createApi(circleList: CircleListDto): BrowserApi {
     },
     openFiles: async () => {
       throw new Error("No shared-folder open test configured.");
+    },
+    selectRevitServerMedia: async () => ({
+      status: "cancelled",
+      selectionId: null,
+      fileName: null,
+    }),
+    inspectRevitServerSetup: async () => {
+      throw new Error("No Revit Server inspection test configured.");
     },
   };
 }
