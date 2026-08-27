@@ -1,7 +1,9 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-manifest_url="https://balls.wlkrlabs.com/channels/alpha.json"
+# The current accepted Alpha package is Windows-only. Keep Linux on its last
+# accepted immutable manifest until a newer Linux package is promoted.
+manifest_url="https://balls.wlkrlabs.com/versions/0.3.0-alpha.1.json"
 
 if [[ "$(uname -s)" != "Linux" || "$(uname -m)" != "x86_64" ]]; then
   echo "The published Balls Linux Alpha requires x64 Linux." >&2

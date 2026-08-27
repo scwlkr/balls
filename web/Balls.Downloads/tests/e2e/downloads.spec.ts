@@ -18,6 +18,12 @@ test("shows every delivery lane and copies the complete Linux command", async ({
   await expect(page.getByText(/macOS is source-only today/i)).toBeVisible();
   await expect(
     page.getByRole("heading", {
+      level: 3,
+      name: "Install the previous accepted Linux Alpha",
+    }),
+  ).toBeVisible();
+  await expect(
+    page.getByRole("heading", {
       level: 2,
       name: "Testing software. It may be broken.",
     }),

@@ -193,7 +193,9 @@ test("pins moving and immutable manifests plus the release catalog", async () =>
     await readFile(new URL("public/channels/alpha.json", siteRoot), "utf8"),
   );
   assertPackageManifest(alpha, "alpha");
-  assert.equal(alpha.platforms["macos-arm64"].delivery, "source-only");
+  assert.equal(alpha.release.tag, "development-20260827T045203Z-39cd15e5ffdf");
+  assert.deepEqual(Object.keys(alpha.platforms), ["windows-x64"]);
+  assert.equal(alpha.platforms["windows-x64"].runtime.kind, "self-contained");
 
   const developmentFixture = JSON.parse(
     await readFile(
@@ -228,6 +230,11 @@ test("pins moving and immutable manifests plus the release catalog", async () =>
   );
   assert.deepEqual(development, immutableDevelopment);
   assertPackageManifest(development, "development");
+  assert.deepEqual(alpha.release, development.release);
+  assert.deepEqual(
+    alpha.platforms["windows-x64"],
+    development.platforms["windows-x64"],
+  );
 
   const bootstrap = JSON.parse(
     await readFile(
@@ -266,12 +273,16 @@ test("bootstraps verify local files without pipe-to-shell or policy bypasses", a
   );
 
   assert.match(linux, /sha256sum/);
+  assert.match(linux, /versions\/0\.3\.0-alpha\.1\.json/);
+  assert.doesNotMatch(linux, /channels\/alpha\.json/);
   assert.match(linux, /Install-BallsCanary\\?\.sh/);
   assert.match(linux, /package_manifest\.get\("commit"\)/);
   assert.match(linux, /re\.escape\(commit\[:12\]\)/);
   assert.doesNotMatch(linux, /curl[^\n]*\|/);
 
   assert.match(macos, /git .*rev-parse HEAD/);
+  assert.match(macos, /versions\/0\.3\.0-alpha\.1\.json/);
+  assert.doesNotMatch(macos, /channels\/alpha\.json/);
   assert.match(macos, /source-only/i);
   assert.doesNotMatch(macos, /curl[^\n]*\|/);
 });

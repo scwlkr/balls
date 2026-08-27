@@ -122,6 +122,8 @@ publication is blocked; do not substitute a mutable prerelease or a short-lived 
 
 Alpha promotion is a separate Owner gate. It moves only `channels/alpha.json` to the identical
 green-`main` assets already rehearsed through Development; it never rebuilds them.
+When that rehearsed release is Windows-only, the Linux and macOS commands remain explicitly pinned
+to their last accepted immutable cross-platform manifest instead of claiming unavailable assets.
 
 ## Issue #92 target contract
 
