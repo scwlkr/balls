@@ -20,3 +20,6 @@ cannot serve its declared published ports, `manage.sh` creates owner-scoped tran
 `socat` relays for the noVNC console and RDP. The relays bind only `127.0.0.1`, target only the exact
 reserved acceptance container address, are identity-checked before stop, and are removed when the
 lab stops. `manage.sh console` repairs a missing relay before opening `http://127.0.0.1:8027/`.
+The post-verification LAN mode applies the same fail-closed relay design to TCP 80 and 808, binding
+only the exact current RFC1918 address recorded in owner-only `lan.env`; it never listens on a
+wildcard, loopback alias, or unverified host address.

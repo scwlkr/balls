@@ -21,6 +21,8 @@ readonly image_ref="docker.io/dockurr/windows@${image_digest}"
 readonly console_relay_unit="balls-revit-server-2027-console-relay.service"
 readonly rdp_tcp_relay_unit="balls-revit-server-2027-rdp-tcp-relay.service"
 readonly rdp_udp_relay_unit="balls-revit-server-2027-rdp-udp-relay.service"
+readonly lan_http_relay_unit="balls-revit-server-2027-lan-http-relay.service"
+readonly lan_admin_relay_unit="balls-revit-server-2027-lan-admin-relay.service"
 
 say() { printf '%s\n' "$*"; }
 fail() { say "BLOCKED — $*" >&2; exit 1; }
@@ -225,6 +227,8 @@ relay_description() {
     "${console_relay_unit}") printf '%s\n' "Balls Revit Server 2027 lab console loopback relay" ;;
     "${rdp_tcp_relay_unit}") printf '%s\n' "Balls Revit Server 2027 lab RDP TCP loopback relay" ;;
     "${rdp_udp_relay_unit}") printf '%s\n' "Balls Revit Server 2027 lab RDP UDP loopback relay" ;;
+    "${lan_http_relay_unit}") printf '%s\n' "Balls Revit Server 2027 private LAN HTTP relay" ;;
+    "${lan_admin_relay_unit}") printf '%s\n' "Balls Revit Server 2027 private LAN Admin relay" ;;
     *) fail "unknown loopback relay unit $1" ;;
   esac
 }
@@ -234,6 +238,8 @@ relay_arguments() {
     "${console_relay_unit}") printf '%s\n%s\n' "TCP4-LISTEN:8027,bind=127.0.0.1,reuseaddr,fork" "TCP4:172.29.27.2:8006" ;;
     "${rdp_tcp_relay_unit}") printf '%s\n%s\n' "TCP4-LISTEN:3397,bind=127.0.0.1,reuseaddr,fork" "TCP4:172.29.27.2:3389" ;;
     "${rdp_udp_relay_unit}") printf '%s\n%s\n' "UDP4-RECVFROM:3397,bind=127.0.0.1,reuseaddr,fork" "UDP4-SENDTO:172.29.27.2:3389" ;;
+    "${lan_http_relay_unit}") printf '%s\n%s\n' "TCP4-LISTEN:80,bind=$(lan_host_ip),reuseaddr,fork" "TCP4:172.29.27.2:80" ;;
+    "${lan_admin_relay_unit}") printf '%s\n%s\n' "TCP4-LISTEN:808,bind=$(lan_host_ip),reuseaddr,fork" "TCP4:172.29.27.2:808" ;;
     *) fail "unknown loopback relay unit $1" ;;
   esac
 }
@@ -258,7 +264,7 @@ validate_owned_relay_unit() {
 
 require_relay_units_absent() {
   local unit
-  for unit in "${console_relay_unit}" "${rdp_tcp_relay_unit}" "${rdp_udp_relay_unit}"; do
+  for unit in "${console_relay_unit}" "${rdp_tcp_relay_unit}" "${rdp_udp_relay_unit}" "${lan_http_relay_unit}" "${lan_admin_relay_unit}"; do
     [[ "$(relay_unit_load_state "${unit}")" == "not-found" ]] \
       || fail "transient relay unit ${unit} already exists; stop the exact lab before starting it again"
   done
@@ -298,6 +304,12 @@ attest_tcp_loopback_listener() {
     || fail "TCP ${port} is not listening only on the expected loopback address"
 }
 
+attest_tcp_listener() {
+  local address="$1" port="$2"
+  ss -H -ltn "sport = :${port}" | awk -v expected="${address}:${port}" '$4 == expected { found = 1 } END { exit !found }' \
+    || fail "TCP ${port} is not listening only on the expected ${address} address"
+}
+
 attest_udp_loopback_listener() {
   local port="$1"
   ss -H -lun "sport = :${port}" | awk -v expected="127.0.0.1:${port}" '$4 == expected { found = 1 } END { exit !found }' \
@@ -322,9 +334,24 @@ ensure_loopback_relays() {
   attest_udp_loopback_listener 3397
 }
 
-stop_loopback_relays() {
+ensure_lan_relays() {
+  local address
+  address="$(lan_host_ip)"
+  command -v systemd-run >/dev/null || fail "systemd-run is required for owner-scoped private LAN relays"
+  [[ -x /usr/bin/socat ]] || fail "/usr/bin/socat is required for owner-scoped private LAN relays"
+  if port_free 80; then
+    start_relay_unit "${lan_http_relay_unit}"
+  fi
+  if port_free 808; then
+    start_relay_unit "${lan_admin_relay_unit}"
+  fi
+  attest_tcp_listener "${address}" 80
+  attest_tcp_listener "${address}" 808
+}
+
+stop_host_relays() {
   local unit
-  for unit in "${console_relay_unit}" "${rdp_tcp_relay_unit}" "${rdp_udp_relay_unit}"; do
+  for unit in "${console_relay_unit}" "${rdp_tcp_relay_unit}" "${rdp_udp_relay_unit}" "${lan_http_relay_unit}" "${lan_admin_relay_unit}"; do
     if [[ "$(relay_unit_load_state "${unit}")" != "not-found" ]]; then
       validate_owned_relay_unit "${unit}"
       systemctl --user stop "${unit}" || fail "owner-scoped relay ${unit} did not stop"
@@ -555,6 +582,7 @@ start_lan() {
   compose lan up -d
   attest_selected_network balls-revit-server-2027-lab 172.29.27.0/24 172.29.27.1 172.29.27.2 true
   ensure_loopback_relays
+  ensure_lan_relays
   attest_lan_ports
   say "PASS — post-verification Revit HTTP/Admin ports published only on the selected private host address"
 }
@@ -579,7 +607,8 @@ stop_lab() {
   validate_container_identity
   local mode="acceptance"
   [[ -f "${mode_file}" ]] && mode="$(<"${mode_file}")"
-  stop_loopback_relays
+  [[ "${mode}" != "lan" ]] || require_lan_env
+  stop_host_relays
   if container_running "${container}"; then
     docker container kill --signal TERM "${container}" >/dev/null \
       || fail "the graceful TERM request failed; container and disks were preserved"
