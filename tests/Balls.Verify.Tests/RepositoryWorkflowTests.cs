@@ -182,14 +182,22 @@ public sealed partial class RepositoryWorkflowTests
                 "eng", "windows-lab", "revit-server-rapid-v0", "manage.sh"));
 
         StringAssert.Contains(manager, "validate_state_root");
+        StringAssert.Contains(manager, "initialize_state_root");
+        StringAssert.Contains(manager, "trusted_media_size=912600144");
+        StringAssert.Contains(manager, "sha256sum --");
+        StringAssert.Contains(manager, "must have mode 0700");
         StringAssert.Contains(manager, "assert_owned_regular");
         StringAssert.Contains(manager, "must have exactly one hard link");
         StringAssert.Contains(manager, ".balls-revit-server-2027-lab");
         StringAssert.Contains(manager, "system_disk_size=171798691840");
         StringAssert.Contains(manager, "data_disk_size=137438953472");
+        StringAssert.Contains(manager, "data.img.identity");
+        StringAssert.Contains(manager, "stat -c '%d:%i'");
+        StringAssert.Contains(manager, "was substituted after its device/inode identity was recorded");
         StringAssert.Contains(manager, "balls-issue61-provider-desktop is running");
         StringAssert.Contains(manager, "udp_port_free 3397");
         StringAssert.Contains(manager, "attest_selected_network");
+        StringAssert.Contains(manager, "existing network ${name} has the wrong driver/internal/subnet/gateway shape");
         StringAssert.Contains(manager, "docker container kill --signal TERM");
         StringAssert.Contains(manager, "it was not force-killed and Compose down was not run");
         StringAssert.Contains(manager, "config --quiet");

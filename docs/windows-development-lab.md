@@ -193,6 +193,7 @@ install -m 600 eng/windows-lab/revit-server-rapid-v0/compose*.yaml \
   /home/scwlkr/.config/balls-labs/revit-server-2027/
 install -m 700 eng/windows-lab/revit-server-rapid-v0/manage.sh \
   /home/scwlkr/.config/balls-labs/revit-server-2027/manage.sh
+/home/scwlkr/.config/balls-labs/revit-server-2027/manage.sh initialize
 /home/scwlkr/.config/balls-labs/revit-server-2027/manage.sh preflight
 /home/scwlkr/.config/balls-labs/revit-server-2027/manage.sh bootstrap-start
 /home/scwlkr/.config/balls-labs/revit-server-2027/manage.sh isolate
@@ -209,10 +210,18 @@ and selects the acceptance overlay. `start` attaches only the Docker-internal ac
 Verify `docker network inspect balls-revit-server-2027-lab` reports `"Internal": true` before #114
 evidence. Never use the bootstrap overlay during the setup timer or Ready/Blocked proof.
 
-The manager refuses linked, foreign-owned, unmarked, unexpected, or wrong-sized storage; a private
+`initialize` is the only adoption operation. It accepts either an absent state root or the observed
+cached-media-only root containing exactly the current-owner, single-link official SFX at the
+allowlisted name, 912,600,144-byte length, and SHA-256. It hashes but never executes or extracts the
+SFX, rejects every other pre-existing entry, changes the adopted SFX to mode `0600`, and creates
+owner-only mode-`0700` marked directories. It cannot adopt initialized disks or arbitrary content.
+
+The manager refuses linked, foreign-owned, unmarked, unexpected, wrong-mode, or wrong-sized storage; a private
 environment file that is not a current-owner, single-link regular file at mode `0600`; conflicting
 TCP/UDP loopback ports; either running Windows guest; an unowned same-name container/network; and
-any post-start network shape other than the exact selected bridge/subnet/gateway/address. It exposes
+any existing or post-start network shape other than the exact selected
+bridge/internal/subnet/gateway/address. On first creation it records each disk's device/inode
+identity beside the exact-sized image and refuses later same-size substitution. It exposes
 no raw log command because runtime output can contain the private password.
 
 `stop` sends only a graceful TERM request and waits up to two minutes. On timeout it leaves the
