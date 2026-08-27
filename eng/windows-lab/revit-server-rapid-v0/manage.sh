@@ -92,7 +92,7 @@ validate_state_root() {
     assert_owned_directory "${state_root}/${directory}"
     validate_marker "${state_root}/${directory}"
   done
-  validate_directory_entries "${state_root}/system" '^(.balls-revit-server-2027-lab|data.img|data.img.identity|windows.ver|windows.base|windows.mac|windows.rom|windows.vars|windows.boot)$'
+  validate_directory_entries "${state_root}/system" '^(.balls-revit-server-2027-lab|data.img|data.img.identity|setup.img|win2022-eval.iso|windows.ver|windows.base|windows.mac|windows.rom|windows.vars|windows.boot)$'
   validate_directory_entries "${state_root}/data" '^(.balls-revit-server-2027-lab|data2.img|data2.img.identity)$'
   validate_evidence_or_media_entries "${state_root}/system"
   validate_evidence_or_media_entries "${state_root}/data"
@@ -272,7 +272,7 @@ validate_partial_bootstrap_state() {
     assert_owned_directory "${state_root}/${directory}"
     validate_marker "${state_root}/${directory}"
   done
-  validate_directory_entries "${state_root}/system" '^(.balls-revit-server-2027-lab|tmp|data.img|data.img.identity|windows.ver|windows.base|windows.mac|windows.rom|windows.vars|windows.boot)$'
+  validate_directory_entries "${state_root}/system" '^(.balls-revit-server-2027-lab|tmp|data.img|data.img.identity|setup.img|win2022-eval.iso|windows.ver|windows.base|windows.mac|windows.rom|windows.vars|windows.boot)$'
   validate_directory_entries "${state_root}/data" '^(.balls-revit-server-2027-lab|data2.img|data2.img.identity)$'
   validate_evidence_or_media_entries "${state_root}/evidence"
   validate_evidence_or_media_entries "${state_root}/media"
