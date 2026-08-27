@@ -17,6 +17,12 @@ import type {
   BrowserBallsWizardChatMessageDto,
 } from "./localControl";
 
+export type {
+  BrowserBallsWizardChatDto,
+  BrowserBallsWizardChatMessageDto,
+  BrowserBallsWizardStatusDto,
+} from "./localControl";
+
 interface ErrorDto {
   code: string;
   message: string;

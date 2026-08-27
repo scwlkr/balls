@@ -1,10 +1,10 @@
 import { useEffect, useState, type FormEvent } from "react";
 
-import type { BrowserApi } from "../api/browserApi";
 import type {
+  BrowserApi,
   BrowserBallsWizardChatMessageDto,
   BrowserBallsWizardStatusDto,
-} from "../api/localControl";
+} from "../api/browserApi";
 import { toMessage } from "../presentation/toMessage";
 
 interface BallsWizardProps {

@@ -1,7 +1,9 @@
 import { fireEvent, render, screen, within } from "@testing-library/react";
 
-import type { BrowserApi } from "../api/browserApi";
-import type { BrowserBallsWizardStatusDto } from "../api/localControl";
+import type {
+  BrowserApi,
+  BrowserBallsWizardStatusDto,
+} from "../api/browserApi";
 import { BallsWizard } from "./BallsWizard";
 
 const absent = {
