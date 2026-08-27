@@ -18,6 +18,9 @@ readonly system_disk_size=171798691840
 readonly data_disk_size=137438953472
 readonly image_digest="sha256:0cff9eb0e7aee9953e55bc682852ca4fdca233145a58ae1ec94f0b0c01a2ed30"
 readonly image_ref="docker.io/dockurr/windows@${image_digest}"
+readonly console_relay_unit="balls-revit-server-2027-console-relay.service"
+readonly rdp_tcp_relay_unit="balls-revit-server-2027-rdp-tcp-relay.service"
+readonly rdp_udp_relay_unit="balls-revit-server-2027-rdp-udp-relay.service"
 
 say() { printf '%s\n' "$*"; }
 fail() { say "BLOCKED — $*" >&2; exit 1; }
@@ -217,6 +220,118 @@ udp_port_free() {
   ! ss -H -lun "sport = :$1" | grep -q .
 }
 
+relay_description() {
+  case "$1" in
+    "${console_relay_unit}") printf '%s\n' "Balls Revit Server 2027 lab console loopback relay" ;;
+    "${rdp_tcp_relay_unit}") printf '%s\n' "Balls Revit Server 2027 lab RDP TCP loopback relay" ;;
+    "${rdp_udp_relay_unit}") printf '%s\n' "Balls Revit Server 2027 lab RDP UDP loopback relay" ;;
+    *) fail "unknown loopback relay unit $1" ;;
+  esac
+}
+
+relay_arguments() {
+  case "$1" in
+    "${console_relay_unit}") printf '%s\n%s\n' "TCP4-LISTEN:8027,bind=127.0.0.1,reuseaddr,fork" "TCP4:172.29.27.2:8006" ;;
+    "${rdp_tcp_relay_unit}") printf '%s\n%s\n' "TCP4-LISTEN:3397,bind=127.0.0.1,reuseaddr,fork" "TCP4:172.29.27.2:3389" ;;
+    "${rdp_udp_relay_unit}") printf '%s\n%s\n' "UDP4-RECVFROM:3397,bind=127.0.0.1,reuseaddr,fork" "UDP4-SENDTO:172.29.27.2:3389" ;;
+    *) fail "unknown loopback relay unit $1" ;;
+  esac
+}
+
+relay_unit_load_state() {
+  systemctl --user show "$1" --property=LoadState --value 2>/dev/null || printf 'not-found\n'
+}
+
+validate_owned_relay_unit() {
+  local unit="$1" description observed_description observed_exec
+  local -a expected_arguments
+  description="$(relay_description "${unit}")"
+  mapfile -t expected_arguments < <(relay_arguments "${unit}")
+  observed_description="$(systemctl --user show "${unit}" --property=Description --value 2>/dev/null || true)"
+  observed_exec="$(systemctl --user show "${unit}" --property=ExecStart --value 2>/dev/null || true)"
+  [[ "${observed_description}" == "${description}" ]] || fail "relay unit ${unit} is not owned by this lab"
+  [[ "${observed_exec}" == *"/usr/bin/socat"* \
+    && "${observed_exec}" == *"${expected_arguments[0]}"* \
+    && "${observed_exec}" == *"${expected_arguments[1]}"* ]] \
+    || fail "relay unit ${unit} has unexpected executable arguments"
+}
+
+require_relay_units_absent() {
+  local unit
+  for unit in "${console_relay_unit}" "${rdp_tcp_relay_unit}" "${rdp_udp_relay_unit}"; do
+    [[ "$(relay_unit_load_state "${unit}")" == "not-found" ]] \
+      || fail "transient relay unit ${unit} already exists; stop the exact lab before starting it again"
+  done
+}
+
+start_relay_unit() {
+  local unit="$1" description
+  local -a arguments
+  description="$(relay_description "${unit}")"
+  mapfile -t arguments < <(relay_arguments "${unit}")
+  systemd-run --user \
+    --unit="${unit}" \
+    --description="${description}" \
+    --collect \
+    --quiet \
+    --property=NoNewPrivileges=yes \
+    --property=PrivateTmp=yes \
+    --property=ProtectHome=yes \
+    --property=ProtectSystem=strict \
+    --property=RestrictAddressFamilies="AF_INET AF_UNIX" \
+    --property=Restart=on-failure \
+    /usr/bin/socat "${arguments[0]}" "${arguments[1]}"
+  validate_owned_relay_unit "${unit}"
+  systemctl --user is-active --quiet "${unit}" || fail "loopback relay ${unit} did not become active"
+}
+
+attest_loopback_port_bindings() {
+  local observed
+  observed="$(docker inspect --format '{{(index (index .HostConfig.PortBindings "8006/tcp") 0).HostIp}}:{{(index (index .HostConfig.PortBindings "8006/tcp") 0).HostPort}}|{{(index (index .HostConfig.PortBindings "3389/tcp") 0).HostIp}}:{{(index (index .HostConfig.PortBindings "3389/tcp") 0).HostPort}}|{{(index (index .HostConfig.PortBindings "3389/udp") 0).HostIp}}:{{(index (index .HostConfig.PortBindings "3389/udp") 0).HostPort}}' "${container}")"
+  [[ "${observed}" == "127.0.0.1:8027|127.0.0.1:3397|127.0.0.1:3397" ]] \
+    || fail "console and RDP bindings are not restricted to the reserved loopback ports"
+}
+
+attest_tcp_loopback_listener() {
+  local port="$1"
+  ss -H -ltn "sport = :${port}" | awk -v expected="127.0.0.1:${port}" '$4 == expected { found = 1 } END { exit !found }' \
+    || fail "TCP ${port} is not listening only on the expected loopback address"
+}
+
+attest_udp_loopback_listener() {
+  local port="$1"
+  ss -H -lun "sport = :${port}" | awk -v expected="127.0.0.1:${port}" '$4 == expected { found = 1 } END { exit !found }' \
+    || fail "UDP ${port} is not listening only on the expected loopback address"
+}
+
+ensure_loopback_relays() {
+  command -v systemd-run >/dev/null || fail "systemd-run is required for owner-scoped loopback relays"
+  [[ -x /usr/bin/socat ]] || fail "/usr/bin/socat is required for owner-scoped loopback relays"
+  attest_loopback_port_bindings
+  if port_free 8027; then
+    start_relay_unit "${console_relay_unit}"
+  fi
+  if port_free 3397; then
+    start_relay_unit "${rdp_tcp_relay_unit}"
+  fi
+  if udp_port_free 3397; then
+    start_relay_unit "${rdp_udp_relay_unit}"
+  fi
+  attest_tcp_loopback_listener 8027
+  attest_tcp_loopback_listener 3397
+  attest_udp_loopback_listener 3397
+}
+
+stop_loopback_relays() {
+  local unit
+  for unit in "${console_relay_unit}" "${rdp_tcp_relay_unit}" "${rdp_udp_relay_unit}"; do
+    if [[ "$(relay_unit_load_state "${unit}")" != "not-found" ]]; then
+      validate_owned_relay_unit "${unit}"
+      systemctl --user stop "${unit}" || fail "owner-scoped relay ${unit} did not stop"
+    fi
+  done
+}
+
 network_free_or_owned() {
   local name="$1" expected="$2" gateway="$3" internal="$4" observed all_subnets owner shape
   observed="$(docker network inspect --format '{{range .IPAM.Config}}{{.Subnet}}{{end}}' "${name}" 2>/dev/null || true)"
@@ -256,6 +371,7 @@ preflight() {
   port_free 8027 || fail "loopback console port 8027 is in use"
   port_free 3397 || fail "loopback RDP port 3397 is in use"
   udp_port_free 3397 || fail "loopback UDP RDP port 3397 is in use"
+  require_relay_units_absent
   network_free_or_owned balls-revit-server-2027-bootstrap 172.29.26.0/24 172.29.26.1 false
   network_free_or_owned balls-revit-server-2027-lab 172.29.27.0/24 172.29.27.1 true
   say "PASS — pinned runtime, KVM, memory, ports, and reserved network identities are ready"
@@ -417,6 +533,7 @@ start_acceptance() {
   [[ -f "${state_root}/system/data.img" && -f "${state_root}/data/data2.img" ]] || fail "both lab disk files must exist"
   compose acceptance up -d
   attest_selected_network balls-revit-server-2027-lab 172.29.27.0/24 172.29.27.1 172.29.27.2 true
+  ensure_loopback_relays
   say "PASS — isolated acceptance lab started"
 }
 
@@ -437,6 +554,7 @@ start_lan() {
   compose lan config --quiet
   compose lan up -d
   attest_selected_network balls-revit-server-2027-lab 172.29.27.0/24 172.29.27.1 172.29.27.2 true
+  ensure_loopback_relays
   attest_lan_ports
   say "PASS — post-verification Revit HTTP/Admin ports published only on the selected private host address"
 }
@@ -461,6 +579,7 @@ stop_lab() {
   validate_container_identity
   local mode="acceptance"
   [[ -f "${mode_file}" ]] && mode="$(<"${mode_file}")"
+  stop_loopback_relays
   if container_running "${container}"; then
     docker container kill --signal TERM "${container}" >/dev/null \
       || fail "the graceful TERM request failed; container and disks were preserved"
@@ -499,7 +618,13 @@ case "${1:-}" in
   isolate) isolate ;;
   start) start_acceptance ;;
   lan-start) start_lan ;;
-  console) xdg-open http://127.0.0.1:8027/ >/dev/null 2>&1 ;;
+  console)
+    validate_state_root
+    validate_container_identity
+    container_running "${container}" || fail "start the exact lab before opening its console"
+    ensure_loopback_relays
+    xdg-open http://127.0.0.1:8027/ >/dev/null 2>&1
+    ;;
   status) status ;;
   stop) stop_lab ;;
   recover) recover ;;

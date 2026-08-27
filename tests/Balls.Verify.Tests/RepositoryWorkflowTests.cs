@@ -212,6 +212,13 @@ public sealed partial class RepositoryWorkflowTests
         StringAssert.Contains(manager, "was substituted after its device/inode identity was recorded");
         StringAssert.Contains(manager, "balls-issue61-provider-desktop is running");
         StringAssert.Contains(manager, "udp_port_free 3397");
+        StringAssert.Contains(manager, "ensure_loopback_relays");
+        StringAssert.Contains(manager, "systemd-run --user");
+        StringAssert.Contains(manager, "TCP4-LISTEN:8027,bind=127.0.0.1");
+        StringAssert.Contains(manager, "UDP4-RECVFROM:3397,bind=127.0.0.1");
+        StringAssert.Contains(manager, "console and RDP bindings are not restricted to the reserved loopback ports");
+        StringAssert.Contains(manager, "validate_owned_relay_unit");
+        StringAssert.Contains(manager, "stop_loopback_relays");
         StringAssert.Contains(manager, "attest_selected_network");
         StringAssert.Contains(manager, "docker inspect \"${container}\" >/dev/null 2>&1 || return 0");
         StringAssert.Contains(manager, "existing network ${name} has the wrong driver/internal/subnet/gateway shape");

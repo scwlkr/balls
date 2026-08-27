@@ -14,3 +14,9 @@ in this directory, command output, evidence, or Git.
 
 The configuration mounts only its isolated system and data storage. It intentionally has no
 `/shared` host mount, so no Linux shared folder can reach `D:\RevitServer`.
+
+Docker-internal acceptance networking intentionally has no gateway. On hosts where Docker therefore
+cannot serve its declared published ports, `manage.sh` creates owner-scoped transient `systemd`
+`socat` relays for the noVNC console and RDP. The relays bind only `127.0.0.1`, target only the exact
+reserved acceptance container address, are identity-checked before stop, and are removed when the
+lab stops. `manage.sh console` repairs a missing relay before opening `http://127.0.0.1:8027/`.
