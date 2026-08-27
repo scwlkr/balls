@@ -20,7 +20,8 @@ Each daemon owns one dedicated local state directory.
 The Windows platform adapter:
 
 - permits only a new/empty directory or a directory with the exact Balls v1 marker;
-- permits only the marker, SQLite database/sidecars, and daemon lock file;
+- permits only the marker, SQLite database/sidecars, daemon lock file, and automatic
+  private-listener port record;
 - rejects UNC and mapped-network paths, reparse-point paths/files, invalid markers, and unexpected
   entries;
 - replaces inherited access rules with protected ACLs granting full control only to the current

@@ -338,7 +338,7 @@ internal sealed class WindowsCircleFilesGrantOperation(IWindowsCircleFilesGrantO
             {
                 throw known;
             }
-            throw StageFailure("apply", activeStep!.Value);
+            throw StageFailure(GrantFailureAction.Apply, activeStep!.Value);
         }
     }
 
@@ -363,7 +363,7 @@ internal sealed class WindowsCircleFilesGrantOperation(IWindowsCircleFilesGrantO
             }
             catch (Exception)
             {
-                throw StageFailure("inspect", step);
+                throw StageFailure(GrantFailureAction.Inspect, step);
             }
         }
         return states;
@@ -406,22 +406,35 @@ internal sealed class WindowsCircleFilesGrantOperation(IWindowsCircleFilesGrantO
                 }
                 catch (Exception)
                 {
-                    throw StageFailure("roll back", step);
+                    throw StageFailure(GrantFailureAction.Rollback, step);
                 }
             }
         }
     }
 
     private static CircleFilesHostingException StageFailure(
-        string action,
+        GrantFailureAction action,
         WindowsCircleFilesGrantOperationStep step) => new(
             "grant_apply_failed",
-            $"Windows could not {action} {StepSubject(step)}.");
+            FailureMessage(action, step));
 
     internal static bool IsSafeFailureMessage(string message) =>
         message == "Windows could not restore the exact Member share witness."
-        || Steps.Any(step => new[] { "apply", "inspect", "roll back" }
-            .Any(action => message == $"Windows could not {action} {StepSubject(step)}."));
+        || Steps.Any(step => Enum.GetValues<GrantFailureAction>()
+            .Any(action => message == FailureMessage(action, step)));
+
+    private static string FailureMessage(
+        GrantFailureAction action,
+        WindowsCircleFilesGrantOperationStep step) =>
+        $"Windows could not {FailureActionVerb(action)} {StepSubject(step)}.";
+
+    private static string FailureActionVerb(GrantFailureAction action) => action switch
+    {
+        GrantFailureAction.Apply => "apply",
+        GrantFailureAction.Inspect => "inspect",
+        GrantFailureAction.Rollback => "roll back",
+        _ => throw new ArgumentOutOfRangeException(nameof(action)),
+    };
 
     private static string StepSubject(WindowsCircleFilesGrantOperationStep step) => step switch
     {
@@ -431,6 +444,13 @@ internal sealed class WindowsCircleFilesGrantOperation(IWindowsCircleFilesGrantO
         WindowsCircleFilesGrantOperationStep.ShareAccess => "encrypted share access",
         _ => throw new ArgumentOutOfRangeException(nameof(step)),
     };
+
+    private enum GrantFailureAction
+    {
+        Apply,
+        Inspect,
+        Rollback,
+    }
 
     private static CircleFilesHostingException Collision() => new(
         "grant_resource_collision",

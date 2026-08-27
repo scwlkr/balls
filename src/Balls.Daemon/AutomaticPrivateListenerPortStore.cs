@@ -82,11 +82,9 @@ internal static class AutomaticPrivateListenerPortStore
         }
 
         var path = GetPath(dataDirectory);
-        var parentDirectory = Path.GetDirectoryName(dataDirectory)
-            ?? throw new InvalidDataException("The automatic private listener port record path is invalid.");
         var temporaryPath = Path.Combine(
-            parentDirectory,
-            $".balls-{FileName}.{Guid.NewGuid():N}.tmp");
+            dataDirectory,
+            $".{FileName}.{Guid.NewGuid():N}.tmp");
         var content = JsonSerializer.SerializeToUtf8Bytes(
             new PortDocument(1, ports.AdmissionPort, ports.MessagePort));
         try
@@ -99,6 +97,12 @@ internal static class AutomaticPrivateListenerPortStore
             {
                 stream.Write(content);
                 stream.Flush(flushToDisk: true);
+            }
+            if (!OperatingSystem.IsWindows())
+            {
+                File.SetUnixFileMode(
+                    temporaryPath,
+                    UnixFileMode.UserRead | UnixFileMode.UserWrite);
             }
 
             File.Move(temporaryPath, path);

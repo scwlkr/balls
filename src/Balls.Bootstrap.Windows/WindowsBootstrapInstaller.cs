@@ -8,6 +8,8 @@ internal sealed class WindowsBootstrapInstaller : IDisposable
 {
     private const long MaximumPackageBytes = 2_147_483_648;
     private const int MaximumChecksumBytes = 1_024;
+    private const string AutomaticPrivateListenerRecordFileName =
+        "automatic-private-listeners-v1.json";
     private readonly VerifiedDownloader downloader = new();
 
     public async Task InstallAsync(BootstrapOptions options, CancellationToken cancellationToken)
@@ -23,6 +25,11 @@ internal sealed class WindowsBootstrapInstaller : IDisposable
             "Balls.lnk");
         var previousRecord = ReadOptionalBytes(recordPath);
         var previousShortcut = ReadOptionalBytes(shortcutPath);
+        var listenerRecordPath = Path.Combine(
+            options.InstallRoot,
+            "state",
+            AutomaticPrivateListenerRecordFileName);
+        var previousListenerRecord = ReadOptionalBytes(listenerRecordPath);
         byte[]? previousLauncher = null;
         string? launcherPath = null;
         string? installedVersionRoot = null;
@@ -33,6 +40,7 @@ internal sealed class WindowsBootstrapInstaller : IDisposable
         var shortcutChanged = false;
         var launcherChanged = false;
         var pidChanged = false;
+        var listenerRecordMayHaveChanged = false;
         var committed = false;
 
         try
@@ -87,6 +95,7 @@ internal sealed class WindowsBootstrapInstaller : IDisposable
                 options.AdvertisedPrivateAddress);
             launcherChanged = true;
 
+            listenerRecordMayHaveChanged = true;
             daemon = StartDaemon(daemonPath, installedVersionRoot, stateRoot, options);
             await File.WriteAllTextAsync(pidPath, daemon.Id.ToString(System.Globalization.CultureInfo.InvariantCulture), cancellationToken)
                 .ConfigureAwait(false);
@@ -170,6 +179,10 @@ internal sealed class WindowsBootstrapInstaller : IDisposable
             {
                 RestoreFile(recordPath, previousRecord, recordChanged);
                 RestoreFile(shortcutPath, previousShortcut, shortcutChanged);
+                RestoreFile(
+                    listenerRecordPath,
+                    previousListenerRecord,
+                    listenerRecordMayHaveChanged);
                 if (launcherPath is not null)
                 {
                     RestoreFile(launcherPath, previousLauncher, launcherChanged);
