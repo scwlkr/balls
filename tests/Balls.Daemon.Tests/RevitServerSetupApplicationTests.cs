@@ -1,4 +1,5 @@
 using Balls.Platform;
+using Balls.Protocol.Control.V1;
 
 namespace Balls.Daemon.Tests;
 
@@ -64,6 +65,160 @@ public sealed class RevitServerSetupApplicationTests
         Assert.AreEqual("public_network_refused", result.Checks.Single().Code);
     }
 
+    [TestMethod]
+    public async Task Begin_requires_explicit_consent_and_commits_Autodesk_handoff_before_launch()
+    {
+        var setup = new StubSetupOperator();
+        var store = new MemoryRevitServerSetupStateStore();
+        var application = CreateApplication(setup, HealthyInspector(), store);
+        var selected = await application.SelectMediaAsync("session-a", CancellationToken.None);
+        var plan = RevitServerSetupPlanFactory.Create(ReadyReport().Snapshot!);
+
+        var refusal = await Assert.ThrowsExactlyAsync<RevitServerSetupException>(() =>
+            application.BeginSelectedAsync(
+                "session-a",
+                new BeginRevitServerSetupRequest(selected!.Value.Id, plan.PlanDigest, false),
+                CancellationToken.None).AsTask());
+        Assert.AreEqual("setup_consent_required", refusal.Code);
+
+        var beginning = await application.BeginSelectedAsync(
+            "session-a",
+            new BeginRevitServerSetupRequest(selected!.Value.Id, plan.PlanDigest, true),
+            CancellationToken.None);
+        await setup.Launched.Task.WaitAsync(TimeSpan.FromSeconds(5));
+
+        Assert.AreEqual(RevitServerSetupStages.ApplyingPrerequisites, beginning.Stage);
+        Assert.AreEqual(RevitServerSetupStages.AwaitingAutodesk, setup.StageObservedAtLaunch);
+        Assert.AreEqual(MediaPath, setup.MediaPath);
+        Assert.AreEqual(0, setup.ArgumentCount);
+        Assert.AreEqual(RevitServerSetupStages.AwaitingAutodesk, application.GetStatus().Stage);
+    }
+
+    [TestMethod]
+    public async Task Restart_required_is_blocked_and_never_launches_Autodesk()
+    {
+        var setup = new StubSetupOperator
+        {
+            PreparationResult = new(
+                RevitServerSetupMutationStatus.RestartRequired,
+                "Restart Windows, then inspect again."),
+        };
+        var application = CreateApplication(setup, HealthyInspector(), new MemoryRevitServerSetupStateStore());
+        var selected = await application.SelectMediaAsync("session-a", CancellationToken.None);
+        var digest = RevitServerSetupPlanFactory.Create(ReadyReport().Snapshot!).PlanDigest;
+
+        await application.BeginSelectedAsync(
+            "session-a",
+            new BeginRevitServerSetupRequest(selected!.Value.Id, digest, true),
+            CancellationToken.None);
+        await WaitUntilAsync(() => application.GetStatus().Stage == RevitServerSetupStages.Blocked);
+
+        Assert.IsFalse(setup.Launched.Task.IsCompleted);
+        StringAssert.Contains(application.GetStatus().Summary, "Restart");
+    }
+
+    [TestMethod]
+    public async Task Verify_refuses_incomplete_health_and_persists_exact_healthy_result()
+    {
+        var setup = new StubSetupOperator();
+        var health = new StubHealthInspector(new RevitServerHealthReport(
+            RevitServerHealthStatus.Incomplete,
+            "Setup is incomplete.",
+            [new RevitServerHealthCheck("roles", RevitServerHealthStatus.Incomplete, "roles_incorrect", "Choose Host + Admin.")]));
+        var application = CreateApplication(setup, health, new MemoryRevitServerSetupStateStore());
+        var selected = await application.SelectMediaAsync("session-a", CancellationToken.None);
+        var digest = RevitServerSetupPlanFactory.Create(ReadyReport().Snapshot!).PlanDigest;
+        await application.BeginSelectedAsync(
+            "session-a",
+            new BeginRevitServerSetupRequest(selected!.Value.Id, digest, true),
+            CancellationToken.None);
+        await setup.Launched.Task.WaitAsync(TimeSpan.FromSeconds(5));
+
+        var incomplete = await application.VerifyAsync(CancellationToken.None);
+        Assert.AreEqual(RevitServerSetupStages.Incomplete, incomplete.Stage);
+        Assert.AreEqual("roles_incorrect", incomplete.Checks.Single().Code);
+
+        health.Result = HealthyReport();
+        var healthy = await application.VerifyAsync(CancellationToken.None);
+        Assert.AreEqual(RevitServerSetupStages.ReadyForHandoff, healthy.Stage);
+        StringAssert.Contains(healthy.Summary, "healthy");
+    }
+
+    [TestMethod]
+    public void Interrupted_mutation_is_not_replayed_after_daemon_restart()
+    {
+        var store = new MemoryRevitServerSetupStateStore();
+        store.Save(State(RevitServerSetupStages.ApplyingPrerequisites));
+        var application = CreateApplication(new StubSetupOperator(), HealthyInspector(), store);
+
+        var status = application.GetStatus();
+
+        Assert.AreEqual(RevitServerSetupStages.Blocked, status.Stage);
+        StringAssert.Contains(status.Summary, "interrupted");
+    }
+
+    private static RevitServerSetupApplication CreateApplication(
+        StubSetupOperator setup,
+        StubHealthInspector health,
+        IRevitServerSetupStateStore store)
+    {
+        setup.State = store;
+        return new RevitServerSetupApplication(
+            new StubPicker(new RevitServerMediaSelection(MediaPath, "Revit_Server_2027_win_db.sfx.exe")),
+            new RecordingInspector(ReadyReport()),
+            setupOperator: setup,
+            healthInspector: health,
+            stateStore: store);
+    }
+
+    private static StubHealthInspector HealthyInspector() => new(HealthyReport());
+
+    private static RevitServerHealthReport HealthyReport() => new(
+        RevitServerHealthStatus.Healthy,
+        "Revit Server 2027 Host + Admin is healthy.",
+        [new RevitServerHealthCheck("roles", RevitServerHealthStatus.Healthy, "roles_exact", "Host + Admin are healthy.")]);
+
+    private static RevitServerSetupState State(string stage)
+    {
+        var core = RevitServerSetupPlanFactory.Create(ReadyReport().Snapshot!);
+        return new RevitServerSetupState(
+            1,
+            1,
+            Guid.NewGuid().ToString("D"),
+            stage,
+            "In progress.",
+            MediaPath,
+            core.PlanDigest,
+            new RevitServerSetupPlanResponse(
+                core.PlanDigest,
+                core.Machine,
+                core.Windows,
+                core.Media,
+                core.MediaSha256,
+                core.EnabledRoles,
+                core.ForbiddenRoles,
+                core.DataPaths,
+                core.WindowsPrerequisites,
+                core.AclIntent,
+                core.DefaultWebSiteEffects,
+                core.RsnIni,
+                core.FirewallEffects,
+                core.VerificationActions,
+                core.BallsOwnedState,
+                core.AutodeskOwnedState),
+            [],
+            DateTimeOffset.UtcNow);
+    }
+
+    private static async Task WaitUntilAsync(Func<bool> predicate)
+    {
+        using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(5));
+        while (!predicate())
+        {
+            await Task.Delay(10, timeout.Token);
+        }
+    }
+
     private static RevitServerInspectionReport ReadyReport() => new(
         RevitServerReadinessStatus.Ready,
         "Ready. Nothing changed.",
@@ -107,6 +262,39 @@ public sealed class RevitServerSetupApplicationTests
             MediaPaths.Add(mediaPath);
             return ValueTask.FromResult(result);
         }
+    }
+
+    private sealed class StubSetupOperator : IRevitServerSetupOperator
+    {
+        public IRevitServerSetupStateStore? State { get; set; }
+        public RevitServerSetupPreparationResult PreparationResult { get; set; } = new(
+            RevitServerSetupMutationStatus.Applied,
+            "Prepared.");
+        public TaskCompletionSource Launched { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        public string? StageObservedAtLaunch { get; private set; }
+        public string? MediaPath { get; private set; }
+        public int ArgumentCount { get; private set; }
+
+        public ValueTask<RevitServerSetupPreparationResult> PrepareAsync(
+            RevitServerSetupPreparationRequest request,
+            CancellationToken cancellationToken) => ValueTask.FromResult(PreparationResult);
+
+        public ValueTask LaunchAutodeskAsync(string mediaPath, CancellationToken cancellationToken)
+        {
+            StageObservedAtLaunch = State?.Load()?.Stage;
+            MediaPath = mediaPath;
+            ArgumentCount = 0;
+            Launched.TrySetResult();
+            return ValueTask.CompletedTask;
+        }
+    }
+
+    private sealed class StubHealthInspector(RevitServerHealthReport result) : IRevitServerHealthInspector
+    {
+        public RevitServerHealthReport Result { get; set; } = result;
+
+        public ValueTask<RevitServerHealthReport> InspectAsync(CancellationToken cancellationToken) =>
+            ValueTask.FromResult(Result);
     }
 
     private const string MediaPath = @"C:\Media\Revit_Server_2027_win_db.sfx.exe";

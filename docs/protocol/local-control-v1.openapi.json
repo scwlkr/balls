@@ -2049,6 +2049,122 @@
         }
       }
     },
+    "/browser/v1/revit-server/setup/status": {
+      "get": {
+        "tags": [
+          "ballsd"
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RevitServerSetupStatusResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/browser/v1/revit-server/setup/begin": {
+      "post": {
+        "tags": [
+          "ballsd"
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/BeginRevitServerSetupRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RevitServerSetupStatusResponse"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/browser/v1/revit-server/setup/verify": {
+      "post": {
+        "tags": [
+          "ballsd"
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RevitServerSetupStatusResponse"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/browser/v1/revit-server/setup/retry": {
+      "post": {
+        "tags": [
+          "ballsd"
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RevitServerSetupStatusResponse"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/browser/v1/circles": {
       "get": {
         "tags": [
@@ -3042,6 +3158,25 @@
           },
           "planId": {
             "type": "string"
+          }
+        }
+      },
+      "BeginRevitServerSetupRequest": {
+        "required": [
+          "selectionId",
+          "planDigest",
+          "consent"
+        ],
+        "type": "object",
+        "properties": {
+          "selectionId": {
+            "type": "string"
+          },
+          "planDigest": {
+            "type": "string"
+          },
+          "consent": {
+            "type": "boolean"
           }
         }
       },
@@ -4663,6 +4798,46 @@
             "type": "array",
             "items": {
               "type": "string"
+            }
+          }
+        }
+      },
+      "RevitServerSetupStatusResponse": {
+        "required": [
+          "stage",
+          "summary",
+          "attemptId",
+          "plan",
+          "checks"
+        ],
+        "type": "object",
+        "properties": {
+          "stage": {
+            "type": "string"
+          },
+          "summary": {
+            "type": "string"
+          },
+          "attemptId": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "plan": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/RevitServerSetupPlanResponse"
+              }
+            ]
+          },
+          "checks": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/RevitServerReadinessCheckResponse"
             }
           }
         }
