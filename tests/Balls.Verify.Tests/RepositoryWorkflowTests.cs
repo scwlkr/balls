@@ -202,6 +202,8 @@ public sealed partial class RepositoryWorkflowTests
         StringAssert.Contains(manager, "SECONDS + 2700");
         StringAssert.Contains(manager, "validate_partial_bootstrap_state");
         StringAssert.Contains(manager, "setup.img|win2022-eval.iso");
+        StringAssert.Contains(manager, "select_bootstrap");
+        StringAssert.Contains(manager, "bootstrap network selected for additional OS preparation");
         StringAssert.Contains(manager, "was substituted after its device/inode identity was recorded");
         StringAssert.Contains(manager, "balls-issue61-provider-desktop is running");
         StringAssert.Contains(manager, "udp_port_free 3397");

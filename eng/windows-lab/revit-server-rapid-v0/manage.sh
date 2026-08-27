@@ -353,6 +353,19 @@ isolate() {
   say "PASS — bootstrap attachment removed; acceptance network selected"
 }
 
+select_bootstrap() {
+  require_private_env
+  validate_state_root
+  validate_container_identity
+  container_running "${container}" && fail "shut Windows down cleanly and stop the lab before selecting bootstrap"
+  compose acceptance down
+  [[ -f "${state_root}/system/data.img" && -f "${state_root}/data/data2.img" ]] || fail "both lab disk files must already exist"
+  printf 'bootstrap\n' > "${mode_file}"
+  chmod 600 "${mode_file}"
+  validate_state_root
+  say "PASS — acceptance attachment removed; bootstrap network selected for additional OS preparation"
+}
+
 start_acceptance() {
   preflight
   [[ -f "${mode_file}" && "$(<"${mode_file}")" == "acceptance" ]] || fail "run isolate after preparation"
@@ -409,11 +422,12 @@ case "${1:-}" in
   preflight) preflight ;;
   bootstrap-start) bootstrap_start ;;
   resume-bootstrap) resume_bootstrap ;;
+  select-bootstrap) select_bootstrap ;;
   isolate) isolate ;;
   start) start_acceptance ;;
   console) xdg-open http://127.0.0.1:8027/ >/dev/null 2>&1 ;;
   status) status ;;
   stop) stop_lab ;;
   recover) recover ;;
-  *) fail "usage: manage.sh initialize|preflight|bootstrap-start|resume-bootstrap|isolate|start|console|status|stop|recover" ;;
+  *) fail "usage: manage.sh initialize|preflight|bootstrap-start|resume-bootstrap|select-bootstrap|isolate|start|console|status|stop|recover" ;;
 esac
