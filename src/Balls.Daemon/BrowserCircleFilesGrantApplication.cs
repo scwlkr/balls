@@ -212,14 +212,22 @@ internal sealed class BrowserCircleFilesGrantApplication(
                 "circle_files_hosted_folder_missing",
                 "The exact hosted folder is unavailable. Contribute the folder again before sharing it.");
         }
-        if (hostedContributions.Count > 1)
+        var selected = hostedContributions
+            .OrderBy(value => value.Contribution.CreatedAtUtc)
+            .ThenBy(value => value.Contribution.Id.ToString(), StringComparer.Ordinal)
+            .First();
+        if (hostedContributions.Any(value =>
+                value.HostedFolder.NodeId != selected.HostedFolder.NodeId
+                || !string.Equals(
+                    value.HostedFolder.FolderPath,
+                    selected.HostedFolder.FolderPath,
+                    StringComparison.OrdinalIgnoreCase)))
         {
             throw new LocalStateConflictException(
                 "circle_files_grant_folder_unavailable",
                 "More than one hosted folder has that name; choose an unambiguous folder.");
         }
 
-        var selected = hostedContributions[0];
         var authorized = await files.GetAuthorizedLocalContributionAsync(
             circleId,
             selected.Contribution.Id,

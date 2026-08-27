@@ -72,48 +72,37 @@ docker network inspect windows_default --format '{{.Name}} {{.Driver}}'
 
 ### Nested-NAT development feedback
 
-The Dockur containers may share `windows_default` while each Windows guest sits behind a separate
-inner NAT and receives the same guest address. Before invitation testing, compare the actual guest
-addresses with the container addresses and prove both selected listener ports from the Member
-container. Do not assume container attachment means the Windows guests share one routable subnet.
+The two Dockur containers share `windows_default`, but each Windows guest sits behind its own inner
+NAT. Keep their guest subnets unique and privately routed: the Owner guest uses `172.30.0.2/24`
+behind `omarchy-windows`, and the disposable Member guest uses `172.31.0.2/24` behind
+`balls-issue61-provider-desktop`. The Member container starts with `IP=172.31.0.2` and installs a
+route to `172.30.0.0/24` through the Owner container. The Owner Compose configuration installs the
+reciprocal route to `172.31.0.0/24` through the Member container. These routes stay inside
+`windows_default`; they do not publish either guest or SMB on the Linux host.
 
-For a local package feedback iteration only, the bootstrap's typed
-`--advertised-private-address <private-ip>` option may project the container's reachable private
-address into invitations while the daemon remains bound to its selected inner private interface.
-It rejects hostnames and public addresses and does not weaken listener or firewall scope. Record
-this as a lab intervention: a manually supplied projection is not final checklist evidence. The
-mergeable result must either make the projection automatic for the accepted topology or update the
-accepted lab contract explicitly.
+This topology lets the normal bootstrap use automatic private listeners without an advertised
+address override. A mergeable or release acceptance run must use the website command or the exact
+offline bootstrap with no `--advertised-private-address`, manual IP, port, or daemon flag. The
+typed advertised-address option remains a bounded diagnostic for local experiments, not checklist
+evidence.
+
+Before invitation testing, verify the live identities and routes rather than assuming container
+attachment means the guests are mutually reachable:
+
+```bash
+docker inspect --format '{{.Name}} {{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}' \
+  omarchy-windows balls-issue61-provider-desktop
+docker exec omarchy-windows ip route show 172.31.0.0/24
+docker exec balls-issue61-provider-desktop ip route show 172.30.0.0/24
+```
+
+After Balls starts, prove the Owner guest's selected admission and synchronization ports plus TCP
+445 from the Member container over `172.30.0.2`. Keep the Windows firewall Private-profile rules
+unchanged. Do not add an outer-address DNAT, host port, public listener, or separate SMB service.
 
 Automatic admission and synchronization ports are allocated once and stored in the protected Balls
 state directory. Preserve that state during local package updates, and verify a normal shortcut
 relaunch reuses the same two ports; rotating either port strands previously joined Members.
-
-Dockur reserves TCP 445 for its `host.lan` shared-drive service instead of forwarding that port
-through its normal catch-all guest NAT. In the accepted same-host, two-container lab, add one exact
-private-bridge ingress rule after the Owner container starts. First verify the actual Owner
-container address and the Owner guest address; never copy the example addresses blindly. Then run
-the equivalent of:
-
-```bash
-owner_container=omarchy-windows
-owner_outer_address=172.18.0.2
-owner_guest_address=172.30.0.2
-
-docker exec -u 0 "$owner_container" sh -lc \
-  "iptables -t nat -C PREROUTING -i eth0 -d $owner_outer_address/32 \
-    -p tcp --dport 445 -m comment --comment BALLS_PRIVATE_SMB_DNAT \
-    -j DNAT --to-destination $owner_guest_address:445 2>/dev/null || \
-   iptables -t nat -I PREROUTING 1 -i eth0 -d $owner_outer_address/32 \
-    -p tcp --dport 445 -m comment --comment BALLS_PRIVATE_SMB_DNAT \
-    -j DNAT --to-destination $owner_guest_address:445"
-```
-
-The rule is deliberately limited to the Owner container's private `eth0` address and does not
-publish SMB on the Linux host. Reapply it after the Owner container is recreated, verify TCP 445
-from the Member container, and keep the Windows firewall Private-profile SMB rule unchanged. This
-is an accepted transport intervention for this nested-NAT lab, not a Circle identity or
-authorization mechanism and not permission to expose SMB publicly.
 
 ## Deferred physical coworker laptop
 

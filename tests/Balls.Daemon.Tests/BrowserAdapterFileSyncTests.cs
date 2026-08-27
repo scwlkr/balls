@@ -256,6 +256,16 @@ public sealed partial class BrowserAdapterSecurityTests
             }
 
             Assert.AreEqual(1, hostedBindingCount);
+
+            var duplicate = contributionsAfterCollision.Contributions.Single(value =>
+                value.Id != contribution.ContributionId);
+            await inspectionStore.SaveCircleFilesHostedFolderAsync(
+                new Balls.Storage.Sqlite.CircleFilesHostedFolderBinding(
+                    new Balls.Core.CircleId(Guid.Parse(duplicate.CircleId)),
+                    new Balls.Core.CircleFilesContributionId(Guid.Parse(duplicate.Id)),
+                    new Balls.Core.CircleFilesProviderId(Guid.Parse(duplicate.Provider.Id)),
+                    new Balls.Core.NodeId(Guid.Parse(duplicate.Provider.NodeId)),
+                    @"C:\BallsShares\Pilot"));
         }
         _ = await CreateSyncGrantAsync(
             relaunchedOwnerClient,
