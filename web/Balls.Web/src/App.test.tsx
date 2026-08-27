@@ -306,6 +306,21 @@ describe("Balls browser workspace", () => {
           authorityGeneration: 1,
           authorizedAtUtc: "2026-08-25T12:00:00Z",
         },
+        {
+          id: "0198f2cc-6a50-7a08-aacb-298f4ebdf674",
+          circleId,
+          provider: {
+            id: "0198f2cc-6a50-7a08-aacb-298f4ebdf675",
+            nodeId: details.nodes[0].id,
+          },
+          displayName: "Projects",
+          lifecycle: "defined",
+          generation: 1,
+          createdAtUtc: "2026-08-25T12:01:00Z",
+          authorizedByMemberId: details.members[0].id,
+          authorityGeneration: 1,
+          authorizedAtUtc: "2026-08-25T12:01:00Z",
+        },
       ],
     });
     const previews: Array<[string, string, string]> = [];
@@ -339,6 +354,9 @@ describe("Balls browser workspace", () => {
       name: "Share a Circle Capability",
     });
     expect(within(form).getByLabelText("Folder")).toHaveValue("Projects");
+    expect(
+      within(form).getByLabelText("Folder").querySelectorAll("option"),
+    ).toHaveLength(1);
     expect(within(form).getByLabelText("Member")).toHaveValue("Bob");
     expect(within(form).getByLabelText("Access")).toHaveValue("read-write");
     fireEvent.click(

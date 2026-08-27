@@ -4,17 +4,24 @@ import type { BrowserApi } from "../api/browserApi";
 import type { WorkspaceViewer } from "../presentation/DashboardSnapshot";
 import { toMessage } from "../presentation/toMessage";
 
+export type FilesMappingApi = Pick<
+  BrowserApi,
+  "syncFiles" | "listFilesContributions" | "listFilesGrants" | "openFiles"
+>;
+
 export function FilesMappingPanel({
   api,
   viewer,
   circleId,
 }: {
-  api: BrowserApi;
+  api: FilesMappingApi;
   viewer: WorkspaceViewer;
   circleId: string;
 }) {
   const [contributions, setContributions] = useState<
-    Awaited<ReturnType<BrowserApi["listFilesContributions"]>>["contributions"]
+    Awaited<
+      ReturnType<FilesMappingApi["listFilesContributions"]>
+    >["contributions"]
   >([]);
   const [contributionId, setContributionId] = useState("");
   const [grantId, setGrantId] = useState("");
@@ -60,6 +67,7 @@ export function FilesMappingPanel({
               viewer.role === "owner" || grant.memberId === viewer.memberId,
           );
           setGrantId(available[0]?.id ?? "");
+          setPanelError(null);
           if (available.length === 0) retry();
         }
       } catch (reason) {
@@ -112,7 +120,10 @@ export function FilesMappingPanel({
           {viewer.role === "member" ? (
             <button
               type="button"
-              onClick={() => setRefreshRequest((value) => value + 1)}
+              onClick={() => {
+                setPanelError(null);
+                setRefreshRequest((value) => value + 1);
+              }}
             >
               Check again
             </button>

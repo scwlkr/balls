@@ -1,3 +1,4 @@
+using System.Net;
 using System.Reflection;
 using Balls.Core;
 using Balls.Host;
@@ -53,6 +54,7 @@ public static class DaemonCommand
         var nodeName = host.Defaults.NodeDisplayName;
         string? admissionListenEndpoint = null;
         string? messageListenEndpoint = null;
+        string? advertisedPrivateAddress = null;
         var automaticPrivateListeners = false;
 
         if (!TryApplyOption(tokens, "--data-directory", ref dataDirectory, out var error)
@@ -67,6 +69,11 @@ public static class DaemonCommand
                 tokens,
                 "--message-listen",
                 ref messageListenEndpoint,
+                out error)
+            || !TryApplyOptionalOption(
+                tokens,
+                "--advertised-private-address",
+                ref advertisedPrivateAddress,
                 out error)
             || !TryApplyFlag(
                 tokens,
@@ -153,6 +160,17 @@ public static class DaemonCommand
             }
         }
 
+        if (advertisedPrivateAddress is not null
+            && (!automaticPrivateListeners
+                || !IPAddress.TryParse(advertisedPrivateAddress, out var parsedAdvertisedAddress)
+                || !LanTcpEndpoint.IsPrivateIPv4(parsedAdvertisedAddress)))
+        {
+            await standardError.WriteLineAsync(
+                "ballsd: invalid --advertised-private-address value.");
+            await WriteUsageAsync(standardError);
+            return DaemonExitCodes.UsageError;
+        }
+
         try
         {
             await using var daemon = await DaemonHost.StartAsync(
@@ -162,7 +180,8 @@ public static class DaemonCommand
                     nodeName,
                     admissionListenEndpoint,
                     messageListenEndpoint,
-                    automaticPrivateListeners),
+                    automaticPrivateListeners,
+                    advertisedPrivateAddress),
                 host,
                 supported.PrivateMaterialProtector,
                 cancellationToken).ConfigureAwait(false);
@@ -276,7 +295,7 @@ public static class DaemonCommand
     private static Task WriteUsageAsync(TextWriter writer)
     {
         return writer.WriteLineAsync(
-            "usage: ballsd [--data-directory <path>] [--pipe-name <name>] [--node-name <name>] [--admission-listen <private-ip:port>] [--message-listen <private-ip:port>] [--automatic-private-listeners]");
+            "usage: ballsd [--data-directory <path>] [--pipe-name <name>] [--node-name <name>] [--admission-listen <private-ip:port>] [--message-listen <private-ip:port>] [--automatic-private-listeners] [--advertised-private-address <private-ip>]");
     }
 
     private static string GetProductVersion()

@@ -34,7 +34,9 @@ export function OwnerGrantPanel({
       .listFilesContributions(circleId)
       .then((result) => {
         if (!active) return;
-        const names = result.contributions.map((value) => value.displayName);
+        const names = [
+          ...new Set(result.contributions.map((value) => value.displayName)),
+        ];
         setFolders(names);
         setFolderName(names[0] ?? "");
       })

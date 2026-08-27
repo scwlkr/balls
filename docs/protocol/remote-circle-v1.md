@@ -33,10 +33,12 @@ Developer and test launches may compose each listener explicitly with
 `--admission-listen <private-ip:port>` or `--message-listen <private-ip:port>`. Normal installed
 launch uses `--automatic-private-listeners`: `ballsd` requires exactly one operational,
 non-loopback private IPv4 address, binds admission and synchronization listeners directly on it
-with ephemeral ports, and retains their actual bound addresses. It never selects a wildcard,
-hostname, public address, loopback address, or IPv6 address. No or multiple candidates leave the
-loopback workspace available but make browser invitation creation unavailable with a bounded
-error.
+with OS-assigned ports on the first launch, persists that exact port pair in protected local state,
+and reuses it across normal daemon relaunches so accepted invitations keep working. An invalid
+record fails closed; an unavailable saved port leaves the loopback workspace available but does not
+silently rotate an already-shared endpoint. It never selects a wildcard, hostname, public address,
+loopback address, or IPv6 address. No or multiple candidates leave the loopback workspace available
+but make browser invitation creation unavailable with a bounded error.
 
 For the two-person LAN pilot, the authenticated message listener also accepts a separately typed
 Circle Files synchronization request. The directly shared browser invitation carries the admission

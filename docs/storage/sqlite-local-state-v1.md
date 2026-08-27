@@ -14,6 +14,8 @@ known to that daemon. It is a storage adapter, not the eventual replicated Circl
 - Database: `balls.db` in the daemon's dedicated data directory.
 - SQLite sidecars: `balls.db-wal` and `balls.db-shm` when present.
 - Daemon lease: `ballsd.lock`, opened exclusively so only one daemon writes the directory.
+- Automatic private listener record: `automatic-private-listeners-v1.json`, containing only the
+  validated admission and synchronization port numbers that must survive a normal relaunch.
 - Directory marker: `.balls-state` with the exact v1 marker content.
 
 On Windows and Linux, the selected platform adapter prepares the directory before SQLite opens it

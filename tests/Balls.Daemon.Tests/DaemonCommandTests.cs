@@ -133,6 +133,55 @@ public sealed class DaemonCommandTests
             StringComparison.Ordinal));
     }
 
+    [TestMethod]
+    public async Task Nested_nat_projection_accepts_only_a_private_address_with_automatic_listeners()
+    {
+        using var directory = new TemporaryDirectory();
+        var dataDirectory = Path.Combine(directory.Path, "state");
+        var output = new StringWriter();
+        var error = new StringWriter();
+
+        var exitCode = await DaemonCommand.RunAsync(
+            [
+                "--data-directory",
+                dataDirectory,
+                "--automatic-private-listeners",
+                "--advertised-private-address",
+                "8.8.8.8",
+            ],
+            output,
+            error);
+
+        Assert.AreEqual(DaemonExitCodes.UsageError, exitCode);
+        Assert.AreEqual(string.Empty, output.ToString());
+        StringAssert.Contains(error.ToString(), "invalid --advertised-private-address");
+        Assert.IsFalse(Directory.Exists(dataDirectory));
+    }
+
+    [TestMethod]
+    public async Task Nested_nat_projection_option_is_recognized_without_consuming_the_next_argument()
+    {
+        var output = new StringWriter();
+        var error = new StringWriter();
+
+        var exitCode = await DaemonCommand.RunAsync(
+            [
+                "--automatic-private-listeners",
+                "--advertised-private-address",
+                "10.254.254.254",
+                "unexpected",
+            ],
+            output,
+            error);
+
+        Assert.AreEqual(DaemonExitCodes.UsageError, exitCode);
+        Assert.AreEqual(string.Empty, output.ToString());
+        StringAssert.Contains(error.ToString(), "unknown argument 'unexpected'");
+        Assert.IsFalse(error.ToString().Contains(
+            "unknown argument '--advertised-private-address'",
+            StringComparison.Ordinal));
+    }
+
     private sealed class TemporaryDirectory : IDisposable
     {
         public TemporaryDirectory()
