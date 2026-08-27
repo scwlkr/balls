@@ -85,6 +85,9 @@ public sealed class WindowsCircleFilesGrantOperationTests
             () => new WindowsCircleFilesGrantOperation(failure)
                 .ExecuteAsync(Plan, CancellationToken.None).AsTask());
         Assert.AreEqual("grant_apply_failed", failureError.Code);
+        Assert.AreEqual(
+            "Windows could not apply encrypted share access.",
+            failureError.Message);
         CollectionAssert.AreEqual(
             new[]
             {
@@ -93,6 +96,36 @@ public sealed class WindowsCircleFilesGrantOperationTests
                 WindowsCircleFilesGrantOperationStep.LocalAccount,
             },
             failure.RolledBack.ToArray());
+    }
+
+    [TestMethod]
+    public async Task Grant_inspection_and_recovery_failures_return_a_safe_stage()
+    {
+        var inspection = new StubOperations
+        {
+            FailInspectOn = WindowsCircleFilesGrantOperationStep.LocalAccount,
+        };
+        var inspectionError = await Assert.ThrowsExactlyAsync<CircleFilesHostingException>(
+            () => new WindowsCircleFilesGrantOperation(inspection)
+                .ExecuteAsync(Plan, CancellationToken.None).AsTask());
+        Assert.AreEqual("grant_apply_failed", inspectionError.Code);
+        Assert.AreEqual(
+            "Windows could not inspect the limited Member account.",
+            inspectionError.Message);
+
+        var recovery = new StubOperations
+        {
+            FailRollbackOn = WindowsCircleFilesGrantOperationStep.LocalAccount,
+        };
+        recovery.States[WindowsCircleFilesGrantOperationStep.LocalAccount] =
+            WindowsCircleFilesOwnedState.Owned;
+        var recoveryError = await Assert.ThrowsExactlyAsync<CircleFilesHostingException>(
+            () => new WindowsCircleFilesGrantOperation(recovery)
+                .ExecuteAsync(Plan, CancellationToken.None).AsTask());
+        Assert.AreEqual("grant_apply_failed", recoveryError.Code);
+        Assert.AreEqual(
+            "Windows could not roll back the limited Member account.",
+            recoveryError.Message);
     }
 
     [TestMethod]
@@ -702,13 +735,22 @@ public sealed class WindowsCircleFilesGrantOperationTests
             Enum.GetValues<WindowsCircleFilesGrantOperationStep>()
                 .ToDictionary(value => value, _ => WindowsCircleFilesOwnedState.Missing);
         public WindowsCircleFilesGrantOperationStep? FailOn { get; init; }
+        public WindowsCircleFilesGrantOperationStep? FailInspectOn { get; init; }
+        public WindowsCircleFilesGrantOperationStep? FailRollbackOn { get; init; }
         public List<WindowsCircleFilesGrantOperationStep> Applied { get; } = [];
         public List<WindowsCircleFilesGrantOperationStep> RolledBack { get; } = [];
 
         public ValueTask<WindowsCircleFilesOwnedState> InspectAsync(
             WindowsCircleFilesGrantHelperPlan plan,
             WindowsCircleFilesGrantOperationStep step,
-            CancellationToken cancellationToken) => ValueTask.FromResult(States[step]);
+            CancellationToken cancellationToken)
+        {
+            if (step == FailInspectOn)
+            {
+                throw new InvalidOperationException("injected inspection failure");
+            }
+            return ValueTask.FromResult(States[step]);
+        }
 
         public ValueTask ApplyAsync(
             WindowsCircleFilesGrantHelperPlan plan,
@@ -729,6 +771,10 @@ public sealed class WindowsCircleFilesGrantOperationTests
             WindowsCircleFilesGrantOperationStep step,
             CancellationToken cancellationToken)
         {
+            if (step == FailRollbackOn)
+            {
+                throw new InvalidOperationException("injected rollback failure");
+            }
             RolledBack.Add(step);
             States[step] = WindowsCircleFilesOwnedState.Missing;
             return ValueTask.CompletedTask;
