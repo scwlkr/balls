@@ -177,7 +177,7 @@ The reserved identity and ownership are:
 | RDP diagnostic | host `127.0.0.1:3397` to container TCP/UDP 3389; never bind beyond loopback |
 | Compute | 4 vCPU, 8 GiB RAM |
 | Runtime | Dockurr Windows 6.05, source `efe47da76d49c9d77c0a26799c70315fa4d91055`, pinned image digest `sha256:0cff9eb0e7aee9953e55bc682852ca4fdca233145a58ae1ec94f0b0c01a2ed30` |
-| Installer | official `Revit_Server_2027_win_db.sfx.exe` cached inside the guest; current complete host cache is 912,600,144 bytes with SHA-256 `295b30779868b9d58d78d9ff4353e4b9c6412418274a8034db6c6e7e0d348518`, but Windows must independently verify publisher/product/version/hash; never use the company-content Revit ZIP |
+| Installer | official `Revit_Server_2027_win_db.sfx.exe` cached inside the guest; current complete host cache is 912,600,144 bytes with SHA-256 `295b30779868b9d58d78d9ff4353e4b9c6412418274a8034db6c6e7e0d348518`; Windows must independently verify the Autodesk signature and exact hash/size/name, which the trusted catalog maps to Revit Server 2027 build `27.0.4.412`; never use the company-content Revit ZIP |
 
 Before operating the #114 configuration, re-inspect live containers, memory, routes, Docker networks,
 and listeners. Stop if any reserved subnet, identity, path, or port is already in use. The compose
@@ -200,7 +200,6 @@ install -m 700 eng/windows-lab/revit-server-rapid-v0/manage.sh \
 /home/scwlkr/.config/balls-labs/revit-server-2027/manage.sh console
 /home/scwlkr/.config/balls-labs/revit-server-2027/manage.sh status
 /home/scwlkr/.config/balls-labs/revit-server-2027/manage.sh stop
-/home/scwlkr/.config/balls-labs/revit-server-2027/manage.sh logs
 /home/scwlkr/.config/balls-labs/revit-server-2027/manage.sh recover
 ```
 
@@ -210,7 +209,14 @@ and selects the acceptance overlay. `start` attaches only the Docker-internal ac
 Verify `docker network inspect balls-revit-server-2027-lab` reports `"Internal": true` before #114
 evidence. Never use the bootstrap overlay during the setup timer or Ready/Blocked proof.
 
-`stop` is the normal shutdown and preserves both reserved disks. If Windows or Autodesk setup
+The manager refuses linked, foreign-owned, unmarked, unexpected, or wrong-sized storage; a private
+environment file that is not a current-owner, single-link regular file at mode `0600`; conflicting
+TCP/UDP loopback ports; either running Windows guest; an unowned same-name container/network; and
+any post-start network shape other than the exact selected bridge/subnet/gateway/address. It exposes
+no raw log command because runtime output can contain the private password.
+
+`stop` sends only a graceful TERM request and waits up to two minutes. On timeout it leaves the
+container running and does not invoke Compose down or a force-kill. A successful stop preserves both reserved disks. If Windows or Autodesk setup
 fails, stop the container, preserve the compose configuration and both disk files, record the
 failure, and diagnose from the loopback console. Do not restore, replace, truncate, or delete a
 disk to obtain a green result. Because this lab is disposable and must never contain company/model

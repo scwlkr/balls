@@ -19,6 +19,10 @@
 - Browser selection is native and short-lived/session-bound. The browser never uploads the roughly
   870 MB installer and never receives the selected local path. The local-control and browser routes
   use the same daemon application service.
+- The exact signed outer SFX identity maps through a typed trusted-media catalog entry to
+  `Autodesk Revit Server 2027` build `27.0.4.412`. The generic outer `Autodesk Create Installer
+  19.00` VersionInfo is not treated as product proof, and inspection neither executes nor extracts
+  the SFX.
 - The top-level Development panel is available before a Circle exists and plainly renders Ready or
   Blocked without an apply/install action.
 
@@ -41,7 +45,8 @@ company-content Revit ZIP in Linux Downloads is not Autodesk installer media and
 
 ## Exact limitation
 
-This record proves implementation and deterministic contract behavior only. It does not claim the
-official 2027 media's real PE/manifest identity, a Windows graphical Ready/Blocked observation,
-Windows no-mutation evidence, Revit Server installation, Autodesk health, model operations, remote
-access, or production support. Those required Windows observations remain `NOT RUN`, not PASS.
+This record proves implementation, deterministic contract behavior, and the offline-inspected
+catalog identity only. It does not claim a Windows Authenticode/hash observation, a Windows
+graphical Ready/Blocked observation, Windows no-mutation evidence, Revit Server installation,
+Autodesk health, model operations, remote access, or production support. Those required Windows
+observations remain `NOT RUN`, not PASS.

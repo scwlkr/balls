@@ -80,8 +80,8 @@ public sealed class RevitServerSetupApplicationTests
             new RevitServerMediaIdentity(
                 "Revit_Server_2027_win_db.sfx.exe",
                 "Autodesk, Inc.",
-                "Autodesk Revit 2027",
-                "27.0.0.0",
+                "Autodesk Revit Server 2027",
+                "27.0.4.412",
                 new string('a', 64)),
             false,
             []));
