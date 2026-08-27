@@ -57,6 +57,8 @@ credentials, private Circle material, Autodesk license data, or raw machine secr
 - End timestamp:
 - Wall-clock elapsed:
 - Human-intervention elapsed:
+- Human-intervention measurement: Balls records the conservative upper-bound `awaiting-autodesk`
+  window (including installer waiting); optionally record separately observed hands-on time here:
 - Required result: elapsed `< 00:30:00`
 
 ## Health-only proof

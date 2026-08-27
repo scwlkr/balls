@@ -126,6 +126,7 @@ public static partial class RevitServerHandoffBundleFactory
                 request.EndedAtUtc,
                 decimal.Round((decimal)request.WallClockElapsed.TotalSeconds, 3),
                 decimal.Round((decimal)request.HumanInterventionElapsed.TotalSeconds, 3),
+                "upper-bound awaiting-Autodesk window",
                 request.HumanInterventions),
             outcome,
             UntestedScenarios);
@@ -390,6 +391,7 @@ public static partial class RevitServerHandoffBundleValidator
             || value.Timing.WallClockSeconds < 0
             || value.Timing.HumanInterventionSeconds < 0
             || value.Timing.HumanInterventionSeconds > value.Timing.WallClockSeconds
+            || value.Timing.HumanInterventionMeasurement != "upper-bound awaiting-Autodesk window"
             || (pass && value.Timing.WallClockSeconds >= 1800)
             || (!pass && value.Timing.WallClockSeconds < 1800)
             || value.Timing.HumanInterventions.Count == 0
@@ -553,6 +555,7 @@ public sealed record TimingReceipt(
     DateTimeOffset EndedAtUtc,
     decimal WallClockSeconds,
     decimal HumanInterventionSeconds,
+    string HumanInterventionMeasurement,
     IReadOnlyList<string> HumanInterventions);
 public sealed record BundleManifestDocument(
     int SchemaVersion,

@@ -17,6 +17,9 @@
   returning any ZIP.
 - The end sample is taken only after package verification and one complete ZIP generation plus
   strict validation pass. A final receipt-bound ZIP is then serialized from that locked evidence.
+- `humanInterventionSeconds` is explicitly labeled as the upper-bound awaiting-Autodesk window. It
+  includes installer waiting and therefore does not overclaim measured hands-on keyboard time; the
+  checklist may separately record a manually observed hands-on duration.
 - Export requires the official Windows bootstrap's exact Development `installation.json` identity.
   It blocks on missing/substituted identity or a lost in-process monotonic timer.
 - Begin setup verifies that same installation record before starting the monotonic timer, so a
