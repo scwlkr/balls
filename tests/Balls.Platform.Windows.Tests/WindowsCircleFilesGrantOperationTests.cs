@@ -2,6 +2,7 @@ using System.Runtime.Versioning;
 using System.Security.AccessControl;
 using System.Security.Cryptography;
 using System.Security.Principal;
+using System.Text.Json;
 using Balls.Core;
 using Balls.Platform;
 using Balls.Platform.Windows;
@@ -85,6 +86,9 @@ public sealed class WindowsCircleFilesGrantOperationTests
             () => new WindowsCircleFilesGrantOperation(failure)
                 .ExecuteAsync(Plan, CancellationToken.None).AsTask());
         Assert.AreEqual("grant_apply_failed", failureError.Code);
+        Assert.AreEqual(
+            "Windows could not apply encrypted share access.",
+            failureError.Message);
         CollectionAssert.AreEqual(
             new[]
             {
@@ -93,6 +97,36 @@ public sealed class WindowsCircleFilesGrantOperationTests
                 WindowsCircleFilesGrantOperationStep.LocalAccount,
             },
             failure.RolledBack.ToArray());
+    }
+
+    [TestMethod]
+    public async Task Grant_inspection_and_recovery_failures_return_a_safe_stage()
+    {
+        var inspection = new StubOperations
+        {
+            FailInspectOn = WindowsCircleFilesGrantOperationStep.LocalAccount,
+        };
+        var inspectionError = await Assert.ThrowsExactlyAsync<CircleFilesHostingException>(
+            () => new WindowsCircleFilesGrantOperation(inspection)
+                .ExecuteAsync(Plan, CancellationToken.None).AsTask());
+        Assert.AreEqual("grant_apply_failed", inspectionError.Code);
+        Assert.AreEqual(
+            "Windows could not inspect the limited Member account.",
+            inspectionError.Message);
+
+        var recovery = new StubOperations
+        {
+            FailRollbackOn = WindowsCircleFilesGrantOperationStep.LocalAccount,
+        };
+        recovery.States[WindowsCircleFilesGrantOperationStep.LocalAccount] =
+            WindowsCircleFilesOwnedState.Owned;
+        var recoveryError = await Assert.ThrowsExactlyAsync<CircleFilesHostingException>(
+            () => new WindowsCircleFilesGrantOperation(recovery)
+                .ExecuteAsync(Plan, CancellationToken.None).AsTask());
+        Assert.AreEqual("grant_apply_failed", recoveryError.Code);
+        Assert.AreEqual(
+            "Windows could not roll back the limited Member account.",
+            recoveryError.Message);
     }
 
     [TestMethod]
@@ -318,6 +352,7 @@ public sealed class WindowsCircleFilesGrantOperationTests
             + "$value=[Console]::In.ReadToEnd();"
             + "[PSCustomObject]@{Value=$value;Policy=$policy}|ConvertTo-Json -Compress";
         var startInfo = WindowsDirectPowerShellCommand.CreateStartInfo(script);
+        Assert.AreEqual(Path.GetDirectoryName(startInfo.FileName), startInfo.WorkingDirectory);
         Assert.IsFalse(startInfo.Environment.ContainsKey("BALLS_FIXED_SCRIPT"));
         Assert.IsFalse(startInfo.Environment.ContainsKey("PSModulePath"));
         CollectionAssert.AreEqual(
@@ -350,6 +385,43 @@ public sealed class WindowsCircleFilesGrantOperationTests
         Assert.AreEqual(
             "{\"Value\":\"stdin-probe\",\"Policy\":\"Restricted\"}",
             output.Trim());
+    }
+
+    [TestMethod]
+    public async Task Grant_fixed_command_inspects_missing_account_under_restricted_policy()
+    {
+        if (!OperatingSystem.IsWindows())
+        {
+            return;
+        }
+
+        var accountName = "BallsG-T" + Guid.NewGuid().ToString("N")[..8];
+        var input = JsonSerializer.Serialize(new
+        {
+            Command = "InspectAccount",
+            AccountName = accountName,
+            Password = "DiagnosticOnly1!",
+            Description = "Balls missing-account contract",
+            OwnerSid = WindowsIdentity.GetCurrent().User!.Value,
+            ShareName = "balls-diagnostic",
+            AccessRight = "Change",
+            GrantMarkersValid = false,
+            GrantBindings = Array.Empty<object>(),
+            InjectAccountFailure = false,
+            InjectAccountTerminationStep = (string?)null,
+        });
+        var startInfo = WindowsDirectPowerShellCommand.CreateStartInfo(
+            WindowsCircleFilesGrantPowerShell.Script);
+        startInfo.Environment["PSExecutionPolicyPreference"] = "Restricted";
+
+        var output = await BoundedWindowsInspectionProcessRunner.RunWithInputAsync(
+            startInfo,
+            input,
+            TimeSpan.FromSeconds(45),
+            1024,
+            CancellationToken.None);
+
+        Assert.AreEqual("{\"State\":\"Missing\"}", output.Trim());
     }
 
     [TestMethod]
@@ -540,6 +612,24 @@ public sealed class WindowsCircleFilesGrantOperationTests
     }
 
     [TestMethod]
+    public void Helper_returns_only_the_curated_grant_failure_stage()
+    {
+        var staged = new CircleFilesHostingException(
+            "grant_apply_failed",
+            "Windows could not inspect encrypted share access.");
+        Assert.AreEqual(
+            staged.Message,
+            WindowsCircleFilesHelperCommand.SafeErrorMessage(staged));
+
+        var untrusted = new CircleFilesHostingException(
+            "grant_apply_failed",
+            @"Unexpected provider detail C:\private");
+        Assert.AreEqual(
+            "The Windows Circle Files helper refused the operation.",
+            WindowsCircleFilesHelperCommand.SafeErrorMessage(untrusted));
+    }
+
+    [TestMethod]
     public void Mixed_helper_envelope_still_zeroes_deserialized_grant_secret()
     {
         var secret = Plan.Secret.ToArray();
@@ -702,13 +792,22 @@ public sealed class WindowsCircleFilesGrantOperationTests
             Enum.GetValues<WindowsCircleFilesGrantOperationStep>()
                 .ToDictionary(value => value, _ => WindowsCircleFilesOwnedState.Missing);
         public WindowsCircleFilesGrantOperationStep? FailOn { get; init; }
+        public WindowsCircleFilesGrantOperationStep? FailInspectOn { get; init; }
+        public WindowsCircleFilesGrantOperationStep? FailRollbackOn { get; init; }
         public List<WindowsCircleFilesGrantOperationStep> Applied { get; } = [];
         public List<WindowsCircleFilesGrantOperationStep> RolledBack { get; } = [];
 
         public ValueTask<WindowsCircleFilesOwnedState> InspectAsync(
             WindowsCircleFilesGrantHelperPlan plan,
             WindowsCircleFilesGrantOperationStep step,
-            CancellationToken cancellationToken) => ValueTask.FromResult(States[step]);
+            CancellationToken cancellationToken)
+        {
+            if (step == FailInspectOn)
+            {
+                throw new InvalidOperationException("injected inspection failure");
+            }
+            return ValueTask.FromResult(States[step]);
+        }
 
         public ValueTask ApplyAsync(
             WindowsCircleFilesGrantHelperPlan plan,
@@ -729,6 +828,10 @@ public sealed class WindowsCircleFilesGrantOperationTests
             WindowsCircleFilesGrantOperationStep step,
             CancellationToken cancellationToken)
         {
+            if (step == FailRollbackOn)
+            {
+                throw new InvalidOperationException("injected rollback failure");
+            }
             RolledBack.Add(step);
             States[step] = WindowsCircleFilesOwnedState.Missing;
             return ValueTask.CompletedTask;

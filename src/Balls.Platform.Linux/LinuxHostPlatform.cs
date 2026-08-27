@@ -92,5 +92,10 @@ public static class LinuxHostPlatform
         {
             return LinuxDataDirectorySecurity.Prepare(dataDirectory);
         }
+
+        public void WriteNewPrivateFile(string path, ReadOnlyMemory<byte> content)
+        {
+            LinuxDataDirectorySecurity.WriteNewPrivateFile(path, content);
+        }
     }
 }

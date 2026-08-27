@@ -178,32 +178,61 @@ internal sealed class BrowserCircleFilesGrantApplication(
                     : "More than one joined Member has that name; choose an unambiguous Member.");
         }
 
-        var contributions = (await files.ListContributionsAsync(circleId, cancellationToken)
+        var namedContributions = (await files.ListContributionsAsync(circleId, cancellationToken)
                 .ConfigureAwait(false))
             .Where(value =>
                 value.Lifecycle == CircleFilesContributionLifecycle.Defined
                 && string.Equals(value.DisplayName, normalizedFolder, StringComparison.Ordinal))
             .ToArray();
-        if (contributions.Length != 1)
+        if (namedContributions.Length == 0)
         {
             throw new LocalStateConflictException(
                 "circle_files_grant_folder_unavailable",
-                contributions.Length == 0
-                    ? "Choose a contributed folder."
-                    : "More than one contributed folder has that name; choose an unambiguous folder.");
+                "Choose a contributed folder.");
+        }
+
+        var hostedContributions = new List<(
+            CircleFilesContribution Contribution,
+            CircleFilesHostedFolderBinding HostedFolder)>();
+        foreach (var contribution in namedContributions)
+        {
+            var binding = await hostedFolders.GetCircleFilesHostedFolderAsync(
+                circleId,
+                contribution.Id,
+                cancellationToken).ConfigureAwait(false);
+            if (binding is not null)
+            {
+                hostedContributions.Add((contribution, binding));
+            }
+        }
+
+        if (hostedContributions.Count == 0)
+        {
+            throw new LocalStateConflictException(
+                "circle_files_hosted_folder_missing",
+                "The exact hosted folder is unavailable. Contribute the folder again before sharing it.");
+        }
+        var selected = hostedContributions
+            .OrderBy(value => value.Contribution.CreatedAtUtc)
+            .ThenBy(value => value.Contribution.Id.ToString(), StringComparer.Ordinal)
+            .First();
+        if (hostedContributions.Any(value =>
+                value.HostedFolder.NodeId != selected.HostedFolder.NodeId
+                || !string.Equals(
+                    value.HostedFolder.FolderPath,
+                    selected.HostedFolder.FolderPath,
+                    StringComparison.OrdinalIgnoreCase)))
+        {
+            throw new LocalStateConflictException(
+                "circle_files_grant_folder_unavailable",
+                "More than one hosted folder has that name; choose an unambiguous folder.");
         }
 
         var authorized = await files.GetAuthorizedLocalContributionAsync(
             circleId,
-            contributions[0].Id,
+            selected.Contribution.Id,
             cancellationToken).ConfigureAwait(false);
-        var hosted = await hostedFolders.GetCircleFilesHostedFolderAsync(
-            circleId,
-            authorized.Contribution.Id,
-            cancellationToken).ConfigureAwait(false)
-            ?? throw new LocalStateConflictException(
-                "circle_files_hosted_folder_missing",
-                "The exact hosted folder is unavailable. Contribute the folder again before sharing it.");
+        var hosted = selected.HostedFolder;
         if (hosted.CircleId != authorized.Contribution.CircleId
             || hosted.ContributionId != authorized.Contribution.Id
             || hosted.ProviderId != authorized.Contribution.Provider.Id

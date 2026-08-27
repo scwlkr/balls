@@ -534,6 +534,128 @@ public sealed partial class BrowserAdapterSecurityTests
     }
 
     [TestMethod]
+    public async Task Browser_invitation_can_project_a_private_nat_address_without_changing_listener_bindings()
+    {
+        using var directory = new TemporaryDirectory();
+        var privateAddress = SelectBindablePrivateAddress();
+        if (privateAddress?.Address is not { } bindAddress)
+        {
+            Assert.Inconclusive("This host does not have an operational private IPv4 address.");
+            return;
+        }
+        var advertisedAddress = bindAddress.Equals(IPAddress.Parse("10.254.254.254"))
+            ? IPAddress.Parse("10.254.254.253")
+            : IPAddress.Parse("10.254.254.254");
+
+        await using var daemon = await StartDaemonAsync(
+            directory.Path,
+            automaticPrivateListeners: true,
+            privateAddressSelector: () => privateAddress,
+            advertisedPrivateAddress: advertisedAddress.ToString());
+        using var ipcClient = CreateIpcClient(GetEndpoint(directory.Path));
+        using var createCircleResponse = await ipcClient.PostAsJsonAsync(
+            ControlRoutes.Circles,
+            new CreateCircleRequest(
+                "0198d000-6000-7000-8000-000000000011",
+                "NAT Circle",
+                "Alice"),
+            ControlJson.Options);
+        var circle = await createCircleResponse.Content.ReadFromJsonAsync<CircleDetailsResponse>(
+            ControlJson.Options);
+        Assert.IsNotNull(circle);
+        var launch = await IssueLaunchAsync(ipcClient);
+        var browserBaseUri = GetBrowserBaseUri(launch);
+        using var browserClient = CreateBrowserClient(browserBaseUri);
+        var authenticated = await ExchangeAsync(browserClient, launch);
+        using var invitationRequest = CreateJsonRequest(
+            HttpMethod.Post,
+            BrowserRoutes.CircleInvitations(circle.Circle.Id),
+            new CreateBrowserCircleInvitationRequest(60),
+            GetOrigin(browserBaseUri),
+            authenticated.Cookie,
+            authenticated.Session.AntiforgeryToken);
+        using var invitationResponse = await browserClient.SendAsync(invitationRequest);
+        var invitation = await invitationResponse.Content.ReadFromJsonAsync<BrowserCircleInvitationResponse>(
+            ControlJson.Options);
+
+        Assert.AreEqual(HttpStatusCode.Created, invitationResponse.StatusCode);
+        Assert.IsNotNull(invitation);
+        Assert.AreEqual(privateAddress.Address, IPEndPoint.Parse(daemon.AdmissionAddress!.Value).Address);
+        Assert.AreEqual(privateAddress.Address, IPEndPoint.Parse(daemon.MessageAddress!.Value).Address);
+        Assert.AreEqual(advertisedAddress, IPEndPoint.Parse(invitation.Endpoint).Address);
+        Assert.AreEqual(advertisedAddress, IPEndPoint.Parse(invitation.SyncEndpoint).Address);
+        Assert.AreEqual(
+            IPEndPoint.Parse(daemon.AdmissionAddress.Value).Port,
+            IPEndPoint.Parse(invitation.Endpoint).Port);
+        Assert.AreEqual(
+            IPEndPoint.Parse(daemon.MessageAddress.Value).Port,
+            IPEndPoint.Parse(invitation.SyncEndpoint).Port);
+    }
+
+    [TestMethod]
+    public async Task Automatic_private_listener_ports_survive_daemon_relaunch()
+    {
+        using var directory = new TemporaryDirectory();
+        var privateAddress = SelectBindablePrivateAddress();
+        if (privateAddress is null)
+        {
+            Assert.Inconclusive("This host does not have an operational private IPv4 address.");
+            return;
+        }
+
+        string admissionAddress;
+        string messageAddress;
+        await using (var first = await StartDaemonAsync(
+                         directory.Path,
+                         automaticPrivateListeners: true,
+                         privateAddressSelector: () => privateAddress))
+        {
+            admissionAddress = first.AdmissionAddress!.Value;
+            messageAddress = first.MessageAddress!.Value;
+        }
+
+        await using var relaunched = await StartDaemonAsync(
+            directory.Path,
+            automaticPrivateListeners: true,
+            privateAddressSelector: () => privateAddress);
+
+        Assert.AreEqual(admissionAddress, relaunched.AdmissionAddress!.Value);
+        Assert.AreEqual(messageAddress, relaunched.MessageAddress!.Value);
+    }
+
+    [TestMethod]
+    public async Task Invalid_automatic_private_listener_port_record_fails_closed()
+    {
+        using var directory = new TemporaryDirectory();
+        var privateAddress = SelectBindablePrivateAddress();
+        if (privateAddress is null)
+        {
+            Assert.Inconclusive("This host does not have an operational private IPv4 address.");
+            return;
+        }
+
+        await using (var daemon = await StartDaemonAsync(
+                         directory.Path,
+                         automaticPrivateListeners: true,
+                         privateAddressSelector: () => privateAddress))
+        {
+        }
+
+        await File.WriteAllTextAsync(
+            Path.Combine(
+                directory.Path,
+                "state",
+                AutomaticPrivateListenerPortStore.FileName),
+            "{\"schemaVersion\":1,\"admissionPort\":40321,\"messagePort\":40321}");
+
+        await Assert.ThrowsExactlyAsync<InvalidDataException>(
+            () => StartDaemonAsync(
+                directory.Path,
+                automaticPrivateListeners: true,
+                privateAddressSelector: () => privateAddress));
+    }
+
+    [TestMethod]
     public async Task Ambiguous_automatic_private_network_keeps_browser_available_and_refuses_invitation()
     {
         using var directory = new TemporaryDirectory();
@@ -753,7 +875,8 @@ public sealed partial class BrowserAdapterSecurityTests
         string? admissionListenEndpoint = null,
         string? messageListenEndpoint = null,
         bool automaticPrivateListeners = false,
-        Func<PrivateIPv4AddressSelection>? privateAddressSelector = null)
+        Func<PrivateIPv4AddressSelection>? privateAddressSelector = null,
+        string? advertisedPrivateAddress = null)
     {
         var options = new DaemonOptions(
             Path.Combine(root, "state"),
@@ -761,7 +884,8 @@ public sealed partial class BrowserAdapterSecurityTests
             "Browser-PC",
             admissionListenEndpoint,
             messageListenEndpoint,
-            automaticPrivateListeners);
+            automaticPrivateListeners,
+            advertisedPrivateAddress);
         if (privateAddressSelector is null)
         {
             return await DaemonHost.StartAsync(options);
@@ -854,6 +978,23 @@ public sealed partial class BrowserAdapterSecurityTests
     {
         var launchUri = new Uri(launch.Url, UriKind.Absolute);
         return new Uri(launchUri.GetLeftPart(UriPartial.Authority) + "/", UriKind.Absolute);
+    }
+
+    private static PrivateIPv4AddressSelection? SelectBindablePrivateAddress()
+    {
+        var bindAddress = NetworkInterface.GetAllNetworkInterfaces()
+            .Where(network => network.OperationalStatus == OperationalStatus.Up)
+            .SelectMany(network => network.GetIPProperties().UnicastAddresses)
+            .Select(unicast => unicast.Address)
+            .Where(LanTcpEndpoint.IsPrivateIPv4)
+            .OrderBy(address => address.ToString(), StringComparer.Ordinal)
+            .FirstOrDefault();
+        return bindAddress is null
+            ? null
+            : new PrivateIPv4AddressSelection(
+                bindAddress,
+                null,
+                "One private network connection is ready.");
     }
 
     private static string ReadCapability(string launchUrl)

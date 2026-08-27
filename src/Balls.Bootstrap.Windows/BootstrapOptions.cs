@@ -1,3 +1,6 @@
+using System.Net;
+using System.Net.Sockets;
+
 namespace Balls.Bootstrap.Windows;
 
 internal sealed record BootstrapOptions(
@@ -8,7 +11,8 @@ internal sealed record BootstrapOptions(
     string PipeName,
     string NodeName,
     bool OpenUi,
-    bool CreateShortcut)
+    bool CreateShortcut,
+    string? AdvertisedPrivateAddress = null)
 {
     public bool IsManifestInstall => ManifestUri is not null;
 }
@@ -20,7 +24,8 @@ internal static class BootstrapOptionsParser
         "[--install-root <path>]\n" +
         "   or: balls-bootstrap-windows-x64 --package-path <zip> --checksum-path <sha256> " +
         "--install-root <path> [--pipe-name <name>] [--node-name <name>] " +
-        "[--open-ui <true|false>] [--create-shortcut <true|false>]";
+        "[--open-ui <true|false>] [--create-shortcut <true|false>] " +
+        "[--advertised-private-address <private-ip>]";
 
     public static BootstrapOptions Parse(IReadOnlyList<string> arguments)
     {
@@ -59,9 +64,13 @@ internal static class BootstrapOptionsParser
             Path.Combine(localAppData, hasManifest ? "Balls" : "Balls-Canary"));
         var pipeName = values.GetValueOrDefault("--pipe-name", "balls");
         var nodeName = values.GetValueOrDefault("--node-name", Environment.MachineName);
+        var advertisedPrivateAddress = values.GetValueOrDefault("--advertised-private-address");
         if (string.IsNullOrWhiteSpace(installRoot) || string.IsNullOrWhiteSpace(pipeName) ||
             pipeName.Length > 100 || pipeName.Any(character => !char.IsAsciiLetterOrDigit(character) && character != '-') ||
-            string.IsNullOrWhiteSpace(nodeName) || nodeName.Length > 100 || nodeName.Contains('"'))
+            string.IsNullOrWhiteSpace(nodeName) || nodeName.Length > 100 || nodeName.Contains('"') ||
+            (advertisedPrivateAddress is not null &&
+                (!IPAddress.TryParse(advertisedPrivateAddress, out var parsedAdvertisedAddress) ||
+                 !IsPrivateIPv4(parsedAdvertisedAddress))))
         {
             throw new ArgumentException(Usage);
         }
@@ -74,7 +83,8 @@ internal static class BootstrapOptionsParser
             pipeName,
             nodeName,
             ParseBoolean(values, "--open-ui", defaultValue: true),
-            ParseBoolean(values, "--create-shortcut", defaultValue: hasManifest));
+            ParseBoolean(values, "--create-shortcut", defaultValue: hasManifest),
+            advertisedPrivateAddress);
     }
 
     private static bool ParseBoolean(
@@ -94,6 +104,19 @@ internal static class BootstrapOptionsParser
         };
     }
 
+    private static bool IsPrivateIPv4(IPAddress address)
+    {
+        if (address.AddressFamily != AddressFamily.InterNetwork || IPAddress.IsLoopback(address))
+        {
+            return false;
+        }
+        var bytes = address.GetAddressBytes();
+        return bytes[0] == 10
+            || (bytes[0] == 172 && bytes[1] is >= 16 and <= 31)
+            || (bytes[0] == 192 && bytes[1] == 168)
+            || (bytes[0] == 169 && bytes[1] == 254);
+    }
+
     private static readonly HashSet<string> KnownOptions = new(StringComparer.Ordinal)
     {
         "--manifest-uri",
@@ -104,5 +127,6 @@ internal static class BootstrapOptionsParser
         "--node-name",
         "--open-ui",
         "--create-shortcut",
+        "--advertised-private-address",
     };
 }

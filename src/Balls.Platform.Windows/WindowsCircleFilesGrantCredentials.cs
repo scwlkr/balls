@@ -304,10 +304,12 @@ internal sealed class WindowsCircleFilesGrantOperation(IWindowsCircleFilesGrantO
             await RollbackAsync(plan, states, cancellationToken).ConfigureAwait(false);
         }
 
+        WindowsCircleFilesGrantOperationStep? activeStep = null;
         try
         {
             foreach (var step in Steps)
             {
+                activeStep = step;
 #if DEBUG
                 if (Environment.GetEnvironmentVariable("BALLS_TEST_WINDOWS_GRANT_FAILURE_STEP")
                     == step.ToString())
@@ -336,9 +338,7 @@ internal sealed class WindowsCircleFilesGrantOperation(IWindowsCircleFilesGrantO
             {
                 throw known;
             }
-            throw new CircleFilesHostingException(
-                "grant_apply_failed",
-                "Windows could not complete the Member credential operation.");
+            throw StageFailure(GrantFailureAction.Apply, activeStep!.Value);
         }
     }
 
@@ -348,8 +348,23 @@ internal sealed class WindowsCircleFilesGrantOperation(IWindowsCircleFilesGrantO
         var states = new Dictionary<WindowsCircleFilesGrantOperationStep, WindowsCircleFilesOwnedState>();
         foreach (var step in Steps)
         {
-            states[step] = await operations.InspectAsync(plan, step, cancellationToken)
-                .ConfigureAwait(false);
+            try
+            {
+                states[step] = await operations.InspectAsync(plan, step, cancellationToken)
+                    .ConfigureAwait(false);
+            }
+            catch (OperationCanceledException)
+            {
+                throw;
+            }
+            catch (CircleFilesHostingException)
+            {
+                throw;
+            }
+            catch (Exception)
+            {
+                throw StageFailure(GrantFailureAction.Inspect, step);
+            }
         }
         return states;
     }
@@ -377,9 +392,64 @@ internal sealed class WindowsCircleFilesGrantOperation(IWindowsCircleFilesGrantO
                 or WindowsCircleFilesOwnedState.BlockedOwned
                 or WindowsCircleFilesOwnedState.Recoverable)
             {
-                await operations.RollbackAsync(plan, step, cancellationToken).ConfigureAwait(false);
+                try
+                {
+                    await operations.RollbackAsync(plan, step, cancellationToken).ConfigureAwait(false);
+                }
+                catch (OperationCanceledException)
+                {
+                    throw;
+                }
+                catch (CircleFilesHostingException)
+                {
+                    throw;
+                }
+                catch (Exception)
+                {
+                    throw StageFailure(GrantFailureAction.Rollback, step);
+                }
             }
         }
+    }
+
+    private static CircleFilesHostingException StageFailure(
+        GrantFailureAction action,
+        WindowsCircleFilesGrantOperationStep step) => new(
+            "grant_apply_failed",
+            FailureMessage(action, step));
+
+    internal static bool IsSafeFailureMessage(string message) =>
+        message == "Windows could not restore the exact Member share witness."
+        || Steps.Any(step => Enum.GetValues<GrantFailureAction>()
+            .Any(action => message == FailureMessage(action, step)));
+
+    private static string FailureMessage(
+        GrantFailureAction action,
+        WindowsCircleFilesGrantOperationStep step) =>
+        $"Windows could not {FailureActionVerb(action)} {StepSubject(step)}.";
+
+    private static string FailureActionVerb(GrantFailureAction action) => action switch
+    {
+        GrantFailureAction.Apply => "apply",
+        GrantFailureAction.Inspect => "inspect",
+        GrantFailureAction.Rollback => "roll back",
+        _ => throw new ArgumentOutOfRangeException(nameof(action)),
+    };
+
+    private static string StepSubject(WindowsCircleFilesGrantOperationStep step) => step switch
+    {
+        WindowsCircleFilesGrantOperationStep.LocalAccount => "the limited Member account",
+        WindowsCircleFilesGrantOperationStep.GrantMarker => "the protected grant metadata",
+        WindowsCircleFilesGrantOperationStep.FolderAcl => "folder access",
+        WindowsCircleFilesGrantOperationStep.ShareAccess => "encrypted share access",
+        _ => throw new ArgumentOutOfRangeException(nameof(step)),
+    };
+
+    private enum GrantFailureAction
+    {
+        Apply,
+        Inspect,
+        Rollback,
     }
 
     private static CircleFilesHostingException Collision() => new(

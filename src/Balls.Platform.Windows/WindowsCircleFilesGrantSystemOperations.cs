@@ -1160,12 +1160,13 @@ internal static class WindowsDirectPowerShellCommand
     internal static ProcessStartInfo CreateStartInfo(string fixedCommand)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(fixedCommand);
+        var powerShellDirectory = System.IO.Path.Combine(
+            Environment.GetFolderPath(Environment.SpecialFolder.System),
+            "WindowsPowerShell", "v1.0");
         var startInfo = new ProcessStartInfo
         {
-            FileName = System.IO.Path.Combine(
-                Environment.GetFolderPath(Environment.SpecialFolder.System),
-                "WindowsPowerShell", "v1.0", "powershell.exe"),
-            WorkingDirectory = AppContext.BaseDirectory,
+            FileName = System.IO.Path.Combine(powerShellDirectory, "powershell.exe"),
+            WorkingDirectory = powerShellDirectory,
             CreateNoWindow = true,
             UseShellExecute = false,
             RedirectStandardInput = true,

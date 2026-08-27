@@ -123,6 +123,15 @@ Fast checks belong on every pull request. Expensive VM, installer, migration, re
 multi-machine checks run only for a release candidate or a change that touches the corresponding
 risk. Never weaken checks merely to obtain green status, and never claim an unobserved scenario.
 
+## Tight private-pilot iteration
+
+For active private-pilot product work, use a tight local/Windows-VM loop: focused test, locally or
+VM-built package, VM install, observed Owner/Member behavior, repeat. Verify the live guest and
+topology before issuing commands. At a mergeable checkpoint, run the full local fast gate once,
+one required PR CI cycle, and one exact-main Canary/release cycle only when distribution risk
+changed. GitHub CI certifies a completed iteration; it is not the inner development loop. Keep
+detailed commands and exceptional mechanics in the development-process or Windows-lab runbook.
+
 For Windows VM automation, manual two-VM acceptance, unsigned UI or installer execution, Canary
 checks, or lab recovery, read
 [`docs/windows-development-lab.md`](docs/windows-development-lab.md) before acting.

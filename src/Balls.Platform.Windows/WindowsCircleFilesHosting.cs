@@ -914,7 +914,11 @@ public static class WindowsCircleFilesHelperCommand
             }
             catch (CircleFilesHostingException exception)
             {
-                await WriteErrorAsync(pipe, exception.Code, helperToken).ConfigureAwait(false);
+                await WriteErrorAsync(
+                    pipe,
+                    exception.Code,
+                    helperToken,
+                    SafeErrorMessage(exception)).ConfigureAwait(false);
                 return 6;
             }
         }
@@ -1092,15 +1096,22 @@ public static class WindowsCircleFilesHelperCommand
     private static async Task WriteErrorAsync(
         Stream pipe,
         string code,
-        CancellationToken cancellationToken) =>
+        CancellationToken cancellationToken,
+        string message = "The Windows Circle Files helper refused the operation.") =>
         await WindowsCircleFilesHelperProtocol.WriteAsync(
             pipe,
             new WindowsCircleFilesHelperResponse(
                 null,
                 code,
-                "The Windows Circle Files helper refused the operation."),
+                message),
             MaximumMessageBytes,
             cancellationToken).ConfigureAwait(false);
+
+    internal static string SafeErrorMessage(CircleFilesHostingException exception) =>
+        exception.Code == "grant_apply_failed"
+        && WindowsCircleFilesGrantOperation.IsSafeFailureMessage(exception.Message)
+            ? exception.Message
+            : "The Windows Circle Files helper refused the operation.";
 
     private static async Task WriteCleanupAsync(
         Stream pipe,

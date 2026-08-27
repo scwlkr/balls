@@ -18,6 +18,7 @@ public static class MacOSDataDirectorySecurity
         "balls.db-wal",
         "balls.db-shm",
         "ballsd.lock",
+        "automatic-private-listeners-v1.json",
     };
 
     public static string Prepare(string path)
@@ -88,6 +89,23 @@ public static class MacOSDataDirectorySecurity
         MacOSNativeFileSystem.EnsureLocalApfs(path);
         EnsureNoExtendedAcl(path, "The Balls runtime directory cannot grant extended ACL access.");
         File.SetUnixFileMode(path, PrivateDirectoryMode);
+    }
+
+    internal static void WriteNewPrivateFile(string path, ReadOnlyMemory<byte> content)
+    {
+        using var file = new FileStream(
+            path,
+            new FileStreamOptions
+            {
+                Mode = FileMode.CreateNew,
+                Access = FileAccess.Write,
+                Share = FileShare.None,
+                UnixCreateMode = PrivateFileMode,
+                Options = FileOptions.WriteThrough,
+            });
+        file.Write(content.Span);
+        file.Flush(flushToDisk: true);
+        EnsureNoExtendedAcl(path, "A Balls state file has an unexpected extended ACL.");
     }
 
     private static void EnsureOwnedDirectory(string fullPath, bool allowStickySharedParent)

@@ -18,6 +18,7 @@ public static class LinuxDataDirectorySecurity
         "balls.db-wal",
         "balls.db-shm",
         "ballsd.lock",
+        "automatic-private-listeners-v1.json",
     };
     private static readonly HashSet<string> SupportedLocalFileSystems = new(StringComparer.Ordinal)
     {
@@ -94,6 +95,22 @@ public static class LinuxDataDirectorySecurity
     {
         EnsureOwnedDirectory(path, allowStickySharedParent: true);
         File.SetUnixFileMode(path, PrivateDirectoryMode);
+    }
+
+    internal static void WriteNewPrivateFile(string path, ReadOnlyMemory<byte> content)
+    {
+        using var file = new FileStream(
+            path,
+            new FileStreamOptions
+            {
+                Mode = FileMode.CreateNew,
+                Access = FileAccess.Write,
+                Share = FileShare.None,
+                UnixCreateMode = PrivateFileMode,
+                Options = FileOptions.WriteThrough,
+            });
+        file.Write(content.Span);
+        file.Flush(flushToDisk: true);
     }
 
     private static void EnsureOwnedDirectory(string fullPath, bool allowStickySharedParent)

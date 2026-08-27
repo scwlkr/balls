@@ -70,6 +70,47 @@ docker network inspect windows_default --format '{{.Name}} {{.Driver}}'
 - Treat the Hyper-V instructions below as historical Windows-host evidence. They do not describe
   the current Linux workstation or authorize creating nested Windows/Hyper-V infrastructure.
 
+### Nested-NAT development feedback
+
+The two Dockur containers share `windows_default`, but each Windows guest sits behind its own inner
+NAT. Keep their guest subnets unique and privately routed: the Owner guest uses `172.30.0.2/24`
+behind `omarchy-windows`, and the disposable Member guest uses `172.31.0.2/24` behind
+`balls-issue61-provider-desktop`. The Member container starts with `IP=172.31.0.2` and installs a
+route to `172.30.0.0/24` through the Owner container. The Owner Compose configuration installs the
+reciprocal route to `172.31.0.0/24` through the Member container. These routes stay inside
+`windows_default`; they do not publish either guest or SMB on the Linux host.
+
+This topology lets the normal bootstrap use automatic private listeners without an advertised
+address override. A mergeable or release acceptance run must use the website command or the exact
+offline bootstrap with no `--advertised-private-address`, manual IP, port, or daemon flag. The
+typed advertised-address option remains a bounded diagnostic for local experiments, not checklist
+evidence.
+
+Before invitation testing, verify the live identities and routes rather than assuming container
+attachment means the guests are mutually reachable:
+
+```bash
+docker inspect --format '{{.Name}} {{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}' \
+  omarchy-windows balls-issue61-provider-desktop
+docker exec omarchy-windows ip route show 172.31.0.0/24
+docker exec balls-issue61-provider-desktop ip route show 172.30.0.0/24
+```
+
+After Balls starts, prove the Owner guest's selected admission and synchronization ports plus TCP
+445 from the Member container over `172.30.0.2`. Keep the Windows firewall Private-profile rules
+unchanged. Do not add an outer-address DNAT, host port, public listener, or separate SMB service.
+
+A new versioned `ballsd.exe` path can cause Windows to ask again for private-network access. The
+Owner must allow the Private profile and leave Public unchecked; dismissing the prompt creates a
+per-version block rule and the Member sees the Owner as unreachable. For unattended lab diagnosis
+only, an equivalent rule must be limited to that exact executable, its two persisted listener
+ports, the Private profile, and the live Member container address on `windows_default`. Record that
+automation as a lab intervention rather than interactive prompt evidence.
+
+Automatic admission and synchronization ports are allocated once and stored in the protected Balls
+state directory. Preserve that state during local package updates, and verify a normal shortcut
+relaunch reuses the same two ports; rotating either port strands previously joined Members.
+
 ## Deferred physical coworker laptop
 
 The freshly installed Windows laptop is owner-approved disposable test infrastructure, but its

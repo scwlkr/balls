@@ -9,6 +9,15 @@ public static class WindowsDataDirectorySecurity
 {
     private const string MarkerFileName = ".balls-state";
     private const string MarkerContent = "Balls local state v1\n";
+    private static readonly HashSet<string> AllowedFileNames = new(StringComparer.OrdinalIgnoreCase)
+    {
+        MarkerFileName,
+        "balls.db",
+        "balls.db-wal",
+        "balls.db-shm",
+        "ballsd.lock",
+        "automatic-private-listeners-v1.json",
+    };
 
     public static string Prepare(string path)
     {
@@ -53,15 +62,7 @@ public static class WindowsDataDirectorySecurity
                     "An existing nonempty data directory must already be initialized by Balls.");
             }
 
-            var allowedNames = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
-            {
-                MarkerFileName,
-                "balls.db",
-                "balls.db-wal",
-                "balls.db-shm",
-                "ballsd.lock",
-            };
-            if (entries.Any(entry => !allowedNames.Contains(Path.GetFileName(entry))))
+            if (entries.Any(entry => !AllowedFileNames.Contains(Path.GetFileName(entry))))
             {
                 throw new UnauthorizedAccessException(
                     "The Balls data directory contains an unexpected filesystem entry.");
@@ -100,14 +101,7 @@ public static class WindowsDataDirectorySecurity
             File.WriteAllText(markerPath, MarkerContent);
         }
 
-        foreach (var fileName in new[]
-                 {
-                     MarkerFileName,
-                     "balls.db",
-                     "balls.db-wal",
-                     "balls.db-shm",
-                     "ballsd.lock",
-                 })
+        foreach (var fileName in AllowedFileNames)
         {
             var file = new FileInfo(Path.Combine(fullPath, fileName));
             if (!file.Exists)
@@ -138,5 +132,18 @@ public static class WindowsDataDirectorySecurity
         }
 
         return fullPath;
+    }
+
+    internal static void WriteNewPrivateFile(string path, ReadOnlyMemory<byte> content)
+    {
+        using var file = new FileStream(
+            path,
+            FileMode.CreateNew,
+            FileAccess.Write,
+            FileShare.None,
+            bufferSize: 4096,
+            FileOptions.WriteThrough);
+        file.Write(content.Span);
+        file.Flush(flushToDisk: true);
     }
 }

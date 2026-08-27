@@ -13,6 +13,8 @@ public sealed record HostDefaults(
 public interface ILocalStatePreparer
 {
     string Prepare(string dataDirectory);
+
+    void WriteNewPrivateFile(string path, ReadOnlyMemory<byte> content);
 }
 
 public interface ILocalControlServerTransport
