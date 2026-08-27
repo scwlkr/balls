@@ -27,14 +27,16 @@ internal sealed partial class FileRevitServerPackageIdentitySource(string path)
             if (document.SchemaVersion != 1
                 || document.Product != "Balls"
                 || document.Channel != "development"
+                || document.ManifestUri != "https://balls.wlkrlabs.com/bootstrap/windows-x64.json"
                 || !DevelopmentTagPattern().IsMatch(document.Release.Tag)
                 || !CommitPattern().IsMatch(document.Release.Commit)
                 || !document.Release.Tag.EndsWith(document.Release.Commit[..12], StringComparison.Ordinal)
                 || !Sha256Pattern().IsMatch(document.Package.Sha256)
                 || document.Package.Platform != "windows"
                 || document.Package.Architecture != "x64"
-                || string.IsNullOrWhiteSpace(document.Package.Name)
-                || string.IsNullOrWhiteSpace(document.Package.Version))
+                || !PackageNamePattern().IsMatch(document.Package.Name)
+                || !document.Package.Name.EndsWith($"-{document.Release.Commit[..12]}.zip", StringComparison.Ordinal)
+                || !VersionPattern().IsMatch(document.Package.Version))
             {
                 throw new InvalidDataException("The Balls installation identity is not an exact Development Windows package.");
             }
@@ -73,6 +75,10 @@ internal sealed partial class FileRevitServerPackageIdentitySource(string path)
     private static partial Regex CommitPattern();
     [GeneratedRegex("^[0-9a-f]{64}$", RegexOptions.CultureInvariant)]
     private static partial Regex Sha256Pattern();
+    [GeneratedRegex("^balls-[0-9A-Za-z.-]+-canary-windows-x64-[0-9a-f]{12}\\.zip$", RegexOptions.CultureInvariant)]
+    private static partial Regex PackageNamePattern();
+    [GeneratedRegex("^[0-9A-Za-z]+(?:[.-][0-9A-Za-z]+)*$", RegexOptions.CultureInvariant)]
+    private static partial Regex VersionPattern();
 }
 
 internal sealed class UnsupportedRevitServerPackageIdentitySource : IRevitServerPackageIdentitySource

@@ -28,6 +28,8 @@ public sealed class RevitServerPackageIdentitySourceTests
             Document() with { Release = new("development-20260827T120000Z-aaaaaaaaaaaa", "0123456789abcdef0123456789abcdef01234567") },
             Document() with { Package = Document().Package with { Sha256 = "short" } },
             Document() with { Package = Document().Package with { Platform = "linux" } },
+            Document() with { ManifestUri = "https://example.invalid/development.json" },
+            Document() with { Package = Document().Package with { Name = @"C:\temp\balls.zip" } },
         })
         {
             using var fixture = new InstallationFixture();

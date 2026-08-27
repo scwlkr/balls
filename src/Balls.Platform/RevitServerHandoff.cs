@@ -49,7 +49,7 @@ public static partial class RevitServerHandoffBundleFactory
         UnmappedMemberHandling = JsonUnmappedMemberHandling.Disallow,
     };
 
-    private static readonly IReadOnlyList<string> UntestedScenarios =
+    internal static readonly IReadOnlyList<string> UntestedScenarios =
     [
         "Revit client/model use",
         "synchronization",
@@ -173,6 +173,10 @@ public static partial class RevitServerHandoffBundleFactory
     {
         if (!DevelopmentTagPattern().IsMatch(request.BallsPackage.Tag)
             || !CommitPattern().IsMatch(request.BallsPackage.Commit)
+            || !request.BallsPackage.Tag.EndsWith(request.BallsPackage.Commit[..12], StringComparison.Ordinal)
+            || !PackageNamePattern().IsMatch(request.BallsPackage.Name)
+            || !request.BallsPackage.Name.EndsWith($"-{request.BallsPackage.Commit[..12]}.zip", StringComparison.Ordinal)
+            || !VersionPattern().IsMatch(request.BallsPackage.Version)
             || !Sha256Pattern().IsMatch(request.BallsPackage.Sha256)
             || !Sha256Pattern().IsMatch(request.Plan.MediaSha256)
             || !Sha256Pattern().IsMatch(request.Plan.PlanDigest))
@@ -244,6 +248,12 @@ public static partial class RevitServerHandoffBundleFactory
 
     [GeneratedRegex("^[0-9a-f]{64}$", RegexOptions.CultureInvariant)]
     private static partial Regex Sha256Pattern();
+
+    [GeneratedRegex("^balls-[0-9A-Za-z.-]+-canary-windows-x64-[0-9a-f]{12}\\.zip$", RegexOptions.CultureInvariant)]
+    private static partial Regex PackageNamePattern();
+
+    [GeneratedRegex("^[0-9A-Za-z]+(?:[.-][0-9A-Za-z]+)*$", RegexOptions.CultureInvariant)]
+    private static partial Regex VersionPattern();
 }
 
 public static partial class RevitServerHandoffBundleValidator
@@ -351,25 +361,39 @@ public static partial class RevitServerHandoffBundleValidator
             || value.Outcome is not ("PASS" or "FAILED")
             || !DevelopmentTagPattern().IsMatch(value.BallsPackage.Tag)
             || !CommitPattern().IsMatch(value.BallsPackage.Commit)
+            || !value.BallsPackage.Tag.EndsWith(value.BallsPackage.Commit[..12], StringComparison.Ordinal)
+            || !PackageNamePattern().IsMatch(value.BallsPackage.Name)
+            || !value.BallsPackage.Name.EndsWith($"-{value.BallsPackage.Commit[..12]}.zip", StringComparison.Ordinal)
+            || !VersionPattern().IsMatch(value.BallsPackage.Version)
             || !Sha256Pattern().IsMatch(value.BallsPackage.Sha256)
             || value.Autodesk.Publisher != "Autodesk, Inc."
             || value.Autodesk.Product != "Autodesk Revit Server 2027"
             || value.Autodesk.Version != "27.0.4.412"
+            || value.Autodesk.FileName != "Revit_Server_2027_win_db.sfx.exe"
+            || value.Autodesk.Signature != "Windows Authenticode signature verified before setup"
             || !Sha256Pattern().IsMatch(value.Autodesk.Sha256)
+            || !value.Windows.EditionAndBuild.Contains("Windows Server 2022", StringComparison.Ordinal)
             || !Sha256Pattern().IsMatch(value.Windows.MachineFingerprint)
             || !Sha256Pattern().IsMatch(value.Proof.ApprovedPlanDigest)
             || !value.Proof.InstalledRoles.SequenceEqual(["Host", "Admin"], StringComparer.Ordinal)
             || !value.Proof.ForbiddenRoles.SequenceEqual(["Accelerator"], StringComparer.Ordinal)
+            || value.Proof.InstalledProduct != "Autodesk Revit Server 2027"
+            || value.Proof.InstalledVersion != "27.0.4.412"
+            || value.Proof.BallsOwnedChanges.Count == 0
             || value.Proof.HealthStates.Count == 0
             || value.Proof.HealthStates.Any(check => check.Status != "healthy")
             || !value.TemporaryEvidence.ReplayProhibited
+            || value.TemporaryEvidence.RepositoryRoot != @"D:\RevitServer\2027"
+            || value.TemporaryEvidence.ProjectsPath != @"D:\RevitServer\2027\Projects"
+            || value.TemporaryEvidence.CachePath != @"D:\RevitServer\2027\Cache"
             || value.Timing.EndedAtUtc < value.Timing.StartedAtUtc
             || value.Timing.WallClockSeconds < 0
             || value.Timing.HumanInterventionSeconds < 0
             || value.Timing.HumanInterventionSeconds > value.Timing.WallClockSeconds
             || (pass && value.Timing.WallClockSeconds >= 1800)
             || (!pass && value.Timing.WallClockSeconds < 1800)
-            || value.UntestedScenarios.Count != 8)
+            || value.Timing.HumanInterventions.Count == 0
+            || !value.UntestedScenarios.SequenceEqual(RevitServerHandoffBundleFactory.UntestedScenarios, StringComparer.Ordinal))
         {
             throw new InvalidDataException("The setup receipt is incomplete or inconsistent.");
         }
@@ -464,6 +488,12 @@ public static partial class RevitServerHandoffBundleValidator
 
     [GeneratedRegex("^[0-9a-f]{64}$", RegexOptions.CultureInvariant)]
     private static partial Regex Sha256Pattern();
+
+    [GeneratedRegex("^balls-[0-9A-Za-z.-]+-canary-windows-x64-[0-9a-f]{12}\\.zip$", RegexOptions.CultureInvariant)]
+    private static partial Regex PackageNamePattern();
+
+    [GeneratedRegex("^[0-9A-Za-z]+(?:[.-][0-9A-Za-z]+)*$", RegexOptions.CultureInvariant)]
+    private static partial Regex VersionPattern();
 }
 
 public sealed record SetupTemplateDocument(
