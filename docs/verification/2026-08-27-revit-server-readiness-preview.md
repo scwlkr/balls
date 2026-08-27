@@ -1,7 +1,9 @@
 # Revit Server 2027 readiness and preview verification
 
-**Date:** 2026-08-27  
-**Issue:** [#114](https://github.com/scwlkr/balls/issues/114)  
+**Date:** 2026-08-27
+
+**Issue:** [#114](https://github.com/scwlkr/balls/issues/114)
+
 **Scope:** read-only inspection, official-media identity, and exact Host+Admin/no-Accelerator plan
 
 ## Proved in source and automated tests
