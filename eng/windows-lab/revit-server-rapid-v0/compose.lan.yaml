@@ -1,0 +1,18 @@
+services:
+  windows:
+    ports:
+      - "${BALLS_REVIT_LAN_HOST_IP:?set the exact current private LAN address in lan.env}:80:80/tcp"
+      - "${BALLS_REVIT_LAN_HOST_IP:?set the exact current private LAN address in lan.env}:808:808/tcp"
+    networks:
+      acceptance:
+        ipv4_address: 172.29.27.2
+
+networks:
+  acceptance:
+    name: balls-revit-server-2027-lab
+    driver: bridge
+    internal: true
+    ipam:
+      config:
+        - subnet: 172.29.27.0/24
+          gateway: 172.29.27.1

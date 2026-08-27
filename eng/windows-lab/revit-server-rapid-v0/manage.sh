@@ -6,6 +6,7 @@ readonly project="balls-revit-server-2027-lab"
 readonly container="balls-revit-server-2027-lab"
 readonly config_root="/home/scwlkr/.config/balls-labs/revit-server-2027"
 readonly private_env="${config_root}/private.env"
+readonly lan_env="${config_root}/lan.env"
 readonly state_root="/home/scwlkr/.local/share/balls-lab/revit-server-2027"
 readonly mode_file="${state_root}/network-mode"
 readonly ownership_marker=".balls-revit-server-2027-lab"
@@ -30,6 +31,31 @@ require_private_env() {
   [[ "${mode}" == "600" ]] || fail "${private_env} must have mode 0600"
   [[ "${owner}" == "$(id -u)" ]] || fail "${private_env} must be owned by the current user"
   [[ "${links}" == "1" ]] || fail "${private_env} must have exactly one hard link"
+}
+
+require_lan_env() {
+  [[ -f "${lan_env}" && ! -L "${lan_env}" ]] || fail "create ${lan_env} as a regular non-symlink file containing only BALLS_REVIT_LAN_HOST_IP"
+  [[ "$(stat -c '%a' "${lan_env}")" == "600" ]] || fail "${lan_env} must have mode 0600"
+  [[ "$(stat -c '%u' "${lan_env}")" == "$(id -u)" ]] || fail "${lan_env} must be owned by the current user"
+  [[ "$(stat -c '%h' "${lan_env}")" == "1" ]] || fail "${lan_env} must have exactly one hard link"
+  local values=() value
+  mapfile -t values < <(sed -n 's/^BALLS_REVIT_LAN_HOST_IP=//p' "${lan_env}")
+  [[ "${#values[@]}" == "1" ]] || fail "${lan_env} must contain exactly one BALLS_REVIT_LAN_HOST_IP entry"
+  value="${values[0]}"
+  python3 - "${value}" <<'PY' || fail "BALLS_REVIT_LAN_HOST_IP must be one non-loopback private IPv4 address"
+import ipaddress
+import sys
+
+value = ipaddress.ip_address(sys.argv[1])
+if value.version != 4 or not value.is_private or value.is_loopback or value.is_link_local:
+    raise SystemExit(1)
+PY
+  ip -4 -o address show up | awk '{ sub(/\/.*/, "", $4); print $4 }' | grep -Fxq "${value}" \
+    || fail "BALLS_REVIT_LAN_HOST_IP is not assigned to an active host interface"
+}
+
+lan_host_ip() {
+  sed -n 's/^BALLS_REVIT_LAN_HOST_IP=//p' "${lan_env}"
 }
 
 assert_owned_directory() {
@@ -102,7 +128,7 @@ validate_state_root() {
   validate_disk "${state_root}/data/data2.img" "${data_disk_size}" "${state_root}/data/data2.img.identity"
   if [[ -e "${mode_file}" || -L "${mode_file}" ]]; then
     assert_owned_regular "${mode_file}"
-    [[ "$(<"${mode_file}")" =~ ^(bootstrap|acceptance)$ ]] || fail "the lab network-mode marker is invalid"
+    [[ "$(<"${mode_file}")" =~ ^(bootstrap|acceptance|lan)$ ]] || fail "the lab network-mode marker is invalid"
     [[ -f "${state_root}/system/data.img" && -f "${state_root}/data/data2.img" ]] \
       || fail "an initialized lab must keep both reserved disk files"
   fi
@@ -150,9 +176,14 @@ initialize_state_root() {
 compose() {
   local mode="${1}"
   shift
-  local overlay="${lab_dir}/compose.${mode}.yaml"
-  docker compose --project-name "${project}" --env-file "${private_env}" \
-    --file "${lab_dir}/compose.yaml" --file "${overlay}" "$@"
+  local files=(--file "${lab_dir}/compose.yaml") env_files=(--env-file "${private_env}")
+  if [[ "${mode}" == "lan" ]]; then
+    files+=(--file "${lab_dir}/compose.acceptance.yaml" --file "${lab_dir}/compose.lan.yaml")
+    env_files+=(--env-file "${lan_env}")
+  else
+    files+=(--file "${lab_dir}/compose.${mode}.yaml")
+  fi
+  docker compose --project-name "${project}" "${env_files[@]}" "${files[@]}" "$@"
 }
 
 container_running() {
@@ -366,6 +397,20 @@ select_bootstrap() {
   say "PASS — acceptance attachment removed; bootstrap network selected for additional OS preparation"
 }
 
+select_lan() {
+  require_private_env
+  require_lan_env
+  validate_state_root
+  validate_container_identity
+  container_running "${container}" && fail "shut Windows down cleanly and stop the lab before selecting LAN handoff"
+  compose acceptance down
+  [[ -f "${state_root}/system/data.img" && -f "${state_root}/data/data2.img" ]] || fail "both lab disk files must already exist"
+  printf 'lan\n' > "${mode_file}"
+  chmod 600 "${mode_file}"
+  validate_state_root
+  say "PASS — exact private host address selected for post-verification LAN handoff"
+}
+
 start_acceptance() {
   preflight
   [[ -f "${mode_file}" && "$(<"${mode_file}")" == "acceptance" ]] || fail "run isolate after preparation"
@@ -373,6 +418,27 @@ start_acceptance() {
   compose acceptance up -d
   attest_selected_network balls-revit-server-2027-lab 172.29.27.0/24 172.29.27.1 172.29.27.2 true
   say "PASS — isolated acceptance lab started"
+}
+
+attest_lan_ports() {
+  local address observed
+  address="$(lan_host_ip)"
+  observed="$(docker inspect --format '{{(index (index .HostConfig.PortBindings "80/tcp") 0).HostIp}}:{{(index (index .HostConfig.PortBindings "80/tcp") 0).HostPort}}|{{(index (index .HostConfig.PortBindings "808/tcp") 0).HostIp}}:{{(index (index .HostConfig.PortBindings "808/tcp") 0).HostPort}}' "${container}")"
+  [[ "${observed}" == "${address}:80|${address}:808" ]] \
+    || fail "LAN handoff does not publish exactly TCP 80 and 808 on ${address}"
+}
+
+start_lan() {
+  preflight
+  require_lan_env
+  [[ -f "${mode_file}" && "$(<"${mode_file}")" == "lan" ]] || fail "run select-lan after the isolated health proof"
+  port_free 80 || fail "host TCP port 80 is already in use"
+  port_free 808 || fail "host TCP port 808 is already in use"
+  compose lan config --quiet
+  compose lan up -d
+  attest_selected_network balls-revit-server-2027-lab 172.29.27.0/24 172.29.27.1 172.29.27.2 true
+  attest_lan_ports
+  say "PASS — post-verification Revit HTTP/Admin ports published only on the selected private host address"
 }
 
 status() {
@@ -413,8 +479,14 @@ recover() {
   require_private_env
   container_running "${container}" && fail "recovery requires a stopped lab"
   [[ -f "${state_root}/system/data.img" && -f "${state_root}/data/data2.img" ]] || fail "missing disks block recovery"
+  local mode="acceptance"
+  [[ -f "${mode_file}" ]] && mode="$(<"${mode_file}")"
   stop_lab
-  start_acceptance
+  if [[ "${mode}" == "lan" ]]; then
+    start_lan
+  else
+    start_acceptance
+  fi
 }
 
 case "${1:-}" in
@@ -423,11 +495,13 @@ case "${1:-}" in
   bootstrap-start) bootstrap_start ;;
   resume-bootstrap) resume_bootstrap ;;
   select-bootstrap) select_bootstrap ;;
+  select-lan) select_lan ;;
   isolate) isolate ;;
   start) start_acceptance ;;
+  lan-start) start_lan ;;
   console) xdg-open http://127.0.0.1:8027/ >/dev/null 2>&1 ;;
   status) status ;;
   stop) stop_lab ;;
   recover) recover ;;
-  *) fail "usage: manage.sh initialize|preflight|bootstrap-start|resume-bootstrap|select-bootstrap|isolate|start|console|status|stop|recover" ;;
+  *) fail "usage: manage.sh initialize|preflight|bootstrap-start|resume-bootstrap|select-bootstrap|isolate|start|select-lan|lan-start|console|status|stop|recover" ;;
 esac

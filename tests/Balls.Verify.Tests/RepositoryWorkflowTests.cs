@@ -204,6 +204,11 @@ public sealed partial class RepositoryWorkflowTests
         StringAssert.Contains(manager, "setup.img|win2022-eval.iso");
         StringAssert.Contains(manager, "select_bootstrap");
         StringAssert.Contains(manager, "bootstrap network selected for additional OS preparation");
+        StringAssert.Contains(manager, "require_lan_env");
+        StringAssert.Contains(manager, "BALLS_REVIT_LAN_HOST_IP is not assigned to an active host interface");
+        StringAssert.Contains(manager, "run select-lan after the isolated health proof");
+        StringAssert.Contains(manager, "attest_lan_ports");
+        StringAssert.Contains(manager, "post-verification Revit HTTP/Admin ports published only on the selected private host address");
         StringAssert.Contains(manager, "was substituted after its device/inode identity was recorded");
         StringAssert.Contains(manager, "balls-issue61-provider-desktop is running");
         StringAssert.Contains(manager, "udp_port_free 3397");

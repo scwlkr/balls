@@ -175,6 +175,7 @@ The reserved identity and ownership are:
 | Windows identity | hostname `BALLS-RS27-LAB`; final guest address must be recorded before setup |
 | Browser console | host `127.0.0.1:8027` to container TCP 8006 |
 | RDP diagnostic | host `127.0.0.1:3397` to container TCP/UDP 3389; never bind beyond loopback |
+| Optional LAN handoff | only after isolated health proof, exact active private host address to guest TCP 80 and 808; console and RDP remain loopback-only |
 | Compute | 4 vCPU, 8 GiB RAM |
 | Runtime | Dockurr Windows 6.05, source `efe47da76d49c9d77c0a26799c70315fa4d91055`, pinned image digest `sha256:0cff9eb0e7aee9953e55bc682852ca4fdca233145a58ae1ec94f0b0c01a2ed30` |
 | Installer | official `Revit_Server_2027_win_db.sfx.exe` cached inside the guest; current complete host cache is 912,600,144 bytes with SHA-256 `295b30779868b9d58d78d9ff4353e4b9c6412418274a8034db6c6e7e0d348518`; Windows must independently verify the Autodesk signature and exact hash/size/name, which the trusted catalog maps to Revit Server 2027 build `27.0.4.412`; never use the company-content Revit ZIP |
@@ -200,6 +201,8 @@ install -m 700 eng/windows-lab/revit-server-rapid-v0/manage.sh \
 /home/scwlkr/.config/balls-labs/revit-server-2027/manage.sh select-bootstrap # stopped lab only; return for OS preparation
 /home/scwlkr/.config/balls-labs/revit-server-2027/manage.sh isolate
 /home/scwlkr/.config/balls-labs/revit-server-2027/manage.sh start
+/home/scwlkr/.config/balls-labs/revit-server-2027/manage.sh select-lan # stopped, healthy lab only
+/home/scwlkr/.config/balls-labs/revit-server-2027/manage.sh lan-start  # exact private address from owner-only lan.env
 /home/scwlkr/.config/balls-labs/revit-server-2027/manage.sh console
 /home/scwlkr/.config/balls-labs/revit-server-2027/manage.sh status
 /home/scwlkr/.config/balls-labs/revit-server-2027/manage.sh stop
@@ -211,6 +214,16 @@ official in-guest downloads. `isolate` requires a clean shutdown, removes that c
 and selects the acceptance overlay. `start` attaches only the Docker-internal acceptance network.
 Verify `docker network inspect balls-revit-server-2027-lab` reports `"Internal": true` before #114
 evidence. Never use the bootstrap overlay during the setup timer or Ready/Blocked proof.
+
+LAN publication is a separate post-verification handoff, never part of the isolated acceptance
+claim. Create owner-only `/home/scwlkr/.config/balls-labs/revit-server-2027/lan.env` with exactly one line,
+`BALLS_REVIT_LAN_HOST_IP=<current-private-IPv4>`, only after the installed Host/Admin surface is
+healthy. `select-lan` refuses a running guest and `lan-start` refuses a loopback, link-local,
+non-private, or unassigned address; occupied host TCP 80/808; a changed network identity; or any
+published binding other than TCP 80 and 808 on that exact address. The Docker network remains
+internal, browser console remains on `127.0.0.1:8027`, and RDP remains on `127.0.0.1:3397`.
+Changing Wi-Fi/LAN address requires a clean stop and a newly inspected `lan.env`. Never add a WAN
+forward, wildcard host bind, UPnP rule, or public DNS record for this lab.
 
 `initialize` is the only adoption operation. It accepts either an absent state root or the observed
 cached-media-only root containing exactly the current-owner, single-link official SFX at the
