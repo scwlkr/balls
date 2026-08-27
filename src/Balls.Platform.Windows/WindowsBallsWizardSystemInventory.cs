@@ -7,6 +7,13 @@ namespace Balls.Platform.Windows;
 [SupportedOSPlatform("windows")]
 internal static partial class WindowsBallsWizardSystemInventory
 {
+    public static string? ReadInstallationType()
+    {
+        using var key = Registry.LocalMachine.OpenSubKey(
+            @"SOFTWARE\Microsoft\Windows NT\CurrentVersion");
+        return key?.GetValue("InstallationType") as string;
+    }
+
     public static Balls.Platform.BallsWizardSystemContext Inspect(string wizardDirectory)
     {
         var memory = ReadMemory();

@@ -1,6 +1,22 @@
+using System.Runtime.InteropServices;
 using Balls.Platform;
 
 namespace Balls.Platform.Windows;
+
+internal static class WindowsBallsWizardSupport
+{
+    public static bool IsSupported(
+        int build,
+        string? installationType,
+        Architecture operatingSystemArchitecture,
+        Architecture processArchitecture)
+    {
+        return build >= 22_000
+            && string.Equals(installationType, "Client", StringComparison.OrdinalIgnoreCase)
+            && operatingSystemArchitecture == Architecture.X64
+            && processArchitecture == Architecture.X64;
+    }
+}
 
 internal static class WindowsBallsWizardArtifacts
 {

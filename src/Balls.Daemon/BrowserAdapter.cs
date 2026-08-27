@@ -210,7 +210,11 @@ internal static class BrowserAdapter
         application.MapPost(
                 BrowserRoutes.WizardChat,
                 (BrowserBallsWizardChatRequest request, CancellationToken token) =>
-                    BrowserBallsWizardEndpoints.ChatAsync(wizardApplication, request, token))
+                    BrowserBallsWizardEndpoints.ChatAsync(
+                        wizardApplication,
+                        filesApplication,
+                        request,
+                        token))
             .Produces<BrowserBallsWizardChatResponse>(StatusCodes.Status200OK)
             .Produces<ErrorResponse>(StatusCodes.Status400BadRequest)
             .Produces<ErrorResponse>(StatusCodes.Status502BadGateway);

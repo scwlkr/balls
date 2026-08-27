@@ -3043,7 +3043,7 @@ export interface components {
       content: string;
     };
     BrowserBallsWizardChatRequest: {
-      localRole: string;
+      circleId: null | string;
       messages: components["schemas"]["BrowserBallsWizardChatMessageRequest"][];
     };
     BrowserBallsWizardChatResponse: {

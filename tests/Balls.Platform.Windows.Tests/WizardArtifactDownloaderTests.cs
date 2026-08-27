@@ -1,5 +1,6 @@
 using System.Net;
 using System.Net.Http.Headers;
+using System.Runtime.InteropServices;
 using System.Security.Cryptography;
 using Balls.Platform;
 using Balls.Platform.Windows;
@@ -32,6 +33,31 @@ public sealed class WizardArtifactDownloaderTests
         StringAssert.Contains(
             WindowsBallsWizardArtifacts.Model.Source.AbsoluteUri,
             "/675cff42a74c774d6cb76f76d8eacb49b48c9b93/gemma-4-E2B_q4_0-it.gguf");
+    }
+
+    [TestMethod]
+    public void Support_contract_accepts_only_Windows_11_x64_client_processes()
+    {
+        Assert.IsTrue(WindowsBallsWizardSupport.IsSupported(
+            22_000,
+            "Client",
+            Architecture.X64,
+            Architecture.X64));
+        Assert.IsFalse(WindowsBallsWizardSupport.IsSupported(
+            26_100,
+            "Server",
+            Architecture.X64,
+            Architecture.X64));
+        Assert.IsFalse(WindowsBallsWizardSupport.IsSupported(
+            19_045,
+            "Client",
+            Architecture.X64,
+            Architecture.X64));
+        Assert.IsFalse(WindowsBallsWizardSupport.IsSupported(
+            26_100,
+            "Client",
+            Architecture.Arm64,
+            Architecture.X64));
     }
 
     [TestMethod]
@@ -98,6 +124,27 @@ public sealed class WizardArtifactDownloaderTests
             new Progress<BallsWizardInstallProgress>(),
             CancellationToken.None);
 
+        CollectionAssert.AreEqual(content, await File.ReadAllBytesAsync(finalPath));
+    }
+
+    [TestMethod]
+    public async Task Full_sized_corrupt_partial_is_replaced_from_zero_on_retry()
+    {
+        using var directory = new TemporaryDirectory();
+        var content = "wizard-bytes"u8.ToArray();
+        var artifact = CreateArtifact(content);
+        var finalPath = Path.Combine(directory.Path, "model.gguf");
+        await File.WriteAllBytesAsync(finalPath + ".partial", new byte[content.Length]);
+        var handler = new RangeHandler(content);
+        using var client = new HttpClient(handler);
+
+        await new WizardArtifactDownloader(client).DownloadAsync(
+            artifact,
+            finalPath,
+            new Progress<BallsWizardInstallProgress>(),
+            CancellationToken.None);
+
+        Assert.IsNull(handler.RequestedRangeStart);
         CollectionAssert.AreEqual(content, await File.ReadAllBytesAsync(finalPath));
     }
 

@@ -43,11 +43,12 @@ public sealed class WindowsBallsWizardPlatform : IBallsWizardPlatform
         ThrowIfDisposed();
         var paths = WindowsBallsWizardPaths.FromRoot(wizardDirectory);
 
-        if (!OperatingSystem.IsWindowsVersionAtLeast(10, 0, 22000)
-            || System.Runtime.InteropServices.RuntimeInformation.OSArchitecture
-                != System.Runtime.InteropServices.Architecture.X64
-            || System.Runtime.InteropServices.RuntimeInformation.ProcessArchitecture
-                != System.Runtime.InteropServices.Architecture.X64)
+        if (!OperatingSystem.IsWindows()
+            || !WindowsBallsWizardSupport.IsSupported(
+                Environment.OSVersion.Version.Build,
+                WindowsBallsWizardSystemInventory.ReadInstallationType(),
+                System.Runtime.InteropServices.RuntimeInformation.OSArchitecture,
+                System.Runtime.InteropServices.RuntimeInformation.ProcessArchitecture))
         {
             return Task.FromResult(
                 UnsupportedInspection(
@@ -153,7 +154,6 @@ public sealed class WindowsBallsWizardPlatform : IBallsWizardPlatform
             paths.InstallationRecord,
             JsonSerializer.Serialize(installation, InstalledWizardJsonContext.Default.InstalledWizardRecord),
             cancellationToken).ConfigureAwait(false);
-        File.Delete(paths.RuntimeArchive);
         progress.Report(
             new BallsWizardInstallProgress(
                 "wizard",
@@ -257,6 +257,7 @@ public sealed class WindowsBallsWizardPlatform : IBallsWizardPlatform
     private static BallsWizardInstallationStatus InspectInstallation(WindowsBallsWizardPaths paths)
     {
         if (File.Exists(paths.InstallationRecord)
+            && File.Exists(paths.RuntimeArchive)
             && File.Exists(paths.RuntimeExecutable)
             && File.Exists(paths.ModelFile)
             && new FileInfo(paths.ModelFile).Length == WindowsBallsWizardArtifacts.Model.SizeBytes)
@@ -419,6 +420,19 @@ public sealed class WindowsBallsWizardPlatform : IBallsWizardPlatform
             }
 
             await StopRuntimeCoreAsync().ConfigureAwait(false);
+            if (!await WizardArtifactDownloader.IsVerifiedAsync(
+                    WindowsBallsWizardArtifacts.Runtime,
+                    paths.RuntimeArchive,
+                    cancellationToken).ConfigureAwait(false)
+                || !await WizardArtifactDownloader.IsVerifiedAsync(
+                    WindowsBallsWizardArtifacts.Model,
+                    paths.ModelFile,
+                    cancellationToken).ConfigureAwait(false))
+            {
+                throw new InvalidDataException(
+                    "An installed Wizard artifact failed integrity verification and was not executed.");
+            }
+            ExtractRuntime(paths, cancellationToken);
             var port = ReserveLoopbackPort();
             runtimeApiKey = Convert.ToHexString(RandomNumberGenerator.GetBytes(32));
             runtimeBaseUri = new Uri($"http://127.0.0.1:{port}");

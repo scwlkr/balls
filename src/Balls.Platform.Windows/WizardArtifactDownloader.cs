@@ -36,7 +36,7 @@ internal sealed class WizardArtifactDownloader(HttpClient client)
 
         var partialPath = finalPath + ".partial";
         var existingLength = File.Exists(partialPath) ? new FileInfo(partialPath).Length : 0;
-        if (existingLength > artifact.SizeBytes)
+        if (existingLength >= artifact.SizeBytes)
         {
             File.Delete(partialPath);
             existingLength = 0;
@@ -52,18 +52,6 @@ internal sealed class WizardArtifactDownloader(HttpClient client)
             request,
             HttpCompletionOption.ResponseHeadersRead,
             cancellationToken).ConfigureAwait(false);
-
-        if (response.StatusCode == HttpStatusCode.RequestedRangeNotSatisfiable
-            && existingLength == artifact.SizeBytes)
-        {
-            await VerifyAndActivateAsync(
-                artifact,
-                partialPath,
-                finalPath,
-                progress,
-                cancellationToken).ConfigureAwait(false);
-            return;
-        }
 
         response.EnsureSuccessStatusCode();
         var append = existingLength > 0 && response.StatusCode == HttpStatusCode.PartialContent;

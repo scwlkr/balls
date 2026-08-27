@@ -64,10 +64,12 @@ const installed = {
   canRemove: true,
 } satisfies BrowserBallsWizardStatusDto;
 
+const circleId = "0198c2d8-b000-7000-8000-000000000501";
+
 describe("Balls Wizard", () => {
   it("offers an explicit download and lets Not now hide it for this render", async () => {
     const api = createWizardApi(absent);
-    render(<BallsWizard api={api} localRole="owner" />);
+    render(<BallsWizard api={api} circleId={circleId} localRole="owner" />);
 
     const offer = await screen.findByLabelText("Balls Wizard offer");
     expect(offer).toHaveTextContent("Download Wizard");
@@ -78,7 +80,7 @@ describe("Balls Wizard", () => {
 
   it("discloses exact local context and official sources before installation", async () => {
     const api = createWizardApi(absent);
-    render(<BallsWizard api={api} localRole="member" />);
+    render(<BallsWizard api={api} circleId={circleId} localRole="member" />);
     fireEvent.click(
       within(await screen.findByLabelText("Balls Wizard offer")).getByRole(
         "button",
@@ -116,7 +118,7 @@ describe("Balls Wizard", () => {
       ],
     });
     api.removeWizard.mockResolvedValue(absent);
-    render(<BallsWizard api={api} localRole="member" />);
+    render(<BallsWizard api={api} circleId={circleId} localRole="member" />);
 
     fireEvent.click(
       await screen.findByRole("button", { name: "Open Balls Wizard" }),
@@ -133,7 +135,7 @@ describe("Balls Wizard", () => {
     ).toBeInTheDocument();
     fireEvent.click(within(panel).getByText("Sources"));
     expect(panel).toHaveTextContent("Open Circle Files as a Member");
-    expect(api.chatWithWizard).toHaveBeenCalledWith("member", [
+    expect(api.chatWithWizard).toHaveBeenCalledWith(circleId, [
       { role: "user", content: "How do I open the shared folder?" },
     ]);
 
@@ -162,7 +164,7 @@ describe("Balls Wizard", () => {
       artifacts: [],
     } satisfies BrowserBallsWizardStatusDto;
     const api = createWizardApi(unsupported);
-    render(<BallsWizard api={api} localRole="none" />);
+    render(<BallsWizard api={api} circleId={null} localRole="none" />);
 
     const offer = await screen.findByLabelText("Balls Wizard offer");
     expect(offer).toHaveTextContent("Wizard unavailable");

@@ -183,7 +183,7 @@ public sealed record BrowserBallsWizardStatusResponse(
 public sealed record BrowserBallsWizardChatMessageRequest(string Role, string Content);
 
 public sealed record BrowserBallsWizardChatRequest(
-    string LocalRole,
+    string? CircleId,
     IReadOnlyList<BrowserBallsWizardChatMessageRequest> Messages);
 
 public sealed record BrowserBallsWizardSourceResponse(string Id, string Title);

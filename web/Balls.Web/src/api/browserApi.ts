@@ -103,7 +103,7 @@ export interface BrowserApi {
   cancelWizardInstall(): Promise<BrowserBallsWizardStatusDto>;
   removeWizard(): Promise<BrowserBallsWizardStatusDto>;
   chatWithWizard(
-    localRole: "owner" | "member" | "none",
+    circleId: string | null,
     messages: BrowserBallsWizardChatMessageDto[],
   ): Promise<BrowserBallsWizardChatDto>;
 }
@@ -291,12 +291,12 @@ class FetchBrowserApi implements BrowserApi {
   }
 
   chatWithWizard(
-    localRole: "owner" | "member" | "none",
+    circleId: string | null,
     messages: BrowserBallsWizardChatMessageDto[],
   ) {
     return this.authenticatedRequest<BrowserBallsWizardChatDto>(
       "/browser/v1/wizard/chat",
-      { localRole, messages },
+      { circleId, messages },
       "Run balls ui again to ask Wizard.",
     );
   }

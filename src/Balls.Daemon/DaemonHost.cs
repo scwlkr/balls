@@ -233,7 +233,7 @@ public static class DaemonHost
             var browserEndpoint = new BrowserEndpointState();
             wizardApplication = new BallsWizardApplication(
                 host.BallsWizard,
-                WizardKnowledge.LoadEmbedded(),
+                WizardKnowledge.TryLoadEmbedded(),
                 securedDataDirectory,
                 BrowserAdapter.GetProductVersion());
             var invitationListeners = BrowserInvitationListenerState.Unavailable(

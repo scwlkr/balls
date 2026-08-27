@@ -1,3 +1,4 @@
+using Balls.Core;
 using Balls.Protocol.Browser.V1;
 using Balls.Protocol.Control.V1;
 
@@ -58,13 +59,17 @@ internal static class BrowserBallsWizardEndpoints
 
     public static async Task<IResult> ChatAsync(
         BallsWizardApplication application,
+        CircleFilesApplication files,
         BrowserBallsWizardChatRequest request,
         CancellationToken cancellationToken)
     {
         try
         {
+            var localRole = await GetLocalRoleAsync(files, request.CircleId, cancellationToken)
+                .ConfigureAwait(false);
             return Results.Ok(
-                await application.ChatAsync(request, cancellationToken).ConfigureAwait(false));
+                await application.ChatAsync(request, localRole, cancellationToken)
+                    .ConfigureAwait(false));
         }
         catch (BallsWizardApplicationException exception)
         {
@@ -73,5 +78,32 @@ internal static class BrowserBallsWizardEndpoints
                 ? Results.Json(error, statusCode: StatusCodes.Status502BadGateway)
                 : Results.BadRequest(error);
         }
+    }
+
+    private static async Task<string> GetLocalRoleAsync(
+        CircleFilesApplication files,
+        string? circleId,
+        CancellationToken cancellationToken)
+    {
+        if (circleId is null)
+        {
+            return "none";
+        }
+        if (!Guid.TryParse(circleId, out var parsedCircleId))
+        {
+            throw new BallsWizardApplicationException(
+                "wizard_circle_invalid",
+                "Wizard context requires a valid Circle identifier.");
+        }
+
+        var viewer = await files.GetLocalAuthorizationContextAsync(
+            new CircleId(parsedCircleId),
+            cancellationToken).ConfigureAwait(false);
+        return viewer?.MemberRole switch
+        {
+            MemberRole.Owner => "owner",
+            MemberRole.Member => "member",
+            _ => "none",
+        };
     }
 }

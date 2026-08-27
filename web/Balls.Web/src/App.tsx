@@ -213,6 +213,7 @@ export function App({ api = browserApi }: AppProps) {
       {workspace ? (
         <BallsWizard
           api={api}
+          circleId={workspace.selected?.circle.id ?? null}
           localRole={
             workspace.viewer?.role === "owner"
               ? "owner"

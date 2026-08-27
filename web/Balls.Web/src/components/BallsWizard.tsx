@@ -9,6 +9,7 @@ import { toMessage } from "../presentation/toMessage";
 
 interface BallsWizardProps {
   api: BrowserApi;
+  circleId: string | null;
   localRole: "owner" | "member" | "none";
 }
 
@@ -24,7 +25,7 @@ const greeting: ChatEntry = {
     "Greetings! I’m Balls Wizard — currently hovering, doing a little magic, and ready to help you find your way around Balls.",
 };
 
-export function BallsWizard({ api, localRole }: BallsWizardProps) {
+export function BallsWizard({ api, circleId, localRole }: BallsWizardProps) {
   const [status, setStatus] = useState<BrowserBallsWizardStatusDto | null>(
     null,
   );
@@ -96,7 +97,7 @@ export function BallsWizard({ api, localRole }: BallsWizardProps) {
             }) satisfies BrowserBallsWizardChatMessageDto,
         )
         .slice(-12);
-      const answer = await api.chatWithWizard(localRole, history);
+      const answer = await api.chatWithWizard(circleId, history);
       setMessages((current) => [
         ...current,
         {

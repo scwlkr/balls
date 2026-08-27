@@ -6,6 +6,11 @@ Windows SMB credential provisioning, exact unelevated Windows Explorer mapping, 
 Member open-and-launch operation, generation-bound grant revocation, and ownership-proven provider
 cleanup.
 
+The browser projection also includes the optional, Windows 11 x64-only Balls Wizard v0: explicit
+status/install/cancel/remove operations and local chat backed by immutable verified artifacts and
+the packaged version-matched Wizard Guide. Wizard failure never changes the protected control
+plane or ordinary Circle behavior.
+
 This is the versioned, machine-local contract between `balls` or another local integration and
 `ballsd`. It is not a Node-to-Node or Circle replication protocol.
 
@@ -439,8 +444,9 @@ The browser listener serves the bundled production application and only these `/
 routes: session exchange, status, Circle list/create/details, exact local viewer identity, Owner
 invitation creation, signed invitation admission, ordered Circle message history, authenticated
 Circle Files synchronization, Owner folder selection and contribution, safe contribution/Access
-Grant lists, and one high-level Member open operation. The browser control plane remains narrower than
-`/control/v1`; control routes return `404` on TCP and browser routes return `404` over IPC.
+Grant lists, one high-level Member open operation, and the optional local Balls Wizard. The browser
+control plane remains narrower than `/control/v1`; control routes return `404` on TCP and browser
+routes return `404` over IPC.
 Readiness, arbitrary host provisioning, grant creation, grant credential provisioning, revocation,
 infrastructure cleanup, and detailed mapping operations remain CLI/local-control only. Browser
 contribution and guided open call the same application and provider behavior as IPC; no SMB
@@ -527,6 +533,32 @@ the browser approval; a changed or expired approval returns a bounded `409` and 
 preview. A helper authentication or partial credential failure keeps the same protected pending
 credential and approval so the Owner can safely retry without minting a second password, account,
 or Access Grant. Browser status remains human-only on success and failure.
+
+### Balls Wizard browser routes
+
+`GET /browser/v1/wizard` returns the bounded support, installation, progress, model/runtime
+artifact, storage, and local system-context projection. The projection includes only OS and process
+architecture, OS description, CPU/GPU names, memory, free storage, Balls/Wizard versions, immutable
+artifact sources, byte sizes, SHA-256 values, and licenses. It excludes usernames, hostnames,
+serials, network addresses, arbitrary paths, Circle names, Members, messages, files, and resources.
+
+`POST /browser/v1/wizard/install` starts or resumes the explicit user-requested download. `POST
+/browser/v1/wizard/cancel` pauses it without activating partial artifacts. `DELETE
+/browser/v1/wizard` stops the managed runtime and removes only the current OS user's dedicated
+`wizard` data directory. Each mutation requires the ordinary browser antiforgery boundary. The
+runtime and model are fetched from exact immutable official sources and must match pinned byte
+sizes and SHA-256 digests before activation or execution; neither artifact is stored in this source
+repository.
+
+`POST /browser/v1/wizard/chat` accepts an optional `circleId` and at most 12 bounded `user` or
+`assistant` messages ending in a user message. The daemon resolves the local Owner/Member/none role
+from protected Circle state rather than trusting a role from JavaScript. It combines a bounded
+ephemeral system snapshot with deterministic sections from the packaged Wizard Guide, starts the
+loopback-only managed runtime on demand, and returns one answer plus optional guide-section IDs and
+titles. It exposes no runtime address, API key, tool, command execution, filesystem access, or
+Circle mutation. Conversation history exists only in page memory and is never stored by `ballsd`.
+The accepted product and artifact lifecycle contract is
+[`../specs/balls-wizard-v0.md`](../specs/balls-wizard-v0.md).
 
 `POST /browser/v1/session` exchanges the launch capability once. Success sets the
 `__Host-balls-session` cookie with `HttpOnly`, `Secure`, `SameSite=Strict`, and `Path=/`, and returns
