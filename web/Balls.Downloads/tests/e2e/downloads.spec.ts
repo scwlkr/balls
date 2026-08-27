@@ -24,7 +24,7 @@ test("shows every delivery lane and copies the complete Linux command", async ({
   ).toBeVisible();
   await expect(page.locator("[data-development-release]")).toBeVisible();
   await expect(page.locator("[data-development-tag]")).toHaveText(
-    "development-20260826T223620Z-72f6fa983b4c",
+    "development-20260827T045203Z-39cd15e5ffdf",
   );
   await expect(page.locator("#development-windows-command")).toContainText(
     "/channels/development.json",
