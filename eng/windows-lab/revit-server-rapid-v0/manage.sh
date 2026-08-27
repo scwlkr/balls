@@ -10,6 +10,9 @@ readonly state_root="/home/scwlkr/.local/share/balls-lab/revit-server-2027"
 readonly mode_file="${state_root}/network-mode"
 readonly ownership_marker=".balls-revit-server-2027-lab"
 readonly marker_value="balls-revit-server-2027-lab:v1"
+readonly trusted_media_name="Revit_Server_2027_win_db.sfx.exe"
+readonly trusted_media_size=912600144
+readonly trusted_media_sha256="295b30779868b9d58d78d9ff4353e4b9c6412418274a8034db6c6e7e0d348518"
 readonly system_disk_size=171798691840
 readonly data_disk_size=137438953472
 readonly image_digest="sha256:0cff9eb0e7aee9953e55bc682852ca4fdca233145a58ae1ec94f0b0c01a2ed30"
@@ -34,6 +37,7 @@ assert_owned_directory() {
   [[ -d "${path}" && ! -L "${path}" ]] || fail "${path} must be a real directory, not a link"
   [[ "$(stat -c '%u' "${path}")" == "$(id -u)" ]] || fail "${path} has a foreign owner"
   [[ "$(realpath -e -- "${path}")" == "${path}" ]] || fail "${path} does not resolve to its reserved canonical path"
+  [[ "$(stat -c '%a' "${path}")" == "700" ]] || fail "${path} must have mode 0700"
 }
 
 assert_owned_regular() {
@@ -65,10 +69,16 @@ validate_evidence_or_media_entries() {
 }
 
 validate_disk() {
-  local path="$1" expected_size="$2"
-  [[ ! -e "${path}" && ! -L "${path}" ]] && return
+  local path="$1" expected_size="$2" identity_path="$3" observed_identity
+  if [[ ! -e "${path}" && ! -L "${path}" ]]; then
+    [[ ! -e "${identity_path}" && ! -L "${identity_path}" ]] || fail "${identity_path} exists without its disk"
+    return
+  fi
   assert_owned_regular "${path}"
   [[ "$(stat -c '%s' "${path}")" == "${expected_size}" ]] || fail "${path} has an unexpected logical size"
+  assert_owned_regular "${identity_path}"
+  observed_identity="$(stat -c '%d:%i' "${path}")"
+  [[ "$(<"${identity_path}")" == "${observed_identity}" ]] || fail "${path} was substituted after its device/inode identity was recorded"
 }
 
 validate_state_root() {
@@ -81,20 +91,54 @@ validate_state_root() {
     assert_owned_directory "${state_root}/${directory}"
     validate_marker "${state_root}/${directory}"
   done
-  validate_directory_entries "${state_root}/system" '^(.balls-revit-server-2027-lab|data.img|windows.ver|windows.base|windows.mac|windows.rom|windows.vars|windows.boot)$'
-  validate_directory_entries "${state_root}/data" '^(.balls-revit-server-2027-lab|data2.img)$'
+  validate_directory_entries "${state_root}/system" '^(.balls-revit-server-2027-lab|data.img|data.img.identity|windows.ver|windows.base|windows.mac|windows.rom|windows.vars|windows.boot)$'
+  validate_directory_entries "${state_root}/data" '^(.balls-revit-server-2027-lab|data2.img|data2.img.identity)$'
   validate_evidence_or_media_entries "${state_root}/system"
   validate_evidence_or_media_entries "${state_root}/data"
   validate_evidence_or_media_entries "${state_root}/evidence"
   validate_evidence_or_media_entries "${state_root}/media"
-  validate_disk "${state_root}/system/data.img" "${system_disk_size}"
-  validate_disk "${state_root}/data/data2.img" "${data_disk_size}"
+  validate_disk "${state_root}/system/data.img" "${system_disk_size}" "${state_root}/system/data.img.identity"
+  validate_disk "${state_root}/data/data2.img" "${data_disk_size}" "${state_root}/data/data2.img.identity"
   if [[ -e "${mode_file}" || -L "${mode_file}" ]]; then
     assert_owned_regular "${mode_file}"
     [[ "$(<"${mode_file}")" =~ ^(bootstrap|acceptance)$ ]] || fail "the lab network-mode marker is invalid"
     [[ -f "${state_root}/system/data.img" && -f "${state_root}/data/data2.img" ]] \
       || fail "an initialized lab must keep both reserved disk files"
   fi
+}
+
+write_marker() {
+  local directory="$1"
+  printf '%s\n' "${marker_value}" > "${directory}/${ownership_marker}"
+  chmod 600 "${directory}/${ownership_marker}"
+}
+
+initialize_state_root() {
+  if [[ -e "${state_root}" || -L "${state_root}" ]]; then
+    [[ -d "${state_root}" && ! -L "${state_root}" ]] || fail "the existing state root is not a real directory"
+    [[ "$(stat -c '%u' "${state_root}")" == "$(id -u)" ]] || fail "the existing state root has a foreign owner"
+    [[ "$(realpath -e -- "${state_root}")" == "${state_root}" ]] || fail "the existing state root is not canonical"
+    validate_directory_entries "${state_root}" '^media$'
+    local media_directory="${state_root}/media" media_path="${state_root}/media/${trusted_media_name}"
+    [[ -d "${media_directory}" && ! -L "${media_directory}" ]] || fail "only the exact cached-media directory can be adopted"
+    [[ "$(stat -c '%u' "${media_directory}")" == "$(id -u)" ]] || fail "the cached-media directory has a foreign owner"
+    [[ "$(realpath -e -- "${media_directory}")" == "${media_directory}" ]] || fail "the cached-media directory is not canonical"
+    validate_directory_entries "${media_directory}" "^${trusted_media_name}$"
+    assert_owned_regular "${media_path}"
+    [[ "$(stat -c '%s' "${media_path}")" == "${trusted_media_size}" ]] || fail "cached media size is not the trusted identity"
+    [[ "$(sha256sum -- "${media_path}" | awk '{print $1}')" == "${trusted_media_sha256}" ]] || fail "cached media hash is not the trusted identity"
+    chmod 700 "${state_root}" "${media_directory}"
+    chmod 600 "${media_path}"
+  else
+    install -d -m 700 "${state_root}" "${state_root}/media"
+  fi
+  install -d -m 700 "${state_root}/system" "${state_root}/data" "${state_root}/evidence"
+  local directory
+  for directory in "${state_root}" "${state_root}/system" "${state_root}/data" "${state_root}/evidence" "${state_root}/media"; do
+    write_marker "${directory}"
+  done
+  validate_state_root
+  say "PASS — exact empty/cached-media-only state initialized with owner-only lab markers"
 }
 
 compose() {
@@ -137,12 +181,15 @@ udp_port_free() {
 }
 
 network_free_or_owned() {
-  local name="$1" expected="$2" observed all_subnets owner
+  local name="$1" expected="$2" gateway="$3" internal="$4" observed all_subnets owner shape
   observed="$(docker network inspect --format '{{range .IPAM.Config}}{{.Subnet}}{{end}}' "${name}" 2>/dev/null || true)"
   [[ -z "${observed}" || "${observed}" == "${expected}" ]] || fail "network ${name} has unexpected subnet ${observed}"
   if [[ -n "${observed}" ]]; then
     owner="$(docker network inspect --format '{{index .Labels "com.docker.compose.project"}}' "${name}")"
     [[ "${owner}" == "${project}" ]] || fail "network name ${name} is not owned by the reserved Compose project"
+    shape="$(docker network inspect --format '{{.Driver}}|{{.Internal}}|{{range .IPAM.Config}}{{.Subnet}}|{{.Gateway}}{{end}}' "${name}")"
+    [[ "${shape}" == "bridge|${internal}|${expected}|${gateway}" ]] \
+      || fail "existing network ${name} has the wrong driver/internal/subnet/gateway shape"
   fi
   all_subnets="$(docker network ls --format '{{.Name}}' | while read -r network; do
     [[ "${network}" == "${name}" ]] || docker network inspect --format '{{range .IPAM.Config}}{{.Subnet}}{{"\n"}}{{end}}' "${network}" 2>/dev/null
@@ -172,21 +219,39 @@ preflight() {
   port_free 8027 || fail "loopback console port 8027 is in use"
   port_free 3397 || fail "loopback RDP port 3397 is in use"
   udp_port_free 3397 || fail "loopback UDP RDP port 3397 is in use"
-  network_free_or_owned balls-revit-server-2027-bootstrap 172.29.26.0/24
-  network_free_or_owned balls-revit-server-2027-lab 172.29.27.0/24
+  network_free_or_owned balls-revit-server-2027-bootstrap 172.29.26.0/24 172.29.26.1 false
+  network_free_or_owned balls-revit-server-2027-lab 172.29.27.0/24 172.29.27.1 true
   say "PASS — pinned runtime, KVM, memory, ports, and reserved network identities are ready"
 }
 
 ensure_state_root() {
-  if [[ ! -e "${state_root}" && ! -L "${state_root}" ]]; then
-    install -d -m 700 "${state_root}" "${state_root}/system" "${state_root}/data" "${state_root}/evidence" "${state_root}/media"
-    local directory
-    for directory in "${state_root}" "${state_root}/system" "${state_root}/data" "${state_root}/evidence" "${state_root}/media"; do
-      printf '%s\n' "${marker_value}" > "${directory}/${ownership_marker}"
-      chmod 600 "${directory}/${ownership_marker}"
-    done
-  fi
+  [[ -e "${state_root}" && ! -L "${state_root}" ]] || fail "run initialize before operating the lab"
   validate_state_root
+}
+
+record_disk_identity() {
+  local path="$1" expected_size="$2" identity_path="$3"
+  assert_owned_regular "${path}"
+  [[ "$(stat -c '%s' "${path}")" == "${expected_size}" ]] || fail "${path} has an unexpected logical size"
+  [[ ! -e "${identity_path}" && ! -L "${identity_path}" ]] || fail "refusing to replace an existing disk identity record"
+  printf '%s\n' "$(stat -c '%d:%i' "${path}")" > "${identity_path}"
+  chmod 600 "${identity_path}"
+  validate_disk "${path}" "${expected_size}" "${identity_path}"
+}
+
+record_initial_disk_identities() {
+  local deadline=$((SECONDS + 120))
+  while (( SECONDS < deadline )); do
+    if [[ -f "${state_root}/system/data.img" && -f "${state_root}/data/data2.img" ]] \
+      && [[ "$(stat -c '%s' "${state_root}/system/data.img")" == "${system_disk_size}" ]] \
+      && [[ "$(stat -c '%s' "${state_root}/data/data2.img")" == "${data_disk_size}" ]]; then
+      record_disk_identity "${state_root}/system/data.img" "${system_disk_size}" "${state_root}/system/data.img.identity"
+      record_disk_identity "${state_root}/data/data2.img" "${data_disk_size}" "${state_root}/data/data2.img.identity"
+      return
+    fi
+    sleep 2
+  done
+  fail "Dockurr did not create both exact disk shapes within two minutes; no identity was approved"
 }
 
 attest_selected_network() {
@@ -204,9 +269,19 @@ bootstrap_start() {
   preflight
   [[ ! -f "${mode_file}" || "$(<"${mode_file}")" == "bootstrap" ]] || fail "the lab is already isolated for acceptance"
   ensure_state_root
-  printf 'bootstrap\n' > "${mode_file}"
+  local first_start=false
+  if [[ ! -f "${state_root}/system/data.img" && ! -f "${state_root}/data/data2.img" ]]; then
+    first_start=true
+  else
+    [[ -f "${state_root}/system/data.img" && -f "${state_root}/data/data2.img" ]] \
+      || fail "a partial disk set blocks bootstrap"
+  fi
   compose bootstrap up -d
   attest_selected_network balls-revit-server-2027-bootstrap 172.29.26.0/24 172.29.26.1 172.29.26.2 false
+  [[ "${first_start}" == "false" ]] || record_initial_disk_identities
+  printf 'bootstrap\n' > "${mode_file}"
+  chmod 600 "${mode_file}"
+  validate_state_root
   say "PASS — bootstrap network only; use solely for OS updates and official in-guest downloads"
 }
 
@@ -217,6 +292,7 @@ isolate() {
   compose bootstrap down
   [[ -f "${state_root}/system/data.img" && -f "${state_root}/data/data2.img" ]] || fail "both lab disk files must already exist"
   printf 'acceptance\n' > "${mode_file}"
+  chmod 600 "${mode_file}"
   say "PASS — bootstrap attachment removed; acceptance network selected"
 }
 
@@ -272,6 +348,7 @@ recover() {
 }
 
 case "${1:-}" in
+  initialize) initialize_state_root ;;
   preflight) preflight ;;
   bootstrap-start) bootstrap_start ;;
   isolate) isolate ;;
@@ -280,5 +357,5 @@ case "${1:-}" in
   status) status ;;
   stop) stop_lab ;;
   recover) recover ;;
-  *) fail "usage: manage.sh preflight|bootstrap-start|isolate|start|console|status|stop|recover" ;;
+  *) fail "usage: manage.sh initialize|preflight|bootstrap-start|isolate|start|console|status|stop|recover" ;;
 esac
