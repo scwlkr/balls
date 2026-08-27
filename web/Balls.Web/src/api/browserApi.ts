@@ -86,6 +86,23 @@ export interface RevitServerSetupInspectionDto {
   plan: RevitServerSetupPlanDto | null;
 }
 
+export interface RevitServerSetupStatusDto {
+  stage:
+    | "not-started"
+    | "applying-prerequisites"
+    | "prerequisites-applied"
+    | "awaiting-autodesk"
+    | "verifying"
+    | "ready-for-handoff"
+    | "incomplete"
+    | "failed"
+    | "blocked";
+  summary: string;
+  attemptId: string | null;
+  plan: RevitServerSetupPlanDto | null;
+  checks: RevitServerSetupInspectionDto["checks"];
+}
+
 export interface BrowserApi {
   exchangeLaunchCapability(capability: string): Promise<void>;
   getStatus(): Promise<StatusDto>;
@@ -130,6 +147,13 @@ export interface BrowserApi {
   inspectRevitServerSetup(
     selectionId: string,
   ): Promise<RevitServerSetupInspectionDto>;
+  getRevitServerSetupStatus(): Promise<RevitServerSetupStatusDto>;
+  beginRevitServerSetup(
+    selectionId: string,
+    planDigest: string,
+  ): Promise<RevitServerSetupStatusDto>;
+  verifyRevitServerSetup(): Promise<RevitServerSetupStatusDto>;
+  retryRevitServerSetup(): Promise<RevitServerSetupStatusDto>;
 }
 
 class FetchBrowserApi implements BrowserApi {
@@ -297,6 +321,36 @@ class FetchBrowserApi implements BrowserApi {
       "/browser/v1/revit-server/setup/inspection",
       { selectionId },
       "Run balls ui again to inspect Revit Server setup.",
+    );
+  }
+
+  getRevitServerSetupStatus() {
+    return this.request<RevitServerSetupStatusDto>(
+      "/browser/v1/revit-server/setup/status",
+    );
+  }
+
+  beginRevitServerSetup(selectionId: string, planDigest: string) {
+    return this.authenticatedRequest<RevitServerSetupStatusDto>(
+      "/browser/v1/revit-server/setup/begin",
+      { selectionId, planDigest, consent: true },
+      "Run balls ui again to begin Revit Server setup.",
+    );
+  }
+
+  verifyRevitServerSetup() {
+    return this.authenticatedRequest<RevitServerSetupStatusDto>(
+      "/browser/v1/revit-server/setup/verify",
+      {},
+      "Run balls ui again to verify Revit Server setup.",
+    );
+  }
+
+  retryRevitServerSetup() {
+    return this.authenticatedRequest<RevitServerSetupStatusDto>(
+      "/browser/v1/revit-server/setup/retry",
+      {},
+      "Run balls ui again to continue Revit Server setup.",
     );
   }
 

@@ -223,6 +223,88 @@ describe("Balls browser workspace", () => {
     ).toBeNull();
   });
 
+  it("requires consent, shows the exact Autodesk handoff, and verifies health", async () => {
+    const api = createApi({ circles: [] });
+    const plan = {
+      planDigest: "a".repeat(64),
+      machine: "BALLS-RS27",
+      windows: "Windows Server 2022 Standard build 20348 (Server)",
+      media: "Autodesk Revit Server 2027 27.0.4.412",
+      mediaSha256: "b".repeat(64),
+      enabledRoles: ["Host", "Admin"],
+      forbiddenRoles: ["Accelerator"],
+      dataPaths: [
+        String.raw`D:\RevitServer\2027`,
+        String.raw`D:\RevitServer\2027\Projects`,
+        String.raw`D:\RevitServer\2027\Cache`,
+      ],
+      windowsPrerequisites: ["Web Server (IIS)"],
+      aclIntent: ["NETWORK SERVICE: Full control"],
+      defaultWebSiteEffects: ["Keep Default Web Site"],
+      rsnIni: ["Write BALLS-RS27 as the only line"],
+      firewallEffects: ["Private LocalSubnet only"],
+      verificationActions: ["Verify exactly Host + Admin"],
+      ballsOwnedState: ["Windows prerequisites"],
+      autodeskOwnedState: ["Autodesk installed product"],
+    };
+    api.selectRevitServerMedia = async () => ({
+      status: "selected",
+      selectionId: "selection-3",
+      fileName: "Revit_Server_2027_win_db.sfx.exe",
+    });
+    api.inspectRevitServerSetup = async () => ({
+      status: "ready",
+      summary: "Ready. Nothing changed.",
+      checks: [],
+      plan,
+    });
+    api.beginRevitServerSetup = async () => ({
+      stage: "awaiting-autodesk",
+      summary: "Complete Autodesk setup.",
+      attemptId: "attempt-1",
+      plan,
+      checks: [],
+    });
+    api.verifyRevitServerSetup = async () => ({
+      stage: "ready-for-handoff",
+      summary:
+        "Revit Server 2027 Host + Admin is healthy on this local server.",
+      attemptId: "attempt-1",
+      plan,
+      checks: [
+        {
+          id: "roles",
+          status: "ready",
+          code: "roles_exact",
+          summary: "Host + Admin are enabled and Accelerator is off.",
+        },
+      ],
+    });
+
+    render(<App api={api} />);
+    fireEvent.click(
+      await screen.findByRole("button", { name: "Choose official installer" }),
+    );
+    const begin = await screen.findByRole("button", {
+      name: "Prepare Windows and open Autodesk setup",
+    });
+    expect(begin).toBeDisabled();
+    fireEvent.click(screen.getByRole("checkbox"));
+    fireEvent.click(begin);
+
+    expect(await screen.findByText("In Autodesk setup")).toBeInTheDocument();
+    expect(screen.getByText("Roles: Host + Admin")).toBeInTheDocument();
+    expect(screen.getByText("Accelerator: Off")).toBeInTheDocument();
+    expect(screen.queryByText(/--|powershell|msiexec/i)).toBeNull();
+    fireEvent.click(
+      screen.getByRole("button", {
+        name: "Autodesk setup is finished — verify",
+      }),
+    );
+    expect(await screen.findByText("Healthy")).toBeInTheDocument();
+    expect(screen.getByText(/Host \+ Admin are enabled/)).toBeInTheDocument();
+  });
+
   it("announces the workspace loading state", () => {
     const api = createApi({ circles: [] });
     api.exchangeLaunchCapability = () => new Promise(() => undefined);
@@ -997,6 +1079,23 @@ function createApi(circleList: CircleListDto): BrowserApi {
     }),
     inspectRevitServerSetup: async () => {
       throw new Error("No Revit Server inspection test configured.");
+    },
+    getRevitServerSetupStatus: async () => ({
+      stage: "not-started",
+      summary:
+        "Choose the official Autodesk installer and inspect this server.",
+      attemptId: null,
+      plan: null,
+      checks: [],
+    }),
+    beginRevitServerSetup: async () => {
+      throw new Error("No Revit Server setup begin test configured.");
+    },
+    verifyRevitServerSetup: async () => {
+      throw new Error("No Revit Server verification test configured.");
+    },
+    retryRevitServerSetup: async () => {
+      throw new Error("No Revit Server retry test configured.");
     },
   };
 }

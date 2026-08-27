@@ -9,6 +9,10 @@ public static class BrowserRoutes
     public const string CircleJoin = Circles + "/join";
     public const string RevitServerMediaSelection = BasePath + "/revit-server/setup/media-selection";
     public const string RevitServerSetupInspection = BasePath + "/revit-server/setup/inspection";
+    public const string RevitServerSetupStatus = BasePath + "/revit-server/setup/status";
+    public const string RevitServerSetupBegin = BasePath + "/revit-server/setup/begin";
+    public const string RevitServerSetupVerify = BasePath + "/revit-server/setup/verify";
+    public const string RevitServerSetupRetry = BasePath + "/revit-server/setup/retry";
 
     public static string Circle(string circleId)
     {

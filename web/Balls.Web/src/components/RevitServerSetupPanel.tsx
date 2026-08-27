@@ -1,8 +1,9 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 
 import type {
   BrowserApi,
   RevitServerSetupInspectionDto,
+  RevitServerSetupStatusDto,
 } from "../api/browserApi";
 import { toMessage } from "../presentation/toMessage";
 
@@ -12,7 +13,34 @@ export function RevitServerSetupPanel({ api }: { api: BrowserApi }) {
   const [result, setResult] = useState<RevitServerSetupInspectionDto | null>(
     null,
   );
+  const [selectionId, setSelectionId] = useState<string | null>(null);
+  const [approved, setApproved] = useState(false);
+  const [status, setStatus] = useState<RevitServerSetupStatusDto | null>(null);
   const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    let active = true;
+    api.getRevitServerSetupStatus().then(
+      (value) => active && setStatus(value),
+      () => undefined,
+    );
+    return () => {
+      active = false;
+    };
+  }, [api]);
+
+  useEffect(() => {
+    if (
+      status?.stage !== "applying-prerequisites" &&
+      status?.stage !== "verifying"
+    ) {
+      return;
+    }
+    const timer = window.setInterval(() => {
+      api.getRevitServerSetupStatus().then(setStatus, () => undefined);
+    }, 1000);
+    return () => window.clearInterval(timer);
+  }, [api, status?.stage]);
 
   async function chooseAndInspect() {
     if (busy) return;
@@ -27,7 +55,50 @@ export function RevitServerSetupPanel({ api }: { api: BrowserApi }) {
         return;
       }
       setFileName(selected.fileName);
+      setSelectionId(selected.selectionId);
+      setApproved(false);
       setResult(await api.inspectRevitServerSetup(selected.selectionId));
+    } catch (reason) {
+      setError(toMessage(reason));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function begin() {
+    if (!selectionId || !result?.plan || !approved || busy) return;
+    setBusy(true);
+    setError(null);
+    try {
+      setStatus(
+        await api.beginRevitServerSetup(selectionId, result.plan.planDigest),
+      );
+    } catch (reason) {
+      setError(toMessage(reason));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function verify() {
+    if (busy) return;
+    setBusy(true);
+    setError(null);
+    try {
+      setStatus(await api.verifyRevitServerSetup());
+    } catch (reason) {
+      setError(toMessage(reason));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function retry() {
+    if (busy) return;
+    setBusy(true);
+    setError(null);
+    try {
+      setStatus(await api.retryRevitServerSetup());
     } catch (reason) {
       setError(toMessage(reason));
     } finally {
@@ -60,8 +131,113 @@ export function RevitServerSetupPanel({ api }: { api: BrowserApi }) {
         <p className="revit-media-name">Selected: {fileName}</p>
       ) : null}
       {result ? <InspectionResult result={result} /> : null}
+      {result?.status === "ready" && result.plan && !status?.attemptId ? (
+        <div className="revit-setup-consent">
+          <label>
+            <input
+              type="checkbox"
+              checked={approved}
+              onChange={(event) => setApproved(event.target.checked)}
+            />
+            I reviewed the Host + Admin plan and approve these Windows changes.
+          </label>
+          <button type="button" disabled={!approved || busy} onClick={begin}>
+            Prepare Windows and open Autodesk setup
+          </button>
+        </div>
+      ) : null}
+      {status?.attemptId ? (
+        <SetupProgress
+          status={status}
+          busy={busy}
+          verify={verify}
+          retry={retry}
+        />
+      ) : null}
     </section>
   );
+}
+
+function SetupProgress({
+  status,
+  busy,
+  verify,
+  retry,
+}: {
+  status: RevitServerSetupStatusDto;
+  busy: boolean;
+  verify(): void;
+  retry(): void;
+}) {
+  const awaiting = status.stage === "awaiting-autodesk";
+  const complete = status.stage === "ready-for-handoff";
+  const retryable = status.stage === "incomplete" || status.stage === "failed";
+  return (
+    <div
+      className="revit-setup-progress"
+      data-stage={status.stage}
+      role="status"
+    >
+      <strong>{complete ? "Healthy" : stageLabel(status.stage)}</strong>
+      <p>{status.summary}</p>
+      {awaiting ? (
+        <div className="revit-autodesk-card">
+          <h3>In Autodesk setup</h3>
+          <ul>
+            <li>Product: Revit Server 2027</li>
+            <li>Roles: Host + Admin</li>
+            <li>Accelerator: Off</li>
+            {status.plan?.dataPaths.slice(1).map((path) => (
+              <li key={path}>{path}</li>
+            ))}
+          </ul>
+          <p>
+            Accept Autodesk’s terms yourself and confirm its configuration page.
+          </p>
+          <button type="button" disabled={busy} onClick={verify}>
+            Autodesk setup is finished — verify
+          </button>
+        </div>
+      ) : null}
+      {status.checks.length > 0 ? (
+        <ul aria-label="Revit Server health checks">
+          {status.checks.map((check) => (
+            <li key={check.id} data-status={check.status}>
+              {check.summary}
+            </li>
+          ))}
+        </ul>
+      ) : null}
+      {retryable ? (
+        <button type="button" disabled={busy} onClick={retry}>
+          Open Autodesk setup again
+        </button>
+      ) : null}
+    </div>
+  );
+}
+
+function stageLabel(stage: RevitServerSetupStatusDto["stage"]) {
+  switch (stage) {
+    case "applying-prerequisites":
+      return "Preparing Windows";
+    case "prerequisites-applied":
+      return "Windows prepared";
+    case "awaiting-autodesk":
+      return "Your turn in Autodesk setup";
+    case "verifying":
+      return "Verifying";
+    case "incomplete":
+      return "Incomplete";
+    case "failed":
+      return "Failed";
+    case "blocked":
+      return "Blocked";
+    case "ready-for-handoff":
+      return "Healthy";
+    default:
+      return "Not started";
+  }
 }
 
 function InspectionResult({

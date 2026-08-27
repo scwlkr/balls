@@ -31,3 +31,15 @@ public sealed record RevitServerSetupInspectionResponse(
     string Summary,
     IReadOnlyList<RevitServerReadinessCheckResponse> Checks,
     RevitServerSetupPlanResponse? Plan);
+
+public sealed record BeginRevitServerSetupRequest(
+    string SelectionId,
+    string PlanDigest,
+    bool Consent);
+
+public sealed record RevitServerSetupStatusResponse(
+    string Stage,
+    string Summary,
+    string? AttemptId,
+    RevitServerSetupPlanResponse? Plan,
+    IReadOnlyList<RevitServerReadinessCheckResponse> Checks);

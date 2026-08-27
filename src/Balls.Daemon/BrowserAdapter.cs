@@ -1,6 +1,7 @@
 using System.Net;
 using System.Reflection;
 using Balls.Core;
+using Balls.Platform;
 using Balls.Protocol.Browser.V1;
 using Balls.Protocol.Control.V1;
 using Microsoft.Extensions.FileProviders;
@@ -236,6 +237,58 @@ internal static class BrowserAdapter
                         request.SelectionId,
                         token))
             .Produces<RevitServerSetupInspectionResponse>(StatusCodes.Status200OK);
+        application.MapGet(
+                BrowserRoutes.RevitServerSetupStatus,
+                () => revitServerSetup.GetStatus())
+            .Produces<RevitServerSetupStatusResponse>(StatusCodes.Status200OK);
+        application.MapPost(
+                BrowserRoutes.RevitServerSetupBegin,
+                async (BeginRevitServerSetupRequest request, HttpContext context, CancellationToken token) =>
+                {
+                    try
+                    {
+                        return Results.Ok(await revitServerSetup.BeginSelectedAsync(
+                            context.Request.Cookies[SessionCookieName] ?? string.Empty,
+                            request,
+                            token).ConfigureAwait(false));
+                    }
+                    catch (RevitServerSetupException exception)
+                    {
+                        return Results.Conflict(new ErrorResponse(exception.Code, exception.Message));
+                    }
+                })
+            .Produces<RevitServerSetupStatusResponse>(StatusCodes.Status200OK)
+            .Produces<ErrorResponse>(StatusCodes.Status409Conflict);
+        application.MapPost(
+                BrowserRoutes.RevitServerSetupVerify,
+                async (CancellationToken token) =>
+                {
+                    try
+                    {
+                        return Results.Ok(await revitServerSetup.VerifyAsync(token).ConfigureAwait(false));
+                    }
+                    catch (RevitServerSetupException exception)
+                    {
+                        return Results.Conflict(new ErrorResponse(exception.Code, exception.Message));
+                    }
+                })
+            .Produces<RevitServerSetupStatusResponse>(StatusCodes.Status200OK)
+            .Produces<ErrorResponse>(StatusCodes.Status409Conflict);
+        application.MapPost(
+                BrowserRoutes.RevitServerSetupRetry,
+                async (CancellationToken token) =>
+                {
+                    try
+                    {
+                        return Results.Ok(await revitServerSetup.RetryAsync(token).ConfigureAwait(false));
+                    }
+                    catch (RevitServerSetupException exception)
+                    {
+                        return Results.Conflict(new ErrorResponse(exception.Code, exception.Message));
+                    }
+                })
+            .Produces<RevitServerSetupStatusResponse>(StatusCodes.Status200OK)
+            .Produces<ErrorResponse>(StatusCodes.Status409Conflict);
         application.MapGet(
                 BrowserRoutes.Circles,
                 async (CancellationToken token) =>

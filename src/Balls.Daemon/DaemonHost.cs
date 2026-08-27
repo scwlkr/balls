@@ -228,7 +228,11 @@ public static class DaemonHost
             var revitServerSetupApplication = new RevitServerSetupApplication(
                 host.RevitServerMediaPicker,
                 host.RevitServerReadiness,
-                clock);
+                clock,
+                host.RevitServerSetup,
+                host.RevitServerHealth,
+                new FileRevitServerSetupStateStore(
+                    Path.Combine(securedDataDirectory, "revit-server-setup-v1.json")));
             var browserAccess = new BrowserAccessBroker(
                 clock,
                 launchLifetime: TimeSpan.FromMinutes(1),
