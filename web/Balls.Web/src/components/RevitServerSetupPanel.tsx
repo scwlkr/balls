@@ -175,7 +175,7 @@ function SetupProgress({
 }) {
   const awaiting = status.stage === "awaiting-autodesk";
   const complete = status.stage === "ready-for-handoff";
-  const retryable = status.stage === "incomplete" || status.stage === "failed";
+  const retryable = status.stage === "incomplete";
   return (
     <div
       className="revit-setup-progress"

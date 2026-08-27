@@ -427,6 +427,10 @@ internal static class WindowsRevitServerSystemOperations
           if (-not $installed.Success) { throw 'Windows Server feature installation failed.' }
           $restart = $installed.RestartNeeded -eq 'Yes'
         }
+        if ($restart) {
+          [pscustomobject]@{ Changed=$changed; RestartRequired=$true } | ConvertTo-Json -Compress
+          return
+        }
 
         Import-Module WebAdministration
         if (-not (Test-Path 'IIS:\Sites\Default Web Site')) {

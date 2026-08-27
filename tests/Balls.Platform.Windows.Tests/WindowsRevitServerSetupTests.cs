@@ -38,6 +38,9 @@ public sealed class WindowsRevitServerSetupTests
         StringAssert.Contains(script, "RemoteAddress='LocalSubnet'");
         StringAssert.Contains(script, "Port='80,808'");
         StringAssert.Contains(script, "RSN.ini");
+        Assert.IsTrue(
+            script.IndexOf("if ($restart)", StringComparison.Ordinal)
+            < script.IndexOf("$root = 'D:\\RevitServer\\2027'", StringComparison.Ordinal));
         Assert.IsFalse(script.Contains("Start-Process", StringComparison.Ordinal));
         Assert.IsFalse(script.Contains("msiexec", StringComparison.Ordinal));
         Assert.IsFalse(script.Contains("ROLE_ACCELERATOR", StringComparison.Ordinal));
