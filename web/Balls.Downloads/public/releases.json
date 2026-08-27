@@ -19,6 +19,20 @@
   ],
   "development": [
     {
+      "tag": "development-20260827T045203Z-39cd15e5ffdf",
+      "publishedAt": "2026-08-27T04:52:03Z",
+      "manifest": "/versions/development-20260827T045203Z-39cd15e5ffdf.json",
+      "knownBroken": true,
+      "note": "Development test build; it may be incomplete or broken."
+    },
+    {
+      "tag": "development-20260826T223620Z-72f6fa983b4c",
+      "publishedAt": "2026-08-26T22:36:20Z",
+      "manifest": "/versions/development-20260826T223620Z-72f6fa983b4c.json",
+      "knownBroken": true,
+      "note": "Development test build; it may be incomplete or broken."
+    },
+    {
       "tag": "development-20260826T212044Z-1218b57d8d37",
       "publishedAt": "2026-08-26T21:21:12Z",
       "manifest": "/versions/development-20260826T212044Z-1218b57d8d37.json",

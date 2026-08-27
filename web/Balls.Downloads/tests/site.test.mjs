@@ -173,7 +173,11 @@ test("pins moving and immutable manifests plus the release catalog", async () =>
   );
   assert.deepEqual(
     catalog.development.map((release) => release.tag),
-    ["development-20260826T212044Z-1218b57d8d37"],
+    [
+      "development-20260827T045203Z-39cd15e5ffdf",
+      "development-20260826T223620Z-72f6fa983b4c",
+      "development-20260826T212044Z-1218b57d8d37",
+    ],
   );
 
   for (const release of catalog.accepted) {
@@ -216,7 +220,7 @@ test("pins moving and immutable manifests plus the release catalog", async () =>
   const immutableDevelopment = JSON.parse(
     await readFile(
       new URL(
-        "public/versions/development-20260826T212044Z-1218b57d8d37.json",
+        "public/versions/development-20260827T045203Z-39cd15e5ffdf.json",
         siteRoot,
       ),
       "utf8",
@@ -234,7 +238,7 @@ test("pins moving and immutable manifests plus the release catalog", async () =>
   const immutableBootstrap = JSON.parse(
     await readFile(
       new URL(
-        "public/bootstrap/versions/development-20260826T212044Z-1218b57d8d37.json",
+        "public/bootstrap/versions/development-20260827T045203Z-39cd15e5ffdf.json",
         siteRoot,
       ),
       "utf8",
@@ -277,6 +281,8 @@ test("copies the public channel and bootstrap files into the deployment", async 
     "channels/alpha.json",
     "channels/development.json",
     "bootstrap/windows-x64.json",
+    "bootstrap/versions/development-20260827T045203Z-39cd15e5ffdf.json",
+    "bootstrap/versions/development-20260826T223620Z-72f6fa983b4c.json",
     "bootstrap/versions/development-20260826T212044Z-1218b57d8d37.json",
     "releases.json",
     "install.sh",
@@ -284,6 +290,8 @@ test("copies the public channel and bootstrap files into the deployment", async 
     "versions/0.3.0-alpha.1.json",
     "versions/0.2.0-alpha.1.json",
     "versions/0.1.0-alpha.2.json",
+    "versions/development-20260827T045203Z-39cd15e5ffdf.json",
+    "versions/development-20260826T223620Z-72f6fa983b4c.json",
     "versions/development-20260826T212044Z-1218b57d8d37.json",
   ]) {
     const source = await readFile(new URL(`public/${path}`, siteRoot));
