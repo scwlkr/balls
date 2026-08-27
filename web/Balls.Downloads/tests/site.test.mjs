@@ -197,6 +197,20 @@ test("pins moving and immutable manifests plus the release catalog", async () =>
   assert.deepEqual(Object.keys(alpha.platforms), ["windows-x64"]);
   assert.equal(alpha.platforms["windows-x64"].runtime.kind, "self-contained");
 
+  const legacyCrossPlatform = JSON.parse(
+    await readFile(
+      new URL("public/legacy/0.3.0-alpha.1-cross-platform.json", siteRoot),
+      "utf8",
+    ),
+  );
+  assertPackageManifest(legacyCrossPlatform, "alpha");
+  assert.equal(legacyCrossPlatform.release.tag, "0.3.0-alpha.1");
+  assert.equal(legacyCrossPlatform.platforms["linux-x64"].delivery, "package");
+  assert.equal(
+    legacyCrossPlatform.platforms["macos-arm64"].delivery,
+    "source-only",
+  );
+
   const developmentFixture = JSON.parse(
     await readFile(
       new URL("tests/fixtures/development.json", siteRoot),
@@ -273,7 +287,7 @@ test("bootstraps verify local files without pipe-to-shell or policy bypasses", a
   );
 
   assert.match(linux, /sha256sum/);
-  assert.match(linux, /versions\/0\.3\.0-alpha\.1\.json/);
+  assert.match(linux, /legacy\/0\.3\.0-alpha\.1-cross-platform\.json/);
   assert.doesNotMatch(linux, /channels\/alpha\.json/);
   assert.match(linux, /Install-BallsCanary\\?\.sh/);
   assert.match(linux, /package_manifest\.get\("commit"\)/);
@@ -281,7 +295,7 @@ test("bootstraps verify local files without pipe-to-shell or policy bypasses", a
   assert.doesNotMatch(linux, /curl[^\n]*\|/);
 
   assert.match(macos, /git .*rev-parse HEAD/);
-  assert.match(macos, /versions\/0\.3\.0-alpha\.1\.json/);
+  assert.match(macos, /legacy\/0\.3\.0-alpha\.1-cross-platform\.json/);
   assert.doesNotMatch(macos, /channels\/alpha\.json/);
   assert.match(macos, /source-only/i);
   assert.doesNotMatch(macos, /curl[^\n]*\|/);
@@ -298,6 +312,7 @@ test("copies the public channel and bootstrap files into the deployment", async 
     "releases.json",
     "install.sh",
     "source.sh",
+    "legacy/0.3.0-alpha.1-cross-platform.json",
     "versions/0.3.0-alpha.1.json",
     "versions/0.2.0-alpha.1.json",
     "versions/0.1.0-alpha.2.json",
