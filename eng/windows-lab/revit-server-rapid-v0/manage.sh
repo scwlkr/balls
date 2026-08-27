@@ -21,8 +21,7 @@ readonly image_ref="docker.io/dockurr/windows@${image_digest}"
 readonly console_relay_unit="balls-revit-server-2027-console-relay.service"
 readonly rdp_tcp_relay_unit="balls-revit-server-2027-rdp-tcp-relay.service"
 readonly rdp_udp_relay_unit="balls-revit-server-2027-rdp-udp-relay.service"
-readonly lan_http_relay_unit="balls-revit-server-2027-lan-http-relay.service"
-readonly lan_admin_relay_unit="balls-revit-server-2027-lan-admin-relay.service"
+readonly lan_relay_container="balls-revit-server-2027-lan-relay"
 
 say() { printf '%s\n' "$*"; }
 fail() { say "BLOCKED — $*" >&2; exit 1; }
@@ -204,6 +203,21 @@ validate_container_identity() {
     || fail "container name ${container} is not the exact lab-owned pinned container"
 }
 
+validate_lan_relay_identity() {
+  docker inspect "${lan_relay_container}" >/dev/null 2>&1 || return 0
+  local labels image network_mode read_only security_opt capabilities
+  labels="$(docker inspect --format '{{index .Config.Labels "com.docker.compose.project"}}|{{index .Config.Labels "com.docker.compose.service"}}' "${lan_relay_container}")"
+  image="$(docker inspect --format '{{.Config.Image}}' "${lan_relay_container}")"
+  network_mode="$(docker inspect --format '{{.HostConfig.NetworkMode}}' "${lan_relay_container}")"
+  read_only="$(docker inspect --format '{{.HostConfig.ReadonlyRootfs}}' "${lan_relay_container}")"
+  security_opt="$(docker inspect --format '{{join .HostConfig.SecurityOpt ","}}' "${lan_relay_container}")"
+  capabilities="$(docker inspect --format '{{join .HostConfig.CapAdd ","}}|{{join .HostConfig.CapDrop ","}}' "${lan_relay_container}")"
+  [[ "${labels}" == "${project}|lan-relay" && "${image}" == "${image_ref}" \
+    && "${network_mode}" == "host" && "${read_only}" == "true" \
+    && "${security_opt}" == *"no-new-privileges"* && "${capabilities}" == "CAP_NET_BIND_SERVICE|ALL" ]] \
+    || fail "container name ${lan_relay_container} is not the exact constrained private-LAN relay"
+}
+
 check_mutual_exclusion() {
   for name in omarchy-windows omarchy-windows-neptune revit-neptune-lab; do
     container_running "${name}" && fail "${name} is running; save work and stop it with its own manager"
@@ -227,8 +241,6 @@ relay_description() {
     "${console_relay_unit}") printf '%s\n' "Balls Revit Server 2027 lab console loopback relay" ;;
     "${rdp_tcp_relay_unit}") printf '%s\n' "Balls Revit Server 2027 lab RDP TCP loopback relay" ;;
     "${rdp_udp_relay_unit}") printf '%s\n' "Balls Revit Server 2027 lab RDP UDP loopback relay" ;;
-    "${lan_http_relay_unit}") printf '%s\n' "Balls Revit Server 2027 private LAN HTTP relay" ;;
-    "${lan_admin_relay_unit}") printf '%s\n' "Balls Revit Server 2027 private LAN Admin relay" ;;
     *) fail "unknown loopback relay unit $1" ;;
   esac
 }
@@ -238,8 +250,6 @@ relay_arguments() {
     "${console_relay_unit}") printf '%s\n%s\n' "TCP4-LISTEN:8027,bind=127.0.0.1,reuseaddr,fork" "TCP4:172.29.27.2:8006" ;;
     "${rdp_tcp_relay_unit}") printf '%s\n%s\n' "TCP4-LISTEN:3397,bind=127.0.0.1,reuseaddr,fork" "TCP4:172.29.27.2:3389" ;;
     "${rdp_udp_relay_unit}") printf '%s\n%s\n' "UDP4-RECVFROM:3397,bind=127.0.0.1,reuseaddr,fork" "UDP4-SENDTO:172.29.27.2:3389" ;;
-    "${lan_http_relay_unit}") printf '%s\n%s\n' "TCP4-LISTEN:80,bind=$(lan_host_ip),reuseaddr,fork" "TCP4:172.29.27.2:80" ;;
-    "${lan_admin_relay_unit}") printf '%s\n%s\n' "TCP4-LISTEN:808,bind=$(lan_host_ip),reuseaddr,fork" "TCP4:172.29.27.2:808" ;;
     *) fail "unknown loopback relay unit $1" ;;
   esac
 }
@@ -264,7 +274,7 @@ validate_owned_relay_unit() {
 
 require_relay_units_absent() {
   local unit
-  for unit in "${console_relay_unit}" "${rdp_tcp_relay_unit}" "${rdp_udp_relay_unit}" "${lan_http_relay_unit}" "${lan_admin_relay_unit}"; do
+  for unit in "${console_relay_unit}" "${rdp_tcp_relay_unit}" "${rdp_udp_relay_unit}"; do
     [[ "$(relay_unit_load_state "${unit}")" == "not-found" ]] \
       || fail "transient relay unit ${unit} already exists; stop the exact lab before starting it again"
   done
@@ -334,24 +344,9 @@ ensure_loopback_relays() {
   attest_udp_loopback_listener 3397
 }
 
-ensure_lan_relays() {
-  local address
-  address="$(lan_host_ip)"
-  command -v systemd-run >/dev/null || fail "systemd-run is required for owner-scoped private LAN relays"
-  [[ -x /usr/bin/socat ]] || fail "/usr/bin/socat is required for owner-scoped private LAN relays"
-  if port_free 80; then
-    start_relay_unit "${lan_http_relay_unit}"
-  fi
-  if port_free 808; then
-    start_relay_unit "${lan_admin_relay_unit}"
-  fi
-  attest_tcp_listener "${address}" 80
-  attest_tcp_listener "${address}" 808
-}
-
 stop_host_relays() {
   local unit
-  for unit in "${console_relay_unit}" "${rdp_tcp_relay_unit}" "${rdp_udp_relay_unit}" "${lan_http_relay_unit}" "${lan_admin_relay_unit}"; do
+  for unit in "${console_relay_unit}" "${rdp_tcp_relay_unit}" "${rdp_udp_relay_unit}"; do
     if [[ "$(relay_unit_load_state "${unit}")" != "not-found" ]]; then
       validate_owned_relay_unit "${unit}"
       systemctl --user stop "${unit}" || fail "owner-scoped relay ${unit} did not stop"
@@ -394,6 +389,7 @@ preflight() {
   digest="$(docker image inspect --format '{{join .RepoDigests "\n"}}' "${image_ref}" 2>/dev/null || true)"
   [[ "${digest}" == *"${image_digest}" ]] || fail "the pinned Dockurr image is unavailable"
   validate_container_identity
+  validate_lan_relay_identity
   check_mutual_exclusion
   port_free 8027 || fail "loopback console port 8027 is in use"
   port_free 3397 || fail "loopback RDP port 3397 is in use"
@@ -570,6 +566,10 @@ attest_lan_ports() {
   observed="$(docker inspect --format '{{(index (index .HostConfig.PortBindings "80/tcp") 0).HostIp}}:{{(index (index .HostConfig.PortBindings "80/tcp") 0).HostPort}}|{{(index (index .HostConfig.PortBindings "808/tcp") 0).HostIp}}:{{(index (index .HostConfig.PortBindings "808/tcp") 0).HostPort}}' "${container}")"
   [[ "${observed}" == "${address}:80|${address}:808" ]] \
     || fail "LAN handoff does not publish exactly TCP 80 and 808 on ${address}"
+  validate_lan_relay_identity
+  container_running "${lan_relay_container}" || fail "the constrained private-LAN relay is not running"
+  attest_tcp_listener "${address}" 80
+  attest_tcp_listener "${address}" 808
 }
 
 start_lan() {
@@ -582,7 +582,6 @@ start_lan() {
   compose lan up -d
   attest_selected_network balls-revit-server-2027-lab 172.29.27.0/24 172.29.27.1 172.29.27.2 true
   ensure_loopback_relays
-  ensure_lan_relays
   attest_lan_ports
   say "PASS — post-verification Revit HTTP/Admin ports published only on the selected private host address"
 }
@@ -594,6 +593,14 @@ status() {
   [[ -f "${mode_file}" ]] && mode="$(<"${mode_file}")"
   local running="false"
   container_running "${container}" && running="true"
+  if [[ "${mode}" == "lan" ]]; then
+    require_lan_env
+    validate_lan_relay_identity
+    if [[ "${running}" == "true" ]]; then
+      attest_selected_network balls-revit-server-2027-lab 172.29.27.0/24 172.29.27.1 172.29.27.2 true
+      attest_lan_ports
+    fi
+  fi
   say "Lab: ${container}"
   say "Mode: ${mode}"
   say "Running: ${running}"

@@ -7,6 +7,67 @@ services:
       acceptance:
         ipv4_address: 172.29.27.2
 
+  lan-relay:
+    image: docker.io/dockurr/windows@sha256:0cff9eb0e7aee9953e55bc682852ca4fdca233145a58ae1ec94f0b0c01a2ed30
+    container_name: balls-revit-server-2027-lan-relay
+    entrypoint:
+      - /usr/bin/python3
+      - -c
+    command:
+      - |
+        import asyncio
+        import os
+
+        listen_address = os.environ["BALLS_REVIT_LAN_HOST_IP"]
+        target_address = "172.29.27.2"
+
+        async def forward(reader, writer, target_port):
+            try:
+                upstream_reader, upstream_writer = await asyncio.open_connection(target_address, target_port)
+            except Exception:
+                writer.close()
+                await writer.wait_closed()
+                return
+
+            async def copy(source, destination):
+                try:
+                    while data := await source.read(65536):
+                        destination.write(data)
+                        await destination.drain()
+                finally:
+                    destination.close()
+
+            await asyncio.gather(
+                copy(reader, upstream_writer),
+                copy(upstream_reader, writer),
+                return_exceptions=True,
+            )
+
+        async def main():
+            http = await asyncio.start_server(lambda r, w: forward(r, w, 80), listen_address, 80)
+            admin = await asyncio.start_server(lambda r, w: forward(r, w, 808), listen_address, 808)
+            async with http, admin:
+                await asyncio.gather(http.serve_forever(), admin.serve_forever())
+
+        asyncio.run(main())
+    environment:
+      BALLS_REVIT_LAN_HOST_IP: "${BALLS_REVIT_LAN_HOST_IP:?set the exact current private LAN address in lan.env}"
+      PYTHONDONTWRITEBYTECODE: "1"
+    network_mode: host
+    user: "0:0"
+    cap_drop:
+      - ALL
+    cap_add:
+      - NET_BIND_SERVICE
+    read_only: true
+    security_opt:
+      - no-new-privileges:true
+    restart: "no"
+    stop_grace_period: 10s
+    depends_on:
+      windows:
+        condition: service_started
+
 networks:
   acceptance:
     name: balls-revit-server-2027-lab

@@ -216,11 +216,11 @@ public sealed partial class RepositoryWorkflowTests
         StringAssert.Contains(manager, "systemd-run --user");
         StringAssert.Contains(manager, "TCP4-LISTEN:8027,bind=127.0.0.1");
         StringAssert.Contains(manager, "UDP4-RECVFROM:3397,bind=127.0.0.1");
-        StringAssert.Contains(manager, "TCP4-LISTEN:80,bind=$(lan_host_ip)");
-        StringAssert.Contains(manager, "TCP4-LISTEN:808,bind=$(lan_host_ip)");
         StringAssert.Contains(manager, "console and RDP bindings are not restricted to the reserved loopback ports");
         StringAssert.Contains(manager, "validate_owned_relay_unit");
-        StringAssert.Contains(manager, "ensure_lan_relays");
+        StringAssert.Contains(manager, "validate_lan_relay_identity");
+        StringAssert.Contains(manager, "CAP_NET_BIND_SERVICE|ALL");
+        StringAssert.Contains(manager, "the constrained private-LAN relay is not running");
         StringAssert.Contains(manager, "stop_host_relays");
         StringAssert.Contains(manager, "attest_selected_network");
         StringAssert.Contains(manager, "docker inspect \"${container}\" >/dev/null 2>&1 || return 0");
