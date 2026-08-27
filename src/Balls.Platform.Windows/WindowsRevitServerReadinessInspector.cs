@@ -468,7 +468,7 @@ internal sealed class WindowsRevitServerPowerShellSource : IWindowsRevitServerJs
         $nonEmpty = (Test-Path -LiteralPath $root) -and (@(Get-ChildItem -LiteralPath $root -Force -ErrorAction Stop).Count -gt 0)
         $shareOverlap = 0
         if (Get-Command Get-SmbShare -ErrorAction SilentlyContinue) {
-          foreach ($share in @(Get-SmbShare -ErrorAction Stop | Where-Object Path)) {
+          foreach ($share in @(Get-SmbShare -ErrorAction Stop | Where-Object { $_.Path -and -not $_.Special })) {
             $sharePath = [IO.Path]::GetFullPath($share.Path).TrimEnd('\')
             if ($root.StartsWith($sharePath + '\', [StringComparison]::OrdinalIgnoreCase) -or $sharePath.StartsWith($root + '\', [StringComparison]::OrdinalIgnoreCase) -or $sharePath -eq $root) { $shareOverlap++ }
           }
@@ -505,15 +505,25 @@ internal sealed class WindowsRevitServerPowerShellSource : IWindowsRevitServerJs
         }
 
         $profiles = @(Get-NetConnectionProfile -ErrorAction Stop)
-        $firewallProfiles = @(Get-NetFirewallProfile -ErrorAction Stop)
+        $firewallProfiles = @(Get-NetFirewallProfile -PolicyStore ActiveStore -ErrorAction Stop)
         $privateFirewall = @($firewallProfiles | Where-Object Name -eq Private | Select-Object -First 1)
         $publicFirewall = @($firewallProfiles | Where-Object Name -eq Public | Select-Object -First 1)
         $publicExposure = 0
         foreach ($rule in @(Get-NetFirewallRule -Enabled True -Direction Inbound -Action Allow -ErrorAction Stop | Where-Object { [string]$_.Profile -match 'Public|Any' })) {
+          $application = @($rule | Get-NetFirewallApplicationFilter -ErrorAction Stop | Select-Object -First 1)
+          $service = @($rule | Get-NetFirewallServiceFilter -ErrorAction Stop | Select-Object -First 1)
           foreach ($filter in @($rule | Get-NetFirewallPortFilter -ErrorAction Stop)) {
             $protocol = [string]$filter.Protocol
             $ports = @(([string]$filter.LocalPort).Split(','))
-            if (($protocol -in '6','TCP' -and @($ports | Where-Object { $_ -in 'Any','80','808' }).Count -gt 0) -or $protocol -in '1','ICMPv4') { $publicExposure++ }
+            $icmpTypes = @(([string]$filter.IcmpType).Split(','))
+            $unrestrictedTarget = $application.Count -eq 1 -and $service.Count -eq 1 -and
+              ([string]$application[0].Program) -in '','Any' -and ([string]$service[0].Service) -in '','Any'
+            $tcpExposure = $protocol -in '6','TCP' -and
+              (@($ports | Where-Object { $_ -in '80','808' }).Count -gt 0 -or
+               ($unrestrictedTarget -and $ports -contains 'Any'))
+            $icmpExposure = $protocol -in '1','ICMPv4' -and
+              @($icmpTypes | Where-Object { $_ -eq 'Any' -or $_ -match '^8($|:)' }).Count -gt 0
+            if ($tcpExposure -or $icmpExposure) { $publicExposure++ }
           }
         }
         $roleMarkers = @()

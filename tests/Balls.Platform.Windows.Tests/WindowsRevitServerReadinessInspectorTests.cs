@@ -233,6 +233,12 @@ public sealed class WindowsRevitServerReadinessInspectorTests
         StringAssert.Contains(script, "BALLS_REVIT_MEDIA_B64");
         StringAssert.Contains(script, "Get-Partition");
         StringAssert.Contains(script, "Get-NetFirewallPortFilter");
+        StringAssert.Contains(script, "Get-NetFirewallProfile -PolicyStore ActiveStore");
+        StringAssert.Contains(script, "Get-NetFirewallApplicationFilter");
+        StringAssert.Contains(script, "Get-NetFirewallServiceFilter");
+        StringAssert.Contains(script, "-not $_.Special");
+        StringAssert.Contains(script, "$filter.IcmpType");
+        StringAssert.Contains(script, "^8($|:)");
         StringAssert.Contains(script, "Get-WebApplication");
         StringAssert.Contains(script, "NET-WCF-TCP-Activation45");
         StringAssert.Contains(script, "${name}:$target");
