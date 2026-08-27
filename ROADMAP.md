@@ -49,7 +49,38 @@ same-host two-VM rather than physical-device evidence.
 multi-Anchor replication, public-internet exposure, speculative security architecture, and broad
 release-matrix expansion.
 
-## Next — Shared Ecosystem Proof
+## Next — Revit Server Rapid Setup v0
+
+**User outcome:** after the approved Alpha promotion closes the Private Boss Demo, the Owner uses
+one exact Balls Development build inside a prepared Windows Server 2022 VM to set up Autodesk Revit
+Server 2027 Host+Admin and receive a plain healthy result in under 30 minutes.
+
+**Human boundary:** the Owner uses one Balls setup page, one Balls-owned Windows elevation, and
+Autodesk's own signed installer consent plus graphical license/configuration step. The Owner does
+not manually install IIS roles, edit ACLs, configure the Revit Server role variable, write
+`RSN.ini`, inspect IIS, or diagnose provider services.
+
+**Environment:** one isolated disposable Windows Server 2022 Desktop Experience VM hosted on the
+current Linux laptop, with the OS prepared and official Autodesk media cached before timing. The VM
+may show a setup console during installation and runs headlessly afterward. This unlisted QEMU/KVM
+lab proves the Balls workflow, not final Autodesk-supported production operation.
+
+**Evidence:** exact Balls and Autodesk artifact identities; computed and approved setup plan;
+Host+Admin with no Accelerator; version-isolated storage; required IIS applications and app pool;
+server-local `RSN.ini`; working Administrator page; no public exposure; elapsed wall time under 30
+minutes; portable setup template and redacted receipt.
+
+**Non-goals:** Revit client or model operations, synchronization, concurrency, Tailscale, remote
+performance, Circle-wide authorization, Circle Files, backup, restore, production hardware,
+Windows Service/Anchor work, or polished final UI.
+
+**Executable specification:**
+[`docs/specs/revit-server-rapid-setup-v0.md`](docs/specs/revit-server-rapid-setup-v0.md).
+
+See [`ADR 0018`](docs/decisions/0018-prioritize-revit-server-rapid-setup.md). The Shared Ecosystem
+Proof remains the next product gate after this bounded issue.
+
+## Then — Shared Ecosystem Proof
 
 **User outcome:** after one installation and one Circle invitation, one Member can:
 

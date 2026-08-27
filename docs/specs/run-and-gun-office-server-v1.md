@@ -1,11 +1,12 @@
 # Run-and-gun Office Server v1
 
-- **Status:** Draft for Owner confirmation
+- **Status:** Accepted target; phased through smaller executable specifications
 - **Date:** 2026-08-26
 - **Source:** Office File + Revit Server — Authoritative Architecture Specification
-- **Execution boundary:** Design work may proceed in this worktree. Product implementation starts
-  only after the Private Boss Demo issue #92 is complete or this work is separately authorized as a
-  concrete blocker.
+- **Execution boundary:** The bounded
+  [`Revit Server Rapid Setup v0`](revit-server-rapid-setup-v0.md) executes first after the approved
+  Alpha promotion closes the Private Boss Demo. The remaining office-server slices require their
+  own later executable issues.
 
 ## Outcome
 
@@ -181,29 +182,36 @@ This is a **Run-and-gun Office Pilot**, not an enterprise release:
 
 ## Small implementation slices
 
-Implementation follows the Private Boss Demo rather than expanding that issue.
+Implementation follows the Private Boss Demo rather than expanding that issue. Revit Server Rapid
+Setup is a deliberately incomplete installation-health proof; it does not satisfy the full Revit
+Server integration or office-server acceptance below.
 
-1. **Server foundation**
+1. **Revit Server Rapid Setup v0**
+   - use a prepared disposable Windows Server 2022 Desktop Experience VM;
+   - guide Host+Admin installation through one Balls Development setup page;
+   - prove the Revit services and Administrator surface healthy in under 30 minutes;
+   - export portable setup intent and a redacted receipt for the boss's future server.
+2. **Server foundation**
    - recognize and test Windows Server 2022;
    - install `ballsd` as a restricted Windows Service;
    - separate interactive administration from the service identity;
    - prove reboot, update, rollback, state export, and restoration.
-2. **Office Circle Files**
+3. **Office Circle Files**
    - create the new `D:\CompanyData` root and one encrypted SMB share;
    - add Shared and Restricted File Areas and Capability Access Groups;
    - use one Member provider identity and one Explorer mapping;
    - prove area grant, denial, removal, daemon-stop continuity, and reboot recovery.
-3. **Private remote Nodes**
+4. **Private remote Nodes**
    - add the Tailscale provider and Owner-approved one-time Node enrollment;
    - use one canonical MagicDNS server identity;
    - prove LAN and remote SMB with no public exposure.
-4. **Revit Server 2027**
+5. **Full Revit Server 2027 integration**
    - add repository exclusion before any other Revit work;
    - inspect prerequisites and guide Host+Admin installation;
    - configure exact model/admin reachability and canonical `RSN.ini`;
    - expose bounded health and backup operations;
    - prove real local/remote Revit behavior without an Accelerator.
-5. **Run-and-gun acceptance**
+6. **Run-and-gun acceptance**
    - install exact Development packages from the official download path;
    - run the complete Server 2022 and two-client journey;
    - perform one coordinated restore;

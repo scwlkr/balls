@@ -30,6 +30,21 @@ The bounded Office Circle service through which an authorized Member is prepared
 Revit Server. It grants use of the service, not ownership of or direct file access to its models.
 _Avoid_: Revit share, Revit folder
 
+**Revit Server Rapid Setup**:
+The bounded Development workflow that prepares and verifies one Revit Server 2027 Host+Admin
+installation before the broader Revit Server Capability is implemented.
+_Avoid_: Revit integration complete, production server, model proof
+
+**Revit Server Setup Template**:
+A portable description of the approved Revit Server setup intent that Balls re-inspects and
+recomputes for a different Windows Server machine before applying.
+_Avoid_: VM image, captured Windows plan, server clone
+
+**Revit Server Setup Receipt**:
+A redacted record of the exact software, machine-specific plan, elapsed time, observations, and
+health result from one Revit Server Rapid Setup run. It is evidence, not executable intent.
+_Avoid_: Setup Template, production certification
+
 **Office File Access**:
 An Office Circle authorization to use one Office File Area through a mature file provider. Balls
 owns the human grant while the provider remains responsible for transferring and locking files.
