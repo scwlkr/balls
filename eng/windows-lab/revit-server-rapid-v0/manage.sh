@@ -160,7 +160,7 @@ container_running() {
 }
 
 validate_container_identity() {
-  docker inspect "${container}" >/dev/null 2>&1 || return
+  docker inspect "${container}" >/dev/null 2>&1 || return 0
   local labels image
   labels="$(docker inspect --format '{{index .Config.Labels "com.docker.compose.project"}}|{{index .Config.Labels "com.docker.compose.service"}}' "${container}")"
   image="$(docker inspect --format '{{.Config.Image}}' "${container}")"

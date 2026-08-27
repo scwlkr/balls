@@ -202,6 +202,7 @@ public sealed partial class RepositoryWorkflowTests
         StringAssert.Contains(manager, "balls-issue61-provider-desktop is running");
         StringAssert.Contains(manager, "udp_port_free 3397");
         StringAssert.Contains(manager, "attest_selected_network");
+        StringAssert.Contains(manager, "docker inspect \"${container}\" >/dev/null 2>&1 || return 0");
         StringAssert.Contains(manager, "existing network ${name} has the wrong driver/internal/subnet/gateway shape");
         StringAssert.Contains(manager, "docker container kill --signal TERM");
         StringAssert.Contains(manager, "it was not force-killed and Compose down was not run");
