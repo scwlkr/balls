@@ -23,6 +23,8 @@ public static class LinuxHostPlatform
             new LinuxSystemBrowserLauncher(),
             new UnsupportedRevitServerReadinessInspector(),
             new UnsupportedRevitServerMediaPicker(),
+            new UnsupportedRevitServerSetupOperator(),
+            new UnsupportedRevitServerHealthInspector(),
             new UnsupportedCircleFilesFolderPicker(),
             new UnsupportedCircleFilesReadinessInspector(),
             new UnsupportedCircleFilesHostProvisioner(),

@@ -24,6 +24,8 @@ public static class MacOSHostPlatform
             new MacOSSystemBrowserLauncher(),
             new UnsupportedRevitServerReadinessInspector(),
             new UnsupportedRevitServerMediaPicker(),
+            new UnsupportedRevitServerSetupOperator(),
+            new UnsupportedRevitServerHealthInspector(),
             new UnsupportedCircleFilesFolderPicker(),
             new UnsupportedCircleFilesReadinessInspector(),
             new UnsupportedCircleFilesHostProvisioner(),

@@ -26,6 +26,8 @@ public static class WindowsHostPlatform
             new WindowsSystemBrowserLauncher(),
             new WindowsRevitServerReadinessInspector(),
             new WindowsRevitServerMediaPicker(),
+            new WindowsRevitServerSetupOperator(),
+            new WindowsRevitServerHealthInspector(),
             new WindowsCircleFilesFolderPicker(),
             new WindowsSmbReadinessInspector(),
             new WindowsCircleFilesHostProvisioner(),

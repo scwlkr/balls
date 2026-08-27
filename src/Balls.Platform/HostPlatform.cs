@@ -50,6 +50,8 @@ public sealed record HostPlatform(
     ISystemBrowserLauncher SystemBrowser,
     IRevitServerReadinessInspector RevitServerReadiness,
     IRevitServerMediaPicker RevitServerMediaPicker,
+    IRevitServerSetupOperator RevitServerSetup,
+    IRevitServerHealthInspector RevitServerHealth,
     ICircleFilesFolderPicker CircleFilesFolderPicker,
     ICircleFilesReadinessInspector CircleFilesReadiness,
     ICircleFilesHostProvisioner CircleFilesHosting,
