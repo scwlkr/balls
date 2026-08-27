@@ -100,6 +100,13 @@ After Balls starts, prove the Owner guest's selected admission and synchronizati
 445 from the Member container over `172.30.0.2`. Keep the Windows firewall Private-profile rules
 unchanged. Do not add an outer-address DNAT, host port, public listener, or separate SMB service.
 
+A new versioned `ballsd.exe` path can cause Windows to ask again for private-network access. The
+Owner must allow the Private profile and leave Public unchecked; dismissing the prompt creates a
+per-version block rule and the Member sees the Owner as unreachable. For unattended lab diagnosis
+only, an equivalent rule must be limited to that exact executable, its two persisted listener
+ports, the Private profile, and the live Member container address on `windows_default`. Record that
+automation as a lab intervention rather than interactive prompt evidence.
+
 Automatic admission and synchronization ports are allocated once and stored in the protected Balls
 state directory. Preserve that state during local package updates, and verify a normal shortcut
 relaunch reuses the same two ports; rotating either port strands previously joined Members.
