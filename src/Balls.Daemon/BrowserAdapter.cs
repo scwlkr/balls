@@ -217,6 +217,7 @@ internal static class BrowserAdapter
                         token))
             .Produces<BrowserBallsWizardChatResponse>(StatusCodes.Status200OK)
             .Produces<ErrorResponse>(StatusCodes.Status400BadRequest)
+            .Produces<ErrorResponse>(StatusCodes.Status409Conflict)
             .Produces<ErrorResponse>(StatusCodes.Status502BadGateway);
         application.MapDelete(
                 BrowserRoutes.Wizard,

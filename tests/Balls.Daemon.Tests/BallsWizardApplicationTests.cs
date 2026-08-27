@@ -105,6 +105,36 @@ public sealed class BallsWizardApplicationTests
     }
 
     [TestMethod]
+    public async Task Installed_integrity_failure_becomes_a_retryable_download_state()
+    {
+        var platform = new FakeWizardPlatform(InstalledInspection())
+        {
+            CompletionFailure = new BallsWizardIntegrityException("raw integrity detail"),
+        };
+        await using var application = new BallsWizardApplication(
+            platform,
+            new WizardKnowledge("## Unsupported requests\nSay it is unavailable."),
+            Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString("N")),
+            "0.3.0-alpha.1");
+
+        var error = await Assert.ThrowsExactlyAsync<BallsWizardApplicationException>(
+            () => application.ChatAsync(
+                new BrowserBallsWizardChatRequest(
+                    null,
+                    [new BrowserBallsWizardChatMessageRequest("user", "Hello?")]),
+                "none",
+                CancellationToken.None));
+        var status = await application.GetStatusAsync(CancellationToken.None);
+
+        Assert.AreEqual("wizard_integrity_failed", error.Code);
+        Assert.AreEqual("wizard_integrity_failed", status.Code);
+        Assert.AreEqual("failed", status.Stage);
+        Assert.IsTrue(status.CanInstall);
+        Assert.IsFalse(status.CanChat);
+        Assert.IsFalse(status.Message.Contains("raw", StringComparison.Ordinal));
+    }
+
+    [TestMethod]
     public async Task Failed_install_is_plain_retryable_state_and_core_status_remains_available()
     {
         var platform = new FakeWizardPlatform(AbsentInspection())
@@ -202,6 +232,8 @@ public sealed class BallsWizardApplicationTests
 
         public Exception? InstallFailure { get; init; }
 
+        public Exception? CompletionFailure { get; init; }
+
         public bool WaitForCancellation { get; init; }
 
         public bool InstallCancelled { get; private set; }
@@ -263,6 +295,15 @@ public sealed class BallsWizardApplicationTests
             CompletionCount++;
             SystemPrompt = systemPrompt;
             Messages = messages;
+            if (CompletionFailure is not null)
+            {
+                current = current with
+                {
+                    Installation = BallsWizardInstallationStatus.Partial,
+                    DownloadedBytes = 0,
+                };
+                throw CompletionFailure;
+            }
             return Task.FromResult("A tiny local spell says: use the access panel.");
         }
 

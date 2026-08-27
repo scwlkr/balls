@@ -420,16 +420,18 @@ public sealed class WindowsBallsWizardPlatform : IBallsWizardPlatform
             }
 
             await StopRuntimeCoreAsync().ConfigureAwait(false);
-            if (!await WizardArtifactDownloader.IsVerifiedAsync(
+            var runtimeVerified = await WizardArtifactDownloader.IsVerifiedAsync(
                     WindowsBallsWizardArtifacts.Runtime,
                     paths.RuntimeArchive,
-                    cancellationToken).ConfigureAwait(false)
-                || !await WizardArtifactDownloader.IsVerifiedAsync(
+                    cancellationToken).ConfigureAwait(false);
+            var modelVerified = await WizardArtifactDownloader.IsVerifiedAsync(
                     WindowsBallsWizardArtifacts.Model,
                     paths.ModelFile,
-                    cancellationToken).ConfigureAwait(false))
+                    cancellationToken).ConfigureAwait(false);
+            if (!runtimeVerified || !modelVerified)
             {
-                throw new InvalidDataException(
+                InvalidateCorruptInstallation(paths, runtimeVerified, modelVerified);
+                throw new BallsWizardIntegrityException(
                     "An installed Wizard artifact failed integrity verification and was not executed.");
             }
             ExtractRuntime(paths, cancellationToken);
@@ -562,6 +564,26 @@ public sealed class WindowsBallsWizardPlatform : IBallsWizardPlatform
         foreach (var argument in arguments)
         {
             startInfo.ArgumentList.Add(argument);
+        }
+    }
+
+    private static void InvalidateCorruptInstallation(
+        WindowsBallsWizardPaths paths,
+        bool runtimeVerified,
+        bool modelVerified)
+    {
+        File.Delete(paths.InstallationRecord);
+        if (!runtimeVerified)
+        {
+            File.Delete(paths.RuntimeArchive);
+        }
+        if (!modelVerified)
+        {
+            File.Delete(paths.ModelFile);
+        }
+        if (Directory.Exists(paths.RuntimeDirectory))
+        {
+            Directory.Delete(paths.RuntimeDirectory, recursive: true);
         }
     }
 

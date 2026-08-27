@@ -52,6 +52,8 @@ public sealed record BallsWizardInstallProgress(
 
 public sealed record BallsWizardChatMessage(string Role, string Content);
 
+public sealed class BallsWizardIntegrityException(string message) : Exception(message);
+
 public interface IBallsWizardPlatform : IAsyncDisposable
 {
     Task<BallsWizardInspection> InspectAsync(

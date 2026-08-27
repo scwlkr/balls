@@ -71,6 +71,11 @@ export function BallsWizard({ api, circleId, localRole }: BallsWizardProps) {
       setStatus(await action());
     } catch (reason) {
       setError(toMessage(reason));
+      try {
+        setStatus(await api.getWizardStatus());
+      } catch {
+        // Keep the original operation failure visible if status refresh also fails.
+      }
     } finally {
       setBusy(false);
     }
@@ -108,6 +113,11 @@ export function BallsWizard({ api, circleId, localRole }: BallsWizardProps) {
       ]);
     } catch (reason) {
       setError(toMessage(reason));
+      try {
+        setStatus(await api.getWizardStatus());
+      } catch {
+        // Keep the original chat failure visible if status refresh also fails.
+      }
     } finally {
       setBusy(false);
     }

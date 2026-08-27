@@ -232,6 +232,19 @@ internal sealed class BallsWizardApplication : IAsyncDisposable
         {
             throw;
         }
+        catch (BallsWizardIntegrityException)
+        {
+            lock (stateLock)
+            {
+                stage = "failed";
+                failureCode = "wizard_integrity_failed";
+                failureMessage =
+                    "A Wizard artifact failed verification and was not executed. Retry the download.";
+            }
+            throw new BallsWizardApplicationException(
+                "wizard_integrity_failed",
+                "A Wizard artifact failed verification and was not executed. Retry the download.");
+        }
         catch
         {
             throw new BallsWizardApplicationException(

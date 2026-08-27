@@ -595,6 +595,7 @@ Handled application errors use this shape:
 | 400 | `hosting_path_invalid`, `hosting_authorization_invalid`, `windows_required` |
 | 400 | `grant_authorization_invalid`, `grant_secret_invalid` |
 | 400 | `mapping_request_invalid`, `mapping_endpoint_invalid`, `mapping_endpoint_unreachable` |
+| 400 | browser `wizard_messages_invalid`, `wizard_message_role_invalid`, `wizard_message_invalid`, `wizard_conversation_invalid`, `wizard_circle_invalid`, `wizard_not_ready`, `wizard_guide_unavailable` |
 | 404 | `circle_not_found` |
 | 404 | `invitation_not_found` |
 | 404 | `circle_files_contribution_not_found`, `member_not_found` |
@@ -608,8 +609,10 @@ Handled application errors use this shape:
 | 409 | `grant_plan_changed`, `grant_cleanup_plan_changed`, `host_removal_plan_changed`, `grant_resource_collision`, `grant_apply_failed`, `circle_files_provider_credential_conflict`, `circle_files_grants_remain`, `circle_files_provider_credentials_remain` |
 | 409 | `mapping_plan_changed`, `mapping_drive_collision`, `mapping_credential_collision`, `mapping_label_collision`, `mapping_resource_collision`, `mapping_share_identity_mismatch`, `mapping_recovery_incomplete` |
 | 409 | browser `circle_files_capability_unavailable`, `circle_files_capability_ambiguous`, `mapping_drive_unavailable`, `shared_folder_mapping_conflict`, `shared_folder_open_failed` |
+| 409 | browser `wizard_integrity_failed` (bad artifact is invalidated and download becomes retryable) |
 | 409 | `replayed` |
 | 502 | `connection_failed`, authenticated remote-channel errors, browser `shared_folder_offline`, `explorer_launch_failed` |
+| 502 | browser `wizard_answer_failed` |
 
 Framework-level rejection, such as malformed JSON or a request rejected before endpoint handling,
 is not guaranteed to use the application error shape.

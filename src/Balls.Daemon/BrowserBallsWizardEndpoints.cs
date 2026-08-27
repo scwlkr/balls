@@ -74,9 +74,13 @@ internal static class BrowserBallsWizardEndpoints
         catch (BallsWizardApplicationException exception)
         {
             var error = new ErrorResponse(exception.Code, exception.Message);
-            return exception.Code == "wizard_answer_failed"
-                ? Results.Json(error, statusCode: StatusCodes.Status502BadGateway)
-                : Results.BadRequest(error);
+            return exception.Code switch
+            {
+                "wizard_answer_failed" =>
+                    Results.Json(error, statusCode: StatusCodes.Status502BadGateway),
+                "wizard_integrity_failed" => Results.Conflict(error),
+                _ => Results.BadRequest(error),
+            };
         }
     }
 

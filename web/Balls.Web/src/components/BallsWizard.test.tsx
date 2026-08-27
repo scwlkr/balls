@@ -152,6 +152,40 @@ describe("Balls Wizard", () => {
     expect(api.removeWizard).toHaveBeenCalledTimes(1);
   });
 
+  it("refreshes into a retryable install state after chat integrity failure", async () => {
+    const retryable = {
+      ...absent,
+      installation: "partial",
+      stage: "failed",
+      code: "wizard_integrity_failed",
+      message: "Retry the Wizard download.",
+    } satisfies BrowserBallsWizardStatusDto;
+    const api = createWizardApi(installed);
+    api.getWizardStatus
+      .mockResolvedValueOnce(installed)
+      .mockResolvedValue(retryable);
+    api.chatWithWizard.mockRejectedValue(
+      new Error("A Wizard artifact failed verification."),
+    );
+    render(<BallsWizard api={api} circleId={circleId} localRole="member" />);
+
+    fireEvent.click(
+      await screen.findByRole("button", { name: "Open Balls Wizard" }),
+    );
+    const panel = screen.getByLabelText("Balls Wizard");
+    fireEvent.change(within(panel).getByLabelText("Ask about Balls"), {
+      target: { value: "Can you help?" },
+    });
+    fireEvent.click(within(panel).getByRole("button", { name: "Ask" }));
+
+    expect(
+      await within(panel).findByRole("button", {
+        name: "Resume Wizard download",
+      }),
+    ).toBeEnabled();
+    expect(panel).toHaveTextContent("failed verification");
+  });
+
   it("shows an honest unavailable state without an enabled download", async () => {
     const unsupported = {
       ...absent,
