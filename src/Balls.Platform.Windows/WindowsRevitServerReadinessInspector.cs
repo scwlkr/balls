@@ -520,7 +520,7 @@ internal sealed class WindowsRevitServerPowerShellSource : IWindowsRevitServerJs
         foreach ($name in 'RSROLE2027','RSACCELERATOR2027') {
           foreach ($target in 'Machine','User') {
             $found = [Environment]::GetEnvironmentVariable($name, $target)
-            if (-not [string]::IsNullOrWhiteSpace($found)) { $roleMarkers += "$name:$target" }
+            if (-not [string]::IsNullOrWhiteSpace($found)) { $roleMarkers += "${name}:$target" }
           }
         }
         $foreign = 0

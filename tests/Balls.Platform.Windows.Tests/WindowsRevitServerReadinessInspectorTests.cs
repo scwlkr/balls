@@ -235,6 +235,8 @@ public sealed class WindowsRevitServerReadinessInspectorTests
         StringAssert.Contains(script, "Get-NetFirewallPortFilter");
         StringAssert.Contains(script, "Get-WebApplication");
         StringAssert.Contains(script, "NET-WCF-TCP-Activation45");
+        StringAssert.Contains(script, "${name}:$target");
+        Assert.IsFalse(script.Contains("$name:$target", StringComparison.Ordinal));
         StringAssert.Contains(script, "$beforeLength");
         StringAssert.Contains(script, "$after");
     }
