@@ -2,6 +2,7 @@ using System.Runtime.Versioning;
 using System.Security.AccessControl;
 using System.Security.Cryptography;
 using System.Security.Principal;
+using System.Text.Json;
 using Balls.Core;
 using Balls.Platform;
 using Balls.Platform.Windows;
@@ -351,6 +352,7 @@ public sealed class WindowsCircleFilesGrantOperationTests
             + "$value=[Console]::In.ReadToEnd();"
             + "[PSCustomObject]@{Value=$value;Policy=$policy}|ConvertTo-Json -Compress";
         var startInfo = WindowsDirectPowerShellCommand.CreateStartInfo(script);
+        Assert.AreEqual(Path.GetDirectoryName(startInfo.FileName), startInfo.WorkingDirectory);
         Assert.IsFalse(startInfo.Environment.ContainsKey("BALLS_FIXED_SCRIPT"));
         Assert.IsFalse(startInfo.Environment.ContainsKey("PSModulePath"));
         CollectionAssert.AreEqual(
@@ -383,6 +385,43 @@ public sealed class WindowsCircleFilesGrantOperationTests
         Assert.AreEqual(
             "{\"Value\":\"stdin-probe\",\"Policy\":\"Restricted\"}",
             output.Trim());
+    }
+
+    [TestMethod]
+    public async Task Grant_fixed_command_inspects_missing_account_under_restricted_policy()
+    {
+        if (!OperatingSystem.IsWindows())
+        {
+            return;
+        }
+
+        var accountName = "BallsG-T" + Guid.NewGuid().ToString("N")[..8];
+        var input = JsonSerializer.Serialize(new
+        {
+            Command = "InspectAccount",
+            AccountName = accountName,
+            Password = "DiagnosticOnly1!",
+            Description = "Balls missing-account contract",
+            OwnerSid = WindowsIdentity.GetCurrent().User!.Value,
+            ShareName = "balls-diagnostic",
+            AccessRight = "Change",
+            GrantMarkersValid = false,
+            GrantBindings = Array.Empty<object>(),
+            InjectAccountFailure = false,
+            InjectAccountTerminationStep = (string?)null,
+        });
+        var startInfo = WindowsDirectPowerShellCommand.CreateStartInfo(
+            WindowsCircleFilesGrantPowerShell.Script);
+        startInfo.Environment["PSExecutionPolicyPreference"] = "Restricted";
+
+        var output = await BoundedWindowsInspectionProcessRunner.RunWithInputAsync(
+            startInfo,
+            input,
+            TimeSpan.FromSeconds(45),
+            1024,
+            CancellationToken.None);
+
+        Assert.AreEqual("{\"State\":\"Missing\"}", output.Trim());
     }
 
     [TestMethod]
