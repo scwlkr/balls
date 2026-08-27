@@ -196,6 +196,7 @@ install -m 700 eng/windows-lab/revit-server-rapid-v0/manage.sh \
 /home/scwlkr/.config/balls-labs/revit-server-2027/manage.sh initialize
 /home/scwlkr/.config/balls-labs/revit-server-2027/manage.sh preflight
 /home/scwlkr/.config/balls-labs/revit-server-2027/manage.sh bootstrap-start
+/home/scwlkr/.config/balls-labs/revit-server-2027/manage.sh resume-bootstrap # only after an interrupted first bootstrap
 /home/scwlkr/.config/balls-labs/revit-server-2027/manage.sh isolate
 /home/scwlkr/.config/balls-labs/revit-server-2027/manage.sh start
 /home/scwlkr/.config/balls-labs/revit-server-2027/manage.sh console

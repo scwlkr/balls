@@ -239,14 +239,17 @@ record_disk_identity() {
   local path="$1" expected_size="$2" identity_path="$3"
   assert_owned_regular "${path}"
   [[ "$(stat -c '%s' "${path}")" == "${expected_size}" ]] || fail "${path} has an unexpected logical size"
-  [[ ! -e "${identity_path}" && ! -L "${identity_path}" ]] || fail "refusing to replace an existing disk identity record"
+  if [[ -e "${identity_path}" || -L "${identity_path}" ]]; then
+    validate_disk "${path}" "${expected_size}" "${identity_path}"
+    return
+  fi
   printf '%s\n' "$(stat -c '%d:%i' "${path}")" > "${identity_path}"
   chmod 600 "${identity_path}"
   validate_disk "${path}" "${expected_size}" "${identity_path}"
 }
 
 record_initial_disk_identities() {
-  local deadline=$((SECONDS + 120))
+  local deadline=$((SECONDS + 2700))
   while (( SECONDS < deadline )); do
     if [[ -f "${state_root}/system/data.img" && -f "${state_root}/data/data2.img" ]] \
       && [[ "$(stat -c '%s' "${state_root}/system/data.img")" == "${system_disk_size}" ]] \
@@ -257,7 +260,55 @@ record_initial_disk_identities() {
     fi
     sleep 2
   done
-  fail "Dockurr did not create both exact disk shapes within two minutes; no identity was approved"
+  fail "Dockurr did not create both exact disk shapes within 45 minutes; no new identity was approved"
+}
+
+validate_partial_bootstrap_state() {
+  assert_owned_directory "${state_root}"
+  validate_marker "${state_root}"
+  validate_directory_entries "${state_root}" '^(.balls-revit-server-2027-lab|system|data|evidence|media)$'
+  local directory
+  for directory in system data evidence media; do
+    assert_owned_directory "${state_root}/${directory}"
+    validate_marker "${state_root}/${directory}"
+  done
+  validate_directory_entries "${state_root}/system" '^(.balls-revit-server-2027-lab|tmp|data.img|data.img.identity|windows.ver|windows.base|windows.mac|windows.rom|windows.vars|windows.boot)$'
+  validate_directory_entries "${state_root}/data" '^(.balls-revit-server-2027-lab|data2.img|data2.img.identity)$'
+  validate_evidence_or_media_entries "${state_root}/evidence"
+  validate_evidence_or_media_entries "${state_root}/media"
+  [[ ! -e "${mode_file}" && ! -L "${mode_file}" ]] || fail "resume-bootstrap is only for a first bootstrap before network-mode is committed"
+  if [[ -e "${state_root}/system/tmp" || -L "${state_root}/system/tmp" ]]; then
+    local temporary="${state_root}/system/tmp" owner entry
+    [[ -d "${temporary}" && ! -L "${temporary}" ]] || fail "the bootstrap temporary path is not a real directory"
+    [[ "$(realpath -e -- "${temporary}")" == "${temporary}" ]] || fail "the bootstrap temporary path is not canonical"
+    owner="$(stat -c '%u' "${temporary}")"
+    [[ "${owner}" == "0" || "${owner}" == "$(id -u)" ]] || fail "the bootstrap temporary path has a foreign owner"
+    while IFS= read -r -d '' entry; do
+      [[ ! -L "${entry}" ]] || fail "a linked bootstrap temporary entry blocks resume"
+      owner="$(stat -c '%u' "${entry}")"
+      [[ "${owner}" == "0" || "${owner}" == "$(id -u)" ]] || fail "a foreign bootstrap temporary entry blocks resume"
+      [[ ! -f "${entry}" || "$(stat -c '%h' "${entry}")" == "1" ]] || fail "a hard-linked bootstrap temporary file blocks resume"
+    done < <(find "${temporary}" -mindepth 1 -xdev -print0)
+  fi
+  validate_container_identity
+  container_running "${container}" || fail "resume-bootstrap requires the exact lab container to be running"
+  attest_selected_network balls-revit-server-2027-bootstrap 172.29.26.0/24 172.29.26.1 172.29.26.2 false
+}
+
+resume_bootstrap() {
+  require_private_env
+  validate_partial_bootstrap_state
+  record_initial_disk_identities
+  local cleanup_deadline=$((SECONDS + 300))
+  while [[ -e "${state_root}/system/tmp" || -L "${state_root}/system/tmp" ]] && (( SECONDS < cleanup_deadline )); do
+    sleep 2
+  done
+  [[ ! -e "${state_root}/system/tmp" && ! -L "${state_root}/system/tmp" ]] \
+    || fail "Dockurr created the disks but did not clear its exact bootstrap temporary directory within five minutes"
+  printf 'bootstrap\n' > "${mode_file}"
+  chmod 600 "${mode_file}"
+  validate_state_root
+  say "PASS — resumed bootstrap recorded both first-created disk identities and exact bootstrap mode"
 }
 
 attest_selected_network() {
@@ -357,11 +408,12 @@ case "${1:-}" in
   initialize) initialize_state_root ;;
   preflight) preflight ;;
   bootstrap-start) bootstrap_start ;;
+  resume-bootstrap) resume_bootstrap ;;
   isolate) isolate ;;
   start) start_acceptance ;;
   console) xdg-open http://127.0.0.1:8027/ >/dev/null 2>&1 ;;
   status) status ;;
   stop) stop_lab ;;
   recover) recover ;;
-  *) fail "usage: manage.sh initialize|preflight|bootstrap-start|isolate|start|console|status|stop|recover" ;;
+  *) fail "usage: manage.sh initialize|preflight|bootstrap-start|resume-bootstrap|isolate|start|console|status|stop|recover" ;;
 esac

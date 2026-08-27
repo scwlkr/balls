@@ -198,6 +198,9 @@ public sealed partial class RepositoryWorkflowTests
         StringAssert.Contains(manager, "data_disk_size=137438953472");
         StringAssert.Contains(manager, "data.img.identity");
         StringAssert.Contains(manager, "stat -c '%d:%i'");
+        StringAssert.Contains(manager, "resume_bootstrap");
+        StringAssert.Contains(manager, "SECONDS + 2700");
+        StringAssert.Contains(manager, "validate_partial_bootstrap_state");
         StringAssert.Contains(manager, "was substituted after its device/inode identity was recorded");
         StringAssert.Contains(manager, "balls-issue61-provider-desktop is running");
         StringAssert.Contains(manager, "udp_port_free 3397");
