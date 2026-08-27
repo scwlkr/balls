@@ -418,6 +418,11 @@ internal sealed class WindowsCircleFilesGrantOperation(IWindowsCircleFilesGrantO
             "grant_apply_failed",
             $"Windows could not {action} {StepSubject(step)}.");
 
+    internal static bool IsSafeFailureMessage(string message) =>
+        message == "Windows could not restore the exact Member share witness."
+        || Steps.Any(step => new[] { "apply", "inspect", "roll back" }
+            .Any(action => message == $"Windows could not {action} {StepSubject(step)}."));
+
     private static string StepSubject(WindowsCircleFilesGrantOperationStep step) => step switch
     {
         WindowsCircleFilesGrantOperationStep.LocalAccount => "the limited Member account",

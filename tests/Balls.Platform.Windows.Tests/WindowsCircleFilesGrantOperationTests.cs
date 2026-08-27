@@ -573,6 +573,24 @@ public sealed class WindowsCircleFilesGrantOperationTests
     }
 
     [TestMethod]
+    public void Helper_returns_only_the_curated_grant_failure_stage()
+    {
+        var staged = new CircleFilesHostingException(
+            "grant_apply_failed",
+            "Windows could not inspect encrypted share access.");
+        Assert.AreEqual(
+            staged.Message,
+            WindowsCircleFilesHelperCommand.SafeErrorMessage(staged));
+
+        var untrusted = new CircleFilesHostingException(
+            "grant_apply_failed",
+            @"Unexpected provider detail C:\private");
+        Assert.AreEqual(
+            "The Windows Circle Files helper refused the operation.",
+            WindowsCircleFilesHelperCommand.SafeErrorMessage(untrusted));
+    }
+
+    [TestMethod]
     public void Mixed_helper_envelope_still_zeroes_deserialized_grant_secret()
     {
         var secret = Plan.Secret.ToArray();
