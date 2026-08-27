@@ -81,7 +81,20 @@ internal sealed class RevitServerSetupApplication
 
     public RevitServerSetupStatusResponse GetStatus()
     {
-        var state = stateStore.Load();
+        RevitServerSetupState? state;
+        try
+        {
+            state = stateStore.Load();
+        }
+        catch (InvalidDataException)
+        {
+            return new RevitServerSetupStatusResponse(
+                RevitServerSetupStages.Blocked,
+                "The saved setup state is unreadable. Preserve it for diagnosis and start with a fresh Balls data directory.",
+                null,
+                null,
+                []);
+        }
         if (state is null)
         {
             return new RevitServerSetupStatusResponse(
@@ -140,7 +153,17 @@ internal sealed class RevitServerSetupApplication
                 return GetStatus();
             }
 
-            var prior = stateStore.Load();
+            RevitServerSetupState? prior;
+            try
+            {
+                prior = stateStore.Load();
+            }
+            catch (InvalidDataException)
+            {
+                throw new RevitServerSetupException(
+                    "setup_state_corrupt",
+                    "The saved setup state is unreadable. Preserve it for diagnosis; Balls will not overwrite it.");
+            }
             if (prior is not null && prior.Stage is not (RevitServerSetupStages.Failed or RevitServerSetupStages.Blocked or RevitServerSetupStages.Incomplete))
             {
                 return ToStatus(prior);
@@ -173,7 +196,7 @@ internal sealed class RevitServerSetupApplication
         RevitServerSetupState state;
         try
         {
-            state = stateStore.Load()
+            state = LoadStateOrThrow()
                 ?? throw new RevitServerSetupException("setup_not_started", "Inspect and begin Revit Server setup first.");
             if (activeOperation is { IsCompleted: false })
             {
@@ -217,7 +240,7 @@ internal sealed class RevitServerSetupApplication
         await stateGate.WaitAsync(cancellationToken).ConfigureAwait(false);
         try
         {
-            var state = stateStore.Load()
+            var state = LoadStateOrThrow()
                 ?? throw new RevitServerSetupException("setup_not_started", "Inspect and begin Revit Server setup first.");
             if (activeOperation is { IsCompleted: false })
             {
@@ -349,6 +372,20 @@ internal sealed class RevitServerSetupApplication
         };
         stateStore.Save(updated);
         return updated;
+    }
+
+    private RevitServerSetupState? LoadStateOrThrow()
+    {
+        try
+        {
+            return stateStore.Load();
+        }
+        catch (InvalidDataException)
+        {
+            throw new RevitServerSetupException(
+                "setup_state_corrupt",
+                "The saved setup state is unreadable. Preserve it for diagnosis; Balls will not overwrite it.");
+        }
     }
 
     private static RevitServerSetupStatusResponse ToStatus(RevitServerSetupState state) =>

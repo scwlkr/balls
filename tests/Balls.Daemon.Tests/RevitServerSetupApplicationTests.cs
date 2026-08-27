@@ -157,6 +157,32 @@ public sealed class RevitServerSetupApplicationTests
         StringAssert.Contains(status.Summary, "interrupted");
     }
 
+    [TestMethod]
+    public void Corrupt_persisted_state_is_blocked_and_not_overwritten()
+    {
+        var directory = Path.Combine(Path.GetTempPath(), $"balls-revit-state-{Guid.NewGuid():N}");
+        Directory.CreateDirectory(directory);
+        var path = Path.Combine(directory, "state.json");
+        File.WriteAllText(path, "{}");
+        try
+        {
+            var application = CreateApplication(
+                new StubSetupOperator(),
+                HealthyInspector(),
+                new FileRevitServerSetupStateStore(path));
+
+            var status = application.GetStatus();
+
+            Assert.AreEqual(RevitServerSetupStages.Blocked, status.Stage);
+            StringAssert.Contains(status.Summary, "unreadable");
+            Assert.AreEqual("{}", File.ReadAllText(path));
+        }
+        finally
+        {
+            Directory.Delete(directory, recursive: true);
+        }
+    }
+
     private static RevitServerSetupApplication CreateApplication(
         StubSetupOperator setup,
         StubHealthInspector health,

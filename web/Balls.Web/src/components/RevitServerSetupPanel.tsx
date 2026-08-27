@@ -131,7 +131,11 @@ export function RevitServerSetupPanel({ api }: { api: BrowserApi }) {
         <p className="revit-media-name">Selected: {fileName}</p>
       ) : null}
       {result ? <InspectionResult result={result} /> : null}
-      {result?.status === "ready" && result.plan && !status?.attemptId ? (
+      {result?.status === "ready" &&
+      result.plan &&
+      (!status?.attemptId ||
+        status.stage === "blocked" ||
+        status.stage === "failed") ? (
         <div className="revit-setup-consent">
           <label>
             <input

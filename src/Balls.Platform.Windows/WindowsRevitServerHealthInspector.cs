@@ -43,16 +43,17 @@ public sealed class WindowsRevitServerHealthInspector : IRevitServerHealthInspec
     {
         var checks = new[]
         {
-            Check("product", value.ProductCount == 1 && value.ProductVersion.StartsWith("27.", StringComparison.Ordinal),
+            Check("product", value.ProductCount == 1 && value.ProductVersion == "27.0.4.412",
                 "product_exact", "product_missing_or_ambiguous", "Autodesk Revit Server 2027 is installed.", "Install exactly Revit Server 2027."),
             Check("roles", RolesAreExact(value.RoleValue) && !value.AcceleratorPresent,
                 "roles_exact", "roles_incorrect", "Host + Admin are enabled and Accelerator is off.", "Return to Autodesk setup and configure Host + Admin with Accelerator off."),
-            Check("storage", value.ProjectsPresent && value.CachePresent && value.PathsNotReparse && value.ProjectTreeUsable,
+            Check("storage", value.ProjectsPresent && value.CachePresent && value.PathsNotReparse && value.ProjectsEmpty,
                 "storage_healthy", "storage_incomplete", "The approved Projects and Cache paths are usable.", "Complete Autodesk configuration using the displayed D: paths."),
-            Check("folder-access", value.NetworkServiceAcl && value.CreatorOwnerAcl,
+            Check("folder-access", value.ProjectsNetworkServiceAcl && value.ProjectsCreatorOwnerAcl
+                && value.CacheNetworkServiceAcl && value.CacheCreatorOwnerAcl,
                 "acl_exact", "acl_incomplete", "The portable repository access rules are present.", "Retry Windows preparation to restore the approved folder access."),
             Check("iis", value.DefaultWebSiteStarted && value.AppPoolStarted && value.AppPoolIntegrated
-                && value.HostApplication && value.AdminApplication && value.AdminRestApplication,
+                && value.AppPoolRuntimeV4 && value.ApplicationsExact,
                 "iis_healthy", "iis_incomplete", "The Revit Server IIS applications and Integrated application pool are running.", "Finish Autodesk configuration, then verify again."),
             Check("local-endpoints", value.HostEndpointResponded && value.AdminEndpointResponded,
                 "endpoints_healthy", "endpoints_unavailable", "The Host service and Revit Server Administrator respond locally.", "Open Revit Server Administrator locally, resolve its error, then verify again."),
@@ -163,14 +164,18 @@ internal sealed class WindowsRevitServerHealthPowerShellSource : IWindowsRevitSe
         $projects = "$root\Projects"
         $cache = "$root\Cache"
         $paths = @($root,$projects,$cache) | Where-Object { Test-Path -LiteralPath $_ } | ForEach-Object { Get-Item -LiteralPath $_ -Force }
-        $acl = if (Test-Path -LiteralPath $projects) { Get-Acl -LiteralPath $projects } else { $null }
-        $networkService = $acl -and @($acl.Access | Where-Object { $_.IdentityReference.Translate([Security.Principal.SecurityIdentifier]).Value -eq 'S-1-5-20' -and ($_.FileSystemRights -band [Security.AccessControl.FileSystemRights]::FullControl) }).Count -gt 0
-        $creatorOwner = $acl -and @($acl.Access | Where-Object { $_.IdentityReference.Translate([Security.Principal.SecurityIdentifier]).Value -eq 'S-1-3-0' -and ($_.FileSystemRights -band [Security.AccessControl.FileSystemRights]::FullControl) }).Count -gt 0
+        function Test-AclPrincipal([string]$path, [string]$sid) {
+          if (-not (Test-Path -LiteralPath $path)) { return $false }
+          $acl = Get-Acl -LiteralPath $path
+          return @($acl.Access | Where-Object { $_.IdentityReference.Translate([Security.Principal.SecurityIdentifier]).Value -eq $sid -and ($_.FileSystemRights -band [Security.AccessControl.FileSystemRights]::FullControl) }).Count -gt 0
+        }
 
         Import-Module WebAdministration
         $site = Get-Website -Name 'Default Web Site' -ErrorAction SilentlyContinue
         $pool = Get-Item 'IIS:\AppPools\RevitServerAppPool 2027 Release' -ErrorAction SilentlyContinue
         $apps = @(Get-WebApplication -Site 'Default Web Site' -ErrorAction SilentlyContinue | Select-Object -ExpandProperty Path)
+        $expectedApps = @('/RevitServer2027','/RevitServerAdmin2027','/RevitServerAdminRESTService2027')
+        $revitApps = @($apps | Where-Object { $_ -match '^/RevitServer' } | Sort-Object -Unique)
         function Test-LocalUrl([string]$url) {
           try {
             $response = Invoke-WebRequest -UseBasicParsing -Uri $url -TimeoutSec 10
@@ -188,7 +193,20 @@ internal sealed class WindowsRevitServerHealthPowerShellSource : IWindowsRevitSe
         $profiles = @(Get-NetConnectionProfile -ErrorAction SilentlyContinue)
         $httpRule = Get-NetFirewallRule -Name 'Balls-RevitServer-2027-HTTP' -ErrorAction SilentlyContinue
         $icmpRule = Get-NetFirewallRule -Name 'Balls-RevitServer-2027-ICMPv4' -ErrorAction SilentlyContinue
-        $firewallExact = $httpRule -and $icmpRule -and $httpRule.Enabled -eq 'True' -and $icmpRule.Enabled -eq 'True' -and $httpRule.Profile -eq 'Private' -and $icmpRule.Profile -eq 'Private'
+        $httpPort = if ($httpRule) { Get-NetFirewallPortFilter -AssociatedNetFirewallRule $httpRule } else { $null }
+        $httpAddress = if ($httpRule) { Get-NetFirewallAddressFilter -AssociatedNetFirewallRule $httpRule } else { $null }
+        $icmpPort = if ($icmpRule) { Get-NetFirewallPortFilter -AssociatedNetFirewallRule $icmpRule } else { $null }
+        $icmpAddress = if ($icmpRule) { Get-NetFirewallAddressFilter -AssociatedNetFirewallRule $icmpRule } else { $null }
+        $firewallExact = $httpRule -and $icmpRule -and
+          $httpRule.Enabled -eq 'True' -and $icmpRule.Enabled -eq 'True' -and
+          $httpRule.Profile -eq 'Private' -and $icmpRule.Profile -eq 'Private' -and
+          $httpRule.Direction -eq 'Inbound' -and $icmpRule.Direction -eq 'Inbound' -and
+          $httpRule.Action -eq 'Allow' -and $icmpRule.Action -eq 'Allow' -and
+          @($httpPort.Protocol).Count -eq 1 -and $httpPort.Protocol -eq 'TCP' -and
+          (@($httpPort.LocalPort | ForEach-Object { $_ -split ',' }) | Sort-Object) -join ',' -eq '80,808' -and
+          $httpAddress.RemoteAddress -eq 'LocalSubnet' -and
+          $icmpPort.Protocol -eq 'ICMPv4' -and $icmpPort.IcmpType -eq '8' -and
+          $icmpAddress.RemoteAddress -eq 'LocalSubnet'
         $shared = @(Get-SmbShare -ErrorAction SilentlyContinue | Where-Object { $_.Path -and $_.Path.StartsWith($root, [StringComparison]::OrdinalIgnoreCase) }).Count -gt 0
         $fatal = 0
         $logRoot = 'C:\ProgramData\Autodesk\Revit Server 2027\Logs'
@@ -199,19 +217,20 @@ internal sealed class WindowsRevitServerHealthPowerShellSource : IWindowsRevitSe
           ProductCount=$products.Count
           ProductVersion=if ($products.Count -eq 1) { [string]$products[0].DisplayVersion } else { '' }
           RoleValue=[string]$role
-          AcceleratorPresent=$accelerator.Count -gt 0
+          AcceleratorPresent=$accelerator.Count -gt 0 -or @($apps | Where-Object { $_ -match 'Accelerator' }).Count -gt 0
           ProjectsPresent=Test-Path -LiteralPath $projects -PathType Container
           CachePresent=Test-Path -LiteralPath $cache -PathType Container
           PathsNotReparse=@($paths | Where-Object { ($_.Attributes -band [IO.FileAttributes]::ReparsePoint) -ne 0 }).Count -eq 0 -and $paths.Count -eq 3
-          ProjectTreeUsable=(Test-Path -LiteralPath $projects) -and (Test-Path -LiteralPath $cache)
-          NetworkServiceAcl=[bool]$networkService
-          CreatorOwnerAcl=[bool]$creatorOwner
+          ProjectsEmpty=(Test-Path -LiteralPath $projects) -and @(Get-ChildItem -LiteralPath $projects -Force -ErrorAction SilentlyContinue).Count -eq 0
+          ProjectsNetworkServiceAcl=Test-AclPrincipal $projects 'S-1-5-20'
+          ProjectsCreatorOwnerAcl=Test-AclPrincipal $projects 'S-1-3-0'
+          CacheNetworkServiceAcl=Test-AclPrincipal $cache 'S-1-5-20'
+          CacheCreatorOwnerAcl=Test-AclPrincipal $cache 'S-1-3-0'
           DefaultWebSiteStarted=$site -and $site.State -eq 'Started'
           AppPoolStarted=$pool -and $pool.State -eq 'Started'
           AppPoolIntegrated=$pool -and $pool.managedPipelineMode -eq 'Integrated'
-          HostApplication=$apps -contains '/RevitServer2027'
-          AdminApplication=$apps -contains '/RevitServerAdmin2027'
-          AdminRestApplication=$apps -contains '/RevitServerAdminRESTService2027'
+          AppPoolRuntimeV4=$pool -and $pool.managedRuntimeVersion -eq 'v4.0'
+          ApplicationsExact=(@(Compare-Object $expectedApps $revitApps).Count -eq 0)
           HostEndpointResponded=$hostOk
           AdminEndpointResponded=$adminOk
           RsnExact=$rsnLines.Count -eq 1 -and $rsnLines[0].Trim() -eq $env:COMPUTERNAME
@@ -231,15 +250,16 @@ internal sealed record WindowsRevitServerHealthObservation(
     bool ProjectsPresent,
     bool CachePresent,
     bool PathsNotReparse,
-    bool ProjectTreeUsable,
-    bool NetworkServiceAcl,
-    bool CreatorOwnerAcl,
+    bool ProjectsEmpty,
+    bool ProjectsNetworkServiceAcl,
+    bool ProjectsCreatorOwnerAcl,
+    bool CacheNetworkServiceAcl,
+    bool CacheCreatorOwnerAcl,
     bool DefaultWebSiteStarted,
     bool AppPoolStarted,
     bool AppPoolIntegrated,
-    bool HostApplication,
-    bool AdminApplication,
-    bool AdminRestApplication,
+    bool AppPoolRuntimeV4,
+    bool ApplicationsExact,
     bool HostEndpointResponded,
     bool AdminEndpointResponded,
     bool RsnExact,

@@ -74,6 +74,26 @@ credentials, private Circle material, Autodesk license data, or raw machine secr
 - [ ] `D:\RevitServer\2027` has no SMB, Circle Files, Linux mount, or reparse exposure.
 - [ ] No required listener/rule has Public-profile or public host exposure.
 
+## Setup recovery
+
+- Closing the browser does not cancel Windows feature installation. Reopen the normal Balls
+  shortcut and read the persisted stage.
+- `applying-prerequisites` left by a daemon interruption becomes `BLOCKED`; wait for Windows
+  servicing to settle, then perform a fresh read-only inspection. Balls does not blindly replay
+  DISM/ServerManager work.
+- A prerequisite result that requires restart is `BLOCKED`. Restart Windows and begin a fresh
+  attempt; do not move the restart outside the timed run.
+- `awaiting-autodesk` means the Balls elevation has ended. Complete Autodesk's graphical terms and
+  configuration as a human, selecting exactly Revit Server 2027, Host + Admin, Accelerator off,
+  and the displayed version-specific paths.
+- `incomplete` or `failed` can reopen the same digest-verified installer after health inspection.
+  `blocked` requires selecting the installer and approving a fresh plan.
+- Balls never deletes a repository, uninstalls Autodesk software, accepts Autodesk terms, or repairs
+  ambiguous third-party state during retry.
+- The prerequisite helper writes the documented server-local `RSN.ini` before Autodesk starts;
+  postflight passes only if Autodesk preserves the exact single canonical Host line. Record the
+  before/after file and ACL observation in the disposable-VM evidence.
+
 ## Portable handoff
 
 - [ ] `setup-template.v1.json` contains portable intent only.

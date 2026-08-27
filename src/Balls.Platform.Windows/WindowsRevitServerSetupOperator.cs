@@ -121,7 +121,7 @@ public sealed class WindowsRevitServerSetupOperator : IRevitServerSetupOperator
         timeout.CancelAfter(OperationTimeout);
         try
         {
-            await WindowsCircleFilesHelperProcess.WaitForConnectionAsync(pipe, helper, timeout.Token).ConfigureAwait(false);
+            await WaitForConnectionAsync(pipe, helper, timeout.Token).ConfigureAwait(false);
             if (!WindowsNamedPipeProcessIdentity.TryGetClientProcessId(pipe, out var clientPid) || clientPid != helper.Id)
             {
                 throw new RevitServerSetupException("setup_helper_authentication_failed", "The elevated setup helper could not be authenticated.");
@@ -199,6 +199,28 @@ public sealed class WindowsRevitServerSetupOperator : IRevitServerSetupOperator
         return CryptographicOperations.FixedTimeEquals(
             Encoding.ASCII.GetBytes(left),
             Encoding.ASCII.GetBytes(right));
+    }
+
+    private static async Task WaitForConnectionAsync(
+        NamedPipeServerStream pipe,
+        Process helper,
+        CancellationToken cancellationToken)
+    {
+        var connection = pipe.WaitForConnectionAsync(cancellationToken);
+        var exit = helper.WaitForExitAsync(cancellationToken);
+        var completed = await Task.WhenAny(connection, exit).ConfigureAwait(false);
+        if (completed == exit)
+        {
+            await exit.ConfigureAwait(false);
+            if (!pipe.IsConnected)
+            {
+                throw new RevitServerSetupException(
+                    "setup_helper_unavailable",
+                    "The Windows setup helper exited before connecting.");
+            }
+        }
+
+        await connection.ConfigureAwait(false);
     }
 }
 

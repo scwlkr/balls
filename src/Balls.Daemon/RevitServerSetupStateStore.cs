@@ -41,17 +41,20 @@ internal sealed class FileRevitServerSetupStateStore(string path) : IRevitServer
             var bytes = File.ReadAllBytes(path);
             if (bytes.Length is 0 or > 128 * 1024)
             {
-                return null;
+                throw new InvalidDataException("The Revit setup state is outside its size limit.");
             }
 
             var value = JsonSerializer.Deserialize<RevitServerSetupState>(bytes, Options);
-            return value is { SchemaVersion: 1 } && RevitServerSetupStages.All.Contains(value.Stage)
-                ? value
-                : null;
+            if (value is not { SchemaVersion: 1 } || !RevitServerSetupStages.All.Contains(value.Stage))
+            {
+                throw new InvalidDataException("The Revit setup state is invalid.");
+            }
+
+            return value;
         }
         catch (Exception exception) when (exception is IOException or JsonException or UnauthorizedAccessException)
         {
-            return null;
+            throw new InvalidDataException("The Revit setup state could not be read.", exception);
         }
     }
 

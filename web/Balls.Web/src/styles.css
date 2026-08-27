@@ -465,6 +465,55 @@ main {
   font-weight: 700;
 }
 
+.revit-setup-consent,
+.revit-setup-progress {
+  display: grid;
+  gap: 1rem;
+  padding: 1.25rem;
+  background: var(--surface);
+  border-top: 1px solid var(--line);
+}
+
+.revit-setup-consent label {
+  display: flex;
+  gap: 0.65rem;
+  align-items: flex-start;
+  font-weight: 700;
+}
+
+.revit-setup-consent input {
+  width: 1.1rem;
+  height: 1.1rem;
+  margin-top: 0.1rem;
+}
+
+.revit-setup-consent button,
+.revit-setup-progress button {
+  justify-self: start;
+}
+
+.revit-setup-progress[data-stage="ready-for-handoff"] {
+  background: var(--success-pale);
+}
+
+.revit-setup-progress[data-stage="blocked"],
+.revit-setup-progress[data-stage="failed"],
+.revit-setup-progress[data-stage="incomplete"] {
+  background: var(--danger-pale);
+}
+
+.revit-autodesk-card {
+  padding: 1rem;
+  background: var(--paper);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-small);
+}
+
+.revit-autodesk-card h3,
+.revit-autodesk-card p:last-of-type {
+  margin-bottom: 0.6rem;
+}
+
 .circle-switcher {
   display: flex;
   align-items: center;
