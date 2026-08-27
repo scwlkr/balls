@@ -151,7 +151,7 @@ describe("Balls browser workspace", () => {
         machine: "BALLS-RS27",
         windows: "Windows Server 2022 Standard build 20348 (Server)",
         media:
-          "Autodesk, Inc. — Autodesk Revit 2027 27.0 (Revit_Server_2027_win_db.sfx.exe)",
+          "Autodesk, Inc. — Autodesk Revit Server 2027 27.0.4.412 (Revit_Server_2027_win_db.sfx.exe)",
         mediaSha256: "b".repeat(64),
         enabledRoles: ["Host", "Admin"],
         forbiddenRoles: ["Accelerator"],

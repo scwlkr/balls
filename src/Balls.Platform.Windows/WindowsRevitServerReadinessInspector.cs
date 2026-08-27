@@ -11,8 +11,13 @@ namespace Balls.Platform.Windows;
 public sealed class WindowsRevitServerReadinessInspector : IRevitServerReadinessInspector
 {
     internal const string RepositoryRoot = @"D:\RevitServer\2027";
-    private const string ExpectedMediaSha256 = "295b30779868b9d58d78d9ff4353e4b9c6412418274a8034db6c6e7e0d348518";
-    private const long ExpectedMediaLength = 912_600_144;
+    private static readonly WindowsTrustedRevitServerMediaCatalogEntry TrustedMedia = new(
+        "Revit_Server_2027_win_db.sfx.exe",
+        912_600_144,
+        "295b30779868b9d58d78d9ff4353e4b9c6412418274a8034db6c6e7e0d348518",
+        "Autodesk, Inc.",
+        "Autodesk Revit Server 2027",
+        "27.0.4.412");
     private readonly IWindowsRevitServerJsonSource source;
 
     public WindowsRevitServerReadinessInspector()
@@ -98,10 +103,10 @@ public sealed class WindowsRevitServerReadinessInspector : IRevitServerReadiness
                 RepositoryRoot,
                 approvalSnapshotIdentity,
                 new RevitServerMediaIdentity(
-                    Path.GetFileName(mediaPath),
-                    media.SignerName!,
-                    media.ProductName!,
-                    media.ProductVersion!,
+                    TrustedMedia.FileName,
+                    TrustedMedia.Publisher,
+                    TrustedMedia.CanonicalProduct,
+                    TrustedMedia.CanonicalVersion,
                     media.Sha256!.ToLowerInvariant()),
                 value.Iis!.DefaultWebSitePresent!.Value,
                 value.Iis.PresentPrerequisites ?? []));
@@ -340,35 +345,26 @@ public sealed class WindowsRevitServerReadinessInspector : IRevitServerReadiness
         }
 
         if (!string.Equals(media.SignatureStatus, "Valid", StringComparison.Ordinal)
-            || !string.Equals(media.SignerName, "Autodesk, Inc.", StringComparison.OrdinalIgnoreCase))
+            || !string.Equals(media.SignerName, TrustedMedia.Publisher, StringComparison.OrdinalIgnoreCase))
         {
             return Blocked("installer", "installer_signature_untrusted", "The selected installer does not have a valid Autodesk, Inc. signature.");
         }
 
-        if (!string.Equals(media.FileName, "Revit_Server_2027_win_db.sfx.exe", StringComparison.OrdinalIgnoreCase)
-            || string.IsNullOrWhiteSpace(media.ProductName)
-            || !media.ProductName.Contains("Revit", StringComparison.OrdinalIgnoreCase)
-            || (!media.ProductName.Contains("2027", StringComparison.OrdinalIgnoreCase)
-                && !(media.ProductVersion?.StartsWith("27.", StringComparison.Ordinal) ?? false)))
-        {
-            return Blocked("installer", "installer_product_ambiguous", "The signed file does not identify the official Revit_Server_2027_win_db.sfx.exe media unambiguously.");
-        }
-
-        if (string.IsNullOrWhiteSpace(media.ProductVersion)
-            || string.IsNullOrWhiteSpace(media.Sha256)
+        if (string.IsNullOrWhiteSpace(media.Sha256)
             || media.Sha256.Length != 64
             || !media.Sha256.All(Uri.IsHexDigit))
         {
-            return Blocked("installer", "installer_identity_incomplete", "Windows could not establish the selected installer's exact version and SHA-256.");
+            return Blocked("installer", "installer_identity_incomplete", "Windows could not establish the selected installer's exact SHA-256 identity.");
         }
 
-        if (media.Length != ExpectedMediaLength
-            || !string.Equals(media.Sha256, ExpectedMediaSha256, StringComparison.OrdinalIgnoreCase))
+        if (!string.Equals(media.FileName, TrustedMedia.FileName, StringComparison.OrdinalIgnoreCase)
+            || media.Length != TrustedMedia.Length
+            || !string.Equals(media.Sha256, TrustedMedia.Sha256, StringComparison.OrdinalIgnoreCase))
         {
             return Blocked("installer", "installer_identity_substituted", "The selected file does not match the owner-accepted official Revit Server 2027 media identity.");
         }
 
-        return Ready("installer", "official_revit_2027_media_verified", "The selected Autodesk Revit Server 2027 media has a valid publisher signature and SHA-256 identity.");
+        return Ready("installer", "official_revit_2027_media_verified", "The valid Autodesk signature and exact file identity match the trusted Autodesk Revit Server 2027 media catalog entry (27.0.4.412).");
     }
 
     private static RevitServerReadinessCheck Ready(string id, string code, string summary) =>
@@ -617,3 +613,11 @@ internal sealed record WindowsRevitIisObservation(bool? DefaultWebSitePresent, i
 internal sealed record WindowsRevitNetworkObservation(int? ConnectedPrivateProfiles, int? ConnectedPublicProfiles, int? PublicExposureCount, bool? PrivateFirewallEnabled, bool? PublicFirewallEnabled, string? PrivateDefaultInboundAction, string? PublicDefaultInboundAction);
 internal sealed record WindowsRevitStateObservation(IReadOnlyList<string>? RoleMarkers, int? ForeignStateCount);
 internal sealed record WindowsRevitMediaObservation(bool? Exists, bool? LocalFixed, bool? ReparseTraversal, bool? StableIdentity, long? Length, string? SignatureStatus, string? SignerName, string? FileName, string? ProductName, string? ProductVersion, string? Sha256);
+
+internal sealed record WindowsTrustedRevitServerMediaCatalogEntry(
+    string FileName,
+    long Length,
+    string Sha256,
+    string Publisher,
+    string CanonicalProduct,
+    string CanonicalVersion);

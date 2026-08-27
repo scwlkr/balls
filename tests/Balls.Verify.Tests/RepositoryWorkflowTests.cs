@@ -174,6 +174,31 @@ public sealed partial class RepositoryWorkflowTests
     }
 
     [TestMethod]
+    public void Revit_server_lab_manager_fails_closed_without_exposing_secrets_or_foreign_state()
+    {
+        var manager = File.ReadAllText(
+            Path.Combine(
+                FindRepositoryRoot(),
+                "eng", "windows-lab", "revit-server-rapid-v0", "manage.sh"));
+
+        StringAssert.Contains(manager, "validate_state_root");
+        StringAssert.Contains(manager, "assert_owned_regular");
+        StringAssert.Contains(manager, "must have exactly one hard link");
+        StringAssert.Contains(manager, ".balls-revit-server-2027-lab");
+        StringAssert.Contains(manager, "system_disk_size=171798691840");
+        StringAssert.Contains(manager, "data_disk_size=137438953472");
+        StringAssert.Contains(manager, "balls-issue61-provider-desktop is running");
+        StringAssert.Contains(manager, "udp_port_free 3397");
+        StringAssert.Contains(manager, "attest_selected_network");
+        StringAssert.Contains(manager, "docker container kill --signal TERM");
+        StringAssert.Contains(manager, "it was not force-killed and Compose down was not run");
+        StringAssert.Contains(manager, "config --quiet");
+        Assert.IsFalse(manager.Contains("docker logs", StringComparison.Ordinal));
+        Assert.IsFalse(manager.Contains("stop || true", StringComparison.Ordinal));
+        Assert.IsFalse(manager.Contains("config\n", StringComparison.Ordinal));
+    }
+
+    [TestMethod]
     public void Security_workflows_exist_and_keep_untrusted_pull_requests_unprivileged()
     {
         var workflowDirectory = Path.Combine(FindRepositoryRoot(), ".github", "workflows");

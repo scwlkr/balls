@@ -8,16 +8,93 @@ readonly config_root="/home/scwlkr/.config/balls-labs/revit-server-2027"
 readonly private_env="${config_root}/private.env"
 readonly state_root="/home/scwlkr/.local/share/balls-lab/revit-server-2027"
 readonly mode_file="${state_root}/network-mode"
+readonly ownership_marker=".balls-revit-server-2027-lab"
+readonly marker_value="balls-revit-server-2027-lab:v1"
+readonly system_disk_size=171798691840
+readonly data_disk_size=137438953472
 readonly image_digest="sha256:0cff9eb0e7aee9953e55bc682852ca4fdca233145a58ae1ec94f0b0c01a2ed30"
+readonly image_ref="docker.io/dockurr/windows@${image_digest}"
 
 say() { printf '%s\n' "$*"; }
 fail() { say "BLOCKED — $*" >&2; exit 1; }
 
 require_private_env() {
-  [[ -f "${private_env}" ]] || fail "create ${private_env} with BALLS_REVIT_SERVER_PASSWORD without printing it"
-  local mode
+  [[ -f "${private_env}" && ! -L "${private_env}" ]] || fail "create ${private_env} as a regular non-symlink file without printing it"
+  local mode owner links
   mode="$(stat -c '%a' "${private_env}")"
+  owner="$(stat -c '%u' "${private_env}")"
+  links="$(stat -c '%h' "${private_env}")"
   [[ "${mode}" == "600" ]] || fail "${private_env} must have mode 0600"
+  [[ "${owner}" == "$(id -u)" ]] || fail "${private_env} must be owned by the current user"
+  [[ "${links}" == "1" ]] || fail "${private_env} must have exactly one hard link"
+}
+
+assert_owned_directory() {
+  local path="$1"
+  [[ -d "${path}" && ! -L "${path}" ]] || fail "${path} must be a real directory, not a link"
+  [[ "$(stat -c '%u' "${path}")" == "$(id -u)" ]] || fail "${path} has a foreign owner"
+  [[ "$(realpath -e -- "${path}")" == "${path}" ]] || fail "${path} does not resolve to its reserved canonical path"
+}
+
+assert_owned_regular() {
+  local path="$1"
+  [[ -f "${path}" && ! -L "${path}" ]] || fail "${path} must be a regular non-symlink file"
+  [[ "$(stat -c '%u' "${path}")" == "$(id -u)" ]] || fail "${path} has a foreign owner"
+  [[ "$(stat -c '%h' "${path}")" == "1" ]] || fail "${path} must have exactly one hard link"
+}
+
+validate_marker() {
+  local directory="$1" marker="${directory}/${ownership_marker}"
+  assert_owned_regular "${marker}"
+  [[ "$(<"${marker}")" == "${marker_value}" ]] || fail "${directory} has no valid lab ownership marker"
+}
+
+validate_directory_entries() {
+  local directory="$1" allowed_pattern="$2" entry name
+  while IFS= read -r -d '' entry; do
+    name="${entry##*/}"
+    [[ "${name}" =~ ${allowed_pattern} ]] || fail "foreign entry ${entry} blocks lab adoption"
+  done < <(find "${directory}" -mindepth 1 -maxdepth 1 -print0)
+}
+
+validate_evidence_or_media_entries() {
+  local directory="$1" entry
+  while IFS= read -r -d '' entry; do
+    [[ "${entry##*/}" == "${ownership_marker}" ]] || assert_owned_regular "${entry}"
+  done < <(find "${directory}" -mindepth 1 -maxdepth 1 -print0)
+}
+
+validate_disk() {
+  local path="$1" expected_size="$2"
+  [[ ! -e "${path}" && ! -L "${path}" ]] && return
+  assert_owned_regular "${path}"
+  [[ "$(stat -c '%s' "${path}")" == "${expected_size}" ]] || fail "${path} has an unexpected logical size"
+}
+
+validate_state_root() {
+  [[ ! -e "${state_root}" && ! -L "${state_root}" ]] && return
+  assert_owned_directory "${state_root}"
+  validate_marker "${state_root}"
+  validate_directory_entries "${state_root}" '^(.balls-revit-server-2027-lab|system|data|evidence|media|network-mode)$'
+  local directory
+  for directory in system data evidence media; do
+    assert_owned_directory "${state_root}/${directory}"
+    validate_marker "${state_root}/${directory}"
+  done
+  validate_directory_entries "${state_root}/system" '^(.balls-revit-server-2027-lab|data.img|windows.ver|windows.base|windows.mac|windows.rom|windows.vars|windows.boot)$'
+  validate_directory_entries "${state_root}/data" '^(.balls-revit-server-2027-lab|data2.img)$'
+  validate_evidence_or_media_entries "${state_root}/system"
+  validate_evidence_or_media_entries "${state_root}/data"
+  validate_evidence_or_media_entries "${state_root}/evidence"
+  validate_evidence_or_media_entries "${state_root}/media"
+  validate_disk "${state_root}/system/data.img" "${system_disk_size}"
+  validate_disk "${state_root}/data/data2.img" "${data_disk_size}"
+  if [[ -e "${mode_file}" || -L "${mode_file}" ]]; then
+    assert_owned_regular "${mode_file}"
+    [[ "$(<"${mode_file}")" =~ ^(bootstrap|acceptance)$ ]] || fail "the lab network-mode marker is invalid"
+    [[ -f "${state_root}/system/data.img" && -f "${state_root}/data/data2.img" ]] \
+      || fail "an initialized lab must keep both reserved disk files"
+  fi
 }
 
 compose() {
@@ -32,13 +109,20 @@ container_running() {
   [[ "$(docker inspect --format '{{.State.Running}}' "$1" 2>/dev/null || true)" == "true" ]]
 }
 
+validate_container_identity() {
+  docker inspect "${container}" >/dev/null 2>&1 || return
+  local labels image
+  labels="$(docker inspect --format '{{index .Config.Labels "com.docker.compose.project"}}|{{index .Config.Labels "com.docker.compose.service"}}' "${container}")"
+  image="$(docker inspect --format '{{.Config.Image}}' "${container}")"
+  [[ "${labels}" == "${project}|windows" && "${image}" == "${image_ref}" ]] \
+    || fail "container name ${container} is not the exact lab-owned pinned container"
+}
+
 check_mutual_exclusion() {
   for name in omarchy-windows omarchy-windows-neptune revit-neptune-lab; do
     container_running "${name}" && fail "${name} is running; save work and stop it with its own manager"
   done
-  if container_running balls-issue61-provider-desktop; then
-    say "WARNING — balls-issue61-provider-desktop is running; stop it before decisive evidence"
-  fi
+  container_running balls-issue61-provider-desktop && fail "balls-issue61-provider-desktop is running; save work and stop it before operating this lab"
   local available_kib
   available_kib="$(awk '/MemAvailable:/ { print $2 }' /proc/meminfo)"
   (( available_kib >= 10 * 1024 * 1024 )) || fail "less than 10 GiB memory is available"
@@ -48,10 +132,18 @@ port_free() {
   ! ss -H -ltn "sport = :$1" | grep -q .
 }
 
+udp_port_free() {
+  ! ss -H -lun "sport = :$1" | grep -q .
+}
+
 network_free_or_owned() {
-  local name="$1" expected="$2" observed all_subnets
+  local name="$1" expected="$2" observed all_subnets owner
   observed="$(docker network inspect --format '{{range .IPAM.Config}}{{.Subnet}}{{end}}' "${name}" 2>/dev/null || true)"
   [[ -z "${observed}" || "${observed}" == "${expected}" ]] || fail "network ${name} has unexpected subnet ${observed}"
+  if [[ -n "${observed}" ]]; then
+    owner="$(docker network inspect --format '{{index .Labels "com.docker.compose.project"}}' "${name}")"
+    [[ "${owner}" == "${project}" ]] || fail "network name ${name} is not owned by the reserved Compose project"
+  fi
   all_subnets="$(docker network ls --format '{{.Name}}' | while read -r network; do
     [[ "${network}" == "${name}" ]] || docker network inspect --format '{{range .IPAM.Config}}{{.Subnet}}{{"\n"}}{{end}}' "${network}" 2>/dev/null
   done; ip -4 route show | awk '$1 ~ /^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+\/[0-9]+$/ { print $1 }')"
@@ -69,21 +161,43 @@ PY
 preflight() {
   [[ -e /dev/kvm && -e /dev/net/tun ]] || fail "KVM or TUN is unavailable"
   require_private_env
+  validate_state_root
   compose bootstrap config --quiet
   compose acceptance config --quiet
   local digest
-  digest="$(docker image inspect --format '{{index .RepoDigests 0}}' "${image_digest}" 2>/dev/null || true)"
+  digest="$(docker image inspect --format '{{join .RepoDigests "\n"}}' "${image_ref}" 2>/dev/null || true)"
   [[ "${digest}" == *"${image_digest}" ]] || fail "the pinned Dockurr image is unavailable"
+  validate_container_identity
   check_mutual_exclusion
   port_free 8027 || fail "loopback console port 8027 is in use"
   port_free 3397 || fail "loopback RDP port 3397 is in use"
+  udp_port_free 3397 || fail "loopback UDP RDP port 3397 is in use"
   network_free_or_owned balls-revit-server-2027-bootstrap 172.29.26.0/24
   network_free_or_owned balls-revit-server-2027-lab 172.29.27.0/24
   say "PASS — pinned runtime, KVM, memory, ports, and reserved network identities are ready"
 }
 
 ensure_state_root() {
-  install -d -m 700 "${state_root}" "${state_root}/system" "${state_root}/data" "${state_root}/evidence" "${state_root}/media"
+  if [[ ! -e "${state_root}" && ! -L "${state_root}" ]]; then
+    install -d -m 700 "${state_root}" "${state_root}/system" "${state_root}/data" "${state_root}/evidence" "${state_root}/media"
+    local directory
+    for directory in "${state_root}" "${state_root}/system" "${state_root}/data" "${state_root}/evidence" "${state_root}/media"; do
+      printf '%s\n' "${marker_value}" > "${directory}/${ownership_marker}"
+      chmod 600 "${directory}/${ownership_marker}"
+    done
+  fi
+  validate_state_root
+}
+
+attest_selected_network() {
+  local name="$1" subnet="$2" gateway="$3" address="$4" internal="$5"
+  local attached network_shape
+  attached="$(docker inspect --format '{{range $name, $_ := .NetworkSettings.Networks}}{{$name}}{{"\n"}}{{end}}' "${container}")"
+  [[ "${attached}" == "${name}" ]] || fail "container is not attached to exactly the selected ${name} network"
+  network_shape="$(docker network inspect --format '{{.Driver}}|{{.Internal}}|{{range .IPAM.Config}}{{.Subnet}}|{{.Gateway}}{{end}}' "${name}")"
+  [[ "${network_shape}" == "bridge|${internal}|${subnet}|${gateway}" ]] || fail "network ${name} does not match the reserved driver/internal/subnet/gateway identity"
+  [[ "$(docker inspect --format "{{(index .NetworkSettings.Networks \"${name}\").IPAddress}}" "${container}")" == "${address}" ]] \
+    || fail "container does not have reserved address ${address} on ${name}"
 }
 
 bootstrap_start() {
@@ -92,11 +206,13 @@ bootstrap_start() {
   ensure_state_root
   printf 'bootstrap\n' > "${mode_file}"
   compose bootstrap up -d
+  attest_selected_network balls-revit-server-2027-bootstrap 172.29.26.0/24 172.29.26.1 172.29.26.2 false
   say "PASS — bootstrap network only; use solely for OS updates and official in-guest downloads"
 }
 
 isolate() {
   require_private_env
+  validate_container_identity
   container_running "${container}" && fail "shut Windows down cleanly and stop the lab before isolation"
   compose bootstrap down
   [[ -f "${state_root}/system/data.img" && -f "${state_root}/data/data2.img" ]] || fail "both lab disk files must already exist"
@@ -109,10 +225,13 @@ start_acceptance() {
   [[ -f "${mode_file}" && "$(<"${mode_file}")" == "acceptance" ]] || fail "run isolate after preparation"
   [[ -f "${state_root}/system/data.img" && -f "${state_root}/data/data2.img" ]] || fail "both lab disk files must exist"
   compose acceptance up -d
+  attest_selected_network balls-revit-server-2027-lab 172.29.27.0/24 172.29.27.1 172.29.27.2 true
   say "PASS — isolated acceptance lab started"
 }
 
 status() {
+  validate_state_root
+  validate_container_identity
   local mode="not-created"
   [[ -f "${mode_file}" ]] && mode="$(<"${mode_file}")"
   local running="false"
@@ -126,16 +245,22 @@ status() {
 
 stop_lab() {
   require_private_env
+  validate_state_root
+  validate_container_identity
   local mode="acceptance"
   [[ -f "${mode_file}" ]] && mode="$(<"${mode_file}")"
-  compose "${mode}" stop || true
+  if container_running "${container}"; then
+    docker container kill --signal TERM "${container}" >/dev/null \
+      || fail "the graceful TERM request failed; container and disks were preserved"
+    local deadline=$((SECONDS + 120))
+    while container_running "${container}" && (( SECONDS < deadline )); do
+      sleep 2
+    done
+    container_running "${container}" \
+      && fail "Windows did not stop within two minutes; it was not force-killed and Compose down was not run"
+  fi
   compose "${mode}" down
   say "PASS — lab stopped; disk directories preserved"
-}
-
-logs() {
-  docker logs --tail 200 "${container}" 2>&1 \
-    | sed -E 's/(PASSWORD|USERNAME|KEY|TOKEN|SECRET)=?[^[:space:]]*/\1=[REDACTED]/Ig'
 }
 
 recover() {
@@ -154,7 +279,6 @@ case "${1:-}" in
   console) xdg-open http://127.0.0.1:8027/ >/dev/null 2>&1 ;;
   status) status ;;
   stop) stop_lab ;;
-  logs) logs ;;
   recover) recover ;;
-  *) fail "usage: manage.sh preflight|bootstrap-start|isolate|start|console|status|stop|logs|recover" ;;
+  *) fail "usage: manage.sh preflight|bootstrap-start|isolate|start|console|status|stop|recover" ;;
 esac

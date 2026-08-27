@@ -23,6 +23,11 @@ public sealed class WindowsRevitServerReadinessInspectorTests
         Assert.IsTrue(plan.FirewallEffects.Any(value => value.Contains("TCP 80 and TCP 808", StringComparison.Ordinal)));
         Assert.IsTrue(plan.FirewallEffects.Any(value => value.Contains("ICMPv4", StringComparison.Ordinal)));
         Assert.IsTrue(plan.RsnIni.Single().Contains("BALLS-RS27", StringComparison.Ordinal));
+        Assert.AreEqual("Autodesk Revit Server 2027", report.Snapshot!.Media.Product);
+        Assert.AreEqual("27.0.4.412", report.Snapshot.Media.Version);
+        StringAssert.Contains(
+            report.Checks.Single(check => check.Id == "installer").Summary,
+            "trusted Autodesk Revit Server 2027 media catalog entry");
         Assert.AreEqual(64, plan.PlanDigest.Length);
     }
 
@@ -186,7 +191,7 @@ public sealed class WindowsRevitServerReadinessInspectorTests
 
         Assert.AreEqual(RevitServerReadinessStatus.Blocked, report.Status);
         Assert.IsTrue(report.Checks.Single(check => check.Id == "installer").Code is
-            "installer_signature_untrusted" or "installer_product_ambiguous");
+            "installer_signature_untrusted" or "installer_identity_substituted");
     }
 
     [TestMethod]
@@ -260,8 +265,8 @@ public sealed class WindowsRevitServerReadinessInspectorTests
             "Valid",
             "Autodesk, Inc.",
             "Revit_Server_2027_win_db.sfx.exe",
-            "Autodesk Revit 2027",
-            "27.0.0.0",
+            "Autodesk Create Installer",
+            "19.00",
             "295b30779868b9d58d78d9ff4353e4b9c6412418274a8034db6c6e7e0d348518"));
 
     private const string MediaPath = @"C:\Media\Revit_Server_2027_win_db.sfx.exe";
