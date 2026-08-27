@@ -1,5 +1,4 @@
 using System.Diagnostics;
-using System.Text;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using Balls.Platform;
@@ -55,8 +54,8 @@ public sealed class WindowsRevitServerHealthInspector : IRevitServerHealthInspec
             Check("iis", value.DefaultWebSiteStarted && value.AppPoolStarted && value.AppPoolIntegrated
                 && value.AppPoolRuntimeV4 && value.ApplicationsExact,
                 "iis_healthy", "iis_incomplete", "The Revit Server IIS applications and Integrated application pool are running.", "Finish Autodesk configuration, then verify again."),
-            Check("local-endpoints", value.HostEndpointResponded && value.AdminEndpointResponded,
-                "endpoints_healthy", "endpoints_unavailable", "The Host service and Revit Server Administrator respond locally.", "Open Revit Server Administrator locally, resolve its error, then verify again."),
+            Check("local-endpoints", value.HostEndpointResponded && value.AdminEndpointResponded && value.AdminSurfaceHealthy,
+                "endpoints_healthy", "endpoints_unavailable", "The Host services and empty Revit Server Administrator Host tree respond locally.", "Open Revit Server Administrator locally, resolve its error, then verify again."),
             Check("host-list", value.RsnExact,
                 "rsn_exact", "rsn_incomplete", "Server-local RSN.ini names this Host exactly once.", "Retry Windows preparation, then verify the local Host list."),
             Check("network", value.PrivateProfileOnly && value.FirewallExact && !value.RepositoryShared,
@@ -118,21 +117,23 @@ internal sealed class WindowsRevitServerHealthPowerShellSource : IWindowsRevitSe
 {
     public async ValueTask<string> QueryAsync(CancellationToken cancellationToken)
     {
-        var encoded = Convert.ToBase64String(Encoding.Unicode.GetBytes(Script));
         var start = new ProcessStartInfo
         {
             FileName = "powershell.exe",
             UseShellExecute = false,
+            RedirectStandardInput = true,
             RedirectStandardOutput = true,
             RedirectStandardError = true,
             CreateNoWindow = true,
         };
-        foreach (var argument in new[] { "-NoLogo", "-NoProfile", "-NonInteractive", "-ExecutionPolicy", "Bypass", "-EncodedCommand", encoded })
+        foreach (var argument in new[] { "-NoLogo", "-NoProfile", "-NonInteractive", "-ExecutionPolicy", "Bypass", "-Command", "-" })
         {
             start.ArgumentList.Add(argument);
         }
 
         using var process = Process.Start(start) ?? throw new IOException();
+        await process.StandardInput.WriteAsync(Script.AsMemory(), cancellationToken).ConfigureAwait(false);
+        process.StandardInput.Close();
         var stdout = process.StandardOutput.ReadToEndAsync(cancellationToken);
         var stderr = process.StandardError.ReadToEndAsync(cancellationToken);
         using var timeout = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
@@ -154,7 +155,8 @@ internal sealed class WindowsRevitServerHealthPowerShellSource : IWindowsRevitSe
         foreach ($key in 'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\*','HKLM:\SOFTWARE\WOW6432Node\Microsoft\Windows\CurrentVersion\Uninstall\*') {
           $products += @(Get-ItemProperty $key -ErrorAction SilentlyContinue | Where-Object { $_.DisplayName -eq 'Autodesk Revit Server 2027' })
         }
-        $role = [Environment]::GetEnvironmentVariable('RSROLE 2027 Release', 'Machine')
+        $productIdentities = @($products | ForEach-Object { "$($_.DisplayName)|$($_.DisplayVersion)" } | Sort-Object -Unique)
+        $role = [Environment]::GetEnvironmentVariable('RSROLE2027', 'Machine')
         $accelerator = @(
           [Environment]::GetEnvironmentVariable('RSACCELERATOR2027', 'Machine'),
           [Environment]::GetEnvironmentVariable('RSACCELERATOR2027', 'User'),
@@ -172,10 +174,10 @@ internal sealed class WindowsRevitServerHealthPowerShellSource : IWindowsRevitSe
 
         Import-Module WebAdministration
         $site = Get-Website -Name 'Default Web Site' -ErrorAction SilentlyContinue
-        $pool = Get-Item 'IIS:\AppPools\RevitServerAppPool 2027 Release' -ErrorAction SilentlyContinue
+        $pool = Get-Item 'IIS:\AppPools\RevitServerAppPool2027' -ErrorAction SilentlyContinue
         $apps = @(Get-WebApplication -Site 'Default Web Site' -ErrorAction SilentlyContinue | Select-Object -ExpandProperty Path)
-        $expectedApps = @('/RevitServer2027','/RevitServerAdmin2027','/RevitServerAdminRESTService2027')
-        $revitApps = @($apps | Where-Object { $_ -match '^/RevitServer' } | Sort-Object -Unique)
+        $expectedApps = @('/AdminService2027','/LocalService2027','/ModelService2027','/RevitServerAdmin2027','/RevitServerAdminRESTService2027')
+        $revitApps = @($apps | Where-Object { $_ -match '^/(AdminService2027|LocalService2027|ModelService2027|RevitServer)' } | Sort-Object -Unique)
         function Test-LocalUrl([string]$url) {
           try {
             $response = Invoke-WebRequest -UseBasicParsing -Uri $url -TimeoutSec 10
@@ -185,11 +187,33 @@ internal sealed class WindowsRevitServerHealthPowerShellSource : IWindowsRevitSe
             return $false
           }
         }
-        $hostOk = Test-LocalUrl 'http://127.0.0.1/RevitServer2027/HostService.svc'
-        $adminOk = Test-LocalUrl 'http://127.0.0.1/RevitServerAdmin2027/'
+        $localServiceOk = Test-LocalUrl 'http://127.0.0.1/LocalService2027/LocalService.svc'
+        $modelServiceOk = Test-LocalUrl 'http://127.0.0.1/ModelService2027/ModelService.svc'
+        $adminServiceOk = Test-LocalUrl 'http://127.0.0.1/AdminService2027/AdminService.svc'
+        $adminUiOk = Test-LocalUrl 'http://127.0.0.1/RevitServerAdmin2027/'
+        $encodedHost = [uri]::EscapeDataString($env:COMPUTERNAME)
+        $adminSurfaceOk = $false
+        try {
+          $servers = @((Invoke-WebRequest -UseBasicParsing -Uri 'http://127.0.0.1/RevitServerAdmin2027/api/server/servers?id=127.0.0.1&refresh=true' -TimeoutSec 10).Content | ConvertFrom-Json)
+          $tree = (Invoke-WebRequest -UseBasicParsing -Uri "http://127.0.0.1/RevitServerAdmin2027/api/folder/SubItems?id=$encodedHost&depth=2" -TimeoutSec 10).Content | ConvertFrom-Json
+          $details = (Invoke-WebRequest -UseBasicParsing -Uri "http://127.0.0.1/RevitServerAdmin2027/api/server/details?id=$encodedHost" -TimeoutSec 10).Content | ConvertFrom-Json
+          $matchingServers = @($servers | Where-Object {
+            $_.Id -eq $env:COMPUTERNAME -and $_.Name -eq $env:COMPUTERNAME -and $_.Roles -eq 'Host, Admin' -and
+            $_.IsAlive -eq $true -and $_.ModelCount -eq 0 -and $_.FolderCount -eq 0
+          })
+          $adminSurfaceOk = $matchingServers.Count -eq 1 -and
+            $tree.Id -eq $env:COMPUTERNAME -and $tree.Name -eq $env:COMPUTERNAME -and $tree.IsAlive -eq $true -and $null -eq $tree.Children -and
+            $details.Id -eq $env:COMPUTERNAME -and $details.Name -eq $env:COMPUTERNAME -and $details.Roles -eq 'Host, Admin' -and
+            $details.IsAlive -eq $true -and $details.ModelCount -eq 0 -and $details.FolderCount -eq 0
+        } catch {
+          $adminSurfaceOk = $false
+        }
 
         $rsnPath = 'C:\ProgramData\Autodesk\Revit Server 2027\Config\RSN.ini'
-        $rsnLines = if (Test-Path -LiteralPath $rsnPath) { @(Get-Content -LiteralPath $rsnPath | Where-Object { -not [string]::IsNullOrWhiteSpace($_) }) } else { @() }
+        $rsnLines = @()
+        if (Test-Path -LiteralPath $rsnPath) {
+          $rsnLines = @(Get-Content -LiteralPath $rsnPath | Where-Object { -not [string]::IsNullOrWhiteSpace($_) })
+        }
         $profiles = @(Get-NetConnectionProfile -ErrorAction SilentlyContinue)
         $httpRule = Get-NetFirewallRule -Name 'Balls-RevitServer-2027-HTTP' -ErrorAction SilentlyContinue
         $icmpRule = Get-NetFirewallRule -Name 'Balls-RevitServer-2027-ICMPv4' -ErrorAction SilentlyContinue
@@ -214,8 +238,8 @@ internal sealed class WindowsRevitServerHealthPowerShellSource : IWindowsRevitSe
           $fatal = @(Get-ChildItem -LiteralPath $logRoot -File -ErrorAction SilentlyContinue | Select-Object -First 20 | Select-String -Pattern 'fatal|unhandled exception' -CaseSensitive:$false -ErrorAction SilentlyContinue).Count
         }
         [pscustomobject]@{
-          ProductCount=$products.Count
-          ProductVersion=if ($products.Count -eq 1) { [string]$products[0].DisplayVersion } else { '' }
+          ProductCount=$productIdentities.Count
+          ProductVersion=if ($productIdentities.Count -eq 1) { [string]$products[0].DisplayVersion } else { '' }
           RoleValue=[string]$role
           AcceleratorPresent=$accelerator.Count -gt 0 -or @($apps | Where-Object { $_ -match 'Accelerator' }).Count -gt 0
           ProjectsPresent=Test-Path -LiteralPath $projects -PathType Container
@@ -231,8 +255,9 @@ internal sealed class WindowsRevitServerHealthPowerShellSource : IWindowsRevitSe
           AppPoolIntegrated=$pool -and $pool.managedPipelineMode -eq 'Integrated'
           AppPoolRuntimeV4=$pool -and $pool.managedRuntimeVersion -eq 'v4.0'
           ApplicationsExact=(@(Compare-Object $expectedApps $revitApps).Count -eq 0)
-          HostEndpointResponded=$hostOk
-          AdminEndpointResponded=$adminOk
+          HostEndpointResponded=$localServiceOk -and $modelServiceOk
+          AdminEndpointResponded=$adminServiceOk -and $adminUiOk
+          AdminSurfaceHealthy=$adminSurfaceOk
           RsnExact=$rsnLines.Count -eq 1 -and $rsnLines[0].Trim() -eq $env:COMPUTERNAME
           PrivateProfileOnly=$profiles.Count -gt 0 -and @($profiles | Where-Object { $_.NetworkCategory -ne 'Private' }).Count -eq 0
           FirewallExact=[bool]$firewallExact
@@ -262,6 +287,7 @@ internal sealed record WindowsRevitServerHealthObservation(
     bool ApplicationsExact,
     bool HostEndpointResponded,
     bool AdminEndpointResponded,
+    bool AdminSurfaceHealthy,
     bool RsnExact,
     bool PrivateProfileOnly,
     bool FirewallExact,

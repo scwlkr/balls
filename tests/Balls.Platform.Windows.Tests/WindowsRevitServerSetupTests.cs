@@ -88,6 +88,7 @@ public sealed class WindowsRevitServerSetupTests
             Healthy() with { AppPoolRuntimeV4 = false },
             Healthy() with { ApplicationsExact = false },
             Healthy() with { HostEndpointResponded = false },
+            Healthy() with { AdminSurfaceHealthy = false },
             Healthy() with { RsnExact = false },
             Healthy() with { PrivateProfileOnly = false },
             Healthy() with { FirewallExact = false },
@@ -108,10 +109,18 @@ public sealed class WindowsRevitServerSetupTests
         StringAssert.Contains(script, "RSACCELERATOR2027', 'Machine'");
         StringAssert.Contains(script, "RSACCELERATOR2027', 'User'");
         StringAssert.Contains(script, "RSACCELERATOR2027', 'Process'");
-        StringAssert.Contains(script, "RevitServerAppPool 2027 Release");
+        StringAssert.Contains(script, "RSROLE2027', 'Machine'");
+        StringAssert.Contains(script, "RevitServerAppPool2027");
+        StringAssert.Contains(script, "AdminService2027");
+        StringAssert.Contains(script, "LocalService2027");
+        StringAssert.Contains(script, "ModelService2027");
         StringAssert.Contains(script, "RevitServerAdminRESTService2027");
         StringAssert.Contains(script, "RevitServerAdmin2027");
-        StringAssert.Contains(script, "RevitServer2027");
+        StringAssert.Contains(script, "api/server/servers?id=127.0.0.1&refresh=true");
+        StringAssert.Contains(script, "api/folder/SubItems?id=$encodedHost&depth=2");
+        StringAssert.Contains(script, "ModelCount -eq 0");
+        StringAssert.Contains(script, "$null -eq $tree.Children");
+        StringAssert.Contains(script, "$productIdentities.Count");
     }
 
     private static WindowsRevitServerHealthObservation Healthy() => new(
@@ -119,6 +128,7 @@ public sealed class WindowsRevitServerSetupTests
         "27.0.4.412",
         "Host,Admin",
         false,
+        true,
         true,
         true,
         true,
