@@ -2,7 +2,10 @@
 
 - **Status:** Accepted
 - **Date:** 2026-08-27
-- **Priority:** First bounded product issue after #103 closes #92
+- **Priority:** First bounded product initiative after #103 closes #92
+- **Issue chain:** [#114](https://github.com/scwlkr/balls/issues/114) ->
+  [#115](https://github.com/scwlkr/balls/issues/115) ->
+  [#116](https://github.com/scwlkr/balls/issues/116)
 - **Decision:**
   [`ADR 0018`](../decisions/0018-prioritize-revit-server-rapid-setup.md)
 - **Parent target:**
@@ -27,10 +30,11 @@ or synchronize a model.
 ## Priority and issue boundary
 
 The already-approved Alpha promotion in issue #103 completes first and closes the Private Boss Demo
-issue #92. Revit Server Rapid Setup is then one independently mergeable issue and the only active
-feature outcome until its acceptance is recorded.
+issue #92. Revit Server Rapid Setup is then one linear three-ticket initiative and the only active
+feature outcome until its acceptance is recorded. Each ticket is independently mergeable, and only
+the unblocked frontier ticket is active.
 
-This bounded issue temporarily precedes, but does not cancel:
+This bounded initiative temporarily precedes, but does not cancel:
 
 - the Shared Ecosystem Proof;
 - Office Circle Files and access groups;
@@ -279,35 +283,30 @@ The **Setup Receipt** records the temporary proof:
 the other bundle files. The bundle contains no credentials, private Circle material, Windows SIDs,
 Autodesk installer, VM image, company data, model data, or executable script.
 
-The first issue does not build a configuration-import system. The boss follows `README.md` and runs
+This initiative does not build a configuration-import system. The boss follows `README.md` and runs
 the same Balls setup page on the future server, using the template as the approved choices and the
 receipt as proof of what previously worked. Balls re-inspects that machine, resolves its real fixed
 NTFS data volume and Host identity, verifies official media again, and computes a new target-specific
 preview. It never replays the temporary machine's hostname, IP address, drive identity, paths, SIDs,
 firewall bindings, or approved plan.
 
-## Implementation slices inside the one issue
+## Issue chain
 
-1. **Typed setup contract**
-   - introduce Revit-specific inspect, preview, apply, stage, verify, and export results;
-   - keep platform commands and Autodesk types outside Core;
-   - define redacted stable error/outcome tokens.
-2. **Windows setup adapter**
-   - implement read-only inspection first;
-   - implement the narrow prerequisite helper operation;
+1. **[#114 — Show Revit Server 2027 readiness and an exact setup plan](https://github.com/scwlkr/balls/issues/114)**
+   - add the Revit-specific typed inspection and preview contracts;
+   - implement read-only Windows Server and official-media inspection;
+   - show Ready/Blocked and the approval-bound Host+Admin/no-Accelerator plan;
+   - update the lab runbook and prove the graphical read-only path in the disposable VM.
+2. **[#115 — Install and verify Revit Server 2027 Host+Admin](https://github.com/scwlkr/balls/issues/115)**
+   - add the narrow prerequisite helper operation;
    - persist the Autodesk handoff boundary and idempotent postflight;
-   - refuse ambiguous or foreign state.
-3. **Development browser workflow**
-   - add one Server Administrator-only setup page;
-   - present readiness, exact preview, progress, handoff instructions, retry, result, and export;
-   - keep provider jargon out of the default path while exposing inspectable details.
-4. **Portable handoff**
+   - show progress, exact human instructions, retry, and plain results;
+   - prove healthy Host+Admin services and Administrator surface in the disposable VM.
+3. **[#116 — Export the Revit Server handoff and prove setup under 30 minutes](https://github.com/scwlkr/balls/issues/116)**
    - generate and validate the template, receipt, README, and manifest;
-   - exclude machine-specific replay material and explain the boss's fresh setup flow.
-5. **Timed Windows lab proof**
-   - create the separate disposable Server 2022 VM under the updated runbook;
+   - exclude machine-specific replay material and explain the boss's fresh setup flow;
    - install the exact Development package through the official distribution path;
-   - run the complete checklist and record exact evidence.
+   - run the complete timed checklist and record exact evidence.
 
 ## Automated verification
 

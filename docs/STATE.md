@@ -7,36 +7,42 @@ active issue before loading deeper design or verification records.
 
 ## Urgent outcome
 
-The owner needs one boss-visible private Windows workflow working today:
+The Owner needs one fast, truthful Revit Server setup workflow working in the disposable Windows
+Server lab:
 
 ```text
-balls.wlkrlabs.com
-  → paste one Windows install command
-  → paste one private Circle invitation
-  → join in the local browser
-  → open the approved folder in File Explorer
-  → edit a real ordinary work file
+open Balls Development
+  → inspect Ready / Blocked
+  → approve Host+Admin / no-Accelerator plan
+  → let Balls prepare Windows
+  → complete Autodesk's graphical terms and configuration
+  → verify healthy services and Administrator
+  → export the boss handoff in under 30 minutes
 ```
 
-The install command runs in the PowerShell included with Windows. The user should not configure
-PowerShell or runtimes and should not handle daemon flags, IP addresses, ports, SMB passwords,
-object IDs, plan tokens, provider language, or manual drive selection.
+This proves installation health only. It does not prove Revit client/model use, synchronization,
+remote access, backup/recovery, production hardware, or an Autodesk-supported hypervisor.
 
 ## Active frontier
 
-**Milestone:** [Private Boss Demo](https://github.com/scwlkr/balls/milestone/8)
+**Initiative:** Revit Server Rapid Setup v0
 
-**Active parent:**
-[#92 — Deliver the private boss demo from official download to shared Explorer file](https://github.com/scwlkr/balls/issues/92)
+**Only ready issue:**
+[#114 — Show Revit Server 2027 readiness and an exact setup
+plan](https://github.com/scwlkr/balls/issues/114)
 
-**Only ready child:**
-[#103 — Promote the rehearsed assets to Alpha and verify live startup](https://github.com/scwlkr/balls/issues/103)
+**Blocked chain:**
+[#115 — Install and verify Revit Server 2027 Host+Admin](https://github.com/scwlkr/balls/issues/115),
+blocked by #114; then
+[#116 — Export the Revit Server handoff and prove setup under 30
+minutes](https://github.com/scwlkr/balls/issues/116),
+blocked by #115.
 
 **Executable specification:**
-[`specs/private-boss-demo-v1.md`](specs/private-boss-demo-v1.md)
+[`specs/revit-server-rapid-setup-v0.md`](specs/revit-server-rapid-setup-v0.md)
 
-Do not create or begin another feature issue until #92 is observed end to end or a concrete blocker
-is split from it.
+Work only the unblocked frontier. Do not begin #115 or #116 early or create a parallel feature
+issue.
 
 ## Private-pilot delivery posture
 
@@ -68,7 +74,8 @@ Current `main` contains substantial reusable work:
 - generation-bound Files revocation and ownership-proven server cleanup;
 - real private-LAN two-computer ordinary-file create/read/edit/rename/delete evidence.
 
-Reuse this machinery where it shortens #92. Do not expand it for hypothetical future requirements.
+Reuse this machinery only where it shortens #114-#116. Keep Revit setup's Windows Server gate
+separate from the existing Circle Files/SMB readiness policy.
 
 ## Rehearsed human journey
 
@@ -90,9 +97,9 @@ The former `0.4.0-alpha.1 — LAN Circle Files` milestone and issue #62 were clo
 2026-08-26 without a release. Completed issues and verification records remain historical evidence;
 they are not deleted and they no longer define the active roadmap.
 
-The next product gate, after #92, is one joined Member using Circle Files, Circle Messaging, and
-Circle AI hosted by another Node, followed by coherent access revocation. Balls Wizard is a
-separate optional local guide and is not on today's critical path. See
+After the bounded Revit Server Rapid Setup chain, the next product gate is one joined Member using
+Circle Files, Circle Messaging, and Circle AI hosted by another Node, followed by coherent access
+revocation. Balls Wizard is a separate optional local guide and is not on today's critical path. See
 [`ADR 0009`](decisions/0009-reset-around-private-shared-ecosystem-proof.md) and the
 [`roadmap`](../ROADMAP.md).
 
@@ -105,19 +112,20 @@ manually copied binaries. Active issue work may publish Development after packag
 and must record the prior pointer. Alpha, Beta, and Stable promotion requires separate Owner
 approval. See [`ADR 0010`](decisions/0010-public-development-download-channel.md).
 
-## Issue #92 acceptance lab
+## Revit Server acceptance lab
 
-Use the existing Windows 11 Owner environment plus `balls-issue61-provider-desktop`; do not create
-two new VMs. Keep every other historical and GPU VM stopped, use dedicated clean Owner and
-nonadministrator Member profiles, and carry Circle traffic only over `windows_default`. The Owner
-personally performs both sides of the manual product journey. Passing evidence is same-host two-VM
-evidence and completes #92 without making a physical-device claim. Follow the
-[`manual checklist`](verification/private-boss-demo-v1-checklist.md).
+Use one new isolated Windows Server 2022 Desktop Experience VM on the Linux laptop's existing
+Docker/QEMU/KVM stack. Keep existing high-memory Windows VMs stopped, use separate storage, disks,
+network identity, and loopback console ports, and never modify an existing VM or place company/model
+data in the lab. A graphical console is allowed for Windows and Autodesk setup; normal operation may
+be headless. Follow the [`manual checklist`](verification/revit-server-rapid-setup-v0-checklist.md)
+and update [`windows-development-lab.md`](windows-development-lab.md) before operating the new VM.
 
 ## Continue
 
-1. Complete #103 without rebuilding or replacing the rehearsed assets.
-2. Merge the Alpha-pointer change after one required PR CI cycle.
-3. Deploy the exact merged download site, then read back the live pointer and asset identities.
-4. Verify copied Alpha install and normal shortcut startup on an authorized Windows profile.
-5. Record the observed evidence and limitations, then close #103 and #92.
+1. Complete #114's read-only Windows Server/media inspection and graphical setup preview.
+2. Remove #115's blocked label, add `ready-for-agent`, and implement the approved mutation,
+   Autodesk handoff, and health verification path.
+3. Remove #116's blocked label, add `ready-for-agent`, and implement the portable bundle plus exact
+   Development-package timed proof.
+4. Record the exact passing claim and limitations, then return to the Shared Ecosystem Proof.

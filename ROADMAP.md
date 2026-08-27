@@ -10,7 +10,7 @@ replaces the files-only release sequence. Balls now proves the working private h
 before expanding the platform. See
 [`ADR 0009`](docs/decisions/0009-reset-around-private-shared-ecosystem-proof.md).
 
-## Now — Private Boss Demo
+## Completed — Private Boss Demo
 
 **User outcome:** the Owner proves the boss journey across the two authorized Windows environments
 on the current Omarchy laptop. Each side installs Balls from the official website command, the
@@ -39,8 +39,11 @@ ordinary two-way file editing; elapsed time and every intervention; no weakened 
 or public service exposure. The Owner personally performs both roles, and the result is labeled
 same-host two-VM rather than physical-device evidence.
 
-**Active issue:**
-[#92 — Deliver the private boss demo from official download to shared Explorer file](https://github.com/scwlkr/balls/issues/92).
+**Completed issues:**
+[#92 — Deliver the private boss demo from official download to shared Explorer
+file](https://github.com/scwlkr/balls/issues/92) and
+[#103 — Promote the rehearsed assets to Alpha and verify live
+startup](https://github.com/scwlkr/balls/issues/103).
 
 **Executable specification:**
 [`docs/specs/private-boss-demo-v1.md`](docs/specs/private-boss-demo-v1.md).
@@ -49,7 +52,7 @@ same-host two-VM rather than physical-device evidence.
 multi-Anchor replication, public-internet exposure, speculative security architecture, and broad
 release-matrix expansion.
 
-## Next — Revit Server Rapid Setup v0
+## Now — Revit Server Rapid Setup v0
 
 **User outcome:** after the approved Alpha promotion closes the Private Boss Demo, the Owner uses
 one exact Balls Development build inside a prepared Windows Server 2022 VM to set up Autodesk Revit
@@ -77,8 +80,14 @@ Windows Service/Anchor work, or polished final UI.
 **Executable specification:**
 [`docs/specs/revit-server-rapid-setup-v0.md`](docs/specs/revit-server-rapid-setup-v0.md).
 
+**Issue chain:**
+[#114 — readiness and exact setup plan](https://github.com/scwlkr/balls/issues/114) ->
+[#115 — install and verify Host+Admin](https://github.com/scwlkr/balls/issues/115) ->
+[#116 — export handoff and prove setup under 30 minutes](https://github.com/scwlkr/balls/issues/116).
+Only the unblocked frontier issue is active.
+
 See [`ADR 0018`](docs/decisions/0018-prioritize-revit-server-rapid-setup.md). The Shared Ecosystem
-Proof remains the next product gate after this bounded issue.
+Proof remains the next product gate after this bounded initiative.
 
 ## Then — Shared Ecosystem Proof
 

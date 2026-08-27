@@ -17,16 +17,19 @@ existing provider security. Add further controls only for a concrete pilot risk,
 or accepted release requirement. Security work that does not protect the active private-pilot
 journey must not displace delivery of that journey.
 
-The urgent active outcome is the
-[Private Boss Demo](https://github.com/scwlkr/balls/issues/92): official download, graphical Circle
-join, and usable shared File Explorer access across the two authorized Windows environments on the
-current Omarchy laptop. Balls Wizard, Circle AI, richer messaging, generalized providers, and
-further security architecture are off that issue's critical path.
+The urgent active outcome is
+[Revit Server Rapid Setup v0](docs/specs/revit-server-rapid-setup-v0.md), delivered through the
+linear issue chain [#114](https://github.com/scwlkr/balls/issues/114) ->
+[#115](https://github.com/scwlkr/balls/issues/115) ->
+[#116](https://github.com/scwlkr/balls/issues/116). Only the unblocked frontier issue is active.
+The outcome prepares and verifies Revit Server 2027 Host+Admin in a disposable Windows Server 2022
+lab and exports a boss handoff in under 30 minutes. Revit model proof, remote access, broader Office
+Workspace work, and further security architecture are off this initiative's critical path.
 
-Before implementing that outcome, read
-[`docs/specs/private-boss-demo-v1.md`](docs/specs/private-boss-demo-v1.md). The broader accepted
-product contract is
-[`docs/specs/private-shared-ecosystem-v1.md`](docs/specs/private-shared-ecosystem-v1.md), but its
+Before implementing this outcome, read
+[`docs/specs/revit-server-rapid-setup-v0.md`](docs/specs/revit-server-rapid-setup-v0.md) and the
+active issue. The broader accepted Office Server contract is
+[`docs/specs/run-and-gun-office-server-v1.md`](docs/specs/run-and-gun-office-server-v1.md), but its
 later slices are not implementation authority.
 
 ## Start with current state

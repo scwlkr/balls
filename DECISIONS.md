@@ -52,15 +52,15 @@ platform expansion and triggers a product rethink.
 
 ### Revit Server rapid-setup priority
 
-After the already-approved Alpha promotion closes the Private Boss Demo, one bounded Revit Server
-Rapid Setup issue temporarily precedes the Shared Ecosystem Proof. On a prepared disposable Windows
-Server 2022 VM, an exact Balls Development build must guide Revit Server 2027 Host+Admin setup and
-report a healthy Administrator surface in under 30 minutes without claiming model, client, remote,
-or production readiness. Balls then exports portable setup intent and a redacted proof receipt for
-the Owner's boss to repeat on the eventual physical server.
+After the already-approved Alpha promotion closes the Private Boss Demo, the bounded linear Revit
+Server Rapid Setup issue chain #114 -> #115 -> #116 temporarily precedes the Shared Ecosystem Proof.
+On a prepared disposable Windows Server 2022 VM, an exact Balls Development build must guide Revit
+Server 2027 Host+Admin setup and report a healthy Administrator surface in under 30 minutes without
+claiming model, client, remote, or production readiness. Balls then exports portable setup intent
+and a redacted proof receipt for the Owner's boss to repeat on the eventual physical server.
 
-This one-issue priority defers rather than cancels Circle Files, Circle Messaging, Circle AI, and
-the broader Office Workspace plan. See
+This bounded priority defers rather than cancels Circle Files, Circle Messaging, Circle AI, and the
+broader Office Workspace plan. See
 [`ADR 0018`](docs/decisions/0018-prioritize-revit-server-rapid-setup.md).
 
 ### Contribution and remote administration
