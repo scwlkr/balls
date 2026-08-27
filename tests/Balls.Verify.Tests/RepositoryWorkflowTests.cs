@@ -183,10 +183,15 @@ public sealed partial class RepositoryWorkflowTests
 
         StringAssert.Contains(manager, "validate_state_root");
         StringAssert.Contains(manager, "initialize_state_root");
+        StringAssert.Contains(manager, "owner-marked lab state is already initialized");
         StringAssert.Contains(manager, "trusted_media_size=912600144");
         StringAssert.Contains(manager, "sha256sum --");
         StringAssert.Contains(manager, "must have mode 0700");
         StringAssert.Contains(manager, "assert_owned_regular");
+        StringAssert.Contains(manager, "local marker=\"${directory}/${ownership_marker}\"");
+        Assert.IsFalse(manager.Contains(
+            "local directory=\"$1\" marker=\"${directory}/${ownership_marker}\"",
+            StringComparison.Ordinal));
         StringAssert.Contains(manager, "must have exactly one hard link");
         StringAssert.Contains(manager, ".balls-revit-server-2027-lab");
         StringAssert.Contains(manager, "system_disk_size=171798691840");

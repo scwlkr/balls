@@ -48,7 +48,8 @@ assert_owned_regular() {
 }
 
 validate_marker() {
-  local directory="$1" marker="${directory}/${ownership_marker}"
+  local directory="$1"
+  local marker="${directory}/${ownership_marker}"
   assert_owned_regular "${marker}"
   [[ "$(<"${marker}")" == "${marker_value}" ]] || fail "${directory} has no valid lab ownership marker"
 }
@@ -114,6 +115,11 @@ write_marker() {
 }
 
 initialize_state_root() {
+  if [[ -f "${state_root}/${ownership_marker}" && ! -L "${state_root}/${ownership_marker}" ]]; then
+    validate_state_root
+    say "PASS — owner-marked lab state is already initialized"
+    return
+  fi
   if [[ -e "${state_root}" || -L "${state_root}" ]]; then
     [[ -d "${state_root}" && ! -L "${state_root}" ]] || fail "the existing state root is not a real directory"
     [[ "$(stat -c '%u' "${state_root}")" == "$(id -u)" ]] || fail "the existing state root has a foreign owner"
