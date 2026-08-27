@@ -97,6 +97,22 @@ public static class LinuxDataDirectorySecurity
         File.SetUnixFileMode(path, PrivateDirectoryMode);
     }
 
+    internal static void WriteNewPrivateFile(string path, ReadOnlyMemory<byte> content)
+    {
+        using var file = new FileStream(
+            path,
+            new FileStreamOptions
+            {
+                Mode = FileMode.CreateNew,
+                Access = FileAccess.Write,
+                Share = FileShare.None,
+                UnixCreateMode = PrivateFileMode,
+                Options = FileOptions.WriteThrough,
+            });
+        file.Write(content.Span);
+        file.Flush(flushToDisk: true);
+    }
+
     private static void EnsureOwnedDirectory(string fullPath, bool allowStickySharedParent)
     {
         var root = Path.GetPathRoot(fullPath)

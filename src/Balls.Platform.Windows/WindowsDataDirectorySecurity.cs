@@ -133,4 +133,17 @@ public static class WindowsDataDirectorySecurity
 
         return fullPath;
     }
+
+    internal static void WriteNewPrivateFile(string path, ReadOnlyMemory<byte> content)
+    {
+        using var file = new FileStream(
+            path,
+            FileMode.CreateNew,
+            FileAccess.Write,
+            FileShare.None,
+            bufferSize: 4096,
+            FileOptions.WriteThrough);
+        file.Write(content.Span);
+        file.Flush(flushToDisk: true);
+    }
 }

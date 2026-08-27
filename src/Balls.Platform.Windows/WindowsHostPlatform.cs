@@ -39,6 +39,11 @@ public static class WindowsHostPlatform
         {
             return WindowsDataDirectorySecurity.Prepare(dataDirectory);
         }
+
+        public void WriteNewPrivateFile(string path, ReadOnlyMemory<byte> content)
+        {
+            WindowsDataDirectorySecurity.WriteNewPrivateFile(path, content);
+        }
     }
 
     private sealed class WindowsLocalControlTransport :

@@ -271,7 +271,8 @@ public static class DaemonHost
                     securedDataDirectory,
                     AutomaticPrivateListenerPorts.FromBoundAddresses(
                         admissionListener.BoundAddress,
-                        messageListener.BoundAddress));
+                        messageListener.BoundAddress),
+                    host.LocalState);
                 host.LocalState.Prepare(securedDataDirectory);
             }
 

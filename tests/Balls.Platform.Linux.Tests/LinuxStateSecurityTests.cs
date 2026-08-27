@@ -25,14 +25,16 @@ public sealed class LinuxStateSecurityTests
         using var directory = new TemporaryDirectory();
         var stateDirectory = Path.Combine(directory.Path, "state");
 
-        LinuxDataDirectorySecurity.Prepare(stateDirectory);
+        var localState = LinuxHostPlatform.Create().LocalState;
+        localState.Prepare(stateDirectory);
         var database = Path.Combine(stateDirectory, "balls.db");
         File.WriteAllText(database, string.Empty);
         File.SetUnixFileMode(database, UnixFileMode.UserRead | UnixFileMode.UserWrite | UnixFileMode.OtherRead);
         var listeners = Path.Combine(stateDirectory, "automatic-private-listeners-v1.json");
-        File.WriteAllText(listeners, "{}");
+        localState.WriteNewPrivateFile(listeners, "{}"u8.ToArray());
+        Assert.AreEqual(PrivateFileMode, File.GetUnixFileMode(listeners));
         File.SetUnixFileMode(listeners, UnixFileMode.UserRead | UnixFileMode.OtherRead);
-        LinuxDataDirectorySecurity.Prepare(stateDirectory);
+        localState.Prepare(stateDirectory);
 
         Assert.AreEqual(PrivateDirectoryMode, File.GetUnixFileMode(stateDirectory));
         Assert.AreEqual(

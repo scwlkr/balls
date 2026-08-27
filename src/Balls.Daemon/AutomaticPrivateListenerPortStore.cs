@@ -1,6 +1,7 @@
 using System.Net;
 using System.Text.Json;
 using System.Text.Json.Serialization;
+using Balls.Platform;
 using Balls.Protocol.Remote.V1;
 using Balls.Transport.Lan;
 
@@ -68,8 +69,10 @@ internal static class AutomaticPrivateListenerPortStore
 
     internal static void SaveIfMissing(
         string dataDirectory,
-        AutomaticPrivateListenerPorts ports)
+        AutomaticPrivateListenerPorts ports,
+        ILocalStatePreparer localState)
     {
+        ArgumentNullException.ThrowIfNull(localState);
         ports.Validate();
         var existing = Load(dataDirectory);
         if (existing is not null)
@@ -89,22 +92,7 @@ internal static class AutomaticPrivateListenerPortStore
             new PortDocument(1, ports.AdmissionPort, ports.MessagePort));
         try
         {
-            using (var stream = new FileStream(
-                       temporaryPath,
-                       FileMode.CreateNew,
-                       FileAccess.Write,
-                       FileShare.None))
-            {
-                stream.Write(content);
-                stream.Flush(flushToDisk: true);
-            }
-            if (!OperatingSystem.IsWindows())
-            {
-                File.SetUnixFileMode(
-                    temporaryPath,
-                    UnixFileMode.UserRead | UnixFileMode.UserWrite);
-            }
-
+            localState.WriteNewPrivateFile(temporaryPath, content);
             File.Move(temporaryPath, path);
         }
         catch (IOException) when (File.Exists(path))

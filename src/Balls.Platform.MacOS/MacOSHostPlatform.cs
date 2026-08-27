@@ -72,6 +72,11 @@ public static class MacOSHostPlatform
         {
             return MacOSDataDirectorySecurity.Prepare(dataDirectory);
         }
+
+        public void WriteNewPrivateFile(string path, ReadOnlyMemory<byte> content)
+        {
+            MacOSDataDirectorySecurity.WriteNewPrivateFile(path, content);
+        }
     }
 
     private sealed class MacOSSystemBrowserLauncher : ISystemBrowserLauncher
