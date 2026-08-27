@@ -9,6 +9,25 @@ namespace Balls.Protocol.Tests;
 public sealed class BrowserContractTests
 {
     [TestMethod]
+    public void Revit_handoff_response_has_one_fixed_download_identity_and_no_machine_plan()
+    {
+        var response = new RevitServerHandoffExportResponse(
+            "revit-server-2027-setup-bundle.zip",
+            "application/zip",
+            "UEsDBA==",
+            new string('a', 64),
+            "PASS",
+            599.25m);
+
+        var json = JsonSerializer.Serialize(response, ControlJson.Options);
+
+        StringAssert.Contains(json, "\"fileName\":\"revit-server-2027-setup-bundle.zip\"");
+        StringAssert.Contains(json, "\"outcome\":\"PASS\"");
+        Assert.IsFalse(json.Contains("planDigest", StringComparison.OrdinalIgnoreCase));
+        Assert.IsFalse(json.Contains("password", StringComparison.OrdinalIgnoreCase));
+    }
+
+    [TestMethod]
     public void Ipc_launch_response_exposes_only_the_fragment_url_and_expiry()
     {
         var response = new LaunchBrowserResponse(

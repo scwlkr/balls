@@ -232,7 +232,11 @@ public static class DaemonHost
                 host.RevitServerSetup,
                 host.RevitServerHealth,
                 new FileRevitServerSetupStateStore(
-                    Path.Combine(securedDataDirectory, "revit-server-setup-v1.json")));
+                    Path.Combine(securedDataDirectory, "revit-server-setup-v1.json")),
+                new FileRevitServerPackageIdentitySource(
+                    Path.Combine(
+                        Directory.GetParent(securedDataDirectory)?.FullName ?? securedDataDirectory,
+                        "installation.json")));
             var browserAccess = new BrowserAccessBroker(
                 clock,
                 launchLifetime: TimeSpan.FromMinutes(1),

@@ -134,6 +134,8 @@ material. Selecting JSON output for this interactive command is a usage error.
 | Member Access Grant | `id`, `circleId`, `contributionId`, `memberId`, access, lifecycle, generation, created time, authorizing Member/generation/time |
 | Circle Files readiness | `provider`, aggregate `status`, ordered checks with `id`, `status`, stable `code`, and bounded safe `summary` |
 | Revit Server setup inspection | `ready` or `blocked`, ordered stable redacted checks, and one exact digest-bound Host+Admin/no-Accelerator plan only when Ready |
+| Revit Server setup status | persisted stage and redacted checks plus optional monotonic wall-clock, human-intervention, outcome, and bundle identity evidence |
+| Revit Server handoff export | the fixed ZIP filename, media type, base64 ZIP bytes, SHA-256, outcome, and measured wall-clock seconds; no credential or executable payload |
 | Circle Files host plan | contract version, deterministic `planId`, provider, canonical folder path, share/rule/ownership IDs, whether the target exists, and ordered exact actions |
 | Circle Files host apply | `status` (`applied` or `already-applied`) and the unchanged host plan |
 | Circle Files grant credential plan | contract version, deterministic `planId`, provider, canonical folder/share/account/ownership IDs, access, generation, and ordered exact actions |
@@ -451,7 +453,7 @@ Circle returns `404 Not Found`.
 ## Browser adapter
 
 The browser listener serves the bundled production application and only these `/browser/v1`
-routes: session exchange, status, Revit Server media selection/read-only setup inspection, Circle list/create/details, exact local viewer identity, Owner
+routes: session exchange, status, Revit Server media selection/read-only setup inspection, timed setup controls and strict handoff export, Circle list/create/details, exact local viewer identity, Owner
 invitation creation, signed invitation admission, ordered Circle message history, authenticated
 Circle Files synchronization, Owner folder selection and contribution, safe contribution/Access
 Grant lists, and one high-level Member open operation. The browser control plane remains narrower than
@@ -461,6 +463,12 @@ infrastructure cleanup, and detailed mapping operations remain CLI/local-control
 contribution and guided open call the same application and provider behavior as IPC; no SMB
 password, authorization proof, share name, firewall rule, endpoint, drive, plan, or protected
 secret is returned to or stored by JavaScript.
+
+`POST /browser/v1/revit-server/setup/handoff` is available only after an uninterrupted healthy
+timed attempt. It verifies the installed Development package identity, creates the four-member ZIP,
+validates every schema, exclusion, and internal hash, then returns the bounded ZIP for a local
+browser download. Exactly 30 minutes is `FAILED`, never PASS. A daemon restart loses the monotonic
+timer deliberately and requires a fresh timed attempt rather than inferring elapsed time.
 
 `GET /browser/v1/circles/{circleId}/viewer` returns the current local Member ID and role from
 persisted Circle membership rather than inferring ownership from participant ordering. The open

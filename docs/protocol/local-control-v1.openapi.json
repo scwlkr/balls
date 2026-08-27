@@ -2165,6 +2165,35 @@
         }
       }
     },
+    "/browser/v1/revit-server/setup/handoff": {
+      "post": {
+        "tags": [
+          "ballsd"
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RevitServerHandoffExportResponse"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/browser/v1/circles": {
       "get": {
         "tags": [
@@ -4642,6 +4671,42 @@
           }
         }
       },
+      "RevitServerHandoffExportResponse": {
+        "required": [
+          "fileName",
+          "contentType",
+          "bundleBase64",
+          "bundleSha256",
+          "outcome",
+          "wallClockSeconds"
+        ],
+        "type": "object",
+        "properties": {
+          "fileName": {
+            "type": "string"
+          },
+          "contentType": {
+            "type": "string"
+          },
+          "bundleBase64": {
+            "type": "string"
+          },
+          "bundleSha256": {
+            "type": "string"
+          },
+          "outcome": {
+            "type": "string"
+          },
+          "wallClockSeconds": {
+            "pattern": "^-?(?:0|[1-9]\\d*)(?:\\.\\d+)?$",
+            "type": [
+              "number",
+              "string"
+            ],
+            "format": "double"
+          }
+        }
+      },
       "RevitServerReadinessCheckResponse": {
         "required": [
           "id",
@@ -4705,6 +4770,10 @@
           "windows",
           "media",
           "mediaSha256",
+          "mediaFileName",
+          "mediaPublisher",
+          "mediaProduct",
+          "mediaVersion",
           "enabledRoles",
           "forbiddenRoles",
           "dataPaths",
@@ -4732,6 +4801,18 @@
             "type": "string"
           },
           "mediaSha256": {
+            "type": "string"
+          },
+          "mediaFileName": {
+            "type": "string"
+          },
+          "mediaPublisher": {
+            "type": "string"
+          },
+          "mediaProduct": {
+            "type": "string"
+          },
+          "mediaVersion": {
             "type": "string"
           },
           "enabledRoles": {
@@ -4839,6 +4920,43 @@
             "items": {
               "$ref": "#/components/schemas/RevitServerReadinessCheckResponse"
             }
+          },
+          "startedAtUtc": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "date-time"
+          },
+          "wallClockSeconds": {
+            "pattern": "^-?(?:0|[1-9]\\d*)(?:\\.\\d+)?$",
+            "type": [
+              "null",
+              "number",
+              "string"
+            ],
+            "format": "double"
+          },
+          "humanInterventionSeconds": {
+            "pattern": "^-?(?:0|[1-9]\\d*)(?:\\.\\d+)?$",
+            "type": [
+              "null",
+              "number",
+              "string"
+            ],
+            "format": "double"
+          },
+          "outcome": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "bundleSha256": {
+            "type": [
+              "null",
+              "string"
+            ]
           }
         }
       },

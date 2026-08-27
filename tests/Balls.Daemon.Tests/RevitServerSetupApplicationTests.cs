@@ -118,6 +118,29 @@ public sealed class RevitServerSetupApplicationTests
     }
 
     [TestMethod]
+    public async Task Begin_refuses_to_start_the_timer_without_an_exact_Development_package_identity()
+    {
+        var setup = new StubSetupOperator();
+        var application = CreateApplication(
+            setup,
+            HealthyInspector(),
+            new MemoryRevitServerSetupStateStore(),
+            packageIdentitySource: new UnsupportedRevitServerPackageIdentitySource());
+        var selected = await application.SelectMediaAsync("session-a", CancellationToken.None);
+        var digest = RevitServerSetupPlanFactory.Create(ReadyReport().Snapshot!).PlanDigest;
+
+        var exception = await Assert.ThrowsExactlyAsync<RevitServerSetupException>(() =>
+            application.BeginSelectedAsync(
+                "session-a",
+                new BeginRevitServerSetupRequest(selected!.Value.Id, digest, true),
+                CancellationToken.None).AsTask());
+
+        Assert.AreEqual("balls_package_identity_unavailable", exception.Code);
+        Assert.AreEqual("not-started", application.GetStatus().Stage);
+        Assert.IsFalse(setup.Launched.Task.IsCompleted);
+    }
+
+    [TestMethod]
     public async Task Verify_refuses_incomplete_health_and_persists_exact_healthy_result()
     {
         var setup = new StubSetupOperator();
@@ -142,6 +165,140 @@ public sealed class RevitServerSetupApplicationTests
         var healthy = await application.VerifyAsync(CancellationToken.None);
         Assert.AreEqual(RevitServerSetupStages.ReadyForHandoff, healthy.Stage);
         StringAssert.Contains(healthy.Summary, "healthy");
+    }
+
+    [TestMethod]
+    public async Task Healthy_uninterrupted_attempt_exports_valid_bundle_and_records_monotonic_and_human_time()
+    {
+        var time = new ManualTimeProvider(new DateTimeOffset(2026, 8, 27, 12, 0, 0, TimeSpan.Zero));
+        var setup = new StubSetupOperator();
+        var store = new MemoryRevitServerSetupStateStore();
+        var application = CreateApplication(
+            setup,
+            HealthyInspector(),
+            store,
+            time,
+            new StubPackageIdentitySource(PackageIdentity()));
+        var selected = await application.SelectMediaAsync("session-a", CancellationToken.None);
+        var digest = RevitServerSetupPlanFactory.Create(ReadyReport().Snapshot!).PlanDigest;
+
+        await application.BeginSelectedAsync(
+            "session-a",
+            new BeginRevitServerSetupRequest(selected!.Value.Id, digest, true),
+            CancellationToken.None);
+        await setup.Launched.Task.WaitAsync(TimeSpan.FromSeconds(5));
+        time.Advance(TimeSpan.FromMinutes(3));
+        await application.VerifyAsync(CancellationToken.None);
+        time.Advance(TimeSpan.FromMinutes(4));
+
+        var bundle = await application.ExportHandoffAsync(CancellationToken.None);
+        var status = application.GetStatus();
+
+        RevitServerHandoffBundleValidator.Validate(bundle.Content);
+        Assert.AreEqual("PASS", bundle.Outcome);
+        Assert.AreEqual(420m, status.WallClockSeconds);
+        Assert.AreEqual(180m, status.HumanInterventionSeconds);
+        Assert.AreEqual("PASS", status.Outcome);
+        Assert.AreEqual(bundle.Sha256, status.BundleSha256);
+        Assert.AreEqual(RevitServerHandoffBundleFactory.PassClaim, status.Summary);
+    }
+
+    [TestMethod]
+    public async Task Exactly_thirty_minutes_exports_failed_receipt_and_never_claims_pass()
+    {
+        var time = new ManualTimeProvider(new DateTimeOffset(2026, 8, 27, 12, 0, 0, TimeSpan.Zero));
+        var setup = new StubSetupOperator();
+        var application = CreateApplication(
+            setup,
+            HealthyInspector(),
+            new MemoryRevitServerSetupStateStore(),
+            time,
+            new StubPackageIdentitySource(PackageIdentity()));
+        var selected = await application.SelectMediaAsync("session-a", CancellationToken.None);
+        var digest = RevitServerSetupPlanFactory.Create(ReadyReport().Snapshot!).PlanDigest;
+        await application.BeginSelectedAsync(
+            "session-a",
+            new BeginRevitServerSetupRequest(selected!.Value.Id, digest, true),
+            CancellationToken.None);
+        await setup.Launched.Task.WaitAsync(TimeSpan.FromSeconds(5));
+        time.Advance(TimeSpan.FromMinutes(30));
+        await application.VerifyAsync(CancellationToken.None);
+
+        var bundle = await application.ExportHandoffAsync(CancellationToken.None);
+        var status = application.GetStatus();
+
+        Assert.AreEqual("FAILED", bundle.Outcome);
+        Assert.AreEqual(RevitServerSetupStages.Failed, status.Stage);
+        Assert.AreEqual("FAILED", status.Outcome);
+        Assert.AreEqual(1800m, status.WallClockSeconds);
+        Assert.IsFalse(status.Summary.Contains("PASS", StringComparison.Ordinal));
+    }
+
+    [TestMethod]
+    public async Task Export_refuses_to_infer_monotonic_time_after_daemon_restart()
+    {
+        var time = new ManualTimeProvider(new DateTimeOffset(2026, 8, 27, 12, 0, 0, TimeSpan.Zero));
+        var setup = new StubSetupOperator();
+        var store = new MemoryRevitServerSetupStateStore();
+        var first = CreateApplication(
+            setup,
+            HealthyInspector(),
+            store,
+            time,
+            new StubPackageIdentitySource(PackageIdentity()));
+        var selected = await first.SelectMediaAsync("session-a", CancellationToken.None);
+        var digest = RevitServerSetupPlanFactory.Create(ReadyReport().Snapshot!).PlanDigest;
+        await first.BeginSelectedAsync(
+            "session-a",
+            new BeginRevitServerSetupRequest(selected!.Value.Id, digest, true),
+            CancellationToken.None);
+        await setup.Launched.Task.WaitAsync(TimeSpan.FromSeconds(5));
+        await first.VerifyAsync(CancellationToken.None);
+
+        var restarted = CreateApplication(
+            new StubSetupOperator(),
+            HealthyInspector(),
+            store,
+            time,
+            new StubPackageIdentitySource(PackageIdentity()));
+        var exception = await Assert.ThrowsExactlyAsync<RevitServerSetupException>(() =>
+            restarted.ExportHandoffAsync(CancellationToken.None).AsTask());
+
+        Assert.AreEqual("handoff_not_ready", exception.Code);
+        Assert.AreEqual(RevitServerSetupStages.Blocked, restarted.GetStatus().Stage);
+    }
+
+    [TestMethod]
+    public async Task Export_reinspects_health_and_refuses_drift_after_the_healthy_screen()
+    {
+        var time = new ManualTimeProvider(new DateTimeOffset(2026, 8, 27, 12, 0, 0, TimeSpan.Zero));
+        var setup = new StubSetupOperator();
+        var health = HealthyInspector();
+        var application = CreateApplication(
+            setup,
+            health,
+            new MemoryRevitServerSetupStateStore(),
+            time,
+            new StubPackageIdentitySource(PackageIdentity()));
+        var selected = await application.SelectMediaAsync("session-a", CancellationToken.None);
+        var digest = RevitServerSetupPlanFactory.Create(ReadyReport().Snapshot!).PlanDigest;
+        await application.BeginSelectedAsync(
+            "session-a",
+            new BeginRevitServerSetupRequest(selected!.Value.Id, digest, true),
+            CancellationToken.None);
+        await setup.Launched.Task.WaitAsync(TimeSpan.FromSeconds(5));
+        await application.VerifyAsync(CancellationToken.None);
+        health.Result = new RevitServerHealthReport(
+            RevitServerHealthStatus.Incomplete,
+            "Health changed.",
+            [new RevitServerHealthCheck("network", RevitServerHealthStatus.Incomplete, "network_exposure", "Remove the exposure.")]);
+
+        var exception = await Assert.ThrowsExactlyAsync<RevitServerSetupException>(() =>
+            application.ExportHandoffAsync(CancellationToken.None).AsTask());
+
+        Assert.AreEqual("handoff_health_changed", exception.Code);
+        Assert.AreEqual(RevitServerSetupStages.Incomplete, application.GetStatus().Stage);
+        Assert.AreEqual("network_exposure", application.GetStatus().Checks.Single().Code);
     }
 
     [TestMethod]
@@ -186,15 +343,19 @@ public sealed class RevitServerSetupApplicationTests
     private static RevitServerSetupApplication CreateApplication(
         StubSetupOperator setup,
         StubHealthInspector health,
-        IRevitServerSetupStateStore store)
+        IRevitServerSetupStateStore store,
+        TimeProvider? timeProvider = null,
+        IRevitServerPackageIdentitySource? packageIdentitySource = null)
     {
         setup.State = store;
         return new RevitServerSetupApplication(
             new StubPicker(new RevitServerMediaSelection(MediaPath, "Revit_Server_2027_win_db.sfx.exe")),
             new RecordingInspector(ReadyReport()),
+            timeProvider,
             setupOperator: setup,
             healthInspector: health,
-            stateStore: store);
+            stateStore: store,
+            packageIdentitySource: packageIdentitySource ?? new StubPackageIdentitySource(PackageIdentity()));
     }
 
     private static StubHealthInspector HealthyInspector() => new(HealthyReport());
@@ -221,6 +382,10 @@ public sealed class RevitServerSetupApplicationTests
                 core.Windows,
                 core.Media,
                 core.MediaSha256,
+                core.MediaFileName,
+                core.MediaPublisher,
+                core.MediaProduct,
+                core.MediaVersion,
                 core.EnabledRoles,
                 core.ForbiddenRoles,
                 core.DataPaths,
@@ -322,6 +487,35 @@ public sealed class RevitServerSetupApplicationTests
         public ValueTask<RevitServerHealthReport> InspectAsync(CancellationToken cancellationToken) =>
             ValueTask.FromResult(Result);
     }
+
+    private sealed class StubPackageIdentitySource(RevitServerPackageIdentity identity)
+        : IRevitServerPackageIdentitySource
+    {
+        public RevitServerPackageIdentity Load() => identity;
+    }
+
+    private sealed class ManualTimeProvider(DateTimeOffset utcNow) : TimeProvider
+    {
+        private DateTimeOffset now = utcNow;
+        private long timestamp;
+
+        public override long TimestampFrequency => TimeSpan.TicksPerSecond;
+        public override DateTimeOffset GetUtcNow() => now;
+        public override long GetTimestamp() => timestamp;
+
+        public void Advance(TimeSpan value)
+        {
+            now += value;
+            timestamp += value.Ticks;
+        }
+    }
+
+    private static RevitServerPackageIdentity PackageIdentity() => new(
+        "development-20260827T120000Z-0123456789ab",
+        "0123456789abcdef0123456789abcdef01234567",
+        "balls-0.3.0-alpha.1-canary-windows-x64-0123456789ab.zip",
+        "0.3.0-alpha.1",
+        new string('b', 64));
 
     private const string MediaPath = @"C:\Media\Revit_Server_2027_win_db.sfx.exe";
 }

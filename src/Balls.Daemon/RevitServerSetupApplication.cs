@@ -14,9 +14,11 @@ internal sealed class RevitServerSetupApplication
     private readonly IRevitServerSetupOperator setupOperator;
     private readonly IRevitServerHealthInspector healthInspector;
     private readonly IRevitServerSetupStateStore stateStore;
+    private readonly IRevitServerPackageIdentitySource packageIdentitySource;
     private readonly TimeProvider clock;
     private readonly ConcurrentDictionary<string, BoundSelection> selections = new(StringComparer.Ordinal);
     private readonly SemaphoreSlim stateGate = new(1, 1);
+    private readonly ConcurrentDictionary<string, long> monotonicStarts = new(StringComparer.Ordinal);
     private Task? activeOperation;
 
     public RevitServerSetupApplication(
@@ -25,13 +27,15 @@ internal sealed class RevitServerSetupApplication
         TimeProvider? timeProvider = null,
         IRevitServerSetupOperator? setupOperator = null,
         IRevitServerHealthInspector? healthInspector = null,
-        IRevitServerSetupStateStore? stateStore = null)
+        IRevitServerSetupStateStore? stateStore = null,
+        IRevitServerPackageIdentitySource? packageIdentitySource = null)
     {
         this.mediaPicker = mediaPicker;
         this.inspector = inspector;
         this.setupOperator = setupOperator ?? new UnsupportedRevitServerSetupOperator();
         this.healthInspector = healthInspector ?? new UnsupportedRevitServerHealthInspector();
         this.stateStore = stateStore ?? new MemoryRevitServerSetupStateStore();
+        this.packageIdentitySource = packageIdentitySource ?? new UnsupportedRevitServerPackageIdentitySource();
         clock = timeProvider ?? TimeProvider.System;
     }
 
@@ -169,18 +173,34 @@ internal sealed class RevitServerSetupApplication
                 return ToStatus(prior);
             }
 
+            try
+            {
+                _ = packageIdentitySource.Load();
+            }
+            catch (InvalidDataException exception)
+            {
+                throw new RevitServerSetupException(
+                    "balls_package_identity_unavailable",
+                    exception.Message);
+            }
+
+            var attemptId = Guid.NewGuid().ToString("D");
+            var startedAtUtc = clock.GetUtcNow();
+            var startedTimestamp = clock.GetTimestamp();
             var state = new RevitServerSetupState(
                 1,
                 (prior?.Revision ?? 0) + 1,
-                Guid.NewGuid().ToString("D"),
+                attemptId,
                 RevitServerSetupStages.ApplyingPrerequisites,
                 "Waiting for Windows administrator approval, then preparing Windows and IIS.",
                 selected.Path,
                 plan.PlanDigest,
                 plan,
                 [],
-                clock.GetUtcNow());
+                startedAtUtc,
+                StartedAtUtc: startedAtUtc);
             stateStore.Save(state);
+            monotonicStarts[attemptId] = startedTimestamp;
             activeOperation = Task.Run(() => PrepareAndLaunchAsync(state), CancellationToken.None);
             return ToStatus(state);
         }
@@ -202,7 +222,15 @@ internal sealed class RevitServerSetupApplication
             {
                 return ToStatus(state);
             }
-            state = Save(state, RevitServerSetupStages.Verifying, "Verifying Revit Server 2027 Host + Admin health.", []);
+            var verifyingAt = clock.GetUtcNow();
+            var humanSeconds = state.AwaitingAutodeskAtUtc is { } awaitingAt
+                ? Math.Max(0m, decimal.Round((decimal)(verifyingAt - awaitingAt).TotalSeconds, 3))
+                : 0m;
+            state = Save(
+                state with { HumanInterventionSeconds = humanSeconds },
+                RevitServerSetupStages.Verifying,
+                "Verifying Revit Server 2027 Host + Admin health.",
+                []);
         }
         finally
         {
@@ -261,6 +289,122 @@ internal sealed class RevitServerSetupApplication
                 "Complete Autodesk Revit Server 2027 setup with Host + Admin and Accelerator off.", []);
             await setupOperator.LaunchAutodeskAsync(state.MediaPath, cancellationToken).ConfigureAwait(false);
             return ToStatus(state);
+        }
+        finally
+        {
+            stateGate.Release();
+        }
+    }
+
+    public async ValueTask<RevitServerHandoffBundle> ExportHandoffAsync(CancellationToken cancellationToken)
+    {
+        await stateGate.WaitAsync(cancellationToken).ConfigureAwait(false);
+        try
+        {
+            var state = LoadStateOrThrow()
+                ?? throw new RevitServerSetupException("setup_not_started", "Complete and verify Revit Server setup first.");
+            if (state.Stage != RevitServerSetupStages.ReadyForHandoff
+                || state.StartedAtUtc is null
+                || !monotonicStarts.TryGetValue(state.AttemptId, out var startedTimestamp))
+            {
+                if (state.Stage == RevitServerSetupStages.ReadyForHandoff)
+                {
+                    Save(
+                        state,
+                        RevitServerSetupStages.Blocked,
+                        "The monotonic setup timer is unavailable. Start a fresh timed attempt; Balls will not infer a passing duration.",
+                        state.Checks);
+                }
+                throw new RevitServerSetupException(
+                    "handoff_not_ready",
+                    "A healthy uninterrupted timed setup is required before exporting the handoff.");
+            }
+
+            var freshHealth = await healthInspector.InspectAsync(cancellationToken).ConfigureAwait(false);
+            var freshChecks = freshHealth.Checks.Select(check => new RevitServerReadinessCheckResponse(
+                check.Id,
+                check.Status == RevitServerHealthStatus.Healthy ? "ready" : "blocked",
+                check.Code,
+                check.Summary)).ToArray();
+            if (freshHealth.Status != RevitServerHealthStatus.Healthy)
+            {
+                Save(
+                    state,
+                    freshHealth.Status == RevitServerHealthStatus.Blocked
+                        ? RevitServerSetupStages.Blocked
+                        : RevitServerSetupStages.Incomplete,
+                    "Revit Server health changed before handoff export. Resolve the reported checks and verify again.",
+                    freshChecks);
+                throw new RevitServerSetupException(
+                    "handoff_health_changed",
+                    "Revit Server health changed before handoff export. Resolve the reported checks and verify again.");
+            }
+            state = state with { Checks = freshChecks };
+
+            RevitServerPackageIdentity package;
+            try
+            {
+                package = packageIdentitySource.Load();
+            }
+            catch (InvalidDataException exception)
+            {
+                Save(state, RevitServerSetupStages.Blocked, exception.Message, state.Checks);
+                throw new RevitServerSetupException("balls_package_identity_unavailable", exception.Message);
+            }
+
+            var health = freshHealth.Checks;
+            var preliminaryElapsed = clock.GetElapsedTime(startedTimestamp, clock.GetTimestamp());
+            if (preliminaryElapsed < TimeSpan.Zero)
+            {
+                throw new RevitServerSetupException("timer_invalid", "The monotonic setup timer is invalid. Start a fresh timed attempt.");
+            }
+            try
+            {
+                _ = BuildHandoffBundle(
+                    state,
+                    package,
+                    health,
+                    clock.GetUtcNow(),
+                    preliminaryElapsed);
+            }
+            catch (InvalidDataException exception)
+            {
+                Save(state, RevitServerSetupStages.Blocked, "The handoff failed strict portability validation.", state.Checks);
+                throw new RevitServerSetupException("handoff_validation_failed", exception.Message);
+            }
+
+            // Count package verification, ZIP generation, and a complete strict validation pass.
+            // The final receipt locks the first timestamp at which a complete bundle was available.
+            var endedAtUtc = clock.GetUtcNow();
+            var elapsed = clock.GetElapsedTime(startedTimestamp, clock.GetTimestamp());
+            var outcome = elapsed < RevitServerHandoffBundleFactory.MaximumPassingElapsed ? "PASS" : "FAILED";
+            RevitServerHandoffBundle bundle;
+            try
+            {
+                bundle = BuildHandoffBundle(state, package, health, endedAtUtc, elapsed);
+            }
+            catch (InvalidDataException exception)
+            {
+                Save(state, RevitServerSetupStages.Blocked, "The final handoff failed strict portability validation.", state.Checks);
+                throw new RevitServerSetupException("handoff_validation_failed", exception.Message);
+            }
+
+            var finalStage = outcome == "PASS" ? RevitServerSetupStages.ReadyForHandoff : RevitServerSetupStages.Failed;
+            var summary = outcome == "PASS"
+                ? RevitServerHandoffBundleFactory.PassClaim
+                : "FAILED — setup health passed, but the measured wall-clock time was not strictly less than 30 minutes.";
+            Save(
+                state with
+                {
+                    EndedAtUtc = endedAtUtc,
+                    WallClockSeconds = decimal.Round((decimal)elapsed.TotalSeconds, 3),
+                    Outcome = outcome,
+                    BundleSha256 = bundle.Sha256,
+                },
+                finalStage,
+                summary,
+                state.Checks);
+            return bundle;
         }
         finally
         {
@@ -337,7 +481,7 @@ internal sealed class RevitServerSetupApplication
 
             current = Save(current, RevitServerSetupStages.PrerequisitesApplied,
                 "Windows and IIS prerequisites are prepared.", []);
-            current = Save(current, RevitServerSetupStages.AwaitingAutodesk,
+            current = Save(current with { AwaitingAutodeskAtUtc = clock.GetUtcNow() }, RevitServerSetupStages.AwaitingAutodesk,
                 "Complete Autodesk Revit Server 2027 setup with Host + Admin and Accelerator off.", []);
             await setupOperator.LaunchAutodeskAsync(current.MediaPath, CancellationToken.None).ConfigureAwait(false);
         }
@@ -388,8 +532,47 @@ internal sealed class RevitServerSetupApplication
         }
     }
 
-    private static RevitServerSetupStatusResponse ToStatus(RevitServerSetupState state) =>
-        new(state.Stage, state.Summary, state.AttemptId, state.Plan, state.Checks);
+    private static RevitServerHandoffBundle BuildHandoffBundle(
+        RevitServerSetupState state,
+        RevitServerPackageIdentity package,
+        IReadOnlyList<RevitServerHealthCheck> health,
+        DateTimeOffset endedAtUtc,
+        TimeSpan elapsed) =>
+        RevitServerHandoffBundleFactory.Create(new RevitServerHandoffRequest(
+            package,
+            MapPlan(state.Plan),
+            health,
+            state.StartedAtUtc!.Value,
+            endedAtUtc,
+            elapsed,
+            TimeSpan.FromSeconds((double)(state.HumanInterventionSeconds ?? 0m)),
+            [
+                "Approved the Balls-owned Windows changes",
+                "Accepted Autodesk terms and confirmed Host + Admin with Accelerator off",
+                "Confirmed Autodesk setup finished and requested verification",
+                "Exported the boss handoff",
+            ],
+            elapsed < RevitServerHandoffBundleFactory.MaximumPassingElapsed ? "PASS" : "FAILED"));
+
+    private RevitServerSetupStatusResponse ToStatus(RevitServerSetupState state)
+    {
+        decimal? elapsed = state.WallClockSeconds;
+        if (elapsed is null && monotonicStarts.TryGetValue(state.AttemptId, out var startedTimestamp))
+        {
+            elapsed = decimal.Round((decimal)clock.GetElapsedTime(startedTimestamp, clock.GetTimestamp()).TotalSeconds, 3);
+        }
+        return new RevitServerSetupStatusResponse(
+            state.Stage,
+            state.Summary,
+            state.AttemptId,
+            state.Plan,
+            state.Checks,
+            state.StartedAtUtc,
+            elapsed,
+            state.HumanInterventionSeconds,
+            state.Outcome,
+            state.BundleSha256);
+    }
 
     private static bool FileHashMatches(string path, string expected)
     {
@@ -407,6 +590,10 @@ internal sealed class RevitServerSetupApplication
             corePlan.Windows,
             corePlan.Media,
             corePlan.MediaSha256,
+            corePlan.MediaFileName,
+            corePlan.MediaPublisher,
+            corePlan.MediaProduct,
+            corePlan.MediaVersion,
             corePlan.EnabledRoles,
             corePlan.ForbiddenRoles,
             corePlan.DataPaths,
@@ -418,6 +605,29 @@ internal sealed class RevitServerSetupApplication
             corePlan.VerificationActions,
             corePlan.BallsOwnedState,
             corePlan.AutodeskOwnedState);
+
+    private static RevitServerSetupPlan MapPlan(RevitServerSetupPlanResponse plan) =>
+        new(
+            plan.PlanDigest,
+            plan.Machine,
+            plan.Windows,
+            plan.Media,
+            plan.MediaSha256,
+            plan.MediaFileName,
+            plan.MediaPublisher,
+            plan.MediaProduct,
+            plan.MediaVersion,
+            plan.EnabledRoles,
+            plan.ForbiddenRoles,
+            plan.DataPaths,
+            plan.WindowsPrerequisites,
+            plan.AclIntent,
+            plan.DefaultWebSiteEffects,
+            plan.RsnIni,
+            plan.FirewallEffects,
+            plan.VerificationActions,
+            plan.BallsOwnedState,
+            plan.AutodeskOwnedState);
 
     private sealed record BoundSelection(
         string SessionIdentity,

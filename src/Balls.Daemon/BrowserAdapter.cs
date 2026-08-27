@@ -289,6 +289,28 @@ internal static class BrowserAdapter
                 })
             .Produces<RevitServerSetupStatusResponse>(StatusCodes.Status200OK)
             .Produces<ErrorResponse>(StatusCodes.Status409Conflict);
+        application.MapPost(
+                BrowserRoutes.RevitServerSetupHandoff,
+                async (CancellationToken token) =>
+                {
+                    try
+                    {
+                        var bundle = await revitServerSetup.ExportHandoffAsync(token).ConfigureAwait(false);
+                        return Results.Ok(new RevitServerHandoffExportResponse(
+                            RevitServerHandoffBundleFactory.FileName,
+                            "application/zip",
+                            Convert.ToBase64String(bundle.Content),
+                            bundle.Sha256,
+                            bundle.Outcome,
+                            decimal.Round((decimal)bundle.WallClockElapsed.TotalSeconds, 3)));
+                    }
+                    catch (RevitServerSetupException exception)
+                    {
+                        return Results.Conflict(new ErrorResponse(exception.Code, exception.Message));
+                    }
+                })
+            .Produces<RevitServerHandoffExportResponse>(StatusCodes.Status200OK)
+            .Produces<ErrorResponse>(StatusCodes.Status409Conflict);
         application.MapGet(
                 BrowserRoutes.Circles,
                 async (CancellationToken token) =>

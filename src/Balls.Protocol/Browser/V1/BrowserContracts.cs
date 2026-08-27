@@ -13,6 +13,7 @@ public static class BrowserRoutes
     public const string RevitServerSetupBegin = BasePath + "/revit-server/setup/begin";
     public const string RevitServerSetupVerify = BasePath + "/revit-server/setup/verify";
     public const string RevitServerSetupRetry = BasePath + "/revit-server/setup/retry";
+    public const string RevitServerSetupHandoff = BasePath + "/revit-server/setup/handoff";
 
     public static string Circle(string circleId)
     {

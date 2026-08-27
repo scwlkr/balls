@@ -14,6 +14,10 @@ public sealed record RevitServerSetupPlanResponse(
     string Windows,
     string Media,
     string MediaSha256,
+    string MediaFileName,
+    string MediaPublisher,
+    string MediaProduct,
+    string MediaVersion,
     IReadOnlyList<string> EnabledRoles,
     IReadOnlyList<string> ForbiddenRoles,
     IReadOnlyList<string> DataPaths,
@@ -42,4 +46,17 @@ public sealed record RevitServerSetupStatusResponse(
     string Summary,
     string? AttemptId,
     RevitServerSetupPlanResponse? Plan,
-    IReadOnlyList<RevitServerReadinessCheckResponse> Checks);
+    IReadOnlyList<RevitServerReadinessCheckResponse> Checks,
+    DateTimeOffset? StartedAtUtc = null,
+    decimal? WallClockSeconds = null,
+    decimal? HumanInterventionSeconds = null,
+    string? Outcome = null,
+    string? BundleSha256 = null);
+
+public sealed record RevitServerHandoffExportResponse(
+    string FileName,
+    string ContentType,
+    string BundleBase64,
+    string BundleSha256,
+    string Outcome,
+    decimal WallClockSeconds);

@@ -52,6 +52,8 @@ credentials, private Circle material, Autodesk license data, or raw machine secr
 - [ ] Autodesk installation completes without unsupported workaround.
 - [ ] Owner returns to Balls and selects Verify.
 - [ ] Balls generates the complete handoff bundle.
+- [ ] Bundle export completes before the timer stops; merely reaching healthy postflight does not
+  end the timed attempt.
 - End timestamp:
 - Wall-clock elapsed:
 - Human-intervention elapsed:
@@ -99,11 +101,20 @@ credentials, private Circle material, Autodesk license data, or raw machine secr
 - [ ] `setup-template.v1.json` contains portable intent only.
 - [ ] `setup-receipt.v1.json` records exact artifact, plan, machine, health, timing, and limitations.
 - [ ] `README.md` gives the boss the short repeatable setup flow.
-- [ ] `bundle-manifest.json` versions the schemas and hashes every bundle member.
-- [ ] Bundle contains no credential, Circle private material, Windows SID, IP/hostname replay,
+- [ ] `bundle-manifest.json` versions the schemas and hashes every other bundle member.
+- [ ] Bundle contains no credential, Circle private material, Windows SID, IP/network replay,
   Autodesk installer, executable script, VM image, company data, or model data.
 - [ ] README requires a fresh Balls inspection and preview on the boss's future server.
-- [ ] Template contains no replayable machine plan; receipt cannot be executed as setup intent.
+- [ ] Template contains no hostname, absolute path, or replayable machine plan. The receipt may
+  retain the temporary Host and paths only inside `temporaryEvidence` with `replayProhibited=true`;
+  it cannot be executed as setup intent.
+- [ ] Installed Balls identity comes from the strict official Development `installation.json`
+  record; a missing, non-Development, substituted, or malformed record blocks export.
+- [ ] The ZIP has exactly four members. The manifest hashes the other three members and strict
+  validation rejects unknown fields, duplicate/extra members, hash drift, executable payloads,
+  secrets, SIDs, private Circle material, company/model data, and template replay material.
+- [ ] If ballsd restarts after Begin setup, monotonic timing cannot be recovered and export is
+  `BLOCKED`; run a fresh timed attempt rather than deriving a PASS from wall-clock timestamps.
 
 ## Exact result
 

@@ -14,7 +14,14 @@ internal sealed record RevitServerSetupState(
     string PlanDigest,
     RevitServerSetupPlanResponse Plan,
     IReadOnlyList<RevitServerReadinessCheckResponse> Checks,
-    DateTimeOffset UpdatedAtUtc);
+    DateTimeOffset UpdatedAtUtc,
+    DateTimeOffset? StartedAtUtc = null,
+    DateTimeOffset? AwaitingAutodeskAtUtc = null,
+    decimal? WallClockSeconds = null,
+    decimal? HumanInterventionSeconds = null,
+    DateTimeOffset? EndedAtUtc = null,
+    string? Outcome = null,
+    string? BundleSha256 = null);
 
 internal interface IRevitServerSetupStateStore
 {

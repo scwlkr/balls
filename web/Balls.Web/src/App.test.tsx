@@ -153,6 +153,10 @@ describe("Balls browser workspace", () => {
         media:
           "Autodesk, Inc. — Autodesk Revit Server 2027 27.0.4.412 (Revit_Server_2027_win_db.sfx.exe)",
         mediaSha256: "b".repeat(64),
+        mediaFileName: "Revit_Server_2027_win_db.sfx.exe",
+        mediaPublisher: "Autodesk, Inc.",
+        mediaProduct: "Autodesk Revit Server 2027",
+        mediaVersion: "27.0.4.412",
         enabledRoles: ["Host", "Admin"],
         forbiddenRoles: ["Accelerator"],
         dataPaths: [String.raw`D:\RevitServer\2027\Projects`],
@@ -231,6 +235,10 @@ describe("Balls browser workspace", () => {
       windows: "Windows Server 2022 Standard build 20348 (Server)",
       media: "Autodesk Revit Server 2027 27.0.4.412",
       mediaSha256: "b".repeat(64),
+      mediaFileName: "Revit_Server_2027_win_db.sfx.exe",
+      mediaPublisher: "Autodesk, Inc.",
+      mediaProduct: "Autodesk Revit Server 2027",
+      mediaVersion: "27.0.4.412",
       enabledRoles: ["Host", "Admin"],
       forbiddenRoles: ["Accelerator"],
       dataPaths: [
@@ -279,7 +287,42 @@ describe("Balls browser workspace", () => {
           summary: "Host + Admin are enabled and Accelerator is off.",
         },
       ],
+      wallClockSeconds: 600,
+      humanInterventionSeconds: 120,
     });
+    let exported = false;
+    api.exportRevitServerHandoff = async () => {
+      exported = true;
+      return {
+        fileName: "revit-server-2027-setup-bundle.zip",
+        contentType: "application/zip",
+        bundleBase64: "UEs=",
+        bundleSha256: "c".repeat(64),
+        outcome: "PASS",
+        wallClockSeconds: 601,
+      };
+    };
+    api.getRevitServerSetupStatus = async () =>
+      exported
+        ? {
+            stage: "ready-for-handoff",
+            summary:
+              "PASS — Revit Server 2027 Host+Admin installation and Administrator surface are healthy in the disposable QEMU/KVM lab.",
+            attemptId: "attempt-1",
+            plan,
+            checks: [],
+            wallClockSeconds: 601,
+            humanInterventionSeconds: 120,
+            outcome: "PASS",
+            bundleSha256: "c".repeat(64),
+          }
+        : {
+            stage: "not-started",
+            summary: "Choose the official Autodesk installer.",
+            attemptId: null,
+            plan: null,
+            checks: [],
+          };
 
     render(<App api={api} />);
     fireEvent.click(
@@ -301,8 +344,13 @@ describe("Balls browser workspace", () => {
         name: "Autodesk setup is finished — verify",
       }),
     );
-    expect(await screen.findByText("Healthy")).toBeInTheDocument();
+    expect(await screen.findByText("Ready for handoff")).toBeInTheDocument();
     expect(screen.getByText(/Host \+ Admin are enabled/)).toBeInTheDocument();
+    fireEvent.click(
+      screen.getByRole("button", { name: "Export boss handoff" }),
+    );
+    expect(await screen.findByText("Healthy")).toBeInTheDocument();
+    expect(screen.getByText(/Bundle SHA-256/)).toBeInTheDocument();
   });
 
   it("announces the workspace loading state", () => {
@@ -1096,6 +1144,9 @@ function createApi(circleList: CircleListDto): BrowserApi {
     },
     retryRevitServerSetup: async () => {
       throw new Error("No Revit Server retry test configured.");
+    },
+    exportRevitServerHandoff: async () => {
+      throw new Error("No Revit Server handoff export test configured.");
     },
   };
 }

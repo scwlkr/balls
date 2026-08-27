@@ -2150,6 +2150,50 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  "/browser/v1/revit-server/setup/handoff": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    post: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path?: never;
+        cookie?: never;
+      };
+      requestBody?: never;
+      responses: {
+        /** @description OK */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["RevitServerHandoffExportResponse"];
+          };
+        };
+        /** @description Conflict */
+        409: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["ErrorResponse"];
+          };
+        };
+      };
+    };
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   "/browser/v1/circles": {
     parameters: {
       query?: never;
@@ -3499,6 +3543,15 @@ export interface components {
       redemptionId: string;
       status: string;
     };
+    RevitServerHandoffExportResponse: {
+      fileName: string;
+      contentType: string;
+      bundleBase64: string;
+      bundleSha256: string;
+      outcome: string;
+      /** Format: double */
+      wallClockSeconds: number | string;
+    };
     RevitServerReadinessCheckResponse: {
       id: string;
       status: string;
@@ -3517,6 +3570,10 @@ export interface components {
       windows: string;
       media: string;
       mediaSha256: string;
+      mediaFileName: string;
+      mediaPublisher: string;
+      mediaProduct: string;
+      mediaVersion: string;
       enabledRoles: string[];
       forbiddenRoles: string[];
       dataPaths: string[];
@@ -3535,6 +3592,14 @@ export interface components {
       attemptId: null | string;
       plan: null | components["schemas"]["RevitServerSetupPlanResponse"];
       checks: components["schemas"]["RevitServerReadinessCheckResponse"][];
+      /** Format: date-time */
+      startedAtUtc?: null | string;
+      /** Format: double */
+      wallClockSeconds?: null | number | string;
+      /** Format: double */
+      humanInterventionSeconds?: null | number | string;
+      outcome?: null | string;
+      bundleSha256?: null | string;
     };
     RevokeMemberAccessGrantRequest: {
       requestId: string;

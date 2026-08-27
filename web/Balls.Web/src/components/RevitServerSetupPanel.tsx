@@ -30,9 +30,13 @@ export function RevitServerSetupPanel({ api }: { api: BrowserApi }) {
   }, [api]);
 
   useEffect(() => {
+    if (!status?.attemptId || status.bundleSha256 || status.outcome) {
+      return;
+    }
     if (
-      status?.stage !== "applying-prerequisites" &&
-      status?.stage !== "verifying"
+      status.stage === "blocked" ||
+      status.stage === "failed" ||
+      status.stage === "incomplete"
     ) {
       return;
     }
@@ -40,7 +44,13 @@ export function RevitServerSetupPanel({ api }: { api: BrowserApi }) {
       api.getRevitServerSetupStatus().then(setStatus, () => undefined);
     }, 1000);
     return () => window.clearInterval(timer);
-  }, [api, status?.stage]);
+  }, [
+    api,
+    status?.attemptId,
+    status?.bundleSha256,
+    status?.outcome,
+    status?.stage,
+  ]);
 
   async function chooseAndInspect() {
     if (busy) return;
@@ -106,6 +116,20 @@ export function RevitServerSetupPanel({ api }: { api: BrowserApi }) {
     }
   }
 
+  async function exportHandoff() {
+    if (busy) return;
+    setBusy(true);
+    setError(null);
+    try {
+      await api.exportRevitServerHandoff();
+      setStatus(await api.getRevitServerSetupStatus());
+    } catch (reason) {
+      setError(toMessage(reason));
+    } finally {
+      setBusy(false);
+    }
+  }
+
   return (
     <section className="revit-setup" aria-labelledby="revit-setup-title">
       <div className="revit-setup-intro">
@@ -156,6 +180,7 @@ export function RevitServerSetupPanel({ api }: { api: BrowserApi }) {
           busy={busy}
           verify={verify}
           retry={retry}
+          exportHandoff={exportHandoff}
         />
       ) : null}
     </section>
@@ -167,14 +192,17 @@ function SetupProgress({
   busy,
   verify,
   retry,
+  exportHandoff,
 }: {
   status: RevitServerSetupStatusDto;
   busy: boolean;
   verify(): void;
   retry(): void;
+  exportHandoff(): void;
 }) {
   const awaiting = status.stage === "awaiting-autodesk";
-  const complete = status.stage === "ready-for-handoff";
+  const readyForHandoff = status.stage === "ready-for-handoff";
+  const complete = status.outcome === "PASS" && Boolean(status.bundleSha256);
   const retryable = status.stage === "incomplete";
   return (
     <div
@@ -184,6 +212,14 @@ function SetupProgress({
     >
       <strong>{complete ? "Healthy" : stageLabel(status.stage)}</strong>
       <p>{status.summary}</p>
+      {status.wallClockSeconds != null ? (
+        <p>
+          Wall clock: {formatElapsed(status.wallClockSeconds)}
+          {status.humanInterventionSeconds != null
+            ? ` · Human intervention: ${formatElapsed(status.humanInterventionSeconds)}`
+            : ""}
+        </p>
+      ) : null}
       {awaiting ? (
         <div className="revit-autodesk-card">
           <h3>In Autodesk setup</h3>
@@ -217,6 +253,16 @@ function SetupProgress({
           Open Autodesk setup again
         </button>
       ) : null}
+      {readyForHandoff && !status.bundleSha256 ? (
+        <button type="button" disabled={busy} onClick={exportHandoff}>
+          Export boss handoff
+        </button>
+      ) : null}
+      {status.bundleSha256 ? (
+        <p>
+          Bundle SHA-256 <code>{status.bundleSha256}</code>
+        </p>
+      ) : null}
     </div>
   );
 }
@@ -238,10 +284,17 @@ function stageLabel(stage: RevitServerSetupStatusDto["stage"]) {
     case "blocked":
       return "Blocked";
     case "ready-for-handoff":
-      return "Healthy";
+      return "Ready for handoff";
     default:
       return "Not started";
   }
+}
+
+function formatElapsed(totalSeconds: number) {
+  const seconds = Math.max(0, Math.floor(totalSeconds));
+  const hours = Math.floor(seconds / 3600);
+  const minutes = Math.floor((seconds % 3600) / 60);
+  return `${String(hours).padStart(2, "0")}:${String(minutes).padStart(2, "0")}:${String(seconds % 60).padStart(2, "0")}`;
 }
 
 function InspectionResult({

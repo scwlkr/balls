@@ -61,6 +61,10 @@ export interface RevitServerSetupPlanDto {
   windows: string;
   media: string;
   mediaSha256: string;
+  mediaFileName: string;
+  mediaPublisher: string;
+  mediaProduct: string;
+  mediaVersion: string;
   enabledRoles: string[];
   forbiddenRoles: string[];
   dataPaths: string[];
@@ -101,6 +105,20 @@ export interface RevitServerSetupStatusDto {
   attemptId: string | null;
   plan: RevitServerSetupPlanDto | null;
   checks: RevitServerSetupInspectionDto["checks"];
+  startedAtUtc?: string | null;
+  wallClockSeconds?: number | null;
+  humanInterventionSeconds?: number | null;
+  outcome?: "PASS" | "FAILED" | null;
+  bundleSha256?: string | null;
+}
+
+export interface RevitServerHandoffExportDto {
+  fileName: string;
+  contentType: "application/zip";
+  bundleBase64: string;
+  bundleSha256: string;
+  outcome: "PASS" | "FAILED";
+  wallClockSeconds: number;
 }
 
 export interface BrowserApi {
@@ -154,6 +172,7 @@ export interface BrowserApi {
   ): Promise<RevitServerSetupStatusDto>;
   verifyRevitServerSetup(): Promise<RevitServerSetupStatusDto>;
   retryRevitServerSetup(): Promise<RevitServerSetupStatusDto>;
+  exportRevitServerHandoff(): Promise<RevitServerHandoffExportDto>;
 }
 
 class FetchBrowserApi implements BrowserApi {
@@ -352,6 +371,27 @@ class FetchBrowserApi implements BrowserApi {
       {},
       "Run balls ui again to continue Revit Server setup.",
     );
+  }
+
+  async exportRevitServerHandoff() {
+    const result = await this.authenticatedRequest<RevitServerHandoffExportDto>(
+      "/browser/v1/revit-server/setup/handoff",
+      {},
+      "Run balls ui again to export the Revit Server handoff.",
+    );
+    const binary = atob(result.bundleBase64);
+    const bytes = Uint8Array.from(binary, (character) =>
+      character.charCodeAt(0),
+    );
+    const url = URL.createObjectURL(
+      new Blob([bytes], { type: result.contentType }),
+    );
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = result.fileName;
+    link.click();
+    URL.revokeObjectURL(url);
+    return result;
   }
 
   private authenticatedRequest<T>(
