@@ -18,13 +18,14 @@ you license it under the same terms without a CLA or copyright assignment.
 
 ## Verification
 
-Run the fast repository gate before pushing:
+Run the fast repository gate on Linux before pushing:
 
 ```powershell
 dotnet run --project eng/Balls.Verify --configuration Release -- fast
 ```
 
-Use `focused` while editing and `full` for the complete Windows gate. The same commands work in
+Use `focused` while editing and `full` for the complete local repository suite on Linux. Automatic
+pull-request lanes run the fast gate on Windows, Linux, and macOS. The same commands work in
 PowerShell, Bash, and other shells supported by the .NET CLI. See
 [`docs/development.md`](docs/development.md) for examples and the commands each mode runs.
 
