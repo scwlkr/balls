@@ -14,6 +14,15 @@ namespace Balls.Cli.Tests;
 public sealed class CliApplicationTests
 {
     [TestMethod]
+    public void Files_readiness_allows_the_bounded_native_inspection_to_finish()
+    {
+        Assert.AreEqual(
+            TimeSpan.FromSeconds(20),
+            CliApplication.GetLocalControlTimeout(["files", "readiness"]));
+        Assert.IsNull(CliApplication.GetLocalControlTimeout(["status"]));
+    }
+
+    [TestMethod]
     public async Task Unsupported_host_fails_closed_through_the_typed_platform_result()
     {
         if (OperatingSystem.IsWindows() || OperatingSystem.IsLinux() || OperatingSystem.IsMacOS())

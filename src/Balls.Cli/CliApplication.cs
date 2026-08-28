@@ -106,13 +106,7 @@ public static class CliApplication
         HttpClient client;
         try
         {
-            TimeSpan? timeout = tokens.Count >= 3
-                && tokens[0] == "files"
-                && ((tokens[1] == "host" && tokens[2] == "apply")
-                    || (tokens[1] == "host" && tokens[2] == "remove-apply")
-                    || (tokens[1] == "grant" && tokens[2] is "credential-apply" or "cleanup-apply"))
-                ? TimeSpan.FromMinutes(2.5)
-                : null;
+            var timeout = GetLocalControlTimeout(tokens);
             client = host.LocalControlClient.CreateClient(localControlEndpoint, timeout);
         }
         catch (ArgumentException)
@@ -277,6 +271,24 @@ public static class CliApplication
                     $"ballsd is unavailable on the selected local control {host.Defaults.LocalControlEndpointDescription}.");
                 return CliExitCodes.DaemonUnavailable;
             }
+    }
+
+    internal static TimeSpan? GetLocalControlTimeout(IReadOnlyList<string> tokens)
+    {
+        if (tokens.Count >= 2
+            && tokens[0] == "files"
+            && tokens[1] == "readiness")
+        {
+            return TimeSpan.FromSeconds(20);
+        }
+
+        return tokens.Count >= 3
+            && tokens[0] == "files"
+            && ((tokens[1] == "host" && tokens[2] == "apply")
+                || (tokens[1] == "host" && tokens[2] == "remove-apply")
+                || (tokens[1] == "grant" && tokens[2] is "credential-apply" or "cleanup-apply"))
+            ? TimeSpan.FromMinutes(2.5)
+            : null;
     }
 
     private static async Task<int> LaunchBrowserAsync(

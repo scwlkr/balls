@@ -669,7 +669,7 @@ try {
     $operationStage = 'daemon_poll'
     $failureCode = 'readiness_cli_timeout'
     $ready = $false
-    $deadline = [DateTimeOffset]::UtcNow.AddSeconds(30)
+    $deadline = [DateTimeOffset]::UtcNow.AddSeconds(45)
     Start-Sleep -Seconds 2
     while ([DateTimeOffset]::UtcNow -lt $deadline) {
         if ($daemonProcess.HasExited) { break }
@@ -678,7 +678,7 @@ try {
             -Arguments "--output json --pipe-name $pipeName files readiness" `
             -WorkingDirectory $extractPath `
             -OutputDirectory $root `
-            -TimeoutMilliseconds 12000 `
+            -TimeoutMilliseconds 25000 `
             -TimeoutCode $failureCode
         $statusOutput = $statusResult.standardOutput.Trim()
         if ($statusResult.exitCode -eq 0 -and -not [string]::IsNullOrWhiteSpace($statusOutput)) {
@@ -707,7 +707,7 @@ try {
         -Arguments "--output json --pipe-name $pipeName files readiness" `
         -WorkingDirectory $extractPath `
         -OutputDirectory $root `
-        -TimeoutMilliseconds 10000 `
+        -TimeoutMilliseconds 25000 `
         -TimeoutCode 'readiness_cli_timeout'
     $readinessJson = $readinessResult.standardOutput.Trim()
     if ($readinessResult.exitCode -ne 0 -or [string]::IsNullOrWhiteSpace($readinessJson)) {
