@@ -69,12 +69,12 @@ public static class WindowsNamedPipeHttpClient
                     pipeName,
                     PipeDirection.InOut,
                     PipeOptions.Asynchronous
-                        | PipeOptions.WriteThrough
-                        | PipeOptions.CurrentUserOnly,
+                        | PipeOptions.WriteThrough,
                     TokenImpersonationLevel.Anonymous);
                 try
                 {
                     await pipe.ConnectAsync(cancellationToken).ConfigureAwait(false);
+                    ValidateServerIdentity(pipe);
                     return pipe;
                 }
                 catch
@@ -93,5 +93,37 @@ public static class WindowsNamedPipeHttpClient
             DefaultRequestVersion = HttpVersion.Version11,
             DefaultVersionPolicy = HttpVersionPolicy.RequestVersionExact,
         };
+    }
+
+    private static void ValidateServerIdentity(NamedPipeClientStream pipe)
+    {
+        using var identity = WindowsIdentity.GetCurrent();
+        var principal = new WindowsPrincipal(identity);
+        var serverOwner = pipe
+            .GetAccessControl()
+            .GetOwner(typeof(SecurityIdentifier)) as SecurityIdentifier;
+        WindowsLocalControlIdentity.ValidateServerIdentity(
+            identity.User?.Value,
+            identity.Owner?.Value,
+            serverOwner?.Value,
+            principal.IsInRole(WindowsBuiltInRole.Administrator));
+    }
+}
+
+internal static class WindowsLocalControlIdentity
+{
+    internal static void ValidateServerIdentity(
+        string? currentUserSid,
+        string? currentOwnerSid,
+        string? serverOwnerSid,
+        bool currentProcessElevated)
+    {
+        var expectedOwnerSid = currentProcessElevated ? currentOwnerSid : currentUserSid;
+        if (string.IsNullOrWhiteSpace(expectedOwnerSid)
+            || !string.Equals(expectedOwnerSid, serverOwnerSid, StringComparison.Ordinal))
+        {
+            throw new UnauthorizedAccessException(
+                "The selected local control is not owned by this user at the current elevation.");
+        }
     }
 }

@@ -164,7 +164,7 @@ internal sealed class WindowsSmbReadinessConformanceRunner(
                                 ["BALLS_CONFORMANCE_RUN_ID"] = runId,
                                 ["BALLS_CONFORMANCE_STAGED_PACKAGE_NAME"] = remotePackageName,
                             }),
-                        TimeSpan.FromSeconds(30),
+                        TimeSpan.FromSeconds(60),
                         guestScript),
                     CancellationToken.None).ConfigureAwait(false);
                 if (cleanup.ExitCode != 0)

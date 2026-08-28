@@ -53,12 +53,7 @@ function Invoke-BallsBoundedProcess {
     }
 }
 
-function Start-BallsRestrictedDaemon {
-    param(
-        [Parameter(Mandatory = $true)][string] $FilePath,
-        [Parameter(Mandatory = $true)][string] $Arguments,
-        [Parameter(Mandatory = $true)][string] $WorkingDirectory)
-
+function Initialize-BallsRestrictedProcessType {
     if ($null -eq ('BallsConformanceRestrictedProcess' -as [type])) {
         Add-Type -TypeDefinition @'
 using System;
@@ -72,6 +67,25 @@ public static class BallsConformanceRestrictedProcess
     private const uint SaferLevelNormalUser = 0x00020000;
     private const uint SaferLevelOpen = 1;
     private const uint CreateNoWindow = 0x08000000;
+    private const int StartfUseStdHandles = 0x00000100;
+    private const uint GenericRead = 0x80000000;
+    private const uint GenericWrite = 0x40000000;
+    private const uint FileShareRead = 0x00000001;
+    private const uint FileShareWrite = 0x00000002;
+    private const uint CreateAlways = 2;
+    private const uint OpenExisting = 3;
+    private const uint FileAttributeNormal = 0x00000080;
+    private static readonly IntPtr InvalidHandleValue = new IntPtr(-1);
+    private static readonly object SessionSync = new object();
+    private static IntPtr sessionToken = IntPtr.Zero;
+
+    [StructLayout(LayoutKind.Sequential)]
+    private struct SecurityAttributes
+    {
+        public int Length;
+        public IntPtr SecurityDescriptor;
+        [MarshalAs(UnmanagedType.Bool)] public bool InheritHandle;
+    }
 
     [StructLayout(LayoutKind.Sequential, CharSet = CharSet.Unicode)]
     private struct StartupInfo
@@ -146,33 +160,128 @@ public static class BallsConformanceRestrictedProcess
     [return: MarshalAs(UnmanagedType.Bool)]
     private static extern bool CloseHandle(IntPtr handle);
 
+    [DllImport("kernel32.dll", CharSet = CharSet.Unicode, SetLastError = true)]
+    private static extern IntPtr CreateFile(
+        string fileName,
+        uint desiredAccess,
+        uint shareMode,
+        ref SecurityAttributes securityAttributes,
+        uint creationDisposition,
+        uint flagsAndAttributes,
+        IntPtr templateFile);
+
     public static int Start(string applicationName, string arguments, string workingDirectory)
     {
-        IntPtr level = IntPtr.Zero;
-        IntPtr token = IntPtr.Zero;
-        ProcessInformation process = new ProcessInformation();
+        return StartCore(
+            applicationName,
+            arguments,
+            workingDirectory,
+            IntPtr.Zero,
+            IntPtr.Zero,
+            IntPtr.Zero,
+            false);
+    }
+
+    public static void CloseSession()
+    {
+        lock (SessionSync)
+        {
+            if (sessionToken == IntPtr.Zero)
+            {
+                return;
+            }
+
+            CloseHandle(sessionToken);
+            sessionToken = IntPtr.Zero;
+        }
+    }
+
+    public static int StartRedirected(
+        string applicationName,
+        string arguments,
+        string workingDirectory,
+        string standardOutputPath,
+        string standardErrorPath)
+    {
+        var security = new SecurityAttributes
+        {
+            Length = Marshal.SizeOf(typeof(SecurityAttributes)),
+            InheritHandle = true,
+        };
+        IntPtr standardInput = InvalidHandleValue;
+        IntPtr standardOutput = InvalidHandleValue;
+        IntPtr standardError = InvalidHandleValue;
         try
         {
-            if (!SaferCreateLevel(
-                    SaferScopeUser,
-                    SaferLevelNormalUser,
-                    SaferLevelOpen,
-                    out level,
-                    IntPtr.Zero))
-            {
-                throw new Win32Exception(Marshal.GetLastWin32Error());
-            }
-            if (!SaferComputeTokenFromLevel(
-                    level,
-                    IntPtr.Zero,
-                    out token,
-                    0,
-                    IntPtr.Zero))
+            standardInput = CreateFile(
+                "NUL",
+                GenericRead,
+                FileShareRead | FileShareWrite,
+                ref security,
+                OpenExisting,
+                FileAttributeNormal,
+                IntPtr.Zero);
+            standardOutput = CreateFile(
+                standardOutputPath,
+                GenericWrite,
+                FileShareRead,
+                ref security,
+                CreateAlways,
+                FileAttributeNormal,
+                IntPtr.Zero);
+            standardError = CreateFile(
+                standardErrorPath,
+                GenericWrite,
+                FileShareRead,
+                ref security,
+                CreateAlways,
+                FileAttributeNormal,
+                IntPtr.Zero);
+            if (standardInput == InvalidHandleValue
+                || standardOutput == InvalidHandleValue
+                || standardError == InvalidHandleValue)
             {
                 throw new Win32Exception(Marshal.GetLastWin32Error());
             }
 
-            var startup = new StartupInfo { Size = Marshal.SizeOf(typeof(StartupInfo)) };
+            return StartCore(
+                applicationName,
+                arguments,
+                workingDirectory,
+                standardInput,
+                standardOutput,
+                standardError,
+                true);
+        }
+        finally
+        {
+            if (standardError != InvalidHandleValue) { CloseHandle(standardError); }
+            if (standardOutput != InvalidHandleValue) { CloseHandle(standardOutput); }
+            if (standardInput != InvalidHandleValue) { CloseHandle(standardInput); }
+        }
+    }
+
+    private static int StartCore(
+        string applicationName,
+        string arguments,
+        string workingDirectory,
+        IntPtr standardInput,
+        IntPtr standardOutput,
+        IntPtr standardError,
+        bool inheritHandles)
+    {
+        var token = GetSessionToken();
+        ProcessInformation process = new ProcessInformation();
+        try
+        {
+            var startup = new StartupInfo
+            {
+                Size = Marshal.SizeOf(typeof(StartupInfo)),
+                Flags = inheritHandles ? StartfUseStdHandles : 0,
+                StandardInput = standardInput,
+                StandardOutput = standardOutput,
+                StandardError = standardError,
+            };
             var commandLine = new StringBuilder("\"" + applicationName + "\" " + arguments);
             if (!CreateProcessAsUser(
                     token,
@@ -180,7 +289,7 @@ public static class BallsConformanceRestrictedProcess
                     commandLine,
                     IntPtr.Zero,
                     IntPtr.Zero,
-                    false,
+                    inheritHandles,
                     CreateNoWindow,
                     IntPtr.Zero,
                     workingDirectory,
@@ -195,19 +304,145 @@ public static class BallsConformanceRestrictedProcess
         {
             if (process.Thread != IntPtr.Zero) { CloseHandle(process.Thread); }
             if (process.Process != IntPtr.Zero) { CloseHandle(process.Process); }
-            if (token != IntPtr.Zero) { CloseHandle(token); }
-            if (level != IntPtr.Zero) { SaferCloseLevel(level); }
+        }
+    }
+
+    private static IntPtr GetSessionToken()
+    {
+        lock (SessionSync)
+        {
+            if (sessionToken != IntPtr.Zero)
+            {
+                return sessionToken;
+            }
+
+            IntPtr level = IntPtr.Zero;
+            IntPtr token = IntPtr.Zero;
+            try
+            {
+                if (!SaferCreateLevel(
+                        SaferScopeUser,
+                        SaferLevelNormalUser,
+                        SaferLevelOpen,
+                        out level,
+                        IntPtr.Zero))
+                {
+                    throw new Win32Exception(Marshal.GetLastWin32Error());
+                }
+                if (!SaferComputeTokenFromLevel(
+                        level,
+                        IntPtr.Zero,
+                        out token,
+                        0,
+                        IntPtr.Zero))
+                {
+                    throw new Win32Exception(Marshal.GetLastWin32Error());
+                }
+
+                sessionToken = token;
+                token = IntPtr.Zero;
+                return sessionToken;
+            }
+            finally
+            {
+                if (token != IntPtr.Zero) { CloseHandle(token); }
+                if (level != IntPtr.Zero) { SaferCloseLevel(level); }
+            }
         }
     }
 }
 '@ | Out-Null
     }
+}
 
+function Start-BallsRestrictedDaemon {
+    param(
+        [Parameter(Mandatory = $true)][string] $FilePath,
+        [Parameter(Mandatory = $true)][string] $Arguments,
+        [Parameter(Mandatory = $true)][string] $WorkingDirectory)
+
+    Initialize-BallsRestrictedProcessType
     $processId = [BallsConformanceRestrictedProcess]::Start(
         $FilePath,
         $Arguments,
         $WorkingDirectory)
     return [Diagnostics.Process]::GetProcessById($processId)
+}
+
+function Stop-BallsOwnedProductProcesses {
+    param([Parameter(Mandatory = $true)][string] $OwnedRoot)
+
+    foreach ($process in @(Get-CimInstance -ClassName Win32_Process -ErrorAction SilentlyContinue)) {
+        if ($process.Name -notin @('balls.exe', 'ballsd.exe') `
+                -or [string]$process.CommandLine -notlike "*$OwnedRoot*") {
+            continue
+        }
+        try { Stop-Process -Id $process.ProcessId -Force -ErrorAction Stop }
+        catch {}
+    }
+}
+
+function Close-BallsRestrictedProcessSession {
+    if ($null -ne ('BallsConformanceRestrictedProcess' -as [type])) {
+        [BallsConformanceRestrictedProcess]::CloseSession()
+    }
+}
+
+function Invoke-BallsBoundedRestrictedProcess {
+    param(
+        [Parameter(Mandatory = $true)][string] $FilePath,
+        [Parameter(Mandatory = $true)][string] $Arguments,
+        [Parameter(Mandatory = $true)][string] $WorkingDirectory,
+        [Parameter(Mandatory = $true)][string] $OutputDirectory,
+        [Parameter(Mandatory = $true)][int] $TimeoutMilliseconds,
+        [Parameter(Mandatory = $true)][string] $TimeoutCode)
+
+    $invocationId = [Guid]::NewGuid().ToString('N')
+    $standardOutputPath = Join-Path $OutputDirectory "process-$invocationId.stdout"
+    $standardErrorPath = Join-Path $OutputDirectory "process-$invocationId.stderr"
+    Initialize-BallsRestrictedProcessType
+    $processId = [BallsConformanceRestrictedProcess]::StartRedirected(
+        $FilePath,
+        $Arguments,
+        $WorkingDirectory,
+        $standardOutputPath,
+        $standardErrorPath)
+    $process = [Diagnostics.Process]::GetProcessById($processId)
+    try {
+        if (-not $process.WaitForExit($TimeoutMilliseconds)) {
+            try { $process.Kill() } catch {}
+            [void]$process.WaitForExit(5000)
+            throw $TimeoutCode
+        }
+        $standardOutput = ''
+        $standardError = ''
+        if (Test-Path -LiteralPath $standardOutputPath) {
+            $content = Get-Content `
+                -LiteralPath $standardOutputPath `
+                -Raw `
+                -ErrorAction Stop
+            if ($null -ne $content) { $standardOutput = [string]$content }
+        }
+        if (Test-Path -LiteralPath $standardErrorPath) {
+            $content = Get-Content `
+                -LiteralPath $standardErrorPath `
+                -Raw `
+                -ErrorAction Stop
+            if ($null -ne $content) { $standardError = [string]$content }
+        }
+        if ($standardOutput.Length + $standardError.Length -gt 65536) {
+            throw 'process_output_oversized'
+        }
+        return [ordered]@{
+            exitCode = [int]$process.ExitCode
+            standardOutput = $standardOutput
+        }
+    }
+    finally {
+        $process.Dispose()
+        Remove-Item -LiteralPath $standardOutputPath -Force -ErrorAction SilentlyContinue
+        Remove-Item -LiteralPath $standardErrorPath -Force -ErrorAction SilentlyContinue
+    }
 }
 
 $operationStage = 'initializing'
@@ -567,13 +802,10 @@ function Remove-BallsOwnedArtifacts {
         }
     }
     else {
-        foreach ($process in @(Get-CimInstance -ClassName Win32_Process -Filter "Name = 'ballsd.exe'" -ErrorAction SilentlyContinue)) {
-            if ([string]$process.CommandLine -like "*$root*") {
-                try { Stop-Process -Id $process.ProcessId -Force -ErrorAction Stop }
-                catch { $daemonStopped = $false }
-            }
-        }
+        Stop-BallsOwnedProductProcesses -OwnedRoot $root
     }
+    Stop-BallsOwnedProductProcesses -OwnedRoot $root
+    Close-BallsRestrictedProcessSession
 
     try {
         if (Test-Path -LiteralPath $root) {
@@ -709,10 +941,11 @@ try {
     $cli = Join-Path $extractPath 'balls\balls.exe'
     $daemon = Join-Path $extractPath 'ballsd\ballsd.exe'
     $failureCode = 'package_probe_timeout'
-    $cliVersionResult = Invoke-BallsBoundedProcess `
+    $cliVersionResult = Invoke-BallsBoundedRestrictedProcess `
         -FilePath $cli `
         -Arguments '--version' `
         -WorkingDirectory $extractPath `
+        -OutputDirectory $root `
         -TimeoutMilliseconds 10000 `
         -TimeoutCode $failureCode
     $cliVersion = $cliVersionResult.standardOutput.Trim()
@@ -720,10 +953,11 @@ try {
         $failureCode = 'package_identity_mismatch'
         throw $failureCode
     }
-    $daemonVersionResult = Invoke-BallsBoundedProcess `
+    $daemonVersionResult = Invoke-BallsBoundedRestrictedProcess `
         -FilePath $daemon `
         -Arguments '--version' `
         -WorkingDirectory $extractPath `
+        -OutputDirectory $root `
         -TimeoutMilliseconds 10000 `
         -TimeoutCode $failureCode
     $daemonVersion = $daemonVersionResult.standardOutput.Trim()
@@ -759,14 +993,16 @@ try {
     $operationStage = 'daemon_poll'
     $failureCode = 'readiness_cli_timeout'
     $ready = $false
-    $deadline = [DateTimeOffset]::UtcNow.AddSeconds(20)
+    $deadline = [DateTimeOffset]::UtcNow.AddSeconds(30)
+    Start-Sleep -Seconds 2
     while ([DateTimeOffset]::UtcNow -lt $deadline) {
         if ($daemonProcess.HasExited) { break }
-        $statusResult = Invoke-BallsBoundedProcess `
+        $statusResult = Invoke-BallsBoundedRestrictedProcess `
             -FilePath $cli `
             -Arguments "--output json --pipe-name $pipeName files readiness" `
             -WorkingDirectory $extractPath `
-            -TimeoutMilliseconds 5000 `
+            -OutputDirectory $root `
+            -TimeoutMilliseconds 12000 `
             -TimeoutCode $failureCode
         $statusOutput = $statusResult.standardOutput.Trim()
         if ($statusResult.exitCode -eq 0 -and -not [string]::IsNullOrWhiteSpace($statusOutput)) {
@@ -790,10 +1026,11 @@ try {
 
     $operationStage = 'readiness'
     $failureCode = 'readiness_cli_failed'
-    $readinessResult = Invoke-BallsBoundedProcess `
+    $readinessResult = Invoke-BallsBoundedRestrictedProcess `
         -FilePath $cli `
         -Arguments "--output json --pipe-name $pipeName files readiness" `
         -WorkingDirectory $extractPath `
+        -OutputDirectory $root `
         -TimeoutMilliseconds 10000 `
         -TimeoutCode 'readiness_cli_timeout'
     $readinessJson = $readinessResult.standardOutput.Trim()

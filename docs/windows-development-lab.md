@@ -91,8 +91,12 @@ enable any mutation endpoint. Normal daemon startup is unchanged.
 The fixed guest operation also performs an independent read-only inspection of Windows, SMB,
 network-profile, and firewall posture before confirming that native state is unchanged. Every
 transport and product phase is bounded, including each CLI and independent native child process.
-The authorized inspection session can be elevated, but it starts the readiness-only daemon with a
-Windows SAFER normal-user token; the daemon itself refuses to serve while elevated. Linux INT/TERM
+The authorized inspection session can be elevated, but it starts both the readiness-only daemon
+and every canonical CLI probe in one Windows SAFER normal-user session; the daemon itself refuses
+to serve while elevated. The Windows local-control client verifies the connected pipe owner against
+the caller's user or elevated token owner explicitly, preserving the existing same-user and same-
+elevation boundary without relying on the runtime's owner-based `CurrentUserOnly` client check.
+Linux INT/TERM
 cancellation propagates into the runner and leaves a separate bounded remote cleanup attempt before
 the outer hard-kill deadline. Refusal, timeout, malformed or oversized output, identity mismatch,
 product/native contradiction, product failure, or unconfirmed cleanup returns nonzero. The owned

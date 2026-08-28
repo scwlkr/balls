@@ -221,7 +221,7 @@ public sealed class ConformanceRunnerTests
 
         Assert.HasCount(4, processes.Requests);
         Assert.IsFalse(processes.CancellationTokens[3].IsCancellationRequested);
-        Assert.AreEqual(TimeSpan.FromSeconds(30), processes.Requests[3].Timeout);
+        Assert.AreEqual(TimeSpan.FromSeconds(60), processes.Requests[3].Timeout);
     }
 
     [TestMethod]
