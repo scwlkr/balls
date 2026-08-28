@@ -224,6 +224,37 @@ public sealed class HostConformanceRunnerTests
     }
 
     [TestMethod]
+    public async Task Provisioned_native_state_cannot_change_any_unrelated_state_component()
+    {
+        using var context = HostContext.Create();
+        var changedRoot = NativeJson(
+            "provisioned",
+            provisioned: true,
+            rootInventory: new string('f', 64));
+        var processes = new FakeConformanceProcessRunner(
+            Result(PreflightJson()),
+            Result(PreflightJson(product: true)),
+            Result(),
+            Result(PrepareJson(context.Package)),
+            Result(NativeJson("prepared")),
+            Result(RefusalJson()),
+            Result(NativeJson("rolled-back")),
+            Result(ApplyJson()),
+            Result(changedRoot),
+            Result(CleanupJson()));
+
+        var error = await Assert.ThrowsExactlyAsync<ConformanceRefusalException>(() =>
+            new WindowsCircleFilesHostConformanceRunner(processes, "fixed")
+                .RunAsync(
+                    context.Target,
+                    context.Package,
+                    Path.Combine(context.ReceiptDirectory.Path, "provisioned-unrelated.json"),
+                    CancellationToken.None));
+
+        Assert.AreEqual("native_provisioning_mismatch", error.Code);
+    }
+
+    [TestMethod]
     public async Task Any_unrelated_state_component_change_refuses_the_final_receipt()
     {
         using var context = HostContext.Create();

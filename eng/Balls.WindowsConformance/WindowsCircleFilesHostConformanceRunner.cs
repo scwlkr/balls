@@ -134,7 +134,11 @@ internal sealed class WindowsCircleFilesHostConformanceRunner(
                 "provisioned",
                 nativeValues,
                 cancellationToken).ConfigureAwait(false);
-            ValidateProvisionedNative(nativeProvisioned, target, prepared);
+            ValidateProvisionedNative(
+                nativeProvisioned,
+                nativePrepared.UnrelatedState,
+                target,
+                prepared);
 
             phase = "product-remove";
             removed = await RunProductAsync<GuestHostRemovalReceipt>(
@@ -500,6 +504,7 @@ internal sealed class WindowsCircleFilesHostConformanceRunner(
 
     private static void ValidateProvisionedNative(
         GuestHostNativeObservation native,
+        GuestUnrelatedStateFingerprint preparedUnrelatedState,
         WindowsConformanceTargetProfile target,
         GuestHostPrepareReceipt prepared)
     {
@@ -512,6 +517,7 @@ internal sealed class WindowsCircleFilesHostConformanceRunner(
             || native.AclApplicableRuleCount != 2
             || native.AclDenyRuleCount != 0
             || !native.AclShapeExact
+            || native.UnrelatedState != preparedUnrelatedState
             || !native.MarkerExists
             || !native.MarkerMatches
             || !native.JournalExists
@@ -594,7 +600,9 @@ internal sealed class WindowsCircleFilesHostConformanceRunner(
                 nativeRolledBack,
                 nativeProvisioned,
                 nativeFinal,
-                nativePrepared.UnrelatedState == nativeFinal.UnrelatedState,
+                nativePrepared.UnrelatedState == nativeRolledBack.UnrelatedState
+                    && nativePrepared.UnrelatedState == nativeProvisioned.UnrelatedState
+                    && nativePrepared.UnrelatedState == nativeFinal.UnrelatedState,
                 prepared is not null && SeedsEqual(prepared.Seed, nativeFinal.Seed),
                 nativePrepared.AclSha256 == nativeFinal.AclSha256)
             : null;
