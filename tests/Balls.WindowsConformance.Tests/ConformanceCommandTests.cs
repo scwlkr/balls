@@ -19,7 +19,7 @@ public sealed class ConformanceCommandTests
 
         Assert.AreEqual(ConformanceCommand.UsageError, exitCode);
         Assert.AreEqual(string.Empty, output.ToString());
-        StringAssert.StartsWith(error.ToString(), "Usage: Balls.WindowsConformance run");
+        StringAssert.StartsWith(error.ToString(), "Usage: Balls.WindowsConformance <run|host-run>");
         Assert.IsFalse(error.ToString().Contains("whoami", StringComparison.Ordinal));
     }
 

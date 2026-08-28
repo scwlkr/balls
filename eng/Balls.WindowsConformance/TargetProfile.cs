@@ -15,7 +15,8 @@ internal sealed record WindowsConformanceTargetProfile(
     string ExpectedProductAccountSidSha256,
     string ConnectivityPath,
     WindowsConformanceSshTransport Transport,
-    WindowsConformanceSshTransport ProductTransport);
+    WindowsConformanceSshTransport ProductTransport,
+    string? DisposablePath = null);
 
 internal sealed record WindowsConformanceSshTransport(
     string Host,
@@ -65,7 +66,7 @@ internal static partial class WindowsConformanceTargetProfileLoader
             throw new ConformanceRefusalException("target_profile_invalid");
         }
 
-        if (profile.Operation != "windows-smb-readiness-v1")
+        if (profile.Operation is not ("windows-smb-readiness-v1" or "windows-circle-files-host-v1"))
         {
             throw new ConformanceRefusalException("operation_not_allowed");
         }
@@ -84,6 +85,19 @@ internal static partial class WindowsConformanceTargetProfileLoader
             || profile.ConnectivityPath.Any(character => char.IsControl(character)))
         {
             throw new ConformanceRefusalException("target_profile_invalid");
+        }
+
+        if (profile.Operation == "windows-smb-readiness-v1"
+            && profile.DisposablePath is not null)
+        {
+            throw new ConformanceRefusalException("target_profile_invalid");
+        }
+
+        if (profile.Operation == "windows-circle-files-host-v1"
+            && (profile.ExpectedAccountKind != "administrator"
+                || !DisposableHostPathPattern().IsMatch(profile.DisposablePath ?? string.Empty)))
+        {
+            throw new ConformanceRefusalException("disposable_path_not_authorized");
         }
 
         var profileDirectory = Path.GetDirectoryName(profilePath)!;
@@ -156,4 +170,9 @@ internal static partial class WindowsConformanceTargetProfileLoader
 
     [GeneratedRegex("^[0-9a-f]{64}$", RegexOptions.CultureInvariant)]
     private static partial Regex Sha256Pattern();
+
+    [GeneratedRegex(
+        "^[C-Z]:\\\\BallsConformance\\\\Issue124-[A-Za-z0-9][A-Za-z0-9-]{2,39}$",
+        RegexOptions.CultureInvariant)]
+    private static partial Regex DisposableHostPathPattern();
 }

@@ -29,22 +29,43 @@ internal static partial class ConformanceCommand
                 repositoryRoot,
                 "eng",
                 "conformance",
-                "Invoke-WindowsSmbReadinessConformance.ps1");
+                request.Operation == "host-run"
+                    ? "Invoke-WindowsCircleFilesHostConformance.ps1"
+                    : "Invoke-WindowsSmbReadinessConformance.ps1");
             var guestScript = ReadGuestScript(guestScriptPath);
             if (!OperatingSystem.IsLinux())
             {
                 throw new ConformanceRefusalException("linux_required");
             }
 
-            var runner = new WindowsSmbReadinessConformanceRunner(
-                new SystemConformanceProcessRunner(),
-                guestScript);
-            var receipt = await runner.RunAsync(
-                target,
-                package,
-                request.Receipt,
-                cancellationToken).ConfigureAwait(false);
-            await standardOutput.WriteLineAsync($"Outcome: {receipt.Outcome}");
+            string outcome;
+            if (request.Operation == "host-run")
+            {
+                if (target.Operation != "windows-circle-files-host-v1")
+                {
+                    throw new ConformanceRefusalException("operation_profile_mismatch");
+                }
+                var receipt = await new WindowsCircleFilesHostConformanceRunner(
+                        new SystemConformanceProcessRunner(),
+                        guestScript)
+                    .RunAsync(target, package, request.Receipt, cancellationToken)
+                    .ConfigureAwait(false);
+                outcome = receipt.Outcome;
+            }
+            else
+            {
+                if (target.Operation != "windows-smb-readiness-v1")
+                {
+                    throw new ConformanceRefusalException("operation_profile_mismatch");
+                }
+                var receipt = await new WindowsSmbReadinessConformanceRunner(
+                        new SystemConformanceProcessRunner(),
+                        guestScript)
+                    .RunAsync(target, package, request.Receipt, cancellationToken)
+                    .ConfigureAwait(false);
+                outcome = receipt.Outcome;
+            }
+            await standardOutput.WriteLineAsync($"Outcome: {outcome}");
             await standardOutput.WriteLineAsync($"Receipt: {Path.GetFullPath(request.Receipt)}");
             return Success;
         }
@@ -73,7 +94,7 @@ internal static partial class ConformanceCommand
     private static ConformanceRequest Parse(IReadOnlyList<string> arguments)
     {
         const string usage =
-            "Usage: Balls.WindowsConformance run --target-profile <json> --package <zip> " +
+            "Usage: Balls.WindowsConformance <run|host-run> --target-profile <json> --package <zip> " +
             "--checksum <sha256> --expected-commit <full-sha> --receipt <json>";
         var known = new HashSet<string>(StringComparer.Ordinal)
         {
@@ -84,7 +105,7 @@ internal static partial class ConformanceCommand
             "--receipt",
         };
         if (arguments.Count != 11
-            || arguments[0] != "run")
+            || arguments[0] is not ("run" or "host-run"))
         {
             throw new ConformanceUsageException(usage);
         }
@@ -107,6 +128,7 @@ internal static partial class ConformanceCommand
         }
 
         return new ConformanceRequest(
+            arguments[0],
             values["--target-profile"],
             values["--package"],
             values["--checksum"],
@@ -148,6 +170,7 @@ internal static partial class ConformanceCommand
 }
 
 internal sealed record ConformanceRequest(
+    string Operation,
     string TargetProfile,
     string Package,
     string Checksum,

@@ -1,0 +1,25 @@
+{
+  "schema": "balls-windows-conformance-target-v1",
+  "operation": "windows-circle-files-host-v1",
+  "authorized": false,
+  "targetId": "replace-with-approved-disposable-target",
+  "expectedComputerName": "REPLACE-WITH-INSPECTED-NAME",
+  "expectedAccountKind": "administrator",
+  "expectedProductAccountSidSha256": "replace-with-lowercase-sha256-of-approved-administrative-account-sid",
+  "connectivityPath": "loopback-only OpenSSH forward to an approved private disposable guest",
+  "disposablePath": "C:\\BallsConformance\\Issue124-replace-me",
+  "transport": {
+    "host": "127.0.0.1",
+    "port": 22264,
+    "user": "replace-with-inspected-administrator",
+    "knownHostsFile": "/absolute/path/to/dedicated/known_hosts",
+    "publicKeyFile": "/absolute/path/to/corresponding-public-key.pub"
+  },
+  "productTransport": {
+    "host": "127.0.0.1",
+    "port": 22264,
+    "user": "replace-with-approved-administrative-product-account",
+    "knownHostsFile": "/absolute/path/to/dedicated/known_hosts",
+    "publicKeyFile": "/absolute/path/to-corresponding-public-key.pub"
+  }
+}

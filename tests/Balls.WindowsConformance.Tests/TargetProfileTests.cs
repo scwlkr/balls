@@ -62,4 +62,33 @@ public sealed class TargetProfileTests
 
         Assert.AreEqual("operation_not_allowed", exception.Code);
     }
+
+    [TestMethod]
+    public void Host_operation_requires_an_exact_authorized_disposable_path()
+    {
+        using var profile = TargetProfileFixture.Create(
+            operation: "windows-circle-files-host-v1",
+            disposablePath: @"C:\BallsConformance\Issue124-clean-a");
+
+        var result = WindowsConformanceTargetProfileLoader.Load(profile.Path);
+
+        Assert.AreEqual(@"C:\BallsConformance\Issue124-clean-a", result.DisposablePath);
+    }
+
+    [TestMethod]
+    [DataRow(@"C:\BallsDemo\Projects")]
+    [DataRow(@"C:\BallsConformance\Issue123-old")]
+    [DataRow(@"Z:\BallsConformance\Issue124-host.vhdx")]
+    [DataRow(@"\\server\share\Issue124-clean")]
+    public void Host_operation_refuses_production_ambiguous_or_network_paths(string path)
+    {
+        using var profile = TargetProfileFixture.Create(
+            operation: "windows-circle-files-host-v1",
+            disposablePath: path);
+
+        var exception = Assert.ThrowsExactly<ConformanceRefusalException>(
+            () => WindowsConformanceTargetProfileLoader.Load(profile.Path));
+
+        Assert.AreEqual("disposable_path_not_authorized", exception.Code);
+    }
 }
