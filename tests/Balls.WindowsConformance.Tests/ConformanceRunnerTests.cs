@@ -54,6 +54,11 @@ public sealed class ConformanceRunnerTests
         Assert.IsTrue(processes.Requests
             .Where(request => request.FileName == "ssh")
             .All(request => request.StandardInput == ReadGuestScript()));
+        Assert.IsTrue(processes.Requests
+            .Where(request => request.FileName == "ssh")
+            .All(request => request.Arguments[^1].Contains(
+                "[Console]::In.ReadToEnd()",
+                StringComparison.Ordinal)));
         Assert.IsNull(processes.Requests[1].StandardInput);
         Assert.IsFalse(processes.Requests[1].Arguments.Contains("-p"));
         var scpArguments = processes.Requests[1].Arguments.ToList();

@@ -30,6 +30,14 @@ public sealed class GuestOperationBoundaryTests
     }
 
     [TestMethod]
+    public void Guest_cleanup_does_not_leak_process_wait_output_into_its_receipt()
+    {
+        var script = File.ReadAllText(GuestScriptPath());
+
+        StringAssert.Contains(script, "[void]$DaemonProcess.WaitForExit(10000)");
+    }
+
+    [TestMethod]
     public void Windows_PowerShell_parses_the_fixed_guest_operation()
     {
         if (!OperatingSystem.IsWindows())

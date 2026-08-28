@@ -415,7 +415,9 @@ internal sealed class WindowsSmbReadinessConformanceRunner(
             assignments.Append("&&");
         }
 
-        assignments.Append("powershell.exe -NoLogo -NoProfile -NonInteractive -Command -");
+        assignments.Append(
+            "powershell.exe -NoLogo -NoProfile -NonInteractive " +
+            "-Command \"$script=[Console]::In.ReadToEnd();&([scriptblock]::Create($script))\"");
         return assignments.ToString();
     }
 

@@ -338,7 +338,7 @@ function Remove-BallsOwnedArtifacts {
         try {
             if (-not $DaemonProcess.HasExited) {
                 Stop-Process -Id $DaemonProcess.Id -Force -ErrorAction Stop
-                $DaemonProcess.WaitForExit(10000)
+                [void]$DaemonProcess.WaitForExit(10000)
             }
             $daemonStopped = $DaemonProcess.HasExited
         }
