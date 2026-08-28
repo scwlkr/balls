@@ -14,7 +14,9 @@ Describe the user outcome and architectural capability delivered.
 
 - Conformance classification: Linux-only / Headless Windows-triggered / Interactive Windows-triggered
 - Windows trigger and result, or why none applied:
+- Windows target class, or not applicable:
 - Exact commit or artifact identity used for triggered conformance:
+- Triggered conformance limitations, or not applicable:
 - [ ] Acceptance criteria are complete.
 - [ ] Focused/local fast checks pass.
 - [ ] Required Windows/Linux/macOS pull-request checks pass.
