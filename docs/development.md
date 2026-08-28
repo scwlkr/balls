@@ -91,9 +91,11 @@ Create the local untracked target profile from
 target inspection and explicit authorization required by the
 [`Windows lab runbook`](windows-development-lab.md#linux-triggered-smb-readiness-conformance).
 The command packages exact `HEAD` Windows bytes, runs the real daemon and canonical
-`files readiness` CLI operation with disposable state, performs an independent read-only native
-inspection, and returns a bounded redacted receipt. It does not establish GUI, UAC, File Explorer,
-physical-device, installer, or release acceptance.
+`files readiness` CLI operation with a Windows-only, readiness-only daemon mode and disposable
+leased state, performs an independent read-only native inspection, and returns a bounded redacted
+receipt. The daemon mode creates no Node/Circle/DPAPI identity and exposes no mutation or browser
+endpoint. It does not establish GUI, UAC, File Explorer, physical-device, installer, or release
+acceptance.
 
 ## Run the local slice on macOS
 

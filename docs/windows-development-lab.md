@@ -84,6 +84,10 @@ eng/conformance/Test-WindowsSmbReadiness.sh \
 The entrypoint builds a self-contained Windows CLI and daemon, packages those exact `HEAD` bytes
 with a commit-bound Canary manifest and checksum, verifies that identity on both sides of the
 transport, and invokes canonical `balls files readiness` against isolated disposable daemon state.
+The packaged daemon's Windows-only `--files-readiness-conformance` mode leases protected disposable
+state and exposes only the existing readiness endpoint; it does not open the normal database,
+initialize Node or Circle identity, use DPAPI private material, serve the browser application, or
+enable any mutation endpoint. Normal daemon startup is unchanged.
 The fixed guest operation also performs an independent read-only inspection of Windows, SMB,
 network-profile, and firewall posture before confirming that native state is unchanged. Every
 transport and product phase is bounded; refusal, timeout, malformed or oversized output, identity

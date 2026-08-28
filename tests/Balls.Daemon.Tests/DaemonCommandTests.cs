@@ -182,6 +182,35 @@ public sealed class DaemonCommandTests
             StringComparison.Ordinal));
     }
 
+    [TestMethod]
+    public async Task Files_readiness_conformance_is_a_Windows_only_daemon_mode()
+    {
+        if (OperatingSystem.IsWindows())
+        {
+            Assert.Inconclusive("The real Windows mode is exercised by triggered conformance.");
+            return;
+        }
+
+        using var directory = new TemporaryDirectory();
+        var stateDirectory = Path.Combine(directory.Path, "state");
+        var output = new StringWriter();
+        var error = new StringWriter();
+
+        var exitCode = await DaemonCommand.RunAsync(
+            [
+                "--data-directory",
+                stateDirectory,
+                "--files-readiness-conformance",
+            ],
+            output,
+            error);
+
+        Assert.AreEqual(DaemonExitCodes.PlatformUnsupported, exitCode);
+        Assert.AreEqual(string.Empty, output.ToString());
+        StringAssert.Contains(error.ToString(), "files readiness conformance requires Windows");
+        Assert.IsFalse(Directory.Exists(stateDirectory));
+    }
+
     private sealed class TemporaryDirectory : IDisposable
     {
         public TemporaryDirectory()

@@ -56,6 +56,7 @@ public static class DaemonCommand
         string? messageListenEndpoint = null;
         string? advertisedPrivateAddress = null;
         var automaticPrivateListeners = false;
+        var filesReadinessConformance = false;
 
         if (!TryApplyOption(tokens, "--data-directory", ref dataDirectory, out var error)
             || !TryApplyOption(tokens, "--pipe-name", ref localControlEndpoint, out error)
@@ -79,6 +80,11 @@ public static class DaemonCommand
                 tokens,
                 "--automatic-private-listeners",
                 ref automaticPrivateListeners,
+                out error)
+            || !TryApplyFlag(
+                tokens,
+                "--files-readiness-conformance",
+                ref filesReadinessConformance,
                 out error))
         {
             await standardError.WriteLineAsync($"ballsd: {error}");
@@ -171,8 +177,38 @@ public static class DaemonCommand
             return DaemonExitCodes.UsageError;
         }
 
+        if (filesReadinessConformance && !OperatingSystem.IsWindows())
+        {
+            await standardError.WriteLineAsync(
+                "ballsd: files readiness conformance requires Windows.");
+            return DaemonExitCodes.PlatformUnsupported;
+        }
+
         try
         {
+            if (filesReadinessConformance)
+            {
+                await using var conformance = await CircleFilesReadinessConformanceHost.StartAsync(
+                    new DaemonOptions(
+                        dataDirectory,
+                        localControlEndpoint,
+                        nodeName),
+                    host,
+                    cancellationToken).ConfigureAwait(false);
+                await standardOutput.WriteLineAsync(
+                    $"ballsd files readiness conformance ready on " +
+                    $"{host.Defaults.LocalControlListenerDescription} {localControlEndpoint}.");
+                try
+                {
+                    await Task.Delay(Timeout.InfiniteTimeSpan, cancellationToken).ConfigureAwait(false);
+                }
+                catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+                {
+                }
+
+                return DaemonExitCodes.Success;
+            }
+
             await using var daemon = await DaemonHost.StartAsync(
                 new DaemonOptions(
                     dataDirectory,
@@ -295,7 +331,7 @@ public static class DaemonCommand
     private static Task WriteUsageAsync(TextWriter writer)
     {
         return writer.WriteLineAsync(
-            "usage: ballsd [--data-directory <path>] [--pipe-name <name>] [--node-name <name>] [--admission-listen <private-ip:port>] [--message-listen <private-ip:port>] [--automatic-private-listeners] [--advertised-private-address <private-ip>]");
+            "usage: ballsd [--data-directory <path>] [--pipe-name <name>] [--node-name <name>] [--admission-listen <private-ip:port>] [--message-listen <private-ip:port>] [--automatic-private-listeners] [--advertised-private-address <private-ip>] [--files-readiness-conformance]");
     }
 
     private static string GetProductVersion()

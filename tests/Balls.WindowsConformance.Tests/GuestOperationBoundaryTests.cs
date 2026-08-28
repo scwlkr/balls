@@ -13,6 +13,7 @@ public sealed class GuestOperationBoundaryTests
         var script = File.ReadAllText(GuestScriptPath());
 
         StringAssert.Contains(script, "files readiness");
+        StringAssert.Contains(script, "--files-readiness-conformance");
         StringAssert.Contains(script, "Get-SmbServerConfiguration");
         StringAssert.Contains(script, "Get-NetFirewallRule");
         StringAssert.Contains(script, "BallsSmbReadiness-$RunId");

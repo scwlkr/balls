@@ -471,7 +471,7 @@ try {
     try {
         $startInfo = [Diagnostics.ProcessStartInfo]::new()
         $startInfo.FileName = $daemon
-        $startInfo.Arguments = "--data-directory `"$statePath`" --pipe-name $pipeName --node-name Balls-Conformance"
+        $startInfo.Arguments = "--data-directory `"$statePath`" --pipe-name $pipeName --node-name Balls-Conformance --files-readiness-conformance"
         $startInfo.WorkingDirectory = $extractPath
         $startInfo.UseShellExecute = $false
         $startInfo.CreateNoWindow = $true
@@ -503,7 +503,7 @@ try {
         $previousErrorActionPreference = $ErrorActionPreference
         try {
             $ErrorActionPreference = 'Continue'
-            $statusOutput = ((& $cli --output json --pipe-name $pipeName status 2>$null) | Out-String).Trim()
+            $statusOutput = ((& $cli --output json --pipe-name $pipeName files readiness 2>$null) | Out-String).Trim()
             $statusExitCode = $LASTEXITCODE
         }
         finally {
