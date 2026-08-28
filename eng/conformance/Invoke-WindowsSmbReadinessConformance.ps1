@@ -239,17 +239,16 @@ function Get-BallsObjectHash {
 function Get-BallsDaemonExitFailure {
     param(
         [Parameter(Mandatory = $true)][Diagnostics.Process] $Process,
-        [Parameter(Mandatory = $true)][string] $StandardOutputPath,
-        [Parameter(Mandatory = $true)][string] $StandardErrorPath)
+        [AllowNull()][object] $StandardOutputTask,
+        [AllowNull()][object] $StandardErrorTask)
 
     $Process.WaitForExit()
     $Process.Refresh()
     $exitCode = [int]$Process.ExitCode
     if ($exitCode -eq 0) {
         try {
-            $output = Get-Item -LiteralPath $StandardOutputPath -ErrorAction Stop
-            if ($output.Length -le 32768 `
-                    -and [IO.File]::ReadAllText($output.FullName).Contains('ballsd ready on')) {
+            $output = [string]$StandardOutputTask.GetAwaiter().GetResult()
+            if ($output.Length -le 32768 -and $output.Contains('ballsd ready on')) {
                 return 'daemon_exited_after_ready'
             }
         }
@@ -270,11 +269,10 @@ function Get-BallsDaemonExitFailure {
     }
 
     try {
-        $file = Get-Item -LiteralPath $StandardErrorPath -ErrorAction Stop
-        if ($file.Length -gt 32768) {
+        $text = [string]$StandardErrorTask.GetAwaiter().GetResult()
+        if ($text.Length -gt 32768) {
             return 'daemon_exited_dotnet_output_oversized'
         }
-        $text = [IO.File]::ReadAllText($file.FullName)
         $types = [ordered]@{
             'System.InvalidOperationException' = 'invalid_operation'
             'System.PlatformNotSupportedException' = 'platform_unsupported'
@@ -406,6 +404,8 @@ $stagedPackagePath = Join-Path $env:USERPROFILE $stagedPackageName
 $extractPath = Join-Path $root 'package'
 $statePath = Join-Path $root 'state'
 $daemonProcess = $null
+$daemonStandardOutputTask = $null
+$daemonStandardErrorTask = $null
 $preflight = $null
 $product = $null
 $productReadiness = $null
@@ -465,16 +465,19 @@ try {
     $failureCode = 'daemon_start_failed'
     $pipeName = "balls-conformance-$runId"
     try {
-        $daemonProcess = Start-Process `
-            -FilePath $daemon `
-            -ArgumentList @(
-                '--data-directory', "`"$statePath`"",
-                '--pipe-name', $pipeName,
-                '--node-name', 'Balls-Conformance') `
-            -PassThru `
-            -WindowStyle Hidden `
-            -RedirectStandardOutput (Join-Path $root 'daemon.stdout.log') `
-            -RedirectStandardError (Join-Path $root 'daemon.stderr.log')
+        $startInfo = [Diagnostics.ProcessStartInfo]::new()
+        $startInfo.FileName = $daemon
+        $startInfo.Arguments = "--data-directory `"$statePath`" --pipe-name $pipeName --node-name Balls-Conformance"
+        $startInfo.WorkingDirectory = $extractPath
+        $startInfo.UseShellExecute = $false
+        $startInfo.CreateNoWindow = $true
+        $startInfo.RedirectStandardOutput = $true
+        $startInfo.RedirectStandardError = $true
+        $daemonProcess = [Diagnostics.Process]::new()
+        $daemonProcess.StartInfo = $startInfo
+        if (-not $daemonProcess.Start()) { throw 'daemon_start_failed' }
+        $daemonStandardOutputTask = $daemonProcess.StandardOutput.ReadToEndAsync()
+        $daemonStandardErrorTask = $daemonProcess.StandardError.ReadToEndAsync()
     }
     catch {
         $failureCode = switch ($_.Exception.GetType().FullName) {
@@ -512,8 +515,8 @@ try {
         if ($daemonProcess.HasExited) {
             $failureCode = Get-BallsDaemonExitFailure `
                 -Process $daemonProcess `
-                -StandardOutputPath (Join-Path $root 'daemon.stdout.log') `
-                -StandardErrorPath (Join-Path $root 'daemon.stderr.log')
+                -StandardOutputTask $daemonStandardOutputTask `
+                -StandardErrorTask $daemonStandardErrorTask
         }
         else {
             $failureCode = 'daemon_readiness_timeout'
@@ -550,6 +553,7 @@ $cleanup = Remove-BallsOwnedArtifacts `
     -RunId $runId `
     -StagedPackageName $stagedPackageName `
     -DaemonProcess $daemonProcess
+if ($null -ne $daemonProcess) { $daemonProcess.Dispose() }
 
 if (-not $succeeded -or -not $cleanup.complete) {
     Write-BallsConformanceResult -Value ([ordered]@{
