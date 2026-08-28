@@ -56,4 +56,22 @@ public sealed class ConformanceProcessTests
 
         Assert.AreEqual("transport_output_oversized", exception.Code);
     }
+
+    [TestMethod]
+    public async Task Fixed_standard_input_reaches_the_transport_without_a_shell()
+    {
+        var runner = new SystemConformanceProcessRunner();
+
+        var result = await runner.RunAsync(
+            new ConformanceProcessRequest(
+                "/usr/bin/wc",
+                ["-c"],
+                TimeSpan.FromSeconds(1),
+                1024,
+                "fixed-operation"),
+            CancellationToken.None);
+
+        Assert.AreEqual(0, result.ExitCode);
+        Assert.AreEqual("15", result.StandardOutput.Trim());
+    }
 }

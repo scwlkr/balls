@@ -1,4 +1,3 @@
-using System.IO.Compression;
 using System.Text;
 using System.Text.Json;
 
@@ -37,6 +36,16 @@ internal sealed class WindowsSmbReadinessConformanceRunner(
         "daemon_exited_startup",
         "daemon_exited_unsupported",
         "daemon_exited_unexpected",
+        "daemon_exited_dotnet_invalid_operation",
+        "daemon_exited_dotnet_platform_unsupported",
+        "daemon_exited_dotnet_cryptographic",
+        "daemon_exited_dotnet_dependency",
+        "daemon_exited_dotnet_unauthorized",
+        "daemon_exited_dotnet_io",
+        "daemon_exited_dotnet_type_initialization",
+        "daemon_exited_dotnet_argument",
+        "daemon_exited_dotnet_output_oversized",
+        "daemon_exited_dotnet_other",
         "daemon_readiness_timeout",
         "readiness_cli_failed",
         "cleanup_incomplete",
@@ -55,15 +64,14 @@ internal sealed class WindowsSmbReadinessConformanceRunner(
         }
 
         var startedAt = clock.GetUtcNow();
-        var guestOperation = CompressGuestOperation(guestScript);
         var preflightResult = await processes.RunAsync(
             SshRequest(
                 target,
                 RemoteCommand(
-                    guestOperation,
                     "preflight",
                     new Dictionary<string, string>(StringComparer.Ordinal)),
-                TimeSpan.FromSeconds(30)),
+                TimeSpan.FromSeconds(30),
+                guestScript),
             cancellationToken).ConfigureAwait(false);
         if (preflightResult.ExitCode != 0)
         {
@@ -102,7 +110,11 @@ internal sealed class WindowsSmbReadinessConformanceRunner(
                 ["BALLS_CONFORMANCE_COMMIT"] = package.Commit,
             };
             var run = await processes.RunAsync(
-                SshRequest(target, RemoteCommand(guestOperation, "run", values), TimeSpan.FromMinutes(3)),
+                SshRequest(
+                    target,
+                    RemoteCommand("run", values),
+                    TimeSpan.FromMinutes(3),
+                    guestScript),
                 cancellationToken).ConfigureAwait(false);
             if (run.ExitCode != 0)
             {
@@ -127,14 +139,14 @@ internal sealed class WindowsSmbReadinessConformanceRunner(
                     SshRequest(
                         target,
                         RemoteCommand(
-                            guestOperation,
                             "cleanup",
                             new Dictionary<string, string>(StringComparer.Ordinal)
                             {
                                 ["BALLS_CONFORMANCE_RUN_ID"] = runId,
                                 ["BALLS_CONFORMANCE_STAGED_PACKAGE_NAME"] = remotePackageName,
                             }),
-                        TimeSpan.FromSeconds(30)),
+                        TimeSpan.FromSeconds(30),
+                        guestScript),
                     cancellationToken).ConfigureAwait(false);
                 if (cleanup.ExitCode != 0)
                 {
@@ -259,7 +271,8 @@ internal sealed class WindowsSmbReadinessConformanceRunner(
     private static ConformanceProcessRequest SshRequest(
         WindowsConformanceTargetProfile target,
         string remoteCommand,
-        TimeSpan timeout) =>
+        TimeSpan timeout,
+        string standardInput) =>
         new(
             "ssh",
             [
@@ -271,7 +284,8 @@ internal sealed class WindowsSmbReadinessConformanceRunner(
                 remoteCommand,
             ],
             timeout,
-            MaximumOutputBytes);
+            MaximumOutputBytes,
+            standardInput);
 
     private static ConformanceProcessRequest ScpRequest(
         WindowsConformanceTargetProfile target,
@@ -320,7 +334,6 @@ internal sealed class WindowsSmbReadinessConformanceRunner(
     ];
 
     private static string RemoteCommand(
-        string guestOperation,
         string mode,
         IReadOnlyDictionary<string, string> values)
     {
@@ -341,34 +354,8 @@ internal sealed class WindowsSmbReadinessConformanceRunner(
             assignments.Append("&&");
         }
 
-        assignments.Append("powershell.exe -NoLogo -NoProfile -NonInteractive -Command \"");
-        assignments.Append(guestOperation);
-        assignments.Append('"');
+        assignments.Append("powershell.exe -NoLogo -NoProfile -NonInteractive -Command -");
         return assignments.ToString();
-    }
-
-    private static string CompressGuestOperation(string script)
-    {
-        using var compressed = new MemoryStream();
-        using (var gzip = new GZipStream(compressed, CompressionLevel.SmallestSize, leaveOpen: true))
-        {
-            gzip.Write(Encoding.UTF8.GetBytes(script));
-        }
-
-        var payload = Convert.ToBase64String(compressed.ToArray());
-        var loader =
-            "$bytes=[Convert]::FromBase64String('" + payload + "');" +
-            "$memory=[IO.MemoryStream]::new($bytes);" +
-            "$gzip=[IO.Compression.GzipStream]::new($memory,[IO.Compression.CompressionMode]::Decompress);" +
-            "$reader=[IO.StreamReader]::new($gzip,[Text.Encoding]::UTF8);" +
-            "try{$script=$reader.ReadToEnd();& ([ScriptBlock]::Create($script))}" +
-            "finally{$reader.Dispose();$gzip.Dispose();$memory.Dispose()}";
-        if (loader.Length > 7500 || loader.Contains('"'))
-        {
-            throw new ConformanceRefusalException("guest_operation_oversized");
-        }
-
-        return loader;
     }
 
     private static void WriteReceipt(

@@ -50,7 +50,11 @@ public sealed class ConformanceRunnerTests
             request.Arguments.Contains("ClearAllForwardings=yes")));
         Assert.IsTrue(processes.Requests
             .Where(request => request.FileName == "ssh")
-            .All(request => request.Arguments[^1].Length < 8000));
+            .All(request => request.Arguments[^1].Length < 1000));
+        Assert.IsTrue(processes.Requests
+            .Where(request => request.FileName == "ssh")
+            .All(request => request.StandardInput == ReadGuestScript()));
+        Assert.IsNull(processes.Requests[1].StandardInput);
         Assert.IsFalse(processes.Requests[1].Arguments.Contains("-p"));
         var scpArguments = processes.Requests[1].Arguments.ToList();
         Assert.AreEqual(
@@ -192,7 +196,7 @@ public sealed class ConformanceRunnerTests
             Result(),
             new ConformanceProcessResult(
                 1,
-                "{\"schema\":\"balls-windows-smb-readiness-guest-v1\",\"operation\":\"windows-smb-readiness-v1\",\"outcome\":\"failed\",\"code\":\"daemon_start_invalid_operation\"}",
+                "{\"schema\":\"balls-windows-smb-readiness-guest-v1\",\"operation\":\"windows-smb-readiness-v1\",\"outcome\":\"failed\",\"code\":\"daemon_exited_dotnet_invalid_operation\"}",
                 "untrusted raw detail"),
             Result());
         var runner = new WindowsSmbReadinessConformanceRunner(processes, "Write-Output fixed");
@@ -207,7 +211,7 @@ public sealed class ConformanceRunnerTests
                 Path.Combine(receiptDirectory.Path, "receipt.json"),
                 CancellationToken.None));
 
-        Assert.AreEqual("guest_daemon_start_invalid_operation", exception.Code);
+        Assert.AreEqual("guest_daemon_exited_dotnet_invalid_operation", exception.Code);
         Assert.IsFalse(exception.Message.Contains("untrusted", StringComparison.Ordinal));
         Assert.HasCount(4, processes.Requests);
     }

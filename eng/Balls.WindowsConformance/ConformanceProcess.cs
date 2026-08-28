@@ -8,7 +8,8 @@ internal sealed record ConformanceProcessRequest(
     string FileName,
     IReadOnlyList<string> Arguments,
     TimeSpan Timeout,
-    int MaximumOutputBytes);
+    int MaximumOutputBytes,
+    string? StandardInput = null);
 
 internal sealed record ConformanceProcessResult(
     int ExitCode,
@@ -37,6 +38,7 @@ internal sealed class SystemConformanceProcessRunner : IConformanceProcessRunner
                 FileName = request.FileName,
                 RedirectStandardOutput = true,
                 RedirectStandardError = true,
+                RedirectStandardInput = request.StandardInput is not null,
                 UseShellExecute = false,
                 CreateNoWindow = true,
             },
@@ -71,6 +73,13 @@ internal sealed class SystemConformanceProcessRunner : IConformanceProcessRunner
                 process.StandardError,
                 request.MaximumOutputBytes,
                 timeout.Token);
+            if (request.StandardInput is not null)
+            {
+                await process.StandardInput.WriteAsync(
+                    request.StandardInput.AsMemory(),
+                    timeout.Token).ConfigureAwait(false);
+                process.StandardInput.Close();
+            }
             await process.WaitForExitAsync(timeout.Token).ConfigureAwait(false);
             return new ConformanceProcessResult(
                 process.ExitCode,
@@ -86,6 +95,11 @@ internal sealed class SystemConformanceProcessRunner : IConformanceProcessRunner
         {
             Kill(process);
             throw new ConformanceRefusalException("transport_output_oversized");
+        }
+        catch (IOException)
+        {
+            Kill(process);
+            throw new ConformanceRefusalException("transport_io_failed");
         }
         finally
         {

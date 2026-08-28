@@ -236,6 +236,49 @@ function Get-BallsObjectHash {
     }
 }
 
+function Get-BallsDaemonExitFailure {
+    param(
+        [Parameter(Mandatory = $true)][Diagnostics.Process] $Process,
+        [Parameter(Mandatory = $true)][string] $StandardErrorPath)
+
+    switch ($Process.ExitCode) {
+        2 { return 'daemon_exited_usage' }
+        4 { return 'daemon_exited_startup' }
+        5 { return 'daemon_exited_unsupported' }
+    }
+    if ($Process.ExitCode -ne -532462766) {
+        return 'daemon_exited_unexpected'
+    }
+
+    try {
+        $file = Get-Item -LiteralPath $StandardErrorPath -ErrorAction Stop
+        if ($file.Length -gt 32768) {
+            return 'daemon_exited_dotnet_output_oversized'
+        }
+        $text = [IO.File]::ReadAllText($file.FullName)
+        $types = [ordered]@{
+            'System.InvalidOperationException' = 'invalid_operation'
+            'System.PlatformNotSupportedException' = 'platform_unsupported'
+            'System.Security.Cryptography.CryptographicException' = 'cryptographic'
+            'System.IO.FileNotFoundException' = 'dependency'
+            'System.IO.FileLoadException' = 'dependency'
+            'System.DllNotFoundException' = 'dependency'
+            'System.BadImageFormatException' = 'dependency'
+            'System.UnauthorizedAccessException' = 'unauthorized'
+            'System.IO.IOException' = 'io'
+            'System.TypeInitializationException' = 'type_initialization'
+            'System.ArgumentException' = 'argument'
+        }
+        foreach ($entry in $types.GetEnumerator()) {
+            if ($text.Contains([string]$entry.Key)) {
+                return "daemon_exited_dotnet_$($entry.Value)"
+            }
+        }
+    }
+    catch {}
+    return 'daemon_exited_dotnet_other'
+}
+
 function Remove-BallsOwnedArtifacts {
     param(
         [Parameter(Mandatory = $true)][string] $RunId,
@@ -448,12 +491,9 @@ try {
     }
     if (-not $ready) {
         if ($daemonProcess.HasExited) {
-            $failureCode = switch ($daemonProcess.ExitCode) {
-                2 { 'daemon_exited_usage' }
-                4 { 'daemon_exited_startup' }
-                5 { 'daemon_exited_unsupported' }
-                default { 'daemon_exited_unexpected' }
-            }
+            $failureCode = Get-BallsDaemonExitFailure `
+                -Process $daemonProcess `
+                -StandardErrorPath (Join-Path $root 'daemon.stderr.log')
         }
         else {
             $failureCode = 'daemon_readiness_timeout'
