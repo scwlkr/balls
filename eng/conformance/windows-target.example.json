@@ -1,0 +1,16 @@
+{
+  "schema": "balls-windows-conformance-target-v1",
+  "operation": "windows-smb-readiness-v1",
+  "authorized": false,
+  "targetId": "replace-with-approved-disposable-target",
+  "expectedComputerName": "REPLACE-WITH-INSPECTED-NAME",
+  "expectedAccountKind": "administrator",
+  "connectivityPath": "loopback-only OpenSSH forward to an approved private disposable guest",
+  "transport": {
+    "host": "127.0.0.1",
+    "port": 22264,
+    "user": "replace-with-inspected-account",
+    "knownHostsFile": "/absolute/path/to/dedicated/known_hosts",
+    "publicKeyFile": "/absolute/path/to/corresponding/public-key.pub"
+  }
+}
