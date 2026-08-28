@@ -35,7 +35,7 @@ object IDs, plan tokens, provider language, or manual drive selection.
 [#122](https://github.com/scwlkr/balls/issues/122) remains blocked by #118.
 [#124 — Provision and remove one Circle Files host headlessly from Linux](https://github.com/scwlkr/balls/issues/124)
 is in progress in the completed #123 conformance lane. The Linux fast gate passes at
-`52b96bb2e400`. The authorized disposable Windows target refused before host mutation because its
+`b9d709f2bf95`. The authorized disposable Windows target refused before host mutation because its
 high-integrity SSH administrator cannot use CurrentUser DPAPI, while its DPAPI-capable standard
 product identity is not an administrator. Cleanup was independently confirmed; only the
 harness-created 28-byte seed fixture initially remained, then its exact path, sole-file inventory,
