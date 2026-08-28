@@ -18,12 +18,13 @@ public sealed class GuestOperationBoundaryTests
         StringAssert.Contains(script, "function Initialize-BallsRestrictedProcessType");
         StringAssert.Contains(script, "function Start-BallsRestrictedDaemon");
         StringAssert.Contains(script, "function Invoke-BallsBoundedRestrictedProcess");
-        StringAssert.Contains(script, "SaferComputeTokenFromLevel");
+        StringAssert.Contains(script, "CreateRestrictedToken");
+        StringAssert.Contains(script, "DisableMaxPrivilege | LuaToken");
         StringAssert.Contains(script, "StartRedirected");
         StringAssert.Contains(script, "StartfUseStdHandles");
         StringAssert.Contains(script, "GetSessionToken");
         StringAssert.Contains(script, "Close-BallsRestrictedProcessSession");
-        StringAssert.Contains(script, "0x00020000");
+        Assert.IsFalse(script.Contains("SaferComputeTokenFromLevel", StringComparison.Ordinal));
         Assert.IsFalse(script.Contains("$env:ComSpec", StringComparison.OrdinalIgnoreCase));
         StringAssert.Contains(script, ".WaitForExit($TimeoutMilliseconds)");
         StringAssert.Contains(script, "native_inspection_timeout");

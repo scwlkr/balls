@@ -63,9 +63,9 @@ using System.Text;
 
 public static class BallsConformanceRestrictedProcess
 {
-    private const uint SaferScopeUser = 2;
-    private const uint SaferLevelNormalUser = 0x00020000;
-    private const uint SaferLevelOpen = 1;
+    private const uint TokenAllAccess = 0x000F01FF;
+    private const uint DisableMaxPrivilege = 0x00000001;
+    private const uint LuaToken = 0x00000004;
     private const uint CreateNoWindow = 0x08000000;
     private const int StartfUseStdHandles = 0x00000100;
     private const uint GenericRead = 0x80000000;
@@ -119,27 +119,28 @@ public static class BallsConformanceRestrictedProcess
         public uint ThreadId;
     }
 
-    [DllImport("advapi32.dll", SetLastError = true)]
-    [return: MarshalAs(UnmanagedType.Bool)]
-    private static extern bool SaferCreateLevel(
-        uint scopeId,
-        uint levelId,
-        uint openFlags,
-        out IntPtr levelHandle,
-        IntPtr reserved);
+    [DllImport("kernel32.dll")]
+    private static extern IntPtr GetCurrentProcess();
 
     [DllImport("advapi32.dll", SetLastError = true)]
     [return: MarshalAs(UnmanagedType.Bool)]
-    private static extern bool SaferComputeTokenFromLevel(
-        IntPtr levelHandle,
-        IntPtr inputToken,
-        out IntPtr outputToken,
+    private static extern bool OpenProcessToken(
+        IntPtr processHandle,
+        uint desiredAccess,
+        out IntPtr tokenHandle);
+
+    [DllImport("advapi32.dll", SetLastError = true)]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    private static extern bool CreateRestrictedToken(
+        IntPtr existingTokenHandle,
         uint flags,
-        IntPtr reserved);
-
-    [DllImport("advapi32.dll", SetLastError = true)]
-    [return: MarshalAs(UnmanagedType.Bool)]
-    private static extern bool SaferCloseLevel(IntPtr levelHandle);
+        uint disableSidCount,
+        IntPtr sidsToDisable,
+        uint deletePrivilegeCount,
+        IntPtr privilegesToDelete,
+        uint restrictedSidCount,
+        IntPtr sidsToRestrict,
+        out IntPtr newTokenHandle);
 
     [DllImport("advapi32.dll", CharSet = CharSet.Unicode, SetLastError = true)]
     [return: MarshalAs(UnmanagedType.Bool)]
@@ -316,25 +317,27 @@ public static class BallsConformanceRestrictedProcess
                 return sessionToken;
             }
 
-            IntPtr level = IntPtr.Zero;
+            IntPtr sourceToken = IntPtr.Zero;
             IntPtr token = IntPtr.Zero;
             try
             {
-                if (!SaferCreateLevel(
-                        SaferScopeUser,
-                        SaferLevelNormalUser,
-                        SaferLevelOpen,
-                        out level,
-                        IntPtr.Zero))
+                if (!OpenProcessToken(
+                        GetCurrentProcess(),
+                        TokenAllAccess,
+                        out sourceToken))
                 {
                     throw new Win32Exception(Marshal.GetLastWin32Error());
                 }
-                if (!SaferComputeTokenFromLevel(
-                        level,
-                        IntPtr.Zero,
-                        out token,
+                if (!CreateRestrictedToken(
+                        sourceToken,
+                        DisableMaxPrivilege | LuaToken,
                         0,
-                        IntPtr.Zero))
+                        IntPtr.Zero,
+                        0,
+                        IntPtr.Zero,
+                        0,
+                        IntPtr.Zero,
+                        out token))
                 {
                     throw new Win32Exception(Marshal.GetLastWin32Error());
                 }
@@ -346,7 +349,7 @@ public static class BallsConformanceRestrictedProcess
             finally
             {
                 if (token != IntPtr.Zero) { CloseHandle(token); }
-                if (level != IntPtr.Zero) { SaferCloseLevel(level); }
+                if (sourceToken != IntPtr.Zero) { CloseHandle(sourceToken); }
             }
         }
     }

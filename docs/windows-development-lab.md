@@ -92,7 +92,8 @@ The fixed guest operation also performs an independent read-only inspection of W
 network-profile, and firewall posture before confirming that native state is unchanged. Every
 transport and product phase is bounded, including each CLI and independent native child process.
 The authorized inspection session can be elevated, but it starts both the readiness-only daemon
-and every canonical CLI probe in one Windows SAFER normal-user session; the daemon itself refuses
+and every canonical CLI probe in one Windows LUA filtered-token session with maximum privileges
+disabled and no restricting-SID list; the daemon itself refuses
 to serve while elevated. The Windows local-control client verifies the connected pipe owner against
 the caller's user or elevated token owner explicitly, preserving the existing same-user and same-
 elevation boundary without relying on the runtime's owner-based `CurrentUserOnly` client check.
