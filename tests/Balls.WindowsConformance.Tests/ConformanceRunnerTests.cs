@@ -25,7 +25,7 @@ public sealed class ConformanceRunnerTests
             Result(),
             Result(RunJson(package)),
             Result());
-        var runner = new WindowsSmbReadinessConformanceRunner(processes, "Write-Output fixed");
+        var runner = new WindowsSmbReadinessConformanceRunner(processes, ReadGuestScript());
         var receiptPath = Path.Combine(receiptDirectory.Path, "receipt.json");
 
         var receipt = await runner.RunAsync(
@@ -48,6 +48,9 @@ public sealed class ConformanceRunnerTests
             request.Arguments.Contains("StrictHostKeyChecking=yes")));
         Assert.IsTrue(processes.Requests.All(request =>
             request.Arguments.Contains("ClearAllForwardings=yes")));
+        Assert.IsTrue(processes.Requests
+            .Where(request => request.FileName == "ssh")
+            .All(request => request.Arguments[^1].Length < 8000));
         Assert.IsFalse(processes.Requests[1].Arguments.Contains("-p"));
         var scpArguments = processes.Requests[1].Arguments.ToList();
         Assert.AreEqual(
@@ -346,6 +349,27 @@ public sealed class ConformanceRunnerTests
                 "not GUI, UAC, Explorer, physical-device, or release acceptance",
             },
         });
+    }
+
+    private static string ReadGuestScript()
+    {
+        var directory = new DirectoryInfo(Environment.CurrentDirectory);
+        while (directory is not null)
+        {
+            var path = Path.Combine(
+                directory.FullName,
+                "eng",
+                "conformance",
+                "Invoke-WindowsSmbReadinessConformance.ps1");
+            if (File.Exists(path))
+            {
+                return File.ReadAllText(path);
+            }
+
+            directory = directory.Parent;
+        }
+
+        throw new InvalidOperationException("Guest conformance operation not found.");
     }
 }
 
