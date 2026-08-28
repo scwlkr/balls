@@ -175,6 +175,84 @@ public sealed class HostConformanceRunnerTests
         Assert.AreEqual("prepare_identity_or_contract_mismatch", error.Code);
     }
 
+    [TestMethod]
+    public async Task Preflight_refuses_a_non_local_or_storage_identity_mismatch_before_transfer()
+    {
+        using var context = HostContext.Create();
+        var processes = new FakeConformanceProcessRunner(
+            Result(PreflightJson(localDiskBacked: false)));
+
+        var error = await Assert.ThrowsExactlyAsync<ConformanceRefusalException>(() =>
+            new WindowsCircleFilesHostConformanceRunner(processes, "fixed")
+                .RunAsync(
+                    context.Target,
+                    context.Package,
+                    Path.Combine(context.ReceiptDirectory.Path, "storage.json"),
+                    CancellationToken.None));
+
+        Assert.AreEqual("target_identity_or_precondition_mismatch", error.Code);
+        Assert.HasCount(1, processes.Requests);
+    }
+
+    [TestMethod]
+    public async Task Provisioned_native_state_requires_the_exact_applicable_acl_shape()
+    {
+        using var context = HostContext.Create();
+        var invalidAcl = NativeJson("provisioned", provisioned: true)
+            .Replace("\"aclShapeExact\":true", "\"aclShapeExact\":false", StringComparison.Ordinal);
+        var processes = new FakeConformanceProcessRunner(
+            Result(PreflightJson()),
+            Result(PreflightJson(product: true)),
+            Result(),
+            Result(PrepareJson(context.Package)),
+            Result(NativeJson("prepared")),
+            Result(RefusalJson()),
+            Result(NativeJson("rolled-back")),
+            Result(ApplyJson()),
+            Result(invalidAcl),
+            Result(CleanupJson()));
+
+        var error = await Assert.ThrowsExactlyAsync<ConformanceRefusalException>(() =>
+            new WindowsCircleFilesHostConformanceRunner(processes, "fixed")
+                .RunAsync(
+                    context.Target,
+                    context.Package,
+                    Path.Combine(context.ReceiptDirectory.Path, "acl.json"),
+                    CancellationToken.None));
+
+        Assert.AreEqual("native_provisioning_mismatch", error.Code);
+    }
+
+    [TestMethod]
+    public async Task Any_unrelated_state_component_change_refuses_the_final_receipt()
+    {
+        using var context = HostContext.Create();
+        var changedRoot = NativeJson("final", rootInventory: new string('f', 64));
+        var processes = new FakeConformanceProcessRunner(
+            Result(PreflightJson()),
+            Result(PreflightJson(product: true)),
+            Result(),
+            Result(PrepareJson(context.Package)),
+            Result(NativeJson("prepared")),
+            Result(RefusalJson()),
+            Result(NativeJson("rolled-back")),
+            Result(ApplyJson()),
+            Result(NativeJson("provisioned", provisioned: true)),
+            Result(RemovalJson()),
+            Result(changedRoot),
+            Result(CleanupJson()));
+
+        var error = await Assert.ThrowsExactlyAsync<ConformanceRefusalException>(() =>
+            new WindowsCircleFilesHostConformanceRunner(processes, "fixed")
+                .RunAsync(
+                    context.Target,
+                    context.Package,
+                    Path.Combine(context.ReceiptDirectory.Path, "unrelated.json"),
+                    CancellationToken.None));
+
+        Assert.AreEqual("final_cleanup_mismatch", error.Code);
+    }
+
     private static FakeConformanceProcessRunner SuccessfulProcesses(WindowsPackageIdentity package) =>
         new(
             Result(PreflightJson()),
@@ -191,38 +269,40 @@ public sealed class HostConformanceRunnerTests
 
     private static ConformanceProcessResult Result(string output = "") => new(0, output, string.Empty);
 
-    private static string PreflightJson(bool product = false) => JsonSerializer.Serialize(new
-    {
-        schema = "balls-windows-host-preflight-v1",
-        operation = "windows-circle-files-host-v1",
-        outcome = "ready",
-        computerName = "BALLS-LAB",
-        account = new
+    private static string PreflightJson(
+        bool product = false,
+        bool localDiskBacked = true) => JsonSerializer.Serialize(new
         {
-            kind = "administrator",
-            elevated = true,
-            integrity = "high",
-            identitySha256 = product ? new string('a', 64) : new string('b', 64),
-        },
-        windows = new
-        {
-            productName = "Windows Server 2025",
-            displayVersion = "24H2",
-            buildNumber = "26100",
-            installationType = "Server",
-        },
-        policy = new { executionPolicy = "Restricted", uacEnabled = true, applicationControl = "off" },
-        network = new { categories = new[] { "private" }, firewallProfiles = new[] { "private", "public" } },
-        dirtyState = new { existingBallsProcesses = 0, ownedArtifacts = 0, clean = true },
-        storage = new
-        {
-            localDiskBacked = true,
-            volumeIdentitySha256 = new string('b', 64),
-            diskIdentitySha256 = new string('c', 64),
-            fileSystem = "NTFS",
-            busType = "SCSI",
-        },
-    });
+            schema = "balls-windows-host-preflight-v1",
+            operation = "windows-circle-files-host-v1",
+            outcome = "ready",
+            computerName = "BALLS-LAB",
+            account = new
+            {
+                kind = "administrator",
+                elevated = true,
+                integrity = "high",
+                identitySha256 = product ? new string('a', 64) : new string('b', 64),
+            },
+            windows = new
+            {
+                productName = "Windows Server 2025",
+                displayVersion = "24H2",
+                buildNumber = "26100",
+                installationType = "Server",
+            },
+            policy = new { executionPolicy = "Restricted", uacEnabled = true, applicationControl = "off" },
+            network = new { categories = new[] { "private" }, firewallProfiles = new[] { "private", "public" } },
+            dirtyState = new { existingBallsProcesses = 0, ownedArtifacts = 0, clean = true },
+            storage = new
+            {
+                localDiskBacked,
+                volumeIdentitySha256 = new string('b', 64),
+                diskIdentitySha256 = new string('c', 64),
+                fileSystem = "NTFS",
+                busType = "SCSI",
+            },
+        });
 
     private static string PrepareJson(WindowsPackageIdentity package) => JsonSerializer.Serialize(new
     {
@@ -310,57 +390,60 @@ public sealed class HostConformanceRunnerTests
         sha256 = SeedSha256,
     };
 
-    private static string NativeJson(string state, bool provisioned = false) => JsonSerializer.Serialize(new
-    {
-        schema = "balls-windows-host-native-v1",
-        operation = "windows-circle-files-host-v1",
-        outcome = "observed",
-        observation = new
+    private static string NativeJson(
+        string state,
+        bool provisioned = false,
+        string? rootInventory = null) => JsonSerializer.Serialize(new
         {
-            state,
-            pathIdentitySha256 = Convert.ToHexStringLower(
-                SHA256.HashData(Encoding.UTF8.GetBytes(Folder.ToUpperInvariant()))),
-            folderExists = true,
-            folderReparsePoint = false,
-            seed = Seed(),
-            aclProtected = provisioned,
-            aclSha256 = provisioned ? HostedAcl : BaselineAcl,
-            ownerSidSha256 = new string('a', 64),
-            ownerFullControl = provisioned,
-            systemFullControl = provisioned,
-            aclAccessRuleCount = provisioned ? 2 : 4,
-            aclApplicableRuleCount = provisioned ? 2 : 4,
-            aclDenyRuleCount = 0,
-            aclShapeExact = provisioned,
-            markerExists = provisioned,
-            markerMatches = provisioned,
-            journalExists = provisioned,
-            journalMatches = provisioned,
-            firewallRecoveryExists = false,
-            shareCount = provisioned ? 1 : 0,
-            sharePathMatches = provisioned,
-            shareEncryptionRequired = provisioned,
-            shareAccessCount = provisioned ? 1 : 0,
-            shareAccessRestrictedToOwner = provisioned,
-            firewallRuleCount = provisioned ? 1 : 0,
-            firewallPrivateOnly = provisioned,
-            firewallLocalSubnetOnly = provisioned,
-            firewallTcp445Only = provisioned,
-            firewallLanmanServerOnly = provisioned,
-            unrelatedState = new
+            schema = "balls-windows-host-native-v1",
+            operation = "windows-circle-files-host-v1",
+            outcome = "observed",
+            observation = new
             {
-                rootInventorySha256 = RootInventory,
-                shareConfigurationSha256 = ShareConfiguration,
-                firewallConfigurationSha256 = FirewallConfiguration,
-                accountConfigurationSha256 = AccountConfiguration,
-                secureStoreInventorySha256 = SecureStoreInventory,
-                mappingConfigurationSha256 = MappingConfiguration,
-                serviceConfigurationSha256 = ServiceConfiguration,
-                policyConfigurationSha256 = PolicyConfiguration,
-                combinedSha256 = Infrastructure,
+                state,
+                pathIdentitySha256 = Convert.ToHexStringLower(
+                SHA256.HashData(Encoding.UTF8.GetBytes(Folder.ToUpperInvariant()))),
+                folderExists = true,
+                folderReparsePoint = false,
+                seed = Seed(),
+                aclProtected = provisioned,
+                aclSha256 = provisioned ? HostedAcl : BaselineAcl,
+                ownerSidSha256 = new string('a', 64),
+                ownerFullControl = provisioned,
+                systemFullControl = provisioned,
+                aclAccessRuleCount = provisioned ? 2 : 4,
+                aclApplicableRuleCount = provisioned ? 2 : 4,
+                aclDenyRuleCount = 0,
+                aclShapeExact = provisioned,
+                markerExists = provisioned,
+                markerMatches = provisioned,
+                journalExists = provisioned,
+                journalMatches = provisioned,
+                firewallRecoveryExists = false,
+                shareCount = provisioned ? 1 : 0,
+                sharePathMatches = provisioned,
+                shareEncryptionRequired = provisioned,
+                shareAccessCount = provisioned ? 1 : 0,
+                shareAccessRestrictedToOwner = provisioned,
+                firewallRuleCount = provisioned ? 1 : 0,
+                firewallPrivateOnly = provisioned,
+                firewallLocalSubnetOnly = provisioned,
+                firewallTcp445Only = provisioned,
+                firewallLanmanServerOnly = provisioned,
+                unrelatedState = new
+                {
+                    rootInventorySha256 = rootInventory ?? RootInventory,
+                    shareConfigurationSha256 = ShareConfiguration,
+                    firewallConfigurationSha256 = FirewallConfiguration,
+                    accountConfigurationSha256 = AccountConfiguration,
+                    secureStoreInventorySha256 = SecureStoreInventory,
+                    mappingConfigurationSha256 = MappingConfiguration,
+                    serviceConfigurationSha256 = ServiceConfiguration,
+                    policyConfigurationSha256 = PolicyConfiguration,
+                    combinedSha256 = Infrastructure,
+                },
             },
-        },
-    });
+        });
 
     private static string FailureJson(string code) => JsonSerializer.Serialize(new
     {

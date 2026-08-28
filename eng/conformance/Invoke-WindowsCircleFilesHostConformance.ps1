@@ -4,6 +4,15 @@ Set-StrictMode -Version Latest
 
 $script:Operation = 'windows-circle-files-host-v1'
 $script:Stage = 'initializing'
+$script:MaximumUnrelatedInventoryEntries = 4096
+$script:MaximumUnrelatedFileBytes = 4 * 1024 * 1024
+$script:MaximumUnrelatedTotalFileBytes = 16 * 1024 * 1024
+$script:MaximumUnrelatedShares = 256
+$script:MaximumUnrelatedFirewallRules = 4096
+$script:MaximumUnrelatedAccounts = 512
+$script:MaximumUnrelatedGroupMembers = 4096
+$script:MaximumUnrelatedMappings = 512
+$script:MaximumUnrelatedServices = 2048
 
 function Write-BallsResult {
     param(
@@ -41,6 +50,30 @@ function Get-BallsSha256Bytes {
 function Get-BallsSha256Text {
     param([Parameter(Mandatory = $true)][string] $Value)
     return Get-BallsSha256Bytes -Bytes ([Text.Encoding]::UTF8.GetBytes($Value))
+}
+
+function Get-BallsFingerprintHash {
+    param([Parameter(Mandatory = $true)][object] $Value)
+    return Get-BallsSha256Text -Value ($Value | ConvertTo-Json -Compress -Depth 16)
+}
+
+function Get-BallsPropertyText {
+    param(
+        [Parameter(Mandatory = $true)][object] $Value,
+        [Parameter(Mandatory = $true)][string] $Name)
+    $property = $Value.PSObject.Properties[$Name]
+    if ($null -eq $property -or $null -eq $property.Value) { return '' }
+    if ($property.Value -is [Array]) {
+        return (@($property.Value | ForEach-Object { [string]$_ }) -join ',')
+    }
+    return [string]$property.Value
+}
+
+function Assert-BallsBoundedCount {
+    param(
+        [Parameter(Mandatory = $true)][object[]] $Values,
+        [Parameter(Mandatory = $true)][int] $Maximum)
+    if ($Values.Count -gt $Maximum) { throw 'unrelated_state_inventory_oversized' }
 }
 
 function Invoke-BallsBoundedProcess {
@@ -131,34 +164,115 @@ function Get-BallsApplicationControlState {
     catch { return 'unknown' }
 }
 
+function Get-BallsAuthorizedStorage {
+    param(
+        [Parameter(Mandatory = $true)][string] $Path,
+        [Parameter(Mandatory = $true)][string] $ExpectedVolumeSha256,
+        [Parameter(Mandatory = $true)][string] $ExpectedDiskSha256)
+    $root = [IO.Path]::GetPathRoot($Path)
+    if ($root -notmatch '^[C-Z]:\\$') { throw 'disposable_path_not_local_disk' }
+    $driveLetter = $root.Substring(0, 1)
+    $volumes = @(Get-Volume -DriveLetter $driveLetter -ErrorAction Stop)
+    $partitions = @(Get-Partition -DriveLetter $driveLetter -ErrorAction Stop)
+    if ($volumes.Count -ne 1 -or $partitions.Count -ne 1) {
+        throw 'disposable_path_not_local_disk'
+    }
+    $volume = $volumes[0]
+    $partition = $partitions[0]
+    $disks = @(Get-Disk -Number $partition.DiskNumber -ErrorAction Stop)
+    if ($disks.Count -ne 1) { throw 'disposable_path_not_local_disk' }
+    $disk = $disks[0]
+    $fileSystem = Get-BallsPropertyText -Value $volume -Name 'FileSystem'
+    if ([string]::IsNullOrWhiteSpace($fileSystem)) {
+        $fileSystem = Get-BallsPropertyText -Value $volume -Name 'FileSystemType'
+    }
+    $busType = Get-BallsPropertyText -Value $disk -Name 'BusType'
+    $operationalStatus = Get-BallsPropertyText -Value $disk -Name 'OperationalStatus'
+    $allowedBusTypes = @('ATA', 'NVMe', 'RAID', 'SAS', 'SATA', 'SCSI')
+    if ([IO.DriveInfo]::new($root).DriveType -ne [IO.DriveType]::Fixed `
+            -or $fileSystem -notin @('NTFS', 'ReFS') `
+            -or (Get-BallsPropertyText -Value $volume -Name 'HealthStatus') -ne 'Healthy' `
+            -or $busType -notin $allowedBusTypes `
+            -or $busType -in @('File Backed Virtual', 'iSCSI', 'Unknown', 'Virtual') `
+            -or [bool]$disk.IsOffline `
+            -or [bool]$disk.IsReadOnly `
+            -or $operationalStatus -notmatch 'Online' `
+            -or [string]$partition.Type -in @('Unknown', 'Reserved')) {
+        throw 'disposable_path_not_local_disk'
+    }
+    $volumeEvidence = [ordered]@{
+        uniqueId = Get-BallsPropertyText -Value $volume -Name 'UniqueId'
+        path = Get-BallsPropertyText -Value $volume -Name 'Path'
+        driveLetter = $driveLetter.ToUpperInvariant()
+        fileSystem = $fileSystem
+        size = Get-BallsPropertyText -Value $volume -Name 'Size'
+        allocationUnitSize = Get-BallsPropertyText -Value $volume -Name 'AllocationUnitSize'
+        partitionDiskNumber = Get-BallsPropertyText -Value $partition -Name 'DiskNumber'
+        partitionNumber = Get-BallsPropertyText -Value $partition -Name 'PartitionNumber'
+        partitionOffset = Get-BallsPropertyText -Value $partition -Name 'Offset'
+        partitionSize = Get-BallsPropertyText -Value $partition -Name 'Size'
+    }
+    $diskEvidence = [ordered]@{
+        uniqueId = Get-BallsPropertyText -Value $disk -Name 'UniqueId'
+        serialNumber = Get-BallsPropertyText -Value $disk -Name 'SerialNumber'
+        number = Get-BallsPropertyText -Value $disk -Name 'Number'
+        friendlyName = Get-BallsPropertyText -Value $disk -Name 'FriendlyName'
+        busType = $busType
+        partitionStyle = Get-BallsPropertyText -Value $disk -Name 'PartitionStyle'
+        size = Get-BallsPropertyText -Value $disk -Name 'Size'
+        location = Get-BallsPropertyText -Value $disk -Name 'Location'
+    }
+    $volumeIdentity = Get-BallsFingerprintHash -Value $volumeEvidence
+    $diskIdentity = Get-BallsFingerprintHash -Value $diskEvidence
+    if ($volumeIdentity -ne $ExpectedVolumeSha256 -or $diskIdentity -ne $ExpectedDiskSha256) {
+        throw 'disposable_storage_identity_mismatch'
+    }
+    return [ordered]@{
+        localDiskBacked = $true
+        volumeIdentitySha256 = $volumeIdentity
+        diskIdentitySha256 = $diskIdentity
+        fileSystem = $fileSystem
+        busType = $busType
+    }
+}
+
 function Test-BallsPathSafe {
     param(
         [Parameter(Mandatory = $true)][string] $Path,
+        [Parameter(Mandatory = $true)][string] $ExpectedVolumeSha256,
+        [Parameter(Mandatory = $true)][string] $ExpectedDiskSha256,
         [switch] $RequireMissing)
     if ($Path -notmatch '^[C-Z]:\\BallsConformance\\Issue124-[A-Za-z0-9][A-Za-z0-9-]{2,39}$' `
             -or $Path -ne [IO.Path]::GetFullPath($Path).TrimEnd('\')) {
         throw 'disposable_path_invalid'
     }
-    $root = [IO.Path]::GetPathRoot($Path)
-    if ([IO.DriveInfo]::new($root).DriveType -ne [IO.DriveType]::Fixed) {
-        throw 'disposable_path_not_fixed_local'
-    }
+    $storage = Get-BallsAuthorizedStorage `
+        -Path $Path `
+        -ExpectedVolumeSha256 $ExpectedVolumeSha256 `
+        -ExpectedDiskSha256 $ExpectedDiskSha256
     for ($item = [IO.DirectoryInfo]::new($Path); $null -ne $item; $item = $item.Parent) {
         if ($item.Exists -and (($item.Attributes -band [IO.FileAttributes]::ReparsePoint) -ne 0)) {
             throw 'disposable_path_reparse'
         }
     }
     if ($RequireMissing -and (Test-Path -LiteralPath $Path)) { throw 'disposable_path_not_clean' }
+    return $storage
 }
 
 function Get-BallsPreflight {
     param(
         [Parameter(Mandatory = $true)][string] $DisposablePath,
+        [Parameter(Mandatory = $true)][string] $ExpectedVolumeSha256,
+        [Parameter(Mandatory = $true)][string] $ExpectedDiskSha256,
         [AllowNull()][string] $IgnoredPackageName = $null,
         [AllowNull()][string] $IgnoredRunId = $null,
         [switch] $ProductOnly)
     if ($env:OS -ne 'Windows_NT') { throw 'windows_required' }
-    Test-BallsPathSafe -Path $DisposablePath -RequireMissing
+    $storage = Test-BallsPathSafe `
+        -Path $DisposablePath `
+        -ExpectedVolumeSha256 $ExpectedVolumeSha256 `
+        -ExpectedDiskSha256 $ExpectedDiskSha256 `
+        -RequireMissing
     $identity = [Security.Principal.WindowsIdentity]::GetCurrent()
     $principal = [Security.Principal.WindowsPrincipal]::new($identity)
     $elevated = $principal.IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)
@@ -208,6 +322,7 @@ function Get-BallsPreflight {
             ownedArtifacts = $ownedArtifacts
             clean = $clean
         }
+        storage = $storage
     }
 }
 
@@ -219,6 +334,7 @@ function Get-BallsPaths {
         extract = Join-Path $root 'product'
         state = Join-Path $root 'state'
         context = Join-Path $root 'context.json'
+        seed = Join-Path $root 'seed.json'
         pid = Join-Path $root 'daemon.pid'
         stdout = Join-Path $root 'daemon.stdout.log'
         stderr = Join-Path $root 'daemon.stderr.log'
@@ -300,6 +416,39 @@ function Start-BallsDaemon {
     throw 'daemon_readiness_timeout'
 }
 
+function Test-BallsCurrentUserDpapi {
+    $plain = [byte[]]::new(32)
+    $entropy = [Text.Encoding]::UTF8.GetBytes('balls/private-material/v1')
+    $protected = $null
+    $unprotected = $null
+    $random = [Security.Cryptography.RandomNumberGenerator]::Create()
+    try {
+        $random.GetBytes($plain)
+        $protected = [Security.Cryptography.ProtectedData]::Protect(
+            $plain,
+            $entropy,
+            [Security.Cryptography.DataProtectionScope]::CurrentUser)
+        $unprotected = [Security.Cryptography.ProtectedData]::Unprotect(
+            $protected,
+            $entropy,
+            [Security.Cryptography.DataProtectionScope]::CurrentUser)
+        if ($plain.Length -ne $unprotected.Length) { throw 'dpapi_roundtrip_mismatch' }
+        $difference = 0
+        for ($index = 0; $index -lt $plain.Length; $index++) {
+            $difference = $difference -bor ($plain[$index] -bxor $unprotected[$index])
+        }
+        if ($difference -ne 0) { throw 'dpapi_roundtrip_mismatch' }
+    }
+    catch { throw 'daemon_private_material_unavailable' }
+    finally {
+        $random.Dispose()
+        [Array]::Clear($plain, 0, $plain.Length)
+        [Array]::Clear($entropy, 0, $entropy.Length)
+        if ($null -ne $protected) { [Array]::Clear($protected, 0, $protected.Length) }
+        if ($null -ne $unprotected) { [Array]::Clear($unprotected, 0, $unprotected.Length) }
+    }
+}
+
 function Invoke-BallsCli {
     param(
         [Parameter(Mandatory = $true)][object] $Paths,
@@ -358,51 +507,352 @@ function Get-BallsSeedObservation {
     }
 }
 
-function Get-BallsUnrelatedFingerprint {
-    param(
-        [Parameter(Mandatory = $true)][string] $ShareName,
-        [Parameter(Mandatory = $true)][string] $FirewallRuleName)
-    $shares = @(Get-SmbShare -ErrorAction Stop | Where-Object Name -ne $ShareName | Sort-Object Name | ForEach-Object {
-        [ordered]@{ name = [string]$_.Name; path = [string]$_.Path; encrypt = [bool]$_.EncryptData; description = [string]$_.Description }
+function Get-BallsConformanceRootInventory {
+    param([Parameter(Mandatory = $true)][string] $DisposablePath)
+    $root = Split-Path -Parent $DisposablePath
+    if (-not (Test-Path -LiteralPath $root -PathType Container)) {
+        return Get-BallsFingerprintHash -Value @()
+    }
+    $rootPrefix = [IO.Path]::GetFullPath($root).TrimEnd('\') + '\'
+    $disposablePrefix = [IO.Path]::GetFullPath($DisposablePath).TrimEnd('\') + '\'
+    $queue = [Collections.Queue]::new()
+    $queue.Enqueue((Get-Item -LiteralPath $root -Force -ErrorAction Stop))
+    $entries = [Collections.Generic.List[object]]::new()
+    [long]$totalFileBytes = 0
+    while ($queue.Count -gt 0) {
+        $directory = $queue.Dequeue()
+        foreach ($item in @(Get-ChildItem -LiteralPath $directory.FullName -Force -ErrorAction Stop | Sort-Object FullName)) {
+            $fullName = [IO.Path]::GetFullPath($item.FullName)
+            if ($fullName -ieq $DisposablePath -or $fullName.StartsWith($disposablePrefix, [StringComparison]::OrdinalIgnoreCase)) {
+                continue
+            }
+            if (-not $fullName.StartsWith($rootPrefix, [StringComparison]::OrdinalIgnoreCase)) {
+                throw 'unrelated_state_path_escape'
+            }
+            if ($entries.Count -ge $script:MaximumUnrelatedInventoryEntries) {
+                throw 'unrelated_state_inventory_oversized'
+            }
+            $relativePath = $fullName.Substring($rootPrefix.Length).Replace('\', '/')
+            $reparse = ($item.Attributes -band [IO.FileAttributes]::ReparsePoint) -ne 0
+            $aclSha256 = Get-BallsSha256Text -Value ((Get-Acl -LiteralPath $fullName -ErrorAction Stop).Sddl)
+            if ($item.PSIsContainer) {
+                $entries.Add([ordered]@{
+                    path = $relativePath
+                    kind = $(if ($reparse) { 'directory-reparse' } else { 'directory' })
+                    attributes = [int]$item.Attributes
+                    aclSha256 = $aclSha256
+                })
+                if (-not $reparse) { $queue.Enqueue($item) }
+                continue
+            }
+            if ($item.Length -gt $script:MaximumUnrelatedFileBytes) {
+                throw 'unrelated_state_file_oversized'
+            }
+            $totalFileBytes += [long]$item.Length
+            if ($totalFileBytes -gt $script:MaximumUnrelatedTotalFileBytes) {
+                throw 'unrelated_state_inventory_oversized'
+            }
+            $entries.Add([ordered]@{
+                path = $relativePath
+                kind = $(if ($reparse) { 'file-reparse' } else { 'file' })
+                attributes = [int]$item.Attributes
+                length = [long]$item.Length
+                contentSha256 = (Get-FileHash -LiteralPath $fullName -Algorithm SHA256 -ErrorAction Stop).Hash.ToLowerInvariant()
+                aclSha256 = $aclSha256
+            })
+        }
+    }
+    return Get-BallsFingerprintHash -Value @($entries | Sort-Object { $_.path })
+}
+
+function Get-BallsShareConfigurationFingerprint {
+    param([Parameter(Mandatory = $true)][string] $OwnedShareName)
+    $shares = @(Get-SmbShare -ErrorAction Stop | Where-Object Name -ne $OwnedShareName | Sort-Object Name)
+    Assert-BallsBoundedCount -Values $shares -Maximum $script:MaximumUnrelatedShares
+    $observations = [Collections.Generic.List[object]]::new()
+    [int]$accessCount = 0
+    foreach ($share in $shares) {
+        $access = @(Get-SmbShareAccess -Name $share.Name -ErrorAction Stop | Sort-Object AccountName,AccessControlType,AccessRight)
+        $accessCount += $access.Count
+        if ($accessCount -gt $script:MaximumUnrelatedGroupMembers) {
+            throw 'unrelated_state_inventory_oversized'
+        }
+        $accessShape = @($access | ForEach-Object {
+            [ordered]@{
+                accountName = Get-BallsPropertyText -Value $_ -Name 'AccountName'
+                accessControlType = Get-BallsPropertyText -Value $_ -Name 'AccessControlType'
+                accessRight = Get-BallsPropertyText -Value $_ -Name 'AccessRight'
+            }
+        })
+        $observations.Add([ordered]@{
+            name = Get-BallsPropertyText -Value $share -Name 'Name'
+            path = Get-BallsPropertyText -Value $share -Name 'Path'
+            description = Get-BallsPropertyText -Value $share -Name 'Description'
+            scopeName = Get-BallsPropertyText -Value $share -Name 'ScopeName'
+            encryptData = Get-BallsPropertyText -Value $share -Name 'EncryptData'
+            folderEnumerationMode = Get-BallsPropertyText -Value $share -Name 'FolderEnumerationMode'
+            cachingMode = Get-BallsPropertyText -Value $share -Name 'CachingMode'
+            continuouslyAvailable = Get-BallsPropertyText -Value $share -Name 'ContinuouslyAvailable'
+            concurrentUserLimit = Get-BallsPropertyText -Value $share -Name 'ConcurrentUserLimit'
+            availabilityType = Get-BallsPropertyText -Value $share -Name 'AvailabilityType'
+            shareState = Get-BallsPropertyText -Value $share -Name 'ShareState'
+            special = Get-BallsPropertyText -Value $share -Name 'Special'
+            temporary = Get-BallsPropertyText -Value $share -Name 'Temporary'
+            access = $accessShape
+        })
+    }
+    return Get-BallsFingerprintHash -Value @($observations)
+}
+
+function Get-BallsFirewallConfigurationFingerprint {
+    param([Parameter(Mandatory = $true)][string] $OwnedFirewallRuleName)
+    $rules = @(Get-NetFirewallRule -PolicyStore ActiveStore -ErrorAction Stop | Where-Object Name -ne $OwnedFirewallRuleName | Sort-Object Name)
+    Assert-BallsBoundedCount -Values $rules -Maximum $script:MaximumUnrelatedFirewallRules
+    $observations = @($rules | ForEach-Object {
+        $rule = $_
+        $ports = @($rule | Get-NetFirewallPortFilter -ErrorAction Stop | ForEach-Object {
+            [ordered]@{
+                protocol = Get-BallsPropertyText -Value $_ -Name 'Protocol'
+                localPort = Get-BallsPropertyText -Value $_ -Name 'LocalPort'
+                remotePort = Get-BallsPropertyText -Value $_ -Name 'RemotePort'
+                icmpType = Get-BallsPropertyText -Value $_ -Name 'IcmpType'
+                dynamicTarget = Get-BallsPropertyText -Value $_ -Name 'DynamicTarget'
+            }
+        })
+        $addresses = @($rule | Get-NetFirewallAddressFilter -ErrorAction Stop | ForEach-Object {
+            [ordered]@{
+                localAddress = Get-BallsPropertyText -Value $_ -Name 'LocalAddress'
+                remoteAddress = Get-BallsPropertyText -Value $_ -Name 'RemoteAddress'
+            }
+        })
+        $applications = @($rule | Get-NetFirewallApplicationFilter -ErrorAction Stop | ForEach-Object {
+            [ordered]@{
+                program = Get-BallsPropertyText -Value $_ -Name 'Program'
+                package = Get-BallsPropertyText -Value $_ -Name 'Package'
+            }
+        })
+        $interfaces = @($rule | Get-NetFirewallInterfaceFilter -ErrorAction Stop | ForEach-Object {
+            [ordered]@{
+                interfaceAlias = Get-BallsPropertyText -Value $_ -Name 'InterfaceAlias'
+                interfaceType = Get-BallsPropertyText -Value $_ -Name 'InterfaceType'
+            }
+        })
+        $security = @($rule | Get-NetFirewallSecurityFilter -ErrorAction Stop | ForEach-Object {
+            [ordered]@{
+                authentication = Get-BallsPropertyText -Value $_ -Name 'Authentication'
+                encryption = Get-BallsPropertyText -Value $_ -Name 'Encryption'
+                overrideBlockRules = Get-BallsPropertyText -Value $_ -Name 'OverrideBlockRules'
+                localUser = Get-BallsPropertyText -Value $_ -Name 'LocalUser'
+                remoteUser = Get-BallsPropertyText -Value $_ -Name 'RemoteUser'
+                remoteMachine = Get-BallsPropertyText -Value $_ -Name 'RemoteMachine'
+            }
+        })
+        $services = @($rule | Get-NetFirewallServiceFilter -ErrorAction Stop | ForEach-Object {
+            [ordered]@{ service = Get-BallsPropertyText -Value $_ -Name 'Service' }
+        })
+        [ordered]@{
+            name = Get-BallsPropertyText -Value $rule -Name 'Name'
+            displayName = Get-BallsPropertyText -Value $rule -Name 'DisplayName'
+            description = Get-BallsPropertyText -Value $rule -Name 'Description'
+            group = Get-BallsPropertyText -Value $rule -Name 'Group'
+            enabled = Get-BallsPropertyText -Value $rule -Name 'Enabled'
+            profile = Get-BallsPropertyText -Value $rule -Name 'Profile'
+            direction = Get-BallsPropertyText -Value $rule -Name 'Direction'
+            action = Get-BallsPropertyText -Value $rule -Name 'Action'
+            edgeTraversalPolicy = Get-BallsPropertyText -Value $rule -Name 'EdgeTraversalPolicy'
+            policyStoreSourceType = Get-BallsPropertyText -Value $rule -Name 'PolicyStoreSourceType'
+            ports = $ports
+            addresses = $addresses
+            applications = $applications
+            interfaces = $interfaces
+            security = $security
+            services = $services
+        }
     })
-    $rules = @(Get-NetFirewallRule -PolicyStore ActiveStore -ErrorAction Stop | Where-Object Name -ne $FirewallRuleName | Sort-Object Name | ForEach-Object {
-        [ordered]@{ name = [string]$_.Name; enabled = [string]$_.Enabled; profile = [string]$_.Profile; direction = [string]$_.Direction; action = [string]$_.Action }
+    return Get-BallsFingerprintHash -Value $observations
+}
+
+function Get-BallsAccountConfigurationFingerprint {
+    $users = @(Get-LocalUser -ErrorAction Stop | Sort-Object SID)
+    $groups = @(Get-LocalGroup -ErrorAction Stop | Sort-Object SID)
+    Assert-BallsBoundedCount -Values $users -Maximum $script:MaximumUnrelatedAccounts
+    Assert-BallsBoundedCount -Values $groups -Maximum $script:MaximumUnrelatedAccounts
+    $userShape = @($users | ForEach-Object {
+        [ordered]@{
+            sid = Get-BallsPropertyText -Value $_ -Name 'SID'
+            enabled = Get-BallsPropertyText -Value $_ -Name 'Enabled'
+            accountExpires = Get-BallsPropertyText -Value $_ -Name 'AccountExpires'
+            passwordExpires = Get-BallsPropertyText -Value $_ -Name 'PasswordExpires'
+            passwordLastSet = Get-BallsPropertyText -Value $_ -Name 'PasswordLastSet'
+            passwordRequired = Get-BallsPropertyText -Value $_ -Name 'PasswordRequired'
+            userMayChangePassword = Get-BallsPropertyText -Value $_ -Name 'UserMayChangePassword'
+            principalSource = Get-BallsPropertyText -Value $_ -Name 'PrincipalSource'
+        }
     })
-    $users = @(Get-LocalUser -ErrorAction Stop | Sort-Object SID | ForEach-Object {
-        [ordered]@{ sid = [string]$_.SID; enabled = [bool]$_.Enabled }
+    [int]$memberCount = 0
+    $groupShape = @($groups | ForEach-Object {
+        $group = $_
+        $members = @(Get-LocalGroupMember -SID $group.SID -ErrorAction Stop | Sort-Object SID,Name)
+        $memberCount += $members.Count
+        if ($memberCount -gt $script:MaximumUnrelatedGroupMembers) {
+            throw 'unrelated_state_inventory_oversized'
+        }
+        [ordered]@{
+            sid = Get-BallsPropertyText -Value $group -Name 'SID'
+            principalSource = Get-BallsPropertyText -Value $group -Name 'PrincipalSource'
+            members = @($members | ForEach-Object {
+                [ordered]@{
+                    sid = Get-BallsPropertyText -Value $_ -Name 'SID'
+                    objectClass = Get-BallsPropertyText -Value $_ -Name 'ObjectClass'
+                    principalSource = Get-BallsPropertyText -Value $_ -Name 'PrincipalSource'
+                }
+            })
+        }
     })
-    $mappings = @(Get-SmbMapping -ErrorAction SilentlyContinue | Sort-Object LocalPath,RemotePath | ForEach-Object {
-        [ordered]@{ local = [string]$_.LocalPath; remote = [string]$_.RemotePath; status = [string]$_.Status }
+    return Get-BallsFingerprintHash -Value ([ordered]@{ users = $userShape; groups = $groupShape })
+}
+
+function Get-BallsSecureStoreInventoryFingerprint {
+    $result = Invoke-BallsBoundedProcess `
+        -FilePath "$env:SystemRoot\System32\cmdkey.exe" `
+        -Arguments '/list' `
+        -WorkingDirectory "$env:SystemRoot\System32" `
+        -TimeoutMilliseconds 15000 `
+        -TimeoutCode 'credential_inventory_timeout'
+    return Get-BallsFingerprintHash -Value ([ordered]@{
+        exitCode = $result.exitCode
+        standardOutputSha256 = Get-BallsSha256Text -Value ([string]$result.standardOutput)
+        standardErrorSha256 = Get-BallsSha256Text -Value ([string]$result.standardError)
     })
-    $services = @(Get-CimInstance -ClassName Win32_Service -ErrorAction Stop | Sort-Object Name | ForEach-Object {
-        [ordered]@{ name = [string]$_.Name; state = [string]$_.State; startMode = [string]$_.StartMode }
+}
+
+function Get-BallsMappingConfigurationFingerprint {
+    $smbMappings = @(Get-SmbMapping -ErrorAction SilentlyContinue | Sort-Object LocalPath,RemotePath)
+    $smbConnections = @(Get-SmbConnection -ErrorAction SilentlyContinue | Sort-Object ServerName,ShareName,UserName)
+    $networkDrives = @(Get-PSDrive -PSProvider FileSystem -ErrorAction Stop | Where-Object { [string]$_.DisplayRoot -like '\\*' } | Sort-Object Name)
+    $networkConnections = @(Get-CimInstance -ClassName Win32_NetworkConnection -ErrorAction Stop | Sort-Object LocalName,RemoteName)
+    $mappingCount = $smbMappings.Count + $smbConnections.Count + $networkDrives.Count + $networkConnections.Count
+    if ($mappingCount -gt $script:MaximumUnrelatedMappings) { throw 'unrelated_state_inventory_oversized' }
+    return Get-BallsFingerprintHash -Value ([ordered]@{
+        smbMappings = @($smbMappings | ForEach-Object {
+            [ordered]@{
+                localPath = Get-BallsPropertyText -Value $_ -Name 'LocalPath'
+                remotePath = Get-BallsPropertyText -Value $_ -Name 'RemotePath'
+                status = Get-BallsPropertyText -Value $_ -Name 'Status'
+                persistent = Get-BallsPropertyText -Value $_ -Name 'Persistent'
+            }
+        })
+        smbConnections = @($smbConnections | ForEach-Object {
+            [ordered]@{
+                serverName = Get-BallsPropertyText -Value $_ -Name 'ServerName'
+                shareName = Get-BallsPropertyText -Value $_ -Name 'ShareName'
+                userName = Get-BallsPropertyText -Value $_ -Name 'UserName'
+                credential = Get-BallsPropertyText -Value $_ -Name 'Credential'
+                dialect = Get-BallsPropertyText -Value $_ -Name 'Dialect'
+            }
+        })
+        networkDrives = @($networkDrives | ForEach-Object {
+            [ordered]@{
+                name = Get-BallsPropertyText -Value $_ -Name 'Name'
+                displayRoot = Get-BallsPropertyText -Value $_ -Name 'DisplayRoot'
+            }
+        })
+        networkConnections = @($networkConnections | ForEach-Object {
+            [ordered]@{
+                localName = Get-BallsPropertyText -Value $_ -Name 'LocalName'
+                remoteName = Get-BallsPropertyText -Value $_ -Name 'RemoteName'
+                userName = Get-BallsPropertyText -Value $_ -Name 'UserName'
+                connectionState = Get-BallsPropertyText -Value $_ -Name 'ConnectionState'
+                persistent = Get-BallsPropertyText -Value $_ -Name 'Persistent'
+            }
+        })
     })
+}
+
+function Get-BallsServiceConfigurationFingerprint {
+    $services = @(Get-CimInstance -ClassName Win32_Service -ErrorAction Stop | Sort-Object Name)
+    Assert-BallsBoundedCount -Values $services -Maximum $script:MaximumUnrelatedServices
+    return Get-BallsFingerprintHash -Value @($services | ForEach-Object {
+        [ordered]@{
+            name = Get-BallsPropertyText -Value $_ -Name 'Name'
+            startMode = Get-BallsPropertyText -Value $_ -Name 'StartMode'
+            startName = Get-BallsPropertyText -Value $_ -Name 'StartName'
+            pathName = Get-BallsPropertyText -Value $_ -Name 'PathName'
+            serviceType = Get-BallsPropertyText -Value $_ -Name 'ServiceType'
+            errorControl = Get-BallsPropertyText -Value $_ -Name 'ErrorControl'
+            delayedAutoStart = Get-BallsPropertyText -Value $_ -Name 'DelayedAutoStart'
+        }
+    })
+}
+
+function Get-BallsPolicyConfigurationFingerprint {
     $firewallProfiles = @(Get-NetFirewallProfile -PolicyStore ActiveStore -ErrorAction Stop | Sort-Object Name | ForEach-Object {
-        [ordered]@{ name = [string]$_.Name; enabled = [bool]$_.Enabled; inbound = [string]$_.DefaultInboundAction; outbound = [string]$_.DefaultOutboundAction }
+        [ordered]@{
+            name = Get-BallsPropertyText -Value $_ -Name 'Name'
+            enabled = Get-BallsPropertyText -Value $_ -Name 'Enabled'
+            defaultInboundAction = Get-BallsPropertyText -Value $_ -Name 'DefaultInboundAction'
+            defaultOutboundAction = Get-BallsPropertyText -Value $_ -Name 'DefaultOutboundAction'
+            allowInboundRules = Get-BallsPropertyText -Value $_ -Name 'AllowInboundRules'
+            allowLocalFirewallRules = Get-BallsPropertyText -Value $_ -Name 'AllowLocalFirewallRules'
+            allowLocalIPsecRules = Get-BallsPropertyText -Value $_ -Name 'AllowLocalIPsecRules'
+            notifyOnListen = Get-BallsPropertyText -Value $_ -Name 'NotifyOnListen'
+        }
     })
     $executionPolicy = @(Get-ExecutionPolicy -List -ErrorAction Stop | Sort-Object Scope | ForEach-Object {
         [ordered]@{ scope = [string]$_.Scope; policy = [string]$_.ExecutionPolicy }
     })
-    $enableLua = $null
-    try { $enableLua = (Get-ItemProperty -LiteralPath 'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\System' -Name EnableLUA -ErrorAction Stop).EnableLUA }
-    catch {}
-    $credentialOutput = [string]((& "$env:SystemRoot\System32\cmdkey.exe" /list 2>$null) -join "`n")
-    $policy = [ordered]@{
-        execution = $executionPolicy
-        enableLua = $enableLua
+    $registryShape = [Collections.Generic.List[object]]::new()
+    foreach ($key in @(
+        'HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\System',
+        'HKLM\SOFTWARE\Policies\Microsoft\Windows\SrpV2',
+        'HKLM\SYSTEM\CurrentControlSet\Control\CI\Policy',
+        'HKLM\SYSTEM\CurrentControlSet\Services\SharedAccess\Parameters\FirewallPolicy')) {
+        $result = Invoke-BallsBoundedProcess `
+            -FilePath "$env:SystemRoot\System32\reg.exe" `
+            -Arguments "query $key /s" `
+            -WorkingDirectory "$env:SystemRoot\System32" `
+            -TimeoutMilliseconds 15000 `
+            -TimeoutCode 'policy_inventory_timeout'
+        $registryShape.Add([ordered]@{
+            keySha256 = Get-BallsSha256Text -Value $key
+            exitCode = $result.exitCode
+            standardOutputSha256 = Get-BallsSha256Text -Value ([string]$result.standardOutput)
+            standardErrorSha256 = Get-BallsSha256Text -Value ([string]$result.standardError)
+        })
+    }
+    return Get-BallsFingerprintHash -Value ([ordered]@{
+        executionPolicy = $executionPolicy
         applicationControl = Get-BallsApplicationControlState
         firewallProfiles = $firewallProfiles
-        credentialInventorySha256 = Get-BallsSha256Text -Value $credentialOutput
+        registry = @($registryShape)
+    })
+}
+
+function Get-BallsUnrelatedFingerprint {
+    param(
+        [Parameter(Mandatory = $true)][string] $DisposablePath,
+        [Parameter(Mandatory = $true)][string] $ShareName,
+        [Parameter(Mandatory = $true)][string] $FirewallRuleName)
+    $components = [ordered]@{
+        rootInventorySha256 = Get-BallsConformanceRootInventory -DisposablePath $DisposablePath
+        shareConfigurationSha256 = Get-BallsShareConfigurationFingerprint -OwnedShareName $ShareName
+        firewallConfigurationSha256 = Get-BallsFirewallConfigurationFingerprint -OwnedFirewallRuleName $FirewallRuleName
+        accountConfigurationSha256 = Get-BallsAccountConfigurationFingerprint
+        secureStoreInventorySha256 = Get-BallsSecureStoreInventoryFingerprint
+        mappingConfigurationSha256 = Get-BallsMappingConfigurationFingerprint
+        serviceConfigurationSha256 = Get-BallsServiceConfigurationFingerprint
+        policyConfigurationSha256 = Get-BallsPolicyConfigurationFingerprint
     }
-    return Get-BallsSha256Text -Value (([ordered]@{
-        shares = $shares; rules = $rules; users = $users; mappings = $mappings; services = $services; policy = $policy
-    } | ConvertTo-Json -Compress -Depth 8))
+    $components['combinedSha256'] = Get-BallsFingerprintHash -Value $components
+    return $components
 }
 
 function Get-BallsNativeObservation {
     param(
         [Parameter(Mandatory = $true)][string] $State,
         [Parameter(Mandatory = $true)][string] $DisposablePath,
+        [Parameter(Mandatory = $true)][string] $ExpectedVolumeSha256,
+        [Parameter(Mandatory = $true)][string] $ExpectedDiskSha256,
         [Parameter(Mandatory = $true)][string] $ExpectedOwnerSha256,
         [Parameter(Mandatory = $true)][string] $CircleId,
         [Parameter(Mandatory = $true)][string] $ContributionId,
@@ -412,7 +862,10 @@ function Get-BallsNativeObservation {
         [Parameter(Mandatory = $true)][string] $OwnershipId,
         [Parameter(Mandatory = $true)][string] $ExpectedSeedHash,
         [Parameter(Mandatory = $true)][long] $ExpectedSeedLength)
-    Test-BallsPathSafe -Path $DisposablePath
+    [void](Test-BallsPathSafe `
+        -Path $DisposablePath `
+        -ExpectedVolumeSha256 $ExpectedVolumeSha256 `
+        -ExpectedDiskSha256 $ExpectedDiskSha256)
     $folder = Get-Item -LiteralPath $DisposablePath -Force -ErrorAction Stop
     $reparse = ($folder.Attributes -band [IO.FileAttributes]::ReparsePoint) -ne 0
     $seed = Get-BallsSeedObservation -DisposablePath $DisposablePath
@@ -421,17 +874,40 @@ function Get-BallsNativeObservation {
     $aclSddl = $acl.Sddl
     $ownerSid = ConvertTo-BallsSidValue -Identity ([string]$acl.Owner)
     $ownerSidHash = Get-BallsSha256Text -Value $ownerSid
-    $ownerFull = $false
-    $systemFull = $false
-    foreach ($rule in @($acl.Access)) {
+    $accessRules = @($acl.Access)
+    $applicableRules = @($accessRules | Where-Object {
+        ($_.PropagationFlags -band [Security.AccessControl.PropagationFlags]::InheritOnly) -eq 0
+    })
+    $denyRules = @($applicableRules | Where-Object {
+        $_.AccessControlType -eq [Security.AccessControl.AccessControlType]::Deny
+    })
+    [int]$ownerFullCount = 0
+    [int]$systemFullCount = 0
+    [int]$otherApplicableCount = 0
+    foreach ($rule in $applicableRules) {
+        $sid = $null
         try { $sid = $rule.IdentityReference.Translate([Security.Principal.SecurityIdentifier]).Value }
-        catch { continue }
-        $full = ($rule.FileSystemRights -band [Security.AccessControl.FileSystemRights]::FullControl) -eq [Security.AccessControl.FileSystemRights]::FullControl
-        if ($rule.AccessControlType -eq [Security.AccessControl.AccessControlType]::Allow -and $full) {
-            if ((Get-BallsSha256Text -Value $sid) -eq $ExpectedOwnerSha256) { $ownerFull = $true }
-            if ($sid -eq 'S-1-5-18') { $systemFull = $true }
+        catch { $otherApplicableCount++; continue }
+        $full = ($rule.FileSystemRights -band [Security.AccessControl.FileSystemRights]::FullControl) `
+            -eq [Security.AccessControl.FileSystemRights]::FullControl
+        $allow = $rule.AccessControlType -eq [Security.AccessControl.AccessControlType]::Allow
+        if ($allow -and $full -and (Get-BallsSha256Text -Value $sid) -eq $ExpectedOwnerSha256) {
+            $ownerFullCount++
         }
+        elseif ($allow -and $full -and $sid -eq 'S-1-5-18') {
+            $systemFullCount++
+        }
+        else { $otherApplicableCount++ }
     }
+    $aclShapeExact = $acl.AreAccessRulesProtected `
+        -and $accessRules.Count -eq 2 `
+        -and $applicableRules.Count -eq 2 `
+        -and $denyRules.Count -eq 0 `
+        -and $ownerFullCount -eq 1 `
+        -and $systemFullCount -eq 1 `
+        -and $otherApplicableCount -eq 0
+    $ownerFull = $aclShapeExact
+    $systemFull = $aclShapeExact
     $markerPath = Join-Path $DisposablePath '.balls-owned-v1.json'
     $journalPath = Join-Path $DisposablePath '.balls-operation-v1.json'
     $recoveryPath = Join-Path $DisposablePath '.balls-firewall-recovery-v1.json'
@@ -503,6 +979,10 @@ function Get-BallsNativeObservation {
         ownerSidSha256 = $ownerSidHash
         ownerFullControl = $ownerFull
         systemFullControl = $systemFull
+        aclAccessRuleCount = $accessRules.Count
+        aclApplicableRuleCount = $applicableRules.Count
+        aclDenyRuleCount = $denyRules.Count
+        aclShapeExact = $aclShapeExact
         markerExists = $markerExists
         markerMatches = $markerMatches
         journalExists = $journalExists
@@ -518,8 +998,39 @@ function Get-BallsNativeObservation {
         firewallLocalSubnetOnly = $localSubnet
         firewallTcp445Only = $tcp445
         firewallLanmanServerOnly = $lanman
-        unrelatedInfrastructureSha256 = Get-BallsUnrelatedFingerprint -ShareName $ShareName -FirewallRuleName $FirewallRuleName
+        unrelatedState = Get-BallsUnrelatedFingerprint `
+            -DisposablePath $DisposablePath `
+            -ShareName $ShareName `
+            -FirewallRuleName $FirewallRuleName
     }
+}
+
+function Invoke-BallsHostRemoval {
+    param(
+        [Parameter(Mandatory = $true)][object] $Paths,
+        [Parameter(Mandatory = $true)][object] $Context,
+        [Parameter(Mandatory = $true)][string] $DisposablePath,
+        [Parameter(Mandatory = $true)][string] $PreviewStage,
+        [Parameter(Mandatory = $true)][string] $ApplyStage,
+        [Parameter(Mandatory = $true)][string] $PreviewTimeoutCode,
+        [Parameter(Mandatory = $true)][string] $PreviewFailureCode,
+        [Parameter(Mandatory = $true)][string] $ApplyTimeoutCode,
+        [Parameter(Mandatory = $true)][string] $ApplyFailureCode,
+        [Parameter(Mandatory = $true)][string] $IncompleteCode)
+    $script:Stage = $PreviewStage
+    $preview = ConvertFrom-BallsCliResult -ProcessResult (Invoke-BallsCli `
+        -Paths $Paths `
+        -PipeName ([string]$Context.pipeName) `
+        -Arguments "files host remove-preview --circle $($Context.circleId) --contribution $($Context.contributionId) --path `"$DisposablePath`"" `
+        -TimeoutCode $PreviewTimeoutCode) -FailureCode $PreviewFailureCode
+    $script:Stage = $ApplyStage
+    $result = ConvertFrom-BallsCliResult -ProcessResult (Invoke-BallsCli `
+        -Paths $Paths `
+        -PipeName ([string]$Context.pipeName) `
+        -Arguments "files host remove-apply --circle $($Context.circleId) --contribution $($Context.contributionId) --path `"$DisposablePath`" --plan $($preview.planId)" `
+        -TimeoutCode $ApplyTimeoutCode) -FailureCode $ApplyFailureCode
+    if ([string]$result.status -notin @('removed', 'already-removed')) { throw $IncompleteCode }
+    return $result
 }
 
 function Remove-BallsProductArtifacts {
@@ -548,9 +1059,15 @@ function Remove-BallsProductArtifacts {
 try {
     $mode = Get-BallsEnvironmentValue -Name 'BALLS_CONFORMANCE_MODE' -Pattern '^(preflight|product-preflight|prepare|inject-failure|apply|native|remove|cleanup)$'
     $disposablePath = ConvertFrom-BallsBase64Url (Get-BallsEnvironmentValue -Name 'BALLS_CONFORMANCE_DISPOSABLE_PATH_B64' -Pattern '^[A-Za-z0-9_-]{16,256}$')
+    $expectedVolumeSha256 = Get-BallsEnvironmentValue -Name 'BALLS_CONFORMANCE_EXPECTED_VOLUME_SHA256' -Pattern '^[0-9a-f]{64}$'
+    $expectedDiskSha256 = Get-BallsEnvironmentValue -Name 'BALLS_CONFORMANCE_EXPECTED_DISK_SHA256' -Pattern '^[0-9a-f]{64}$'
     if ($mode -in @('preflight','product-preflight')) {
         $script:Stage = $mode
-        $preflight = Get-BallsPreflight -DisposablePath $disposablePath -ProductOnly:($mode -eq 'product-preflight')
+        $preflight = Get-BallsPreflight `
+            -DisposablePath $disposablePath `
+            -ExpectedVolumeSha256 $expectedVolumeSha256 `
+            -ExpectedDiskSha256 $expectedDiskSha256 `
+            -ProductOnly:($mode -eq 'product-preflight')
         Write-BallsResult -Value $preflight -ExitCode $(if ($preflight.outcome -eq 'ready') { 0 } else { 1 })
     }
 
@@ -559,6 +1076,8 @@ try {
         $observation = Get-BallsNativeObservation `
             -State (Get-BallsEnvironmentValue -Name 'BALLS_CONFORMANCE_NATIVE_STATE' -Pattern '^(prepared|rolled-back|provisioned|final)$') `
             -DisposablePath $disposablePath `
+            -ExpectedVolumeSha256 $expectedVolumeSha256 `
+            -ExpectedDiskSha256 $expectedDiskSha256 `
             -ExpectedOwnerSha256 (Get-BallsEnvironmentValue -Name 'BALLS_CONFORMANCE_EXPECTED_PRODUCT_SID_SHA256' -Pattern '^[0-9a-f]{64}$') `
             -CircleId (Get-BallsEnvironmentValue -Name 'BALLS_CONFORMANCE_CIRCLE_ID' -Pattern '^[0-9a-f-]{36}$') `
             -ContributionId (Get-BallsEnvironmentValue -Name 'BALLS_CONFORMANCE_CONTRIBUTION_ID' -Pattern '^[0-9a-f-]{36}$') `
@@ -583,7 +1102,13 @@ try {
         $script:Stage = 'prepare-preflight'
         $expectedComputerName = Get-BallsEnvironmentValue -Name 'BALLS_CONFORMANCE_EXPECTED_COMPUTER_NAME' -Pattern '^[A-Za-z0-9-]{1,63}$'
         $expectedSidHash = Get-BallsEnvironmentValue -Name 'BALLS_CONFORMANCE_EXPECTED_PRODUCT_SID_SHA256' -Pattern '^[0-9a-f]{64}$'
-        $preflight = Get-BallsPreflight -DisposablePath $disposablePath -IgnoredPackageName $stagedPackageName -IgnoredRunId $runId -ProductOnly
+        $preflight = Get-BallsPreflight `
+            -DisposablePath $disposablePath `
+            -ExpectedVolumeSha256 $expectedVolumeSha256 `
+            -ExpectedDiskSha256 $expectedDiskSha256 `
+            -IgnoredPackageName $stagedPackageName `
+            -IgnoredRunId $runId `
+            -ProductOnly
         if ($preflight.outcome -ne 'ready' -or $preflight.computerName -ine $expectedComputerName -or $preflight.account.identitySha256 -ne $expectedSidHash) {
             throw 'target_precondition_mismatch'
         }
@@ -595,16 +1120,23 @@ try {
         $daemonVersion = (Invoke-BallsBoundedProcess -FilePath $daemon -Arguments '--version' -WorkingDirectory $paths.extract -TimeoutMilliseconds 10000 -TimeoutCode 'package_probe_timeout').standardOutput.Trim()
         if ([string]::IsNullOrWhiteSpace($cliVersion) -or [string]::IsNullOrWhiteSpace($daemonVersion)) { throw 'package_identity_mismatch' }
         $pipeName = "balls-host-$runId"
-        $script:Stage = 'daemon-start'
-        Start-BallsDaemon -Paths $paths -PipeName $pipeName
+        $script:Stage = 'private-material-preflight'
+        Test-BallsCurrentUserDpapi
         $script:Stage = 'seed-setup'
         $parent = Split-Path -Parent $disposablePath
         if (-not (Test-Path -LiteralPath $parent -PathType Container)) { New-Item -ItemType Directory -Path $parent -ErrorAction Stop | Out-Null }
-        Test-BallsPathSafe -Path $disposablePath -RequireMissing
+        [void](Test-BallsPathSafe `
+            -Path $disposablePath `
+            -ExpectedVolumeSha256 $expectedVolumeSha256 `
+            -ExpectedDiskSha256 $expectedDiskSha256 `
+            -RequireMissing)
         New-Item -ItemType Directory -Path $disposablePath -ErrorAction Stop | Out-Null
         $seedBytes = [Text.Encoding]::UTF8.GetBytes("Balls issue 124 seed bytes`r`n")
         [IO.File]::WriteAllBytes((Join-Path $disposablePath 'before-balls.txt'), $seedBytes)
         $seed = Get-BallsSeedObservation -DisposablePath $disposablePath
+        $seed | ConvertTo-Json -Compress | Set-Content -LiteralPath $paths.seed -Encoding UTF8
+        $script:Stage = 'daemon-start'
+        Start-BallsDaemon -Paths $paths -PipeName $pipeName
         $script:Stage = 'circle-create'
         $circleRequest = [Guid]::NewGuid().ToString('D')
         $circle = ConvertFrom-BallsCliResult -ProcessResult (Invoke-BallsCli -Paths $paths -PipeName $pipeName -Arguments "circle create Balls-Host-$runId --owner Conformance-Owner --request-id $circleRequest" -TimeoutCode 'circle_create_timeout') -FailureCode 'circle_create_failed'
@@ -695,11 +1227,17 @@ try {
     }
 
     if ($mode -eq 'remove') {
-        $script:Stage = 'remove-preview'
-        $preview = ConvertFrom-BallsCliResult -ProcessResult (Invoke-BallsCli -Paths $paths -PipeName ([string]$context.pipeName) -Arguments "files host remove-preview --circle $($context.circleId) --contribution $($context.contributionId) --path `"$disposablePath`"" -TimeoutCode 'remove_preview_timeout') -FailureCode 'remove_preview_failed'
-        $script:Stage = 'remove-apply'
-        $result = ConvertFrom-BallsCliResult -ProcessResult (Invoke-BallsCli -Paths $paths -PipeName ([string]$context.pipeName) -Arguments "files host remove-apply --circle $($context.circleId) --contribution $($context.contributionId) --path `"$disposablePath`" --plan $($preview.planId)" -TimeoutCode 'remove_apply_timeout') -FailureCode 'remove_apply_failed'
-        if ([string]$result.status -notin @('removed','already-removed')) { throw 'remove_incomplete' }
+        $result = Invoke-BallsHostRemoval `
+            -Paths $paths `
+            -Context $context `
+            -DisposablePath $disposablePath `
+            -PreviewStage 'remove-preview' `
+            -ApplyStage 'remove-apply' `
+            -PreviewTimeoutCode 'remove_preview_timeout' `
+            -PreviewFailureCode 'remove_preview_failed' `
+            -ApplyTimeoutCode 'remove_apply_timeout' `
+            -ApplyFailureCode 'remove_apply_failed' `
+            -IncompleteCode 'remove_incomplete'
         $cleanup = Remove-BallsProductArtifacts -Paths $paths -StagedPackageName $stagedPackageName -ProductResourcesRemoved $true
         Write-BallsResult -Value ([ordered]@{
             schema = 'balls-windows-host-removal-v1'; operation = $script:Operation; outcome = 'removed'
@@ -714,9 +1252,18 @@ try {
         try {
             $attempted = $true
             Start-BallsDaemon -Paths $paths -PipeName ([string]$context.pipeName)
-            $preview = ConvertFrom-BallsCliResult -ProcessResult (Invoke-BallsCli -Paths $paths -PipeName ([string]$context.pipeName) -Arguments "files host remove-preview --circle $($context.circleId) --contribution $($context.contributionId) --path `"$disposablePath`"" -TimeoutCode 'cleanup_preview_timeout') -FailureCode 'cleanup_preview_failed'
-            $removed = ConvertFrom-BallsCliResult -ProcessResult (Invoke-BallsCli -Paths $paths -PipeName ([string]$context.pipeName) -Arguments "files host remove-apply --circle $($context.circleId) --contribution $($context.contributionId) --path `"$disposablePath`" --plan $($preview.planId)" -TimeoutCode 'cleanup_apply_timeout') -FailureCode 'cleanup_apply_failed'
-            $resourcesRemoved = [string]$removed.status -in @('removed','already-removed')
+            $removed = Invoke-BallsHostRemoval `
+                -Paths $paths `
+                -Context $context `
+                -DisposablePath $disposablePath `
+                -PreviewStage 'cleanup-preview' `
+                -ApplyStage 'cleanup-apply' `
+                -PreviewTimeoutCode 'cleanup_preview_timeout' `
+                -PreviewFailureCode 'cleanup_preview_failed' `
+                -ApplyTimeoutCode 'cleanup_apply_timeout' `
+                -ApplyFailureCode 'cleanup_apply_failed' `
+                -IncompleteCode 'cleanup_remove_incomplete'
+            $resourcesRemoved = [string]$removed.status -in @('removed', 'already-removed')
         }
         catch { $resourcesRemoved = $false }
         $cleanup = Remove-BallsProductArtifacts -Paths $paths -StagedPackageName $stagedPackageName -ProductResourcesRemoved $resourcesRemoved

@@ -135,16 +135,24 @@ This scenario requires one pre-existing, independently authorized OpenSSH inspec
 one pre-existing, independently authorized administrative product identity on the same disposable
 Windows target. The product identity must already be high-integrity and its noninteractive token
 must be able to use the account's existing CurrentUser DPAPI state so the normal daemon can create
-and reopen its local Node identity. The runner proves that full-daemon precondition before it
-creates the disposable folder or seed. The runner does not install
+and reopen its local Node identity. Before creating the disposable folder or seed, the packaged
+operation performs only a bounded random-byte CurrentUser DPAPI protect/unprotect round trip under
+that exact identity. If that identity preflight fails, it returns the typed redacted
+`daemon_private_material_unavailable` refusal and cleanup runs without a seed or product mutation.
+After the identity preflight passes, the operation creates and durably records the exact seed
+length and SHA-256 before starting the normal daemon. The runner does not install
 SSH, elevate an account, accept a password or private-key path, disable UAC, or change policy. An
 administrative SSH run is not evidence that a person saw or accepted UAC consent.
 
 Perform the required live inspection at the top of this runbook. In addition, verify that the
 exact proposed path is absent, is below `C:\BallsConformance`, is on a fixed local Windows volume,
-and has no reparse point in its existing ancestry. A production, general-purpose, network-backed,
-mapped, host-mounted, ambiguous, already-present, or unexpected path is not authorized. Then copy
-the host-specific example outside the repository:
+and has no reparse point in its existing ancestry. `DriveType=Fixed` is not sufficient. Resolve
+exactly one native volume, partition, and disk for that path; require healthy NTFS/ReFS on an
+online writable local ATA/NVMe/RAID/SAS/SATA/SCSI disk; refuse unknown, virtual/file-backed, iSCSI,
+network-backed, host-mounted, absent, or ambiguous storage. Record the lowercase SHA-256 identities
+produced from the inspected volume/partition and disk evidence. A production, general-purpose,
+already-present, or unexpected path is not authorized. Then copy the host-specific example outside
+the repository:
 
 ```bash
 cp eng/conformance/windows-host-target.example.json /tmp/balls-windows-host-target.json
@@ -153,7 +161,8 @@ cp eng/conformance/windows-host-target.example.json /tmp/balls-windows-host-targ
 Record the exact target ID, computer name, loopback-only endpoint, shared dedicated `known_hosts`
 file, corresponding public-key files, inspected account kinds, lowercase SHA-256 of the approved
 administrative product account's UTF-8 SID, connectivity boundary, and one fresh exact disposable
-path. Set `authorized` to `true` only for that target, path, and
+path, plus the inspected `expectedVolumeIdentitySha256` and `expectedDiskIdentitySha256`. Set
+`authorized` to `true` only for that target, path, storage identity, and
 `windows-circle-files-host-v1`. The read-only `windows-smb-readiness-v1` profile never authorizes
 host mutation. Keep both profiles untracked and never attach them to a pull request.
 
@@ -172,8 +181,10 @@ non-distributable Debug conformance build. Debug is required only to activate th
 `EncryptedShare` fault injection; the receipt says `debug-conformance`, and those bytes must not be
 published or promoted.
 
-The product identity creates the fixed seed bytes before starting the product. The normal packaged
-daemon and canonical JSON CLI then create the Circle and Contribution, preview the exact host plan,
+After package identity/version checks and the bounded DPAPI identity preflight, the product identity
+creates the fixed seed bytes and records their exact length and SHA-256 before starting the product.
+The normal packaged daemon and canonical JSON CLI then create the Circle and Contribution, preview
+the exact host plan,
 prove wrong-plan refusal, inject a failure after partial owned state, prove rollback, apply the
 approved plan, retry it for `already-applied`, and remove it through the canonical lifecycle. The
 driver never invokes `balls-windows-helper.exe`, PowerShell SMB/firewall mutation, ACL mutation, or
@@ -186,8 +197,12 @@ provisioned, and final. A pass requires the exact seed hash and length throughou
 folder ACL; one protected Owner/System ACL while hosted; matching marker and journal; one exact
 encrypted, Owner-only share; one exact Private, TCP 445, LocalSubnet, LanmanServer firewall rule;
 no recovery witness; no duplicate resources after retry; no Balls-owned infrastructure after
-removal; and an unchanged fingerprint for unrelated shares, firewall rules, accounts, credentials,
-mappings, services, execution/UAC/application-control policy, and firewall-profile policy.
+removal; and unchanged bounded component fingerprints for unrelated conformance-root paths, file
+bytes, and ACLs; complete unrelated share configuration/access shape; firewall rules and all
+associated filters; relevant local account/group properties and membership; credentials, mappings,
+service configuration, execution/UAC/application-control policy, registry policy, and firewall-
+profile policy. The receipt records these component hashes plus their combined hash and an explicit
+`interventions` array, which must be empty for an unassisted run.
 Raw SDDL, marker/journal contents, SIDs, CLI errors, logs, credentials, and unrelated inventory are
 not evidence and must not leave the guest.
 

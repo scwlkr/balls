@@ -122,12 +122,16 @@ after the live target inspection and authorization in the
 [`Windows lab runbook`](windows-development-lab.md#linux-triggered-circle-files-host-conformance).
 The profile authorizes only `windows-circle-files-host-v1` on one exact loopback-pinned target and
 one exact absent `C:\BallsConformance\Issue124-*` local path. A readiness profile cannot authorize
-this mutation.
+this mutation. The profile also pins SHA-256 identities for one inspected native volume/partition
+and disk chain; fixed drive type alone is insufficient, and the guest refuses ambiguous,
+host-mounted, network-backed, virtual/file-backed, iSCSI, unknown, offline, or read-only storage.
 
 The entrypoint packages exact `HEAD` Windows CLI, daemon, and adjacent helper bytes. It deliberately
 uses a non-distributable Debug build so the existing bounded hosting fault injection can prove real
 rollback; the receipt labels that configuration and the package is never a release candidate. The
-driver creates a fixed seed file before product mutation, then drives the normal daemon and
+driver first proves a bounded CurrentUser DPAPI protect/unprotect round trip without Circle or
+provider behavior. On success it creates a fixed seed file and durably records its exact bytes
+before starting the real daemon or performing product mutation, then drives the normal daemon and
 canonical CLI through Circle and Contribution creation, host preview, wrong-plan refusal,
 injected partial failure, apply, exact retry, removal preview, and removal apply. Independent
 administrative inspection observes the prepared, rolled-back, provisioned, and final native state.
@@ -135,7 +139,11 @@ No conformance script calls the helper, SMB mutation, firewall mutation, ACL mut
 persistence directly.
 
 Success proves one headless administrative Windows host lifecycle with exact seed-byte
-preservation, restored folder ACL, and unchanged unrelated native inventory. It does not prove a
+preservation, an exact applicable protected Owner/System FullControl ACL without deny or inherit-
+only ambiguity, and unchanged bounded component fingerprints for unrelated root inventory, share
+access/control, firewall filters/rules, accounts/groups, credentials, mappings, services, and
+policy. The structured receipt records an empty `interventions` array when no assistance occurred.
+It does not prove a
 user-visible UAC prompt, the native picker, GUI, File Explorer, Member mapping, a physical device,
 or release acceptance. The exact disposable folder and seed remain after product cleanup so the
 final preservation claim is observable.
