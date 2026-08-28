@@ -192,7 +192,7 @@ public sealed class ConformanceRunnerTests
             Result(),
             new ConformanceProcessResult(
                 1,
-                "{\"schema\":\"balls-windows-smb-readiness-guest-v1\",\"operation\":\"windows-smb-readiness-v1\",\"outcome\":\"failed\",\"code\":\"daemon_readiness_timeout\"}",
+                "{\"schema\":\"balls-windows-smb-readiness-guest-v1\",\"operation\":\"windows-smb-readiness-v1\",\"outcome\":\"failed\",\"code\":\"daemon_start_invalid_operation\"}",
                 "untrusted raw detail"),
             Result());
         var runner = new WindowsSmbReadinessConformanceRunner(processes, "Write-Output fixed");
@@ -207,7 +207,7 @@ public sealed class ConformanceRunnerTests
                 Path.Combine(receiptDirectory.Path, "receipt.json"),
                 CancellationToken.None));
 
-        Assert.AreEqual("guest_daemon_readiness_timeout", exception.Code);
+        Assert.AreEqual("guest_daemon_start_invalid_operation", exception.Code);
         Assert.IsFalse(exception.Message.Contains("untrusted", StringComparison.Ordinal));
         Assert.HasCount(4, processes.Requests);
     }

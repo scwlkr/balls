@@ -402,16 +402,28 @@ try {
     $nativeBeforeHash = Get-BallsObjectHash -Value $nativeBefore
     $failureCode = 'daemon_start_failed'
     $pipeName = "balls-conformance-$runId"
-    $daemonProcess = Start-Process `
-        -FilePath $daemon `
-        -ArgumentList @(
-            '--data-directory', "`"$statePath`"",
-            '--pipe-name', $pipeName,
-            '--node-name', 'Balls-Conformance') `
-        -PassThru `
-        -WindowStyle Hidden `
-        -RedirectStandardOutput (Join-Path $root 'daemon.stdout.log') `
-        -RedirectStandardError (Join-Path $root 'daemon.stderr.log')
+    try {
+        $daemonProcess = Start-Process `
+            -FilePath $daemon `
+            -ArgumentList @(
+                '--data-directory', "`"$statePath`"",
+                '--pipe-name', $pipeName,
+                '--node-name', 'Balls-Conformance') `
+            -PassThru `
+            -WindowStyle Hidden `
+            -RedirectStandardOutput (Join-Path $root 'daemon.stdout.log') `
+            -RedirectStandardError (Join-Path $root 'daemon.stderr.log')
+    }
+    catch {
+        $failureCode = switch ($_.Exception.GetType().FullName) {
+            'System.ComponentModel.Win32Exception' { 'daemon_start_win32' }
+            'System.InvalidOperationException' { 'daemon_start_invalid_operation' }
+            'System.IO.IOException' { 'daemon_start_io' }
+            'System.UnauthorizedAccessException' { 'daemon_start_unauthorized' }
+            default { 'daemon_start_other' }
+        }
+        throw $failureCode
+    }
 
     $ready = $false
     $deadline = [DateTimeOffset]::UtcNow.AddSeconds(20)
