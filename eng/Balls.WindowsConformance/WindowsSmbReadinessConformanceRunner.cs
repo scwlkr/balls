@@ -9,6 +9,7 @@ internal sealed class WindowsSmbReadinessConformanceRunner(
     TimeProvider? timeProvider = null)
 {
     private const string Operation = "windows-smb-readiness-v1";
+    private const string ScriptEndMarker = "__BALLS_CONFORMANCE_OPERATION_END__";
     private const int MaximumOutputBytes = 64 * 1024;
     private static readonly string[] ExpectedReadinessCheckIds =
     [
@@ -500,7 +501,7 @@ internal sealed class WindowsSmbReadinessConformanceRunner(
             ],
             timeout,
             MaximumOutputBytes,
-            standardInput);
+            FrameGuestScript(standardInput));
 
     private static ConformanceProcessRequest ScpRequest(
         WindowsConformanceSshTransport transport,
@@ -572,8 +573,25 @@ internal sealed class WindowsSmbReadinessConformanceRunner(
 
         assignments.Append(
             "powershell.exe -NoLogo -NoProfile -NonInteractive " +
-            "-Command \"$script=[Console]::In.ReadToEnd();&([scriptblock]::Create($script))\"");
+            "-Command \"$lines=[Collections.Generic.List[string]]::new();" +
+            "while(($line=[Console]::In.ReadLine())-ne'" + ScriptEndMarker + "'){" +
+            "if($null-eq$line){exit 97};$lines.Add($line)};" +
+            "&([scriptblock]::Create([string]::Join([Environment]::NewLine,$lines)))\"");
         return assignments.ToString();
+    }
+
+    private static string FrameGuestScript(string script)
+    {
+        if (script.Split(['\r', '\n'], StringSplitOptions.RemoveEmptyEntries)
+            .Contains(ScriptEndMarker, StringComparer.Ordinal))
+        {
+            throw new ConformanceRefusalException("guest_script_invalid");
+        }
+
+        return script.TrimEnd('\r', '\n')
+            + Environment.NewLine
+            + ScriptEndMarker
+            + Environment.NewLine;
     }
 
     private static void WriteReceipt(

@@ -60,11 +60,16 @@ public sealed class ConformanceRunnerTests
             .All(request => request.Arguments[^1].Length < 1000));
         Assert.IsTrue(processes.Requests
             .Where(request => request.FileName == "ssh")
-            .All(request => request.StandardInput == ReadGuestScript()));
+            .All(request => request.StandardInput!.StartsWith(
+                    ReadGuestScript().TrimEnd('\r', '\n'),
+                    StringComparison.Ordinal)
+                && request.StandardInput.EndsWith(
+                    "__BALLS_CONFORMANCE_OPERATION_END__" + Environment.NewLine,
+                    StringComparison.Ordinal)));
         Assert.IsTrue(processes.Requests
             .Where(request => request.FileName == "ssh")
             .All(request => request.Arguments[^1].Contains(
-                "[Console]::In.ReadToEnd()",
+                "[Console]::In.ReadLine()",
                 StringComparison.Ordinal)));
         Assert.IsNull(processes.Requests[3].StandardInput);
         Assert.IsFalse(processes.Requests[3].Arguments.Contains("-p"));
