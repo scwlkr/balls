@@ -133,6 +133,20 @@ For Windows VM automation, manual two-VM acceptance, unsigned UI or installer ex
 checks, or lab recovery, read
 [`docs/windows-development-lab.md`](docs/windows-development-lab.md) before acting.
 
+## Agent skills
+
+### Issue tracker
+
+Issues and specs are tracked in this repository's GitHub Issues using `gh`. See `docs/agents/issue-tracker.md`.
+
+### Triage labels
+
+The five canonical triage roles use their default label names. See `docs/agents/triage-labels.md`.
+
+### Domain docs
+
+This repository uses the single-context layout. See `docs/agents/domain.md`.
+
 ## Prior research
 
 `scwlkr/balls-server` is archived prior research. Inspect it only for a specific
