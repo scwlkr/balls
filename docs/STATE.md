@@ -1,6 +1,6 @@
 # Current State
 
-**Updated:** 2026-08-27
+**Updated:** 2026-08-28
 
 This is the compact execution entry point. Read [`AGENTS.md`](../AGENTS.md), this file, and the one
 active issue before loading deeper design or verification records.
@@ -30,12 +30,11 @@ object IDs, plan tokens, provider language, or manual drive selection.
 **In-progress lanes:**
 
 - [#118 — Install and use the local Balls Wizard product guide](https://github.com/scwlkr/balls/issues/118)
-  in [PR #119](https://github.com/scwlkr/balls/pull/119);
-- [#123 — Run Windows SMB readiness conformance headlessly from Linux](https://github.com/scwlkr/balls/issues/123).
+  in [PR #119](https://github.com/scwlkr/balls/pull/119).
 
-[#122](https://github.com/scwlkr/balls/issues/122) remains blocked by #118, and
-[#124](https://github.com/scwlkr/balls/issues/124) remains blocked by #123. Preserve the two-lane
-limit; after #123 lands, #124 is the next child in this lane.
+[#122](https://github.com/scwlkr/balls/issues/122) remains blocked by #118.
+[#124 — Provision and remove one Circle Files host headlessly from Linux](https://github.com/scwlkr/balls/issues/124)
+is the ready child in the completed #123 conformance lane. Preserve the two-lane limit.
 
 ## Private-pilot delivery posture
 
@@ -115,9 +114,7 @@ evidence and completes #92 without making a physical-device claim. Follow the
 
 ## Continue
 
-1. Land #123 only after an exact-commit live headless Windows receipt, the final fast gate, and
-   required pull-request checks.
-2. Promote #124 from blocked to ready after #123 lands; reuse #123's target, transport, identity,
-   timeout, cleanup, redaction, and evidence contracts.
-3. Let PR #119 complete independently, then unblock #122 without interrupting the #124 lane.
-4. Close #120 only after #122 and #124 land with their required evidence.
+1. Implement #124 using #123's target, transport, identity, timeout, cleanup, redaction, and
+   evidence contracts.
+2. Let PR #119 complete independently, then unblock #122 without interrupting the #124 lane.
+3. Close #120 only after #122 and #124 land with their required evidence.
