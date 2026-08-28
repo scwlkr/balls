@@ -94,5 +94,4 @@ public static class WindowsNamedPipeHttpClient
             DefaultVersionPolicy = HttpVersionPolicy.RequestVersionExact,
         };
     }
-
 }
