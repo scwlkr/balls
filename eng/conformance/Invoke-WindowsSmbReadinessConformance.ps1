@@ -11,6 +11,31 @@ function Write-BallsConformanceResult {
     exit $ExitCode
 }
 
+$operationStage = 'initializing'
+trap {
+    $knownStages = @(
+        'initializing',
+        'environment',
+        'preflight',
+        'preconditions',
+        'package',
+        'native_before',
+        'daemon_start',
+        'daemon_poll',
+        'readiness',
+        'native_after',
+        'cleanup',
+        'receipt')
+    $stage = 'initializing'
+    if ($operationStage -in $knownStages) { $stage = $operationStage }
+    Write-BallsConformanceResult -Value ([ordered]@{
+        schema = 'balls-windows-smb-readiness-guest-v1'
+        operation = 'windows-smb-readiness-v1'
+        outcome = 'failed'
+        code = "guest_operation_unhandled_$stage"
+    }) -ExitCode 1
+}
+
 function Get-BallsEnvironmentValue {
     param(
         [Parameter(Mandatory = $true)][string] $Name,
@@ -353,9 +378,11 @@ function Remove-BallsOwnedArtifacts {
     }
 }
 
+$operationStage = 'environment'
 $mode = Get-BallsEnvironmentValue -Name 'BALLS_CONFORMANCE_MODE' -Pattern '^(preflight|run|cleanup)$'
 
 if ($mode -eq 'preflight') {
+    $operationStage = 'preflight'
     try {
         Write-BallsConformanceResult -Value (Get-BallsPreflight) -ExitCode 0
     }
@@ -419,6 +446,7 @@ $failureCode = 'product_execution_failed'
 $succeeded = $false
 
 try {
+    $operationStage = 'preconditions'
     $failureCode = 'target_precondition_mismatch'
     $preflight = Get-BallsPreflight -IgnoredPackageName $stagedPackageName -IgnoredRunId $runId
     if ($preflight.outcome -ne 'ready' `
@@ -428,6 +456,7 @@ try {
         throw $failureCode
     }
 
+    $operationStage = 'package'
     $failureCode = 'package_identity_mismatch'
     if (-not (Test-Path -LiteralPath $stagedPackagePath -PathType Leaf)) { throw $failureCode }
     $actualPackageHash = (Get-FileHash -LiteralPath $stagedPackagePath -Algorithm SHA256).Hash
@@ -464,8 +493,10 @@ try {
     $daemonVersion = ((& $daemon --version 2>$null) | Out-String).Trim()
     if ($LASTEXITCODE -ne 0 -or [string]::IsNullOrWhiteSpace($daemonVersion)) { throw $failureCode }
 
+    $operationStage = 'native_before'
     $nativeBefore = Get-BallsNativeObservation
     $nativeBeforeHash = Get-BallsObjectHash -Value $nativeBefore
+    $operationStage = 'daemon_start'
     $failureCode = 'daemon_start_failed'
     $pipeName = "balls-conformance-$runId"
     try {
@@ -494,6 +525,7 @@ try {
         throw $failureCode
     }
 
+    $operationStage = 'daemon_poll'
     $ready = $false
     $deadline = [DateTimeOffset]::UtcNow.AddSeconds(20)
     while ([DateTimeOffset]::UtcNow -lt $deadline) {
@@ -528,6 +560,7 @@ try {
         throw $failureCode
     }
 
+    $operationStage = 'readiness'
     $failureCode = 'readiness_cli_failed'
     $readinessJson = ((& $cli --output json --pipe-name $pipeName files readiness 2>$null) | Out-String).Trim()
     if ($LASTEXITCODE -ne 0 -or [string]::IsNullOrWhiteSpace($readinessJson)) { throw $failureCode }
@@ -540,6 +573,7 @@ try {
         throw $failureCode
     }
 
+    $operationStage = 'native_after'
     $nativeObservation = Get-BallsNativeObservation
     $nativeStateUnchanged = $nativeBeforeHash -eq (Get-BallsObjectHash -Value $nativeObservation)
     if (-not $nativeStateUnchanged) { throw 'native_state_changed' }
@@ -557,12 +591,14 @@ catch {
     $succeeded = $false
 }
 
+$operationStage = 'cleanup'
 $cleanup = Remove-BallsOwnedArtifacts `
     -RunId $runId `
     -StagedPackageName $stagedPackageName `
     -DaemonProcess $daemonProcess
 if ($null -ne $daemonProcess) { $daemonProcess.Dispose() }
 
+$operationStage = 'receipt'
 if (-not $succeeded -or -not $cleanup.complete) {
     Write-BallsConformanceResult -Value ([ordered]@{
         schema = 'balls-windows-smb-readiness-guest-v1'

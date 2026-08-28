@@ -52,6 +52,18 @@ internal sealed class WindowsSmbReadinessConformanceRunner(
         "daemon_readiness_timeout",
         "readiness_cli_failed",
         "cleanup_incomplete",
+        "guest_operation_unhandled_initializing",
+        "guest_operation_unhandled_environment",
+        "guest_operation_unhandled_preflight",
+        "guest_operation_unhandled_preconditions",
+        "guest_operation_unhandled_package",
+        "guest_operation_unhandled_native_before",
+        "guest_operation_unhandled_daemon_start",
+        "guest_operation_unhandled_daemon_poll",
+        "guest_operation_unhandled_readiness",
+        "guest_operation_unhandled_native_after",
+        "guest_operation_unhandled_cleanup",
+        "guest_operation_unhandled_receipt",
     };
     private readonly TimeProvider clock = timeProvider ?? TimeProvider.System;
 
