@@ -14,6 +14,7 @@ public sealed class GuestOperationBoundaryTests
 
         StringAssert.Contains(script, "files readiness");
         StringAssert.Contains(script, "--files-readiness-conformance");
+        StringAssert.Contains(script, "$readinessEnvelope.outputVersion -ne 1");
         StringAssert.Contains(script, "Get-SmbServerConfiguration");
         StringAssert.Contains(script, "Get-NetFirewallRule");
         StringAssert.Contains(script, "BallsSmbReadiness-$RunId");

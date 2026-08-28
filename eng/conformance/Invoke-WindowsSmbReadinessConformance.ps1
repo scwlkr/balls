@@ -531,7 +531,11 @@ try {
     $failureCode = 'readiness_cli_failed'
     $readinessJson = ((& $cli --output json --pipe-name $pipeName files readiness 2>$null) | Out-String).Trim()
     if ($LASTEXITCODE -ne 0 -or [string]::IsNullOrWhiteSpace($readinessJson)) { throw $failureCode }
-    $productReadiness = $readinessJson | ConvertFrom-Json -ErrorAction Stop
+    $readinessEnvelope = $readinessJson | ConvertFrom-Json -ErrorAction Stop
+    if ($readinessEnvelope.outputVersion -ne 1 -or $null -eq $readinessEnvelope.result) {
+        throw $failureCode
+    }
+    $productReadiness = $readinessEnvelope.result
     if ($productReadiness.provider -ne 'windows-smb-3.1.1-v1' -or @($productReadiness.checks).Count -ne 9) {
         throw $failureCode
     }
