@@ -12,10 +12,13 @@ internal sealed record WindowsConformanceTargetProfile(
     string TargetId,
     string ExpectedComputerName,
     string ExpectedAccountKind,
-    string ExpectedProductAccountSidSha256,
     string ConnectivityPath,
     WindowsConformanceSshTransport Transport,
-    WindowsConformanceSshTransport ProductTransport);
+    string ExpectedProductAccountSidSha256 = "",
+    WindowsConformanceSshTransport ProductTransport = null!,
+    string? DisposablePath = null,
+    string? ExpectedVolumeIdentitySha256 = null,
+    string? ExpectedDiskIdentitySha256 = null);
 
 internal sealed record WindowsConformanceSshTransport(
     string Host,
@@ -65,7 +68,10 @@ internal static partial class WindowsConformanceTargetProfileLoader
             throw new ConformanceRefusalException("target_profile_invalid");
         }
 
-        if (profile.Operation != "windows-smb-readiness-v1")
+        if (profile.Operation is not (
+            "windows-smb-readiness-v1"
+            or "windows-circle-files-host-v1"
+            or "windows-circle-files-host-storage-inspection-v1"))
         {
             throw new ConformanceRefusalException("operation_not_allowed");
         }
@@ -78,7 +84,6 @@ internal static partial class WindowsConformanceTargetProfileLoader
         if (!TargetIdPattern().IsMatch(profile.TargetId)
             || !ComputerNamePattern().IsMatch(profile.ExpectedComputerName)
             || profile.ExpectedAccountKind is not ("administrator" or "standard")
-            || !Sha256Pattern().IsMatch(profile.ExpectedProductAccountSidSha256)
             || string.IsNullOrWhiteSpace(profile.ConnectivityPath)
             || profile.ConnectivityPath.Length > 160
             || profile.ConnectivityPath.Any(character => char.IsControl(character)))
@@ -86,15 +91,57 @@ internal static partial class WindowsConformanceTargetProfileLoader
             throw new ConformanceRefusalException("target_profile_invalid");
         }
 
+        if (profile.Operation != "windows-circle-files-host-storage-inspection-v1"
+            && !Sha256Pattern().IsMatch(profile.ExpectedProductAccountSidSha256))
+        {
+            throw new ConformanceRefusalException("target_profile_invalid");
+        }
+
+        if (profile.Operation == "windows-smb-readiness-v1"
+            && (profile.DisposablePath is not null
+                || profile.ExpectedVolumeIdentitySha256 is not null
+                || profile.ExpectedDiskIdentitySha256 is not null))
+        {
+            throw new ConformanceRefusalException("target_profile_invalid");
+        }
+
+        if ((profile.Operation is "windows-circle-files-host-v1"
+                or "windows-circle-files-host-storage-inspection-v1")
+            && (profile.ExpectedAccountKind != "administrator"
+                || !DisposableHostPathPattern().IsMatch(profile.DisposablePath ?? string.Empty)))
+        {
+            throw new ConformanceRefusalException("disposable_path_not_authorized");
+        }
+
+        if (profile.Operation == "windows-circle-files-host-v1"
+            && (!Sha256Pattern().IsMatch(profile.ExpectedVolumeIdentitySha256 ?? string.Empty)
+                || !Sha256Pattern().IsMatch(profile.ExpectedDiskIdentitySha256 ?? string.Empty)))
+        {
+            throw new ConformanceRefusalException("disposable_storage_not_authorized");
+        }
+
+        if (profile.Operation == "windows-circle-files-host-storage-inspection-v1"
+            && (profile.ExpectedVolumeIdentitySha256 is not null
+                || profile.ExpectedDiskIdentitySha256 is not null))
+        {
+            throw new ConformanceRefusalException("target_profile_invalid");
+        }
+
         var profileDirectory = Path.GetDirectoryName(profilePath)!;
         var transport = ValidateTransport(profileDirectory, profile.Transport);
-        var productTransport = ValidateTransport(profileDirectory, profile.ProductTransport);
-        if (!string.Equals(transport.Host, productTransport.Host, StringComparison.OrdinalIgnoreCase)
+        var productTransport = profile.Operation == "windows-circle-files-host-storage-inspection-v1"
+            ? transport
+            : ValidateTransport(
+                profileDirectory,
+                profile.ProductTransport
+                    ?? throw new ConformanceRefusalException("target_profile_invalid"));
+        if (profile.Operation != "windows-circle-files-host-storage-inspection-v1"
+            && (!string.Equals(transport.Host, productTransport.Host, StringComparison.OrdinalIgnoreCase)
             || transport.Port != productTransport.Port
             || !string.Equals(
                 transport.KnownHostsFile,
                 productTransport.KnownHostsFile,
-                StringComparison.Ordinal))
+                StringComparison.Ordinal)))
         {
             throw new ConformanceRefusalException("transport_target_mismatch");
         }
@@ -156,4 +203,9 @@ internal static partial class WindowsConformanceTargetProfileLoader
 
     [GeneratedRegex("^[0-9a-f]{64}$", RegexOptions.CultureInvariant)]
     private static partial Regex Sha256Pattern();
+
+    [GeneratedRegex(
+        "^[C-Z]:\\\\BallsConformance\\\\Issue124-[A-Za-z0-9][A-Za-z0-9-]{2,39}$",
+        RegexOptions.CultureInvariant)]
+    private static partial Regex DisposableHostPathPattern();
 }

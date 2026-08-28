@@ -1,0 +1,17 @@
+{
+  "schema": "balls-windows-conformance-target-v1",
+  "operation": "windows-circle-files-host-storage-inspection-v1",
+  "authorized": false,
+  "targetId": "replace-with-approved-disposable-target-id",
+  "expectedComputerName": "REPLACE-ME",
+  "expectedAccountKind": "administrator",
+  "connectivityPath": "loopback-only OpenSSH forward to an approved private disposable guest",
+  "disposablePath": "C:\\BallsConformance\\Issue124-replace-me",
+  "transport": {
+    "host": "127.0.0.1",
+    "port": 22264,
+    "user": "replace-me",
+    "knownHostsFile": "/absolute/path/to/dedicated_known_hosts",
+    "publicKeyFile": "/absolute/path/to/approved-inspection-public-key.pub"
+  }
+}
