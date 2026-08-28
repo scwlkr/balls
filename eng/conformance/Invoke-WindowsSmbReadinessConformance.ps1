@@ -242,7 +242,10 @@ function Get-BallsDaemonExitFailure {
         [Parameter(Mandatory = $true)][string] $StandardOutputPath,
         [Parameter(Mandatory = $true)][string] $StandardErrorPath)
 
-    if ($Process.ExitCode -eq 0) {
+    $Process.WaitForExit()
+    $Process.Refresh()
+    $exitCode = [int]$Process.ExitCode
+    if ($exitCode -eq 0) {
         try {
             $output = Get-Item -LiteralPath $StandardOutputPath -ErrorAction Stop
             if ($output.Length -le 32768 `
@@ -254,14 +257,14 @@ function Get-BallsDaemonExitFailure {
         return 'daemon_exited_clean_before_ready'
     }
 
-    switch ($Process.ExitCode) {
+    switch ($exitCode) {
         2 { return 'daemon_exited_usage' }
         4 { return 'daemon_exited_startup' }
         5 { return 'daemon_exited_unsupported' }
     }
-    if ($Process.ExitCode -ne -532462766) {
+    if ($exitCode -ne -532462766) {
         $status = [BitConverter]::ToUInt32(
-            [BitConverter]::GetBytes([int]$Process.ExitCode),
+            [BitConverter]::GetBytes($exitCode),
             0)
         return "daemon_exited_status_$($status.ToString('X8'))"
     }
