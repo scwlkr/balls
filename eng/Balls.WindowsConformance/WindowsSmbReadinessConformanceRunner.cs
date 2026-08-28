@@ -363,23 +363,26 @@ internal sealed class WindowsSmbReadinessConformanceRunner(
         var corroborated = new Dictionary<string, bool>(StringComparer.Ordinal)
         {
             ["windows-platform"] = platformReady,
-            ["smb-server"] = native.ServerSmb2Enabled,
-            ["smb-dialect"] = native.ServerSmb2Enabled,
-            ["smb1"] = native.ServerSmb1FeatureState == "disabled",
+            ["smb-server"] = native.ServerServiceRunning && native.ServerSmb2Enabled,
+            ["smb-dialect"] = native.ServerMaximumDialect is
+                "None" or "0" or "65535" or "65536" or "SMB311" or "785",
+            ["smb1"] = !native.ServerSmb1Enabled
+                && native.ServerSmb1FeatureState == "disabled",
             ["guest-access"] = native.ServerSigningRequired
                 && native.ServerEncryptionSupported
                 && native.ServerRejectsUnencryptedAccess
                 && !native.InsecureGuestLogonsEnabled,
             ["signing"] = native.ServerSigningRequired,
             ["encryption"] = native.ServerEncryptionSupported
-                && native.ServerRejectsUnencryptedAccess,
-            ["private-network"] = native.NetworkCategories.Contains(
-                "private",
-                StringComparer.Ordinal),
-            ["firewall-scope"] = native.FirewallProfiles.Contains(
-                    "private",
-                    StringComparer.Ordinal)
-                && native.FirewallProfiles.Contains("public", StringComparer.Ordinal)
+                && native.ServerRejectsUnencryptedAccess
+                && native.ServerEncryptionCiphers.Any(cipher =>
+                    cipher is "AES_128_GCM" or "AES_256_GCM"),
+            ["private-network"] = native.ConnectedPrivateProfiles > 0,
+            ["firewall-scope"] = native.FirewallServiceRunning
+                && native.PrivateFirewallEnabled
+                && native.PrivateDefaultInboundAction == "Block"
+                && native.PublicFirewallEnabled
+                && native.PublicDefaultInboundAction == "Block"
                 && native.PublicSmbAllowRules == 0,
         };
 

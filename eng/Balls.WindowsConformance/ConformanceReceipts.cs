@@ -61,16 +61,26 @@ internal sealed record GuestProductReadiness(
     IReadOnlyList<GuestReadinessCheck> Checks);
 
 internal sealed record GuestNativeObservation(
+    bool ServerServiceRunning,
+    bool FirewallServiceRunning,
+    bool ServerSmb1Enabled,
     bool ServerSmb2Enabled,
+    string ServerMaximumDialect,
     bool ServerSigningRequired,
     bool ServerEncryptionSupported,
     bool ServerRejectsUnencryptedAccess,
+    IReadOnlyList<string> ServerEncryptionCiphers,
     bool ClientSigningRequired,
     bool ClientEncryptionRequired,
     bool InsecureGuestLogonsEnabled,
     string ServerSmb1FeatureState,
     string ClientSmb1FeatureState,
+    int ConnectedPrivateProfiles,
     IReadOnlyList<string> NetworkCategories,
+    bool PrivateFirewallEnabled,
+    string PrivateDefaultInboundAction,
+    bool PublicFirewallEnabled,
+    string PublicDefaultInboundAction,
     IReadOnlyList<string> FirewallProfiles,
     int PublicSmbAllowRules,
     int PublicSmbBlockRules);

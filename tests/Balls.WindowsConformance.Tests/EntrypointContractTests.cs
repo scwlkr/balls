@@ -13,7 +13,7 @@ public sealed class EntrypointContractTests
             "Test-WindowsSmbReadiness.sh"));
 
         StringAssert.Contains(script, "--signal=INT");
-        StringAssert.Contains(script, "--kill-after=45s");
+        StringAssert.Contains(script, "--kill-after=75s");
     }
 
     [TestMethod]

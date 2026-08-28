@@ -75,23 +75,6 @@ function Start-BallsProductDaemon {
     return $process
 }
 
-function Invoke-BallsBoundedProductProcess {
-    param(
-        [Parameter(Mandatory = $true)][string] $FilePath,
-        [Parameter(Mandatory = $true)][string] $Arguments,
-        [Parameter(Mandatory = $true)][string] $WorkingDirectory,
-        [Parameter(Mandatory = $true)][string] $OutputDirectory,
-        [Parameter(Mandatory = $true)][int] $TimeoutMilliseconds,
-        [Parameter(Mandatory = $true)][string] $TimeoutCode)
-
-    return Invoke-BallsBoundedProcess `
-        -FilePath $FilePath `
-        -Arguments $Arguments `
-        -WorkingDirectory $WorkingDirectory `
-        -TimeoutMilliseconds $TimeoutMilliseconds `
-        -TimeoutCode $TimeoutCode
-}
-
 function Stop-BallsOwnedProductProcesses {
     param([Parameter(Mandatory = $true)][string] $OwnedRoot)
 
@@ -279,7 +262,14 @@ function Get-BallsPublicSmbRuleCounts {
         foreach ($filter in @($rule | Get-NetFirewallPortFilter -ErrorAction Stop)) {
             if ([string]$filter.Protocol -notin @('Any', 'TCP', '6')) { continue }
             foreach ($port in @($filter.LocalPort)) {
-                if ([string]$port -in @('Any', '445')) {
+                $portText = [string]$port
+                if ($portText -in @('Any', '445')) {
+                    $matchesPort = $true
+                    break
+                }
+                if ($portText -match '^(\d+)-(\d+)$' `
+                        -and [int]$Matches[1] -le 445 `
+                        -and [int]$Matches[2] -ge 445) {
                     $matchesPort = $true
                     break
                 }
@@ -296,7 +286,27 @@ function Get-BallsPublicSmbRuleCounts {
 function Get-BallsNativeObservation {
     $server = Get-SmbServerConfiguration -ErrorAction Stop
     $client = Get-SmbClientConfiguration -ErrorAction Stop
+    foreach ($property in @(
+            'EnableSMB1Protocol',
+            'EnableSMB2Protocol',
+            'RequireSecuritySignature',
+            'RejectUnencryptedAccess')) {
+        if ($server.PSObject.Properties.Name -notcontains $property `
+                -or $null -eq $server.$property) {
+            throw 'native_inspection_incomplete'
+        }
+    }
+    if ($client.PSObject.Properties.Name -notcontains 'EnableInsecureGuestLogons' `
+            -or $null -eq $client.EnableInsecureGuestLogons) {
+        throw 'native_inspection_incomplete'
+    }
+    $serverService = Get-Service -Name 'LanmanServer' -ErrorAction Stop
+    $firewallService = Get-Service -Name 'MpsSvc' -ErrorAction Stop
     $shareCommand = @(Get-Command -Name New-SmbShare -CommandType Function, Cmdlet -ErrorAction Stop)[0]
+    $serverEncryptionCiphers = @()
+    if ($null -ne $server.EncryptionCiphers) {
+        $serverEncryptionCiphers = @([string]$server.EncryptionCiphers -split ',\s*')
+    }
     $clientSigningRequired = $false
     if ($client.PSObject.Properties.Name -contains 'RequireSecuritySignature') {
         $clientSigningRequired = [bool]$client.RequireSecuritySignature
@@ -310,6 +320,21 @@ function Get-BallsNativeObservation {
         Get-NetConnectionProfile -ErrorAction Stop |
             ForEach-Object { ([string]$_.NetworkCategory).ToLowerInvariant() } |
             Sort-Object -Unique)
+    $connectedPrivateProfiles = @(
+        Get-NetConnectionProfile -ErrorAction Stop |
+            Where-Object {
+                (([string]$_.IPv4Connectivity -ne 'Disconnected') `
+                    -or ([string]$_.IPv6Connectivity -ne 'Disconnected')) `
+                    -and ([string]$_.NetworkCategory -eq 'Private')
+            }).Count
+    $privateFirewall = Get-NetFirewallProfile `
+        -Name 'Private' `
+        -PolicyStore ActiveStore `
+        -ErrorAction Stop
+    $publicFirewall = Get-NetFirewallProfile `
+        -Name 'Public' `
+        -PolicyStore ActiveStore `
+        -ErrorAction Stop
     $firewallProfiles = @(
         Get-NetFirewallProfile -PolicyStore ActiveStore -ErrorAction Stop |
             Where-Object Enabled |
@@ -317,16 +342,26 @@ function Get-BallsNativeObservation {
             Sort-Object -Unique)
 
     return [ordered]@{
+        serverServiceRunning = [string]$serverService.Status -eq 'Running'
+        firewallServiceRunning = [string]$firewallService.Status -eq 'Running'
+        serverSmb1Enabled = [bool]$server.EnableSMB1Protocol
         serverSmb2Enabled = [bool]$server.EnableSMB2Protocol
+        serverMaximumDialect = [string]$server.Smb2DialectMax
         serverSigningRequired = [bool]$server.RequireSecuritySignature
         serverEncryptionSupported = [bool]($null -ne $shareCommand.Parameters['EncryptData'])
         serverRejectsUnencryptedAccess = [bool]$server.RejectUnencryptedAccess
+        serverEncryptionCiphers = @($serverEncryptionCiphers)
         clientSigningRequired = $clientSigningRequired
         clientEncryptionRequired = $clientEncryptionRequired
         insecureGuestLogonsEnabled = [bool]$client.EnableInsecureGuestLogons
         serverSmb1FeatureState = Get-BallsFeatureState -Name 'SMB1Protocol-Server'
         clientSmb1FeatureState = Get-BallsFeatureState -Name 'SMB1Protocol-Client'
+        connectedPrivateProfiles = [int]$connectedPrivateProfiles
         networkCategories = $networkCategories
+        privateFirewallEnabled = [bool]$privateFirewall.Enabled
+        privateDefaultInboundAction = [string]$privateFirewall.DefaultInboundAction
+        publicFirewallEnabled = [bool]$publicFirewall.Enabled
+        publicDefaultInboundAction = [string]$publicFirewall.DefaultInboundAction
         firewallProfiles = $firewallProfiles
         publicSmbAllowRules = [int]$rules.allow
         publicSmbBlockRules = [int]$rules.block
@@ -621,11 +656,10 @@ try {
     $cli = Join-Path $extractPath 'balls\balls.exe'
     $daemon = Join-Path $extractPath 'ballsd\ballsd.exe'
     $failureCode = 'package_probe_timeout'
-    $cliVersionResult = Invoke-BallsBoundedProductProcess `
+    $cliVersionResult = Invoke-BallsBoundedProcess `
         -FilePath $cli `
         -Arguments '--version' `
         -WorkingDirectory $extractPath `
-        -OutputDirectory $root `
         -TimeoutMilliseconds 10000 `
         -TimeoutCode $failureCode
     $cliVersion = $cliVersionResult.standardOutput.Trim()
@@ -633,11 +667,10 @@ try {
         $failureCode = 'package_identity_mismatch'
         throw $failureCode
     }
-    $daemonVersionResult = Invoke-BallsBoundedProductProcess `
+    $daemonVersionResult = Invoke-BallsBoundedProcess `
         -FilePath $daemon `
         -Arguments '--version' `
         -WorkingDirectory $extractPath `
-        -OutputDirectory $root `
         -TimeoutMilliseconds 10000 `
         -TimeoutCode $failureCode
     $daemonVersion = $daemonVersionResult.standardOutput.Trim()
@@ -673,11 +706,10 @@ try {
     Start-Sleep -Seconds 2
     while ([DateTimeOffset]::UtcNow -lt $deadline) {
         if ($daemonProcess.HasExited) { break }
-        $statusResult = Invoke-BallsBoundedProductProcess `
+        $statusResult = Invoke-BallsBoundedProcess `
             -FilePath $cli `
             -Arguments "--output json --pipe-name $pipeName files readiness" `
             -WorkingDirectory $extractPath `
-            -OutputDirectory $root `
             -TimeoutMilliseconds 25000 `
             -TimeoutCode $failureCode
         $statusOutput = $statusResult.standardOutput.Trim()
@@ -702,11 +734,10 @@ try {
 
     $operationStage = 'readiness'
     $failureCode = 'readiness_cli_failed'
-    $readinessResult = Invoke-BallsBoundedProductProcess `
+    $readinessResult = Invoke-BallsBoundedProcess `
         -FilePath $cli `
         -Arguments "--output json --pipe-name $pipeName files readiness" `
         -WorkingDirectory $extractPath `
-        -OutputDirectory $root `
         -TimeoutMilliseconds 25000 `
         -TimeoutCode 'readiness_cli_timeout'
     $readinessJson = $readinessResult.standardOutput.Trim()

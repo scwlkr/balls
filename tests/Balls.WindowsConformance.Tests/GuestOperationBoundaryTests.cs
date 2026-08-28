@@ -16,7 +16,6 @@ public sealed class GuestOperationBoundaryTests
         StringAssert.Contains(script, "--files-readiness-conformance");
         StringAssert.Contains(script, "function Invoke-BallsBoundedProcess");
         StringAssert.Contains(script, "function Start-BallsProductDaemon");
-        StringAssert.Contains(script, "function Invoke-BallsBoundedProductProcess");
         StringAssert.Contains(script, "balls-windows-smb-readiness-native-v1");
         Assert.IsFalse(script.Contains("CreateRestrictedToken", StringComparison.Ordinal));
         Assert.IsFalse(script.Contains("DuplicateTokenEx", StringComparison.Ordinal));

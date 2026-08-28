@@ -87,10 +87,22 @@ internal static partial class WindowsConformanceTargetProfileLoader
         }
 
         var profileDirectory = Path.GetDirectoryName(profilePath)!;
+        var transport = ValidateTransport(profileDirectory, profile.Transport);
+        var productTransport = ValidateTransport(profileDirectory, profile.ProductTransport);
+        if (!string.Equals(transport.Host, productTransport.Host, StringComparison.OrdinalIgnoreCase)
+            || transport.Port != productTransport.Port
+            || !string.Equals(
+                transport.KnownHostsFile,
+                productTransport.KnownHostsFile,
+                StringComparison.Ordinal))
+        {
+            throw new ConformanceRefusalException("transport_target_mismatch");
+        }
+
         return profile with
         {
-            Transport = ValidateTransport(profileDirectory, profile.Transport),
-            ProductTransport = ValidateTransport(profileDirectory, profile.ProductTransport),
+            Transport = transport,
+            ProductTransport = productTransport,
         };
     }
 

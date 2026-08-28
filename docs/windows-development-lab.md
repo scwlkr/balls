@@ -68,12 +68,15 @@ cp eng/conformance/windows-target.example.json /tmp/balls-windows-target.json
 ```
 
 Record the inspected target ID, exact computer name, inspection account kind, both loopback-only
-transports, connectivity boundary, dedicated `known_hosts` file, corresponding public-key files,
+transports, connectivity boundary, one shared dedicated `known_hosts` file for the exact endpoint,
+corresponding public-key files,
 and the lowercase SHA-256 of the approved standard account's UTF-8 SID. Both SSH identities must be
 authorized before the run; the product identity must remain standard and have an existing profile.
 Keep the profile local and untracked. `authorized: true` authorizes only the fixed
 `windows-smb-readiness-v1` operation against that exact target; it is not reusable Member or
 machine-management authority.
+The loader requires both identities to use that same loopback host, port, and host-key allowlist so
+inspection and product execution cannot be combined across two machines with the same computer name.
 
 From a clean committed Linux checkout, choose a new receipt path and run the entire scenario with
 one command:

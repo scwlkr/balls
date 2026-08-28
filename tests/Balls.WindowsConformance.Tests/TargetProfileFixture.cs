@@ -17,6 +17,8 @@ internal sealed class TargetProfileFixture : IDisposable
     public static TargetProfileFixture Create(
         bool authorized = true,
         string host = "127.0.0.1",
+        string? productHost = null,
+        int productPort = 22264,
         string operation = "windows-smb-readiness-v1")
     {
         var directory = System.IO.Path.Combine(
@@ -50,8 +52,8 @@ internal sealed class TargetProfileFixture : IDisposable
                 },
                 productTransport = new
                 {
-                    host,
-                    port = 22264,
+                    host = productHost ?? host,
+                    port = productPort,
                     user = "ballsproduct",
                     knownHostsFile = knownHosts,
                     publicKeyFile = publicKey,

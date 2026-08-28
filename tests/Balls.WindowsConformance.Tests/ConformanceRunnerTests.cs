@@ -369,7 +369,16 @@ public sealed class ConformanceRunnerTests
     }
 
     [TestMethod]
-    public async Task Ready_product_result_cannot_contradict_independent_native_evidence()
+    [DataRow("server-service")]
+    [DataRow("dialect")]
+    [DataRow("smb1")]
+    [DataRow("cipher")]
+    [DataRow("private-network")]
+    [DataRow("firewall-service")]
+    [DataRow("private-default-inbound")]
+    [DataRow("public-default-inbound")]
+    public async Task Ready_product_result_cannot_contradict_independent_native_evidence(
+        string contradiction)
     {
         using var targetFixture = TargetProfileFixture.Create();
         using var packageFixture = PackageFixture.Create(Commit);
@@ -380,15 +389,27 @@ public sealed class ConformanceRunnerTests
             packageFixture.ChecksumPath,
             Commit);
         var run = RunJson(package);
+        var native = contradiction switch
+        {
+            "server-service" => NativeJson(serverServiceRunning: false),
+            "dialect" => NativeJson(serverMaximumDialect: "SMB302"),
+            "smb1" => NativeJson(serverSmb1Enabled: true),
+            "cipher" => NativeJson(serverEncryptionCiphers: ["AES_128_CCM"]),
+            "private-network" => NativeJson(connectedPrivateProfiles: 0),
+            "firewall-service" => NativeJson(firewallServiceRunning: false),
+            "private-default-inbound" => NativeJson(privateDefaultInboundAction: "Allow"),
+            "public-default-inbound" => NativeJson(publicDefaultInboundAction: "Allow"),
+            _ => throw new ArgumentOutOfRangeException(nameof(contradiction)),
+        };
         var runner = new WindowsSmbReadinessConformanceRunner(
             new FakeConformanceProcessRunner(
                 Result(PreflightJson()),
                 Result(PreflightJson(productAccount: true)),
-                Result(NativeJson(serverSmb2Enabled: false)),
+                Result(native),
                 Result(),
                 Result(run),
                 Result(),
-                Result(NativeJson(serverSmb2Enabled: false))),
+                Result(native)),
             "Write-Output fixed");
 
         var exception = await Assert.ThrowsExactlyAsync<ConformanceRefusalException>(() =>
@@ -506,7 +527,16 @@ public sealed class ConformanceRunnerTests
         });
     }
 
-    internal static string NativeJson(bool serverSmb2Enabled = true) =>
+    internal static string NativeJson(
+        bool serverServiceRunning = true,
+        bool firewallServiceRunning = true,
+        bool serverSmb1Enabled = false,
+        bool serverSmb2Enabled = true,
+        string serverMaximumDialect = "SMB311",
+        string[]? serverEncryptionCiphers = null,
+        int connectedPrivateProfiles = 1,
+        string privateDefaultInboundAction = "Block",
+        string publicDefaultInboundAction = "Block") =>
         JsonSerializer.Serialize(new
         {
             schema = "balls-windows-smb-readiness-native-v1",
@@ -514,16 +544,26 @@ public sealed class ConformanceRunnerTests
             outcome = "observed",
             observation = new
             {
+                serverServiceRunning,
+                firewallServiceRunning,
+                serverSmb1Enabled,
                 serverSmb2Enabled,
+                serverMaximumDialect,
                 serverSigningRequired = true,
                 serverEncryptionSupported = true,
                 serverRejectsUnencryptedAccess = true,
+                serverEncryptionCiphers = serverEncryptionCiphers ?? ["AES_128_GCM"],
                 clientSigningRequired = true,
                 clientEncryptionRequired = true,
                 insecureGuestLogonsEnabled = false,
                 serverSmb1FeatureState = "disabled",
                 clientSmb1FeatureState = "disabled",
+                connectedPrivateProfiles,
                 networkCategories = new[] { "private" },
+                privateFirewallEnabled = true,
+                privateDefaultInboundAction,
+                publicFirewallEnabled = true,
+                publicDefaultInboundAction,
                 firewallProfiles = new[] { "domain", "private", "public" },
                 publicSmbAllowRules = 0,
                 publicSmbBlockRules = 1,

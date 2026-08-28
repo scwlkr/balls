@@ -42,6 +42,17 @@ public sealed class TargetProfileTests
     }
 
     [TestMethod]
+    public void Product_transport_must_use_the_same_host_key_endpoint()
+    {
+        using var profile = TargetProfileFixture.Create(productPort: 22265);
+
+        var exception = Assert.ThrowsExactly<ConformanceRefusalException>(
+            () => WindowsConformanceTargetProfileLoader.Load(profile.Path));
+
+        Assert.AreEqual("transport_target_mismatch", exception.Code);
+    }
+
+    [TestMethod]
     public void Unknown_operation_fails_closed()
     {
         using var profile = TargetProfileFixture.Create(operation: "arbitrary-command-v1");
