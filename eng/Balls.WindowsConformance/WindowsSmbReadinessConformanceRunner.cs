@@ -363,7 +363,7 @@ internal sealed class WindowsSmbReadinessConformanceRunner(
             "$reader=[IO.StreamReader]::new($gzip,[Text.Encoding]::UTF8);" +
             "try{$script=$reader.ReadToEnd();& ([ScriptBlock]::Create($script))}" +
             "finally{$reader.Dispose();$gzip.Dispose();$memory.Dispose()}";
-        if (loader.Length > 7000 || loader.Contains('"'))
+        if (loader.Length > 7500 || loader.Contains('"'))
         {
             throw new ConformanceRefusalException("guest_operation_oversized");
         }

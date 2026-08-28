@@ -429,8 +429,18 @@ try {
     $deadline = [DateTimeOffset]::UtcNow.AddSeconds(20)
     while ([DateTimeOffset]::UtcNow -lt $deadline) {
         if ($daemonProcess.HasExited) { break }
-        $statusOutput = ((& $cli --output json --pipe-name $pipeName status 2>$null) | Out-String).Trim()
-        if ($LASTEXITCODE -eq 0 -and -not [string]::IsNullOrWhiteSpace($statusOutput)) {
+        $statusOutput = ''
+        $statusExitCode = -1
+        $previousErrorActionPreference = $ErrorActionPreference
+        try {
+            $ErrorActionPreference = 'Continue'
+            $statusOutput = ((& $cli --output json --pipe-name $pipeName status 2>$null) | Out-String).Trim()
+            $statusExitCode = $LASTEXITCODE
+        }
+        finally {
+            $ErrorActionPreference = $previousErrorActionPreference
+        }
+        if ($statusExitCode -eq 0 -and -not [string]::IsNullOrWhiteSpace($statusOutput)) {
             $ready = $true
             break
         }
