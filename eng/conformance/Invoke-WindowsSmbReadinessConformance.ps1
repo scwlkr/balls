@@ -424,7 +424,20 @@ try {
         }
         Start-Sleep -Milliseconds 250
     }
-    if (-not $ready) { throw $failureCode }
+    if (-not $ready) {
+        if ($daemonProcess.HasExited) {
+            $failureCode = switch ($daemonProcess.ExitCode) {
+                2 { 'daemon_exited_usage' }
+                4 { 'daemon_exited_startup' }
+                5 { 'daemon_exited_unsupported' }
+                default { 'daemon_exited_unexpected' }
+            }
+        }
+        else {
+            $failureCode = 'daemon_readiness_timeout'
+        }
+        throw $failureCode
+    }
 
     $failureCode = 'readiness_cli_failed'
     $readinessJson = ((& $cli --output json --pipe-name $pipeName files readiness 2>$null) | Out-String).Trim()

@@ -28,6 +28,11 @@ internal sealed class WindowsSmbReadinessConformanceRunner(
         "target_precondition_mismatch",
         "package_identity_mismatch",
         "daemon_start_failed",
+        "daemon_exited_usage",
+        "daemon_exited_startup",
+        "daemon_exited_unsupported",
+        "daemon_exited_unexpected",
+        "daemon_readiness_timeout",
         "readiness_cli_failed",
         "cleanup_incomplete",
     };
