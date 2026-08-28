@@ -48,10 +48,10 @@ public sealed class ConformanceProcessTests
         var exception = await Assert.ThrowsExactlyAsync<ConformanceRefusalException>(() =>
             runner.RunAsync(
                 new ConformanceProcessRequest(
-                    "dotnet",
-                    ["--info"],
+                    "git",
+                    ["--version"],
                     TimeSpan.FromSeconds(10),
-                    32),
+                    1),
                 CancellationToken.None));
 
         Assert.AreEqual("transport_output_oversized", exception.Code);
