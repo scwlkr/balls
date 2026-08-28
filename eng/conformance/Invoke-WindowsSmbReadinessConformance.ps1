@@ -273,6 +273,10 @@ function Get-BallsDaemonExitFailure {
         if ($text.Length -gt 32768) {
             return 'daemon_exited_dotnet_output_oversized'
         }
+        if ($text.Contains('ProtectedData.Protect') `
+                -or $text.Contains('WindowsCurrentUserPrivateMaterialProtector.Protect')) {
+            return 'daemon_exited_dotnet_dpapi'
+        }
         $types = [ordered]@{
             'System.InvalidOperationException' = 'invalid_operation'
             'System.PlatformNotSupportedException' = 'platform_unsupported'

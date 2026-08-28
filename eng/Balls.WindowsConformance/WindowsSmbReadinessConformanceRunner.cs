@@ -40,6 +40,7 @@ internal sealed class WindowsSmbReadinessConformanceRunner(
         "daemon_exited_clean_before_ready",
         "daemon_exited_dotnet_invalid_operation",
         "daemon_exited_dotnet_platform_unsupported",
+        "daemon_exited_dotnet_dpapi",
         "daemon_exited_dotnet_cryptographic",
         "daemon_exited_dotnet_dependency",
         "daemon_exited_dotnet_unauthorized",
