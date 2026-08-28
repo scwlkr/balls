@@ -42,7 +42,8 @@ internal sealed record GuestProductIdentity(
     string PackageName,
     string Version,
     string CliVersion,
-    string DaemonVersion);
+    string DaemonVersion,
+    string DaemonPrivilege);
 
 internal sealed record GuestReadinessCheck(
     string Id,
@@ -99,7 +100,8 @@ internal sealed record ConformanceSourceReceipt(
     string PackageName,
     string PackageSha256,
     string Version,
-    string Architecture);
+    string Architecture,
+    string DaemonPrivilege);
 
 internal sealed record ConformanceTargetReceipt(
     string TargetId,

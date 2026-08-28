@@ -1,4 +1,4 @@
-using System.Net;
+using System.Security.Principal;
 using Balls.Platform;
 using Balls.Protocol.Control.V1;
 using Microsoft.AspNetCore.Builder;
@@ -17,7 +17,15 @@ internal static class CircleFilesReadinessConformanceHost
         ArgumentNullException.ThrowIfNull(options);
         ArgumentNullException.ThrowIfNull(host);
         ArgumentException.ThrowIfNullOrWhiteSpace(options.DataDirectory);
+        if (!OperatingSystem.IsWindows())
+        {
+            throw new PlatformNotSupportedException(
+                "Files readiness conformance requires Windows.");
+        }
         host.LocalControlServer.ValidateEndpoint(options.LocalControlEndpoint);
+        using var identity = WindowsIdentity.GetCurrent();
+        EnsureUnelevated(new WindowsPrincipal(identity).IsInRole(
+            WindowsBuiltInRole.Administrator));
 
         var securedDataDirectory = host.LocalState.Prepare(options.DataDirectory);
         var lease = DataDirectoryLease.Acquire(securedDataDirectory);
@@ -75,6 +83,15 @@ internal static class CircleFilesReadinessConformanceHost
 
             lease.Dispose();
             throw;
+        }
+    }
+
+    internal static void EnsureUnelevated(bool isElevated)
+    {
+        if (isElevated)
+        {
+            throw new UnauthorizedAccessException(
+                "Files readiness conformance must run unelevated.");
         }
     }
 

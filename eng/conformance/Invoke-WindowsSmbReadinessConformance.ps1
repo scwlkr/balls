@@ -11,6 +11,205 @@ function Write-BallsConformanceResult {
     exit $ExitCode
 }
 
+function Invoke-BallsBoundedProcess {
+    param(
+        [Parameter(Mandatory = $true)][string] $FilePath,
+        [Parameter(Mandatory = $true)][string] $Arguments,
+        [Parameter(Mandatory = $true)][string] $WorkingDirectory,
+        [Parameter(Mandatory = $true)][int] $TimeoutMilliseconds,
+        [Parameter(Mandatory = $true)][string] $TimeoutCode)
+
+    $startInfo = [Diagnostics.ProcessStartInfo]::new()
+    $startInfo.FileName = $FilePath
+    $startInfo.Arguments = $Arguments
+    $startInfo.WorkingDirectory = $WorkingDirectory
+    $startInfo.UseShellExecute = $false
+    $startInfo.CreateNoWindow = $true
+    $startInfo.RedirectStandardOutput = $true
+    $startInfo.RedirectStandardError = $true
+    $process = [Diagnostics.Process]::new()
+    $process.StartInfo = $startInfo
+    try {
+        if (-not $process.Start()) { throw 'process_start_failed' }
+        $standardOutputTask = $process.StandardOutput.ReadToEndAsync()
+        $standardErrorTask = $process.StandardError.ReadToEndAsync()
+        if (-not $process.WaitForExit($TimeoutMilliseconds)) {
+            try { $process.Kill() } catch {}
+            [void]$process.WaitForExit(5000)
+            throw $TimeoutCode
+        }
+        $standardOutput = [string]$standardOutputTask.GetAwaiter().GetResult()
+        $standardError = [string]$standardErrorTask.GetAwaiter().GetResult()
+        if ($standardOutput.Length + $standardError.Length -gt 65536) {
+            throw 'process_output_oversized'
+        }
+        return [ordered]@{
+            exitCode = [int]$process.ExitCode
+            standardOutput = $standardOutput
+        }
+    }
+    finally {
+        $process.Dispose()
+    }
+}
+
+function Start-BallsRestrictedDaemon {
+    param(
+        [Parameter(Mandatory = $true)][string] $FilePath,
+        [Parameter(Mandatory = $true)][string] $Arguments,
+        [Parameter(Mandatory = $true)][string] $WorkingDirectory)
+
+    if ($null -eq ('BallsConformanceRestrictedProcess' -as [type])) {
+        Add-Type -TypeDefinition @'
+using System;
+using System.ComponentModel;
+using System.Runtime.InteropServices;
+using System.Text;
+
+public static class BallsConformanceRestrictedProcess
+{
+    private const uint SaferScopeUser = 2;
+    private const uint SaferLevelNormalUser = 0x00020000;
+    private const uint SaferLevelOpen = 1;
+    private const uint CreateNoWindow = 0x08000000;
+
+    [StructLayout(LayoutKind.Sequential, CharSet = CharSet.Unicode)]
+    private struct StartupInfo
+    {
+        public int Size;
+        public string Reserved;
+        public string Desktop;
+        public string Title;
+        public int X;
+        public int Y;
+        public int XSize;
+        public int YSize;
+        public int XCountChars;
+        public int YCountChars;
+        public int FillAttribute;
+        public int Flags;
+        public short ShowWindow;
+        public short Reserved2Size;
+        public IntPtr Reserved2;
+        public IntPtr StandardInput;
+        public IntPtr StandardOutput;
+        public IntPtr StandardError;
+    }
+
+    [StructLayout(LayoutKind.Sequential)]
+    private struct ProcessInformation
+    {
+        public IntPtr Process;
+        public IntPtr Thread;
+        public uint ProcessId;
+        public uint ThreadId;
+    }
+
+    [DllImport("advapi32.dll", SetLastError = true)]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    private static extern bool SaferCreateLevel(
+        uint scopeId,
+        uint levelId,
+        uint openFlags,
+        out IntPtr levelHandle,
+        IntPtr reserved);
+
+    [DllImport("advapi32.dll", SetLastError = true)]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    private static extern bool SaferComputeTokenFromLevel(
+        IntPtr levelHandle,
+        IntPtr inputToken,
+        out IntPtr outputToken,
+        uint flags,
+        IntPtr reserved);
+
+    [DllImport("advapi32.dll", SetLastError = true)]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    private static extern bool SaferCloseLevel(IntPtr levelHandle);
+
+    [DllImport("advapi32.dll", CharSet = CharSet.Unicode, SetLastError = true)]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    private static extern bool CreateProcessAsUser(
+        IntPtr token,
+        string applicationName,
+        StringBuilder commandLine,
+        IntPtr processAttributes,
+        IntPtr threadAttributes,
+        [MarshalAs(UnmanagedType.Bool)] bool inheritHandles,
+        uint creationFlags,
+        IntPtr environment,
+        string currentDirectory,
+        ref StartupInfo startupInfo,
+        out ProcessInformation processInformation);
+
+    [DllImport("kernel32.dll", SetLastError = true)]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    private static extern bool CloseHandle(IntPtr handle);
+
+    public static int Start(string applicationName, string arguments, string workingDirectory)
+    {
+        IntPtr level = IntPtr.Zero;
+        IntPtr token = IntPtr.Zero;
+        ProcessInformation process = new ProcessInformation();
+        try
+        {
+            if (!SaferCreateLevel(
+                    SaferScopeUser,
+                    SaferLevelNormalUser,
+                    SaferLevelOpen,
+                    out level,
+                    IntPtr.Zero))
+            {
+                throw new Win32Exception(Marshal.GetLastWin32Error());
+            }
+            if (!SaferComputeTokenFromLevel(
+                    level,
+                    IntPtr.Zero,
+                    out token,
+                    0,
+                    IntPtr.Zero))
+            {
+                throw new Win32Exception(Marshal.GetLastWin32Error());
+            }
+
+            var startup = new StartupInfo { Size = Marshal.SizeOf(typeof(StartupInfo)) };
+            var commandLine = new StringBuilder("\"" + applicationName + "\" " + arguments);
+            if (!CreateProcessAsUser(
+                    token,
+                    applicationName,
+                    commandLine,
+                    IntPtr.Zero,
+                    IntPtr.Zero,
+                    false,
+                    CreateNoWindow,
+                    IntPtr.Zero,
+                    workingDirectory,
+                    ref startup,
+                    out process))
+            {
+                throw new Win32Exception(Marshal.GetLastWin32Error());
+            }
+            return checked((int)process.ProcessId);
+        }
+        finally
+        {
+            if (process.Thread != IntPtr.Zero) { CloseHandle(process.Thread); }
+            if (process.Process != IntPtr.Zero) { CloseHandle(process.Process); }
+            if (token != IntPtr.Zero) { CloseHandle(token); }
+            if (level != IntPtr.Zero) { SaferCloseLevel(level); }
+        }
+    }
+}
+'@ | Out-Null
+    }
+
+    $processId = [BallsConformanceRestrictedProcess]::Start(
+        $FilePath,
+        $Arguments,
+        $WorkingDirectory)
+    return [Diagnostics.Process]::GetProcessById($processId)
+}
+
 $operationStage = 'initializing'
 trap {
     $knownStages = @(
@@ -245,6 +444,27 @@ function Get-BallsNativeObservation {
         publicSmbAllowRules = [int]$rules.allow
         publicSmbBlockRules = [int]$rules.block
     }
+}
+
+function Invoke-BallsBoundedNativeObservation {
+    $script = @(
+        '$ErrorActionPreference = ''Stop''',
+        '$ProgressPreference = ''SilentlyContinue''',
+        "function Get-BallsFeatureState {`n$(${function:Get-BallsFeatureState}.ToString())`n}",
+        "function Get-BallsPublicSmbRuleCounts {`n$(${function:Get-BallsPublicSmbRuleCounts}.ToString())`n}",
+        "function Get-BallsNativeObservation {`n$(${function:Get-BallsNativeObservation}.ToString())`n}",
+        'Get-BallsNativeObservation | ConvertTo-Json -Compress -Depth 8') -join "`n"
+    $encoded = [Convert]::ToBase64String([Text.Encoding]::Unicode.GetBytes($script))
+    $result = Invoke-BallsBoundedProcess `
+        -FilePath (Join-Path $PSHOME 'powershell.exe') `
+        -Arguments "-NoLogo -NoProfile -NonInteractive -EncodedCommand $encoded" `
+        -WorkingDirectory $env:TEMP `
+        -TimeoutMilliseconds 30000 `
+        -TimeoutCode 'native_inspection_timeout'
+    if ($result.exitCode -ne 0 -or [string]::IsNullOrWhiteSpace($result.standardOutput)) {
+        throw 'native_inspection_failed'
+    }
+    return $result.standardOutput | ConvertFrom-Json -ErrorAction Stop
 }
 
 function Get-BallsObjectHash {
@@ -488,31 +708,42 @@ try {
 
     $cli = Join-Path $extractPath 'balls\balls.exe'
     $daemon = Join-Path $extractPath 'ballsd\ballsd.exe'
-    $cliVersion = ((& $cli --version 2>$null) | Out-String).Trim()
-    if ($LASTEXITCODE -ne 0 -or [string]::IsNullOrWhiteSpace($cliVersion)) { throw $failureCode }
-    $daemonVersion = ((& $daemon --version 2>$null) | Out-String).Trim()
-    if ($LASTEXITCODE -ne 0 -or [string]::IsNullOrWhiteSpace($daemonVersion)) { throw $failureCode }
+    $failureCode = 'package_probe_timeout'
+    $cliVersionResult = Invoke-BallsBoundedProcess `
+        -FilePath $cli `
+        -Arguments '--version' `
+        -WorkingDirectory $extractPath `
+        -TimeoutMilliseconds 10000 `
+        -TimeoutCode $failureCode
+    $cliVersion = $cliVersionResult.standardOutput.Trim()
+    if ($cliVersionResult.exitCode -ne 0 -or [string]::IsNullOrWhiteSpace($cliVersion)) {
+        $failureCode = 'package_identity_mismatch'
+        throw $failureCode
+    }
+    $daemonVersionResult = Invoke-BallsBoundedProcess `
+        -FilePath $daemon `
+        -Arguments '--version' `
+        -WorkingDirectory $extractPath `
+        -TimeoutMilliseconds 10000 `
+        -TimeoutCode $failureCode
+    $daemonVersion = $daemonVersionResult.standardOutput.Trim()
+    if ($daemonVersionResult.exitCode -ne 0 -or [string]::IsNullOrWhiteSpace($daemonVersion)) {
+        $failureCode = 'package_identity_mismatch'
+        throw $failureCode
+    }
 
     $operationStage = 'native_before'
-    $nativeBefore = Get-BallsNativeObservation
+    $failureCode = 'native_inspection_failed'
+    $nativeBefore = Invoke-BallsBoundedNativeObservation
     $nativeBeforeHash = Get-BallsObjectHash -Value $nativeBefore
     $operationStage = 'daemon_start'
     $failureCode = 'daemon_start_failed'
     $pipeName = "balls-conformance-$runId"
     try {
-        $startInfo = [Diagnostics.ProcessStartInfo]::new()
-        $startInfo.FileName = $daemon
-        $startInfo.Arguments = "--data-directory `"$statePath`" --pipe-name $pipeName --node-name Balls-Conformance --files-readiness-conformance"
-        $startInfo.WorkingDirectory = $extractPath
-        $startInfo.UseShellExecute = $false
-        $startInfo.CreateNoWindow = $true
-        $startInfo.RedirectStandardOutput = $true
-        $startInfo.RedirectStandardError = $true
-        $daemonProcess = [Diagnostics.Process]::new()
-        $daemonProcess.StartInfo = $startInfo
-        if (-not $daemonProcess.Start()) { throw 'daemon_start_failed' }
-        $daemonStandardOutputTask = $daemonProcess.StandardOutput.ReadToEndAsync()
-        $daemonStandardErrorTask = $daemonProcess.StandardError.ReadToEndAsync()
+        $daemonProcess = Start-BallsRestrictedDaemon `
+            -FilePath $daemon `
+            -Arguments "--data-directory `"$statePath`" --pipe-name $pipeName --node-name Balls-Conformance --files-readiness-conformance" `
+            -WorkingDirectory $extractPath
     }
     catch {
         $failureCode = switch ($_.Exception.GetType().FullName) {
@@ -526,22 +757,19 @@ try {
     }
 
     $operationStage = 'daemon_poll'
+    $failureCode = 'readiness_cli_timeout'
     $ready = $false
     $deadline = [DateTimeOffset]::UtcNow.AddSeconds(20)
     while ([DateTimeOffset]::UtcNow -lt $deadline) {
         if ($daemonProcess.HasExited) { break }
-        $statusOutput = ''
-        $statusExitCode = -1
-        $previousErrorActionPreference = $ErrorActionPreference
-        try {
-            $ErrorActionPreference = 'Continue'
-            $statusOutput = ((& $cli --output json --pipe-name $pipeName files readiness 2>$null) | Out-String).Trim()
-            $statusExitCode = $LASTEXITCODE
-        }
-        finally {
-            $ErrorActionPreference = $previousErrorActionPreference
-        }
-        if ($statusExitCode -eq 0 -and -not [string]::IsNullOrWhiteSpace($statusOutput)) {
+        $statusResult = Invoke-BallsBoundedProcess `
+            -FilePath $cli `
+            -Arguments "--output json --pipe-name $pipeName files readiness" `
+            -WorkingDirectory $extractPath `
+            -TimeoutMilliseconds 5000 `
+            -TimeoutCode $failureCode
+        $statusOutput = $statusResult.standardOutput.Trim()
+        if ($statusResult.exitCode -eq 0 -and -not [string]::IsNullOrWhiteSpace($statusOutput)) {
             $ready = $true
             break
         }
@@ -562,8 +790,16 @@ try {
 
     $operationStage = 'readiness'
     $failureCode = 'readiness_cli_failed'
-    $readinessJson = ((& $cli --output json --pipe-name $pipeName files readiness 2>$null) | Out-String).Trim()
-    if ($LASTEXITCODE -ne 0 -or [string]::IsNullOrWhiteSpace($readinessJson)) { throw $failureCode }
+    $readinessResult = Invoke-BallsBoundedProcess `
+        -FilePath $cli `
+        -Arguments "--output json --pipe-name $pipeName files readiness" `
+        -WorkingDirectory $extractPath `
+        -TimeoutMilliseconds 10000 `
+        -TimeoutCode 'readiness_cli_timeout'
+    $readinessJson = $readinessResult.standardOutput.Trim()
+    if ($readinessResult.exitCode -ne 0 -or [string]::IsNullOrWhiteSpace($readinessJson)) {
+        throw $failureCode
+    }
     $readinessEnvelope = $readinessJson | ConvertFrom-Json -ErrorAction Stop
     if ($readinessEnvelope.outputVersion -ne 1 -or $null -eq $readinessEnvelope.result) {
         throw $failureCode
@@ -574,7 +810,8 @@ try {
     }
 
     $operationStage = 'native_after'
-    $nativeObservation = Get-BallsNativeObservation
+    $failureCode = 'native_inspection_failed'
+    $nativeObservation = Invoke-BallsBoundedNativeObservation
     $nativeStateUnchanged = $nativeBeforeHash -eq (Get-BallsObjectHash -Value $nativeObservation)
     if (-not $nativeStateUnchanged) { throw 'native_state_changed' }
     $product = [ordered]@{
@@ -584,10 +821,18 @@ try {
         version = [string]$manifest.version
         cliVersion = $cliVersion
         daemonVersion = $daemonVersion
+        daemonPrivilege = 'unelevated'
     }
     $succeeded = $true
 }
 catch {
+    if ($_.Exception.Message -in @(
+            'package_probe_timeout',
+            'readiness_cli_timeout',
+            'native_inspection_timeout',
+            'native_inspection_failed')) {
+        $failureCode = $_.Exception.Message
+    }
     $succeeded = $false
 }
 

@@ -90,13 +90,19 @@ initialize Node or Circle identity, use DPAPI private material, serve the browse
 enable any mutation endpoint. Normal daemon startup is unchanged.
 The fixed guest operation also performs an independent read-only inspection of Windows, SMB,
 network-profile, and firewall posture before confirming that native state is unchanged. Every
-transport and product phase is bounded; refusal, timeout, malformed or oversized output, identity
-mismatch, product failure, or unconfirmed cleanup returns nonzero. The owned staged package,
-daemon, and state are removed even after failure.
+transport and product phase is bounded, including each CLI and independent native child process.
+The authorized inspection session can be elevated, but it starts the readiness-only daemon with a
+Windows SAFER normal-user token; the daemon itself refuses to serve while elevated. Linux INT/TERM
+cancellation propagates into the runner and leaves a separate bounded remote cleanup attempt before
+the outer hard-kill deadline. Refusal, timeout, malformed or oversized output, identity mismatch,
+product/native contradiction, product failure, or unconfirmed cleanup returns nonzero. The owned
+staged package, daemon, and state are removed even after failure.
 
 The receipt is the evidence boundary. It contains stable outcome tokens, timestamps, exact commit,
 package name and SHA-256, bounded authorized-target context, the nine product readiness checks,
-independent native observations, cleanup, and explicit limitations. It intentionally excludes
+the daemon's `unelevated` privilege result, independent native observations, cleanup, and explicit
+limitations. A ready product check must be corroborated by the corresponding independent native
+observation. The receipt intentionally excludes
 credentials, invitation material, private keys, passwords, DPAPI material, provider secrets, raw
 command output, and unrelated user state. Do not attach the target profile, SSH logs, daemon logs,
 or other raw guest output to a pull request.

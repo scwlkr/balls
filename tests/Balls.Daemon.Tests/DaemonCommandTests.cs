@@ -7,6 +7,13 @@ namespace Balls.Daemon.Tests;
 public sealed class DaemonCommandTests
 {
     [TestMethod]
+    public void Files_readiness_conformance_refuses_an_elevated_serving_process()
+    {
+        Assert.ThrowsExactly<UnauthorizedAccessException>(() =>
+            CircleFilesReadinessConformanceHost.EnsureUnelevated(isElevated: true));
+    }
+
+    [TestMethod]
     public async Task Unsupported_host_fails_closed_through_the_typed_platform_result()
     {
         if (OperatingSystem.IsWindows() || OperatingSystem.IsLinux() || OperatingSystem.IsMacOS())

@@ -94,8 +94,12 @@ The command packages exact `HEAD` Windows bytes, runs the real daemon and canoni
 `files readiness` CLI operation with a Windows-only, readiness-only daemon mode and disposable
 leased state, performs an independent read-only native inspection, and returns a bounded redacted
 receipt. The daemon mode creates no Node/Circle/DPAPI identity and exposes no mutation or browser
-endpoint. It does not establish GUI, UAC, File Explorer, physical-device, installer, or release
-acceptance.
+endpoint. The authorized inspection session may be elevated, but the guest operation launches the
+readiness-only daemon with a Windows SAFER normal-user token and the daemon refuses to serve if it
+is still elevated. CLI and independent-native child processes have their own bounds; Linux
+interrupt or timeout cancellation leaves a separate bounded cleanup attempt. The Linux receipt
+rejects a ready product check that contradicts the independent native observation. This does not
+establish GUI, UAC, File Explorer, physical-device, installer, or release acceptance.
 
 ## Run the local slice on macOS
 

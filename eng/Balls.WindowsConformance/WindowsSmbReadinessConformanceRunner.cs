@@ -26,6 +26,7 @@ internal sealed class WindowsSmbReadinessConformanceRunner(
     {
         "target_precondition_mismatch",
         "package_identity_mismatch",
+        "package_probe_timeout",
         "daemon_start_failed",
         "daemon_start_win32",
         "daemon_start_invalid_operation",
@@ -50,7 +51,10 @@ internal sealed class WindowsSmbReadinessConformanceRunner(
         "daemon_exited_dotnet_output_oversized",
         "daemon_exited_dotnet_other",
         "daemon_readiness_timeout",
+        "readiness_cli_timeout",
         "readiness_cli_failed",
+        "native_inspection_timeout",
+        "native_inspection_failed",
         "cleanup_incomplete",
         "guest_operation_unhandled_initializing",
         "guest_operation_unhandled_environment",
@@ -162,7 +166,7 @@ internal sealed class WindowsSmbReadinessConformanceRunner(
                             }),
                         TimeSpan.FromSeconds(30),
                         guestScript),
-                    cancellationToken).ConfigureAwait(false);
+                    CancellationToken.None).ConfigureAwait(false);
                 if (cleanup.ExitCode != 0)
                 {
                     failure = new ConformanceRefusalException("cleanup_unconfirmed");
@@ -179,6 +183,7 @@ internal sealed class WindowsSmbReadinessConformanceRunner(
             throw failure;
         }
 
+        var completed = guestResult!;
         var receipt = new WindowsSmbReadinessConformanceReceipt(
             "balls-windows-smb-readiness-conformance-v1",
             Operation,
@@ -190,13 +195,14 @@ internal sealed class WindowsSmbReadinessConformanceRunner(
                 package.FileName,
                 package.Sha256,
                 package.Version,
-                package.Architecture),
+                package.Architecture,
+                completed.Product.DaemonPrivilege),
             new ConformanceTargetReceipt(target.TargetId, target.ConnectivityPath, preflight),
-            guestResult!.ProductReadiness,
-            guestResult.NativeObservation,
-            guestResult.NativeStateUnchanged,
-            guestResult.Cleanup,
-            guestResult.Limitations);
+            completed.ProductReadiness,
+            completed.NativeObservation,
+            completed.NativeStateUnchanged,
+            completed.Cleanup,
+            completed.Limitations);
         WriteReceipt(receiptPath, receipt);
         return receipt;
     }
@@ -245,6 +251,7 @@ internal sealed class WindowsSmbReadinessConformanceRunner(
             || receipt.Product.Version != package.Version
             || string.IsNullOrWhiteSpace(receipt.Product.CliVersion)
             || string.IsNullOrWhiteSpace(receipt.Product.DaemonVersion)
+            || receipt.Product.DaemonPrivilege != "unelevated"
             || receipt.ProductReadiness.Provider != "windows-smb-3.1.1-v1"
             || !statuses.Contains(receipt.ProductReadiness.Status, StringComparer.Ordinal)
             || !receipt.ProductReadiness.Checks
@@ -264,6 +271,50 @@ internal sealed class WindowsSmbReadinessConformanceRunner(
             || !receipt.Limitations.Contains("not GUI, UAC, Explorer, physical-device, or release acceptance", StringComparer.Ordinal))
         {
             throw new ConformanceRefusalException("result_identity_or_contract_mismatch");
+        }
+
+        ValidateNativeCorroboration(receipt);
+    }
+
+    private static void ValidateNativeCorroboration(GuestRunReceipt receipt)
+    {
+        var checks = receipt.ProductReadiness.Checks.ToDictionary(
+            check => check.Id,
+            StringComparer.Ordinal);
+        var native = receipt.NativeObservation;
+        var platformReady = int.TryParse(
+                receipt.Preflight.Windows.BuildNumber,
+                System.Globalization.NumberStyles.None,
+                System.Globalization.CultureInfo.InvariantCulture,
+                out var buildNumber)
+            && buildNumber >= 26100
+            && receipt.Preflight.Windows.InstallationType is "Client" or "Server" or "Server Core";
+        var corroborated = new Dictionary<string, bool>(StringComparer.Ordinal)
+        {
+            ["windows-platform"] = platformReady,
+            ["smb-server"] = native.ServerSmb2Enabled,
+            ["smb-dialect"] = native.ServerSmb2Enabled,
+            ["smb1"] = native.ServerSmb1FeatureState == "disabled",
+            ["guest-access"] = native.ServerSigningRequired
+                && native.ServerEncryptionSupported
+                && native.ServerRejectsUnencryptedAccess
+                && !native.InsecureGuestLogonsEnabled,
+            ["signing"] = native.ServerSigningRequired,
+            ["encryption"] = native.ServerEncryptionSupported
+                && native.ServerRejectsUnencryptedAccess,
+            ["private-network"] = native.NetworkCategories.Contains(
+                "private",
+                StringComparer.Ordinal),
+            ["firewall-scope"] = native.FirewallProfiles.Contains(
+                    "private",
+                    StringComparer.Ordinal)
+                && native.FirewallProfiles.Contains("public", StringComparer.Ordinal)
+                && native.PublicSmbAllowRules == 0,
+        };
+
+        if (checks.Any(pair => pair.Value.Status == "ready" && !corroborated[pair.Key]))
+        {
+            throw new ConformanceRefusalException("native_corroboration_mismatch");
         }
     }
 

@@ -101,7 +101,7 @@ if [[ ! -f $checksum ]]; then
   exit 3
 fi
 
-timeout --foreground --kill-after=15s 8m \
+timeout --foreground --signal=INT --kill-after=45s 8m \
   dotnet run --project eng/Balls.WindowsConformance --configuration Release --no-restore -- \
     run \
     --target-profile "$target_profile" \

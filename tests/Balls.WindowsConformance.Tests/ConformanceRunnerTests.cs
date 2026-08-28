@@ -36,6 +36,7 @@ public sealed class ConformanceRunnerTests
 
         Assert.AreEqual("passed", receipt.Outcome);
         Assert.AreEqual(Commit, receipt.Source.Commit);
+        Assert.AreEqual("unelevated", receipt.Source.DaemonPrivilege);
         Assert.AreEqual("disposable-windows-lab", receipt.Target.TargetId);
         Assert.IsTrue(receipt.NativeStateUnchanged);
         Assert.IsTrue(receipt.Cleanup.Complete);
@@ -191,6 +192,39 @@ public sealed class ConformanceRunnerTests
     }
 
     [TestMethod]
+    public async Task Cancellation_after_transfer_still_attempts_cleanup_with_its_own_bound()
+    {
+        using var targetFixture = TargetProfileFixture.Create();
+        using var packageFixture = PackageFixture.Create(Commit);
+        using var receiptDirectory = TemporaryDirectory.Create();
+        using var cancellation = new CancellationTokenSource();
+        var processes = new FakeConformanceProcessRunner(
+            Result(PreflightJson()),
+            Result(),
+            (Func<CancellationToken, Task<ConformanceProcessResult>>)(token =>
+            {
+                cancellation.Cancel();
+                return Task.FromCanceled<ConformanceProcessResult>(token);
+            }),
+            Result());
+        var runner = new WindowsSmbReadinessConformanceRunner(processes, "Write-Output fixed");
+
+        await Assert.ThrowsExactlyAsync<TaskCanceledException>(() =>
+            runner.RunAsync(
+                WindowsConformanceTargetProfileLoader.Load(targetFixture.Path),
+                WindowsPackageIdentityLoader.Load(
+                    packageFixture.PackagePath,
+                    packageFixture.ChecksumPath,
+                    Commit),
+                Path.Combine(receiptDirectory.Path, "receipt.json"),
+                cancellation.Token));
+
+        Assert.HasCount(4, processes.Requests);
+        Assert.IsFalse(processes.CancellationTokens[3].IsCancellationRequested);
+        Assert.AreEqual(TimeSpan.FromSeconds(30), processes.Requests[3].Timeout);
+    }
+
+    [TestMethod]
     public async Task Fixed_guest_failure_returns_only_its_whitelisted_code()
     {
         using var targetFixture = TargetProfileFixture.Create();
@@ -313,6 +347,39 @@ public sealed class ConformanceRunnerTests
         Assert.AreEqual("result_identity_or_contract_mismatch", exception.Code);
     }
 
+    [TestMethod]
+    public async Task Ready_product_result_cannot_contradict_independent_native_evidence()
+    {
+        using var targetFixture = TargetProfileFixture.Create();
+        using var packageFixture = PackageFixture.Create(Commit);
+        using var receiptDirectory = TemporaryDirectory.Create();
+        var target = WindowsConformanceTargetProfileLoader.Load(targetFixture.Path);
+        var package = WindowsPackageIdentityLoader.Load(
+            packageFixture.PackagePath,
+            packageFixture.ChecksumPath,
+            Commit);
+        var run = RunJson(package).Replace(
+            "\"serverSmb2Enabled\":true",
+            "\"serverSmb2Enabled\":false",
+            StringComparison.Ordinal);
+        var runner = new WindowsSmbReadinessConformanceRunner(
+            new FakeConformanceProcessRunner(
+                Result(PreflightJson()),
+                Result(),
+                Result(run),
+                Result()),
+            "Write-Output fixed");
+
+        var exception = await Assert.ThrowsExactlyAsync<ConformanceRefusalException>(() =>
+            runner.RunAsync(
+                target,
+                package,
+                Path.Combine(receiptDirectory.Path, "receipt.json"),
+                CancellationToken.None));
+
+        Assert.AreEqual("native_corroboration_mismatch", exception.Code);
+    }
+
     private static ConformanceProcessResult Result(string output = "") => new(0, output, string.Empty);
 
     internal static string PreflightJson(string computerName = "BALLS-LAB") =>
@@ -379,6 +446,7 @@ public sealed class ConformanceRunnerTests
                 version = package.Version,
                 cliVersion = package.Version,
                 daemonVersion = package.Version,
+                daemonPrivilege = "unelevated",
             },
             productReadiness = new
             {
@@ -446,14 +514,19 @@ internal sealed class FakeConformanceProcessRunner(params object[] outcomes) : I
 
     public List<ConformanceProcessRequest> Requests { get; } = [];
 
+    public List<CancellationToken> CancellationTokens { get; } = [];
+
     public Task<ConformanceProcessResult> RunAsync(
         ConformanceProcessRequest request,
         CancellationToken cancellationToken)
     {
         Requests.Add(request);
+        CancellationTokens.Add(cancellationToken);
         var outcome = queued.Dequeue();
         return outcome switch
         {
+            Func<CancellationToken, Task<ConformanceProcessResult>> operation =>
+                operation(cancellationToken),
             Exception exception => Task.FromException<ConformanceProcessResult>(exception),
             ConformanceProcessResult result => Task.FromResult(result),
             _ => throw new InvalidOperationException("Unknown fake process outcome."),

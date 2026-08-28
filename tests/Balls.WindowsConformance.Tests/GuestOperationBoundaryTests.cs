@@ -14,6 +14,12 @@ public sealed class GuestOperationBoundaryTests
 
         StringAssert.Contains(script, "files readiness");
         StringAssert.Contains(script, "--files-readiness-conformance");
+        StringAssert.Contains(script, "function Invoke-BallsBoundedProcess");
+        StringAssert.Contains(script, "function Start-BallsRestrictedDaemon");
+        StringAssert.Contains(script, "SaferComputeTokenFromLevel");
+        StringAssert.Contains(script, "0x00020000");
+        StringAssert.Contains(script, ".WaitForExit($TimeoutMilliseconds)");
+        StringAssert.Contains(script, "native_inspection_timeout");
         StringAssert.Contains(script, "$readinessEnvelope.outputVersion -ne 1");
         StringAssert.Contains(script, "Get-SmbServerConfiguration");
         StringAssert.Contains(script, "Get-NetFirewallRule");
