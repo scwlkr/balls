@@ -67,10 +67,11 @@ public static class WindowsNamedPipeHttpClient
                 var pipe = new NamedPipeClientStream(
                     ".",
                     pipeName,
-                    PipeDirection.InOut,
+                    PipeAccessRights.ReadWrite | PipeAccessRights.ReadPermissions,
                     PipeOptions.Asynchronous
                         | PipeOptions.WriteThrough,
-                    TokenImpersonationLevel.Anonymous);
+                    TokenImpersonationLevel.Anonymous,
+                    HandleInheritability.None);
                 try
                 {
                     await pipe.ConnectAsync(cancellationToken).ConfigureAwait(false);
