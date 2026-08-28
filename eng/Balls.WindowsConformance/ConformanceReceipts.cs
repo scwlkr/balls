@@ -3,7 +3,11 @@ using System.Text.Json.Serialization;
 
 namespace Balls.WindowsConformance;
 
-internal sealed record GuestAccountObservation(string Kind, bool Elevated, string Integrity);
+internal sealed record GuestAccountObservation(
+    string Kind,
+    bool Elevated,
+    string Integrity,
+    string IdentitySha256);
 
 internal sealed record GuestWindowsObservation(
     string ProductName,
@@ -71,6 +75,12 @@ internal sealed record GuestNativeObservation(
     int PublicSmbAllowRules,
     int PublicSmbBlockRules);
 
+internal sealed record GuestNativeReceipt(
+    string Schema,
+    string Operation,
+    string Outcome,
+    GuestNativeObservation Observation);
+
 internal sealed record GuestCleanupObservation(
     bool DaemonStopped,
     bool StateRemoved,
@@ -90,8 +100,6 @@ internal sealed record GuestRunReceipt(
     GuestPreflightReceipt Preflight,
     GuestProductIdentity Product,
     GuestProductReadiness ProductReadiness,
-    GuestNativeObservation NativeObservation,
-    bool NativeStateUnchanged,
     GuestCleanupObservation Cleanup,
     IReadOnlyList<string> Limitations);
 
@@ -106,7 +114,8 @@ internal sealed record ConformanceSourceReceipt(
 internal sealed record ConformanceTargetReceipt(
     string TargetId,
     string ConnectivityPath,
-    GuestPreflightReceipt Preflight);
+    GuestPreflightReceipt InspectionPreflight,
+    GuestPreflightReceipt ProductPreflight);
 
 internal sealed record WindowsSmbReadinessConformanceReceipt(
     string Schema,

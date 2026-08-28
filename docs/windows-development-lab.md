@@ -57,8 +57,9 @@ readiness contract, its real Windows adapter, or the identity/integrity of the W
 for that scenario. It is not a substitute for UAC, native folder-picker, File Explorer, physical-
 device, installer, or release acceptance.
 
-This entrypoint requires a pre-existing, independently authorized OpenSSH path to one disposable
-Windows target. It does not install or configure SSH, accept a password or private-key path, expose
+This entrypoint requires pre-existing, independently authorized OpenSSH paths for one inspection
+identity and one standard product identity on the same disposable Windows target. It does not
+install or configure SSH, accept a password or private-key path, expose
 a general remote command, or change Windows policy. Before setting `authorized` to `true`, perform
 the live inspection above and copy the example profile outside the repository:
 
@@ -66,9 +67,11 @@ the live inspection above and copy the example profile outside the repository:
 cp eng/conformance/windows-target.example.json /tmp/balls-windows-target.json
 ```
 
-Record the inspected target ID, exact computer name, account kind, loopback-only transport,
-connectivity boundary, dedicated `known_hosts` file, and corresponding public-key file. Keep the
-profile local and untracked. `authorized: true` authorizes only the fixed
+Record the inspected target ID, exact computer name, inspection account kind, both loopback-only
+transports, connectivity boundary, dedicated `known_hosts` file, corresponding public-key files,
+and the lowercase SHA-256 of the approved standard account's UTF-8 SID. Both SSH identities must be
+authorized before the run; the product identity must remain standard and have an existing profile.
+Keep the profile local and untracked. `authorized: true` authorizes only the fixed
 `windows-smb-readiness-v1` operation against that exact target; it is not reusable Member or
 machine-management authority.
 
@@ -88,16 +91,12 @@ The packaged daemon's Windows-only `--files-readiness-conformance` mode leases p
 state and exposes only the existing readiness endpoint; it does not open the normal database,
 initialize Node or Circle identity, use DPAPI private material, serve the browser application, or
 enable any mutation endpoint. Normal daemon startup is unchanged.
-The fixed guest operation also performs an independent read-only inspection of Windows, SMB,
-network-profile, and firewall posture before confirming that native state is unchanged. Every
-transport and product phase is bounded, including each CLI and independent native child process.
-The authorized inspection session can be elevated, but it starts both the readiness-only daemon
-and every canonical CLI probe in one Windows LUA filtered-token session with maximum privileges
-disabled and no restricting-SID list; the daemon itself refuses
-to serve while elevated. The Windows local-control client verifies the connected pipe owner against
-the caller's user or elevated token owner explicitly, preserving the existing same-user and same-
-elevation boundary without relying on the runtime's owner-based `CurrentUserOnly` client check.
-Linux INT/TERM
+The elevated inspection identity performs bounded read-only native snapshots before and after the
+product leg. The separately authorized standard identity stages the exact package and starts the
+readiness-only daemon and every canonical CLI probe; the daemon refuses to serve while elevated,
+and its existing `CurrentUserOnly` named-pipe boundary keeps daemon and CLI on that same standard
+identity. Every transport and product phase is bounded, including each CLI and independent native
+child process. Linux INT/TERM
 cancellation propagates into the runner and leaves a separate bounded remote cleanup attempt before
 the outer hard-kill deadline. Refusal, timeout, malformed or oversized output, identity mismatch,
 product/native contradiction, product failure, or unconfirmed cleanup returns nonzero. The owned

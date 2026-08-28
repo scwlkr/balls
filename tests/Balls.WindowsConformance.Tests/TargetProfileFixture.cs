@@ -38,12 +38,21 @@ internal sealed class TargetProfileFixture : IDisposable
                 targetId = "disposable-windows-lab",
                 expectedComputerName = "BALLS-LAB",
                 expectedAccountKind = "administrator",
+                expectedProductAccountSidSha256 = new string('a', 64),
                 connectivityPath = "loopback-only OpenSSH forward to private disposable guest",
                 transport = new
                 {
                     host,
                     port = 22264,
                     user = "ballsverify",
+                    knownHostsFile = knownHosts,
+                    publicKeyFile = publicKey,
+                },
+                productTransport = new
+                {
+                    host,
+                    port = 22264,
+                    user = "ballsproduct",
                     knownHostsFile = knownHosts,
                     publicKeyFile = publicKey,
                 },

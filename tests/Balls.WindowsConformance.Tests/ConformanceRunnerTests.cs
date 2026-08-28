@@ -22,9 +22,12 @@ public sealed class ConformanceRunnerTests
             Commit);
         var processes = new FakeConformanceProcessRunner(
             Result(PreflightJson()),
+            Result(PreflightJson(productAccount: true)),
+            Result(NativeJson()),
             Result(),
             Result(RunJson(package)),
-            Result());
+            Result(),
+            Result(NativeJson()));
         var runner = new WindowsSmbReadinessConformanceRunner(processes, ReadGuestScript());
         var receiptPath = Path.Combine(receiptDirectory.Path, "receipt.json");
 
@@ -40,11 +43,14 @@ public sealed class ConformanceRunnerTests
         Assert.AreEqual("disposable-windows-lab", receipt.Target.TargetId);
         Assert.IsTrue(receipt.NativeStateUnchanged);
         Assert.IsTrue(receipt.Cleanup.Complete);
-        Assert.HasCount(4, processes.Requests);
+        Assert.HasCount(7, processes.Requests);
         Assert.AreEqual("ssh", processes.Requests[0].FileName);
-        Assert.AreEqual("scp", processes.Requests[1].FileName);
+        Assert.AreEqual("ssh", processes.Requests[1].FileName);
         Assert.AreEqual("ssh", processes.Requests[2].FileName);
-        Assert.AreEqual("ssh", processes.Requests[3].FileName);
+        Assert.AreEqual("scp", processes.Requests[3].FileName);
+        Assert.AreEqual("ssh", processes.Requests[4].FileName);
+        Assert.AreEqual("ssh", processes.Requests[5].FileName);
+        Assert.AreEqual("ssh", processes.Requests[6].FileName);
         Assert.IsTrue(processes.Requests.All(request =>
             request.Arguments.Contains("StrictHostKeyChecking=yes")));
         Assert.IsTrue(processes.Requests.All(request =>
@@ -60,11 +66,11 @@ public sealed class ConformanceRunnerTests
             .All(request => request.Arguments[^1].Contains(
                 "[Console]::In.ReadToEnd()",
                 StringComparison.Ordinal)));
-        Assert.IsNull(processes.Requests[1].StandardInput);
-        Assert.IsFalse(processes.Requests[1].Arguments.Contains("-p"));
-        var scpArguments = processes.Requests[1].Arguments.ToList();
+        Assert.IsNull(processes.Requests[3].StandardInput);
+        Assert.IsFalse(processes.Requests[3].Arguments.Contains("-p"));
+        var scpArguments = processes.Requests[3].Arguments.ToList();
         Assert.AreEqual(
-            target.Transport.Port.ToString(System.Globalization.CultureInfo.InvariantCulture),
+            target.ProductTransport.Port.ToString(System.Globalization.CultureInfo.InvariantCulture),
             scpArguments[scpArguments.IndexOf("-P") + 1]);
         var serialized = File.ReadAllText(receiptPath);
         StringAssert.Contains(serialized, "windows-smb-3.1.1-v1");
@@ -200,6 +206,8 @@ public sealed class ConformanceRunnerTests
         using var cancellation = new CancellationTokenSource();
         var processes = new FakeConformanceProcessRunner(
             Result(PreflightJson()),
+            Result(PreflightJson(productAccount: true)),
+            Result(NativeJson()),
             Result(),
             (Func<CancellationToken, Task<ConformanceProcessResult>>)(token =>
             {
@@ -219,9 +227,9 @@ public sealed class ConformanceRunnerTests
                 Path.Combine(receiptDirectory.Path, "receipt.json"),
                 cancellation.Token));
 
-        Assert.HasCount(4, processes.Requests);
-        Assert.IsFalse(processes.CancellationTokens[3].IsCancellationRequested);
-        Assert.AreEqual(TimeSpan.FromSeconds(60), processes.Requests[3].Timeout);
+        Assert.HasCount(6, processes.Requests);
+        Assert.IsFalse(processes.CancellationTokens[5].IsCancellationRequested);
+        Assert.AreEqual(TimeSpan.FromSeconds(60), processes.Requests[5].Timeout);
     }
 
     [TestMethod]
@@ -232,6 +240,8 @@ public sealed class ConformanceRunnerTests
         using var receiptDirectory = TemporaryDirectory.Create();
         var processes = new FakeConformanceProcessRunner(
             Result(PreflightJson()),
+            Result(PreflightJson(productAccount: true)),
+            Result(NativeJson()),
             Result(),
             new ConformanceProcessResult(
                 1,
@@ -252,7 +262,7 @@ public sealed class ConformanceRunnerTests
 
         Assert.AreEqual("guest_guest_operation_unhandled_daemon_poll", exception.Code);
         Assert.IsFalse(exception.Message.Contains("untrusted", StringComparison.Ordinal));
-        Assert.HasCount(4, processes.Requests);
+        Assert.HasCount(6, processes.Requests);
     }
 
     [TestMethod]
@@ -263,6 +273,8 @@ public sealed class ConformanceRunnerTests
         using var receiptDirectory = TemporaryDirectory.Create();
         var processes = new FakeConformanceProcessRunner(
             Result(PreflightJson()),
+            Result(PreflightJson(productAccount: true)),
+            Result(NativeJson()),
             Result(),
             new ConformanceProcessResult(1, string.Empty, "discarded raw error"),
             Result());
@@ -299,6 +311,8 @@ public sealed class ConformanceRunnerTests
             StringComparison.Ordinal);
         var processes = new FakeConformanceProcessRunner(
             Result(PreflightJson()),
+            Result(PreflightJson(productAccount: true)),
+            Result(NativeJson()),
             Result(),
             Result(run),
             Result());
@@ -312,7 +326,7 @@ public sealed class ConformanceRunnerTests
                 CancellationToken.None));
 
         Assert.AreEqual("result_identity_or_contract_mismatch", exception.Code);
-        Assert.HasCount(4, processes.Requests);
+        Assert.HasCount(6, processes.Requests);
     }
 
     [TestMethod]
@@ -332,6 +346,8 @@ public sealed class ConformanceRunnerTests
             StringComparison.Ordinal);
         var processes = new FakeConformanceProcessRunner(
             Result(PreflightJson()),
+            Result(PreflightJson(productAccount: true)),
+            Result(NativeJson()),
             Result(),
             Result(run),
             Result());
@@ -358,16 +374,16 @@ public sealed class ConformanceRunnerTests
             packageFixture.PackagePath,
             packageFixture.ChecksumPath,
             Commit);
-        var run = RunJson(package).Replace(
-            "\"serverSmb2Enabled\":true",
-            "\"serverSmb2Enabled\":false",
-            StringComparison.Ordinal);
+        var run = RunJson(package);
         var runner = new WindowsSmbReadinessConformanceRunner(
             new FakeConformanceProcessRunner(
                 Result(PreflightJson()),
+                Result(PreflightJson(productAccount: true)),
+                Result(NativeJson(serverSmb2Enabled: false)),
                 Result(),
                 Result(run),
-                Result()),
+                Result(),
+                Result(NativeJson(serverSmb2Enabled: false))),
             "Write-Output fixed");
 
         var exception = await Assert.ThrowsExactlyAsync<ConformanceRefusalException>(() =>
@@ -382,14 +398,30 @@ public sealed class ConformanceRunnerTests
 
     private static ConformanceProcessResult Result(string output = "") => new(0, output, string.Empty);
 
-    internal static string PreflightJson(string computerName = "BALLS-LAB") =>
+    internal static string PreflightJson(
+        string computerName = "BALLS-LAB",
+        bool productAccount = false) =>
         JsonSerializer.Serialize(new
         {
             schema = "balls-windows-smb-readiness-preflight-v1",
             operation = "windows-smb-readiness-v1",
             outcome = "ready",
             computerName,
-            account = new { kind = "administrator", elevated = true, integrity = "high" },
+            account = productAccount
+                ? new
+                {
+                    kind = "standard",
+                    elevated = false,
+                    integrity = "medium",
+                    identitySha256 = new string('a', 64),
+                }
+                : new
+                {
+                    kind = "administrator",
+                    elevated = true,
+                    integrity = "high",
+                    identitySha256 = new string('b', 64),
+                },
             windows = new
             {
                 productName = "Windows Server 2025",
@@ -437,7 +469,7 @@ public sealed class ConformanceRunnerTests
             schema = "balls-windows-smb-readiness-guest-v1",
             operation = "windows-smb-readiness-v1",
             outcome = "passed",
-            preflight = JsonSerializer.Deserialize<JsonElement>(PreflightJson()),
+            preflight = JsonSerializer.Deserialize<JsonElement>(PreflightJson(productAccount: true)),
             product = new
             {
                 commit = package.Commit,
@@ -454,23 +486,6 @@ public sealed class ConformanceRunnerTests
                 status = "ready",
                 checks,
             },
-            nativeObservation = new
-            {
-                serverSmb2Enabled = true,
-                serverSigningRequired = true,
-                serverEncryptionSupported = true,
-                serverRejectsUnencryptedAccess = true,
-                clientSigningRequired = true,
-                clientEncryptionRequired = true,
-                insecureGuestLogonsEnabled = false,
-                serverSmb1FeatureState = "disabled",
-                clientSmb1FeatureState = "disabled",
-                networkCategories = new[] { "private" },
-                firewallProfiles = new[] { "domain", "private", "public" },
-                publicSmbAllowRules = 0,
-                publicSmbBlockRules = 1,
-            },
-            nativeStateUnchanged = true,
             cleanup = new
             {
                 daemonStopped = true,
@@ -485,6 +500,30 @@ public sealed class ConformanceRunnerTests
             },
         });
     }
+
+    internal static string NativeJson(bool serverSmb2Enabled = true) =>
+        JsonSerializer.Serialize(new
+        {
+            schema = "balls-windows-smb-readiness-native-v1",
+            operation = "windows-smb-readiness-v1",
+            outcome = "observed",
+            observation = new
+            {
+                serverSmb2Enabled,
+                serverSigningRequired = true,
+                serverEncryptionSupported = true,
+                serverRejectsUnencryptedAccess = true,
+                clientSigningRequired = true,
+                clientEncryptionRequired = true,
+                insecureGuestLogonsEnabled = false,
+                serverSmb1FeatureState = "disabled",
+                clientSmb1FeatureState = "disabled",
+                networkCategories = new[] { "private" },
+                firewallProfiles = new[] { "domain", "private", "public" },
+                publicSmbAllowRules = 0,
+                publicSmbBlockRules = 1,
+            },
+        });
 
     private static string ReadGuestScript()
     {

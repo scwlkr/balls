@@ -12,8 +12,10 @@ internal sealed record WindowsConformanceTargetProfile(
     string TargetId,
     string ExpectedComputerName,
     string ExpectedAccountKind,
+    string ExpectedProductAccountSidSha256,
     string ConnectivityPath,
-    WindowsConformanceSshTransport Transport);
+    WindowsConformanceSshTransport Transport,
+    WindowsConformanceSshTransport ProductTransport);
 
 internal sealed record WindowsConformanceSshTransport(
     string Host,
@@ -76,6 +78,7 @@ internal static partial class WindowsConformanceTargetProfileLoader
         if (!TargetIdPattern().IsMatch(profile.TargetId)
             || !ComputerNamePattern().IsMatch(profile.ExpectedComputerName)
             || profile.ExpectedAccountKind is not ("administrator" or "standard")
+            || !Sha256Pattern().IsMatch(profile.ExpectedProductAccountSidSha256)
             || string.IsNullOrWhiteSpace(profile.ConnectivityPath)
             || profile.ConnectivityPath.Length > 160
             || profile.ConnectivityPath.Any(character => char.IsControl(character)))
@@ -83,28 +86,34 @@ internal static partial class WindowsConformanceTargetProfileLoader
             throw new ConformanceRefusalException("target_profile_invalid");
         }
 
-        if (!IPAddress.TryParse(profile.Transport.Host, out var address)
+        var profileDirectory = Path.GetDirectoryName(profilePath)!;
+        return profile with
+        {
+            Transport = ValidateTransport(profileDirectory, profile.Transport),
+            ProductTransport = ValidateTransport(profileDirectory, profile.ProductTransport),
+        };
+    }
+
+    private static WindowsConformanceSshTransport ValidateTransport(
+        string profileDirectory,
+        WindowsConformanceSshTransport transport)
+    {
+        if (!IPAddress.TryParse(transport.Host, out var address)
             || !IPAddress.IsLoopback(address))
         {
             throw new ConformanceRefusalException("transport_not_loopback");
         }
 
-        if (profile.Transport.Port is < 1 or > 65535
-            || !SshUserPattern().IsMatch(profile.Transport.User))
+        if (transport.Port is < 1 or > 65535
+            || !SshUserPattern().IsMatch(transport.User))
         {
             throw new ConformanceRefusalException("target_profile_invalid");
         }
 
-        var profileDirectory = Path.GetDirectoryName(profilePath)!;
-        var knownHosts = ResolveFile(profileDirectory, profile.Transport.KnownHostsFile);
-        var publicKey = ResolveFile(profileDirectory, profile.Transport.PublicKeyFile);
-        return profile with
+        return transport with
         {
-            Transport = profile.Transport with
-            {
-                KnownHostsFile = knownHosts,
-                PublicKeyFile = publicKey,
-            },
+            KnownHostsFile = ResolveFile(profileDirectory, transport.KnownHostsFile),
+            PublicKeyFile = ResolveFile(profileDirectory, transport.PublicKeyFile),
         };
     }
 
@@ -132,4 +141,7 @@ internal static partial class WindowsConformanceTargetProfileLoader
 
     [GeneratedRegex("^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$", RegexOptions.CultureInvariant)]
     private static partial Regex SshUserPattern();
+
+    [GeneratedRegex("^[0-9a-f]{64}$", RegexOptions.CultureInvariant)]
+    private static partial Regex Sha256Pattern();
 }

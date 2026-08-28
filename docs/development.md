@@ -94,10 +94,11 @@ The command packages exact `HEAD` Windows bytes, runs the real daemon and canoni
 `files readiness` CLI operation with a Windows-only, readiness-only daemon mode and disposable
 leased state, performs an independent read-only native inspection, and returns a bounded redacted
 receipt. The daemon mode creates no Node/Circle/DPAPI identity and exposes no mutation or browser
-endpoint. The authorized inspection session may be elevated, but the guest operation launches the
-readiness-only daemon and canonical CLI with one Windows LUA filtered token whose maximum privileges
-are disabled, and the daemon refuses to serve if it
-is still elevated. CLI and independent-native child processes have their own bounds; Linux
+endpoint. The target profile authorizes separate inspection and product SSH identities on the same
+Windows target: the elevated identity performs only the independent read-only native snapshots,
+while the approved standard identity runs the readiness-only daemon and canonical CLI. The daemon
+refuses to serve if that product identity is elevated. CLI and independent-native child processes
+have their own bounds; Linux
 interrupt or timeout cancellation leaves a separate bounded cleanup attempt. The Linux receipt
 rejects a ready product check that contradicts the independent native observation. This does not
 establish GUI, UAC, File Explorer, physical-device, installer, or release acceptance.

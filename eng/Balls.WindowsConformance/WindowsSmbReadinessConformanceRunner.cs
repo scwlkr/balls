@@ -86,6 +86,7 @@ internal sealed class WindowsSmbReadinessConformanceRunner(
         var preflightResult = await processes.RunAsync(
             SshRequest(
                 target,
+                target.Transport,
                 RemoteCommand(
                     "preflight",
                     new Dictionary<string, string>(StringComparer.Ordinal)),
@@ -97,10 +98,42 @@ internal sealed class WindowsSmbReadinessConformanceRunner(
             throw new ConformanceRefusalException("target_unavailable");
         }
 
-        var preflight = ConformanceReceiptParser.Parse<GuestPreflightReceipt>(
+        var inspectionPreflight = ConformanceReceiptParser.Parse<GuestPreflightReceipt>(
             preflightResult.StandardOutput,
             "preflight_invalid");
-        ValidatePreflight(preflight, target);
+        ValidatePreflight(
+            inspectionPreflight,
+            target,
+            target.ExpectedAccountKind,
+            expectedIdentitySha256: null);
+
+        var productPreflightResult = await processes.RunAsync(
+            SshRequest(
+                target,
+                target.ProductTransport,
+                RemoteCommand(
+                    "product-preflight",
+                    new Dictionary<string, string>(StringComparer.Ordinal)),
+                TimeSpan.FromSeconds(30),
+                guestScript),
+            cancellationToken).ConfigureAwait(false);
+        if (productPreflightResult.ExitCode != 0)
+        {
+            throw new ConformanceRefusalException("product_target_unavailable");
+        }
+
+        var productPreflight = ConformanceReceiptParser.Parse<GuestPreflightReceipt>(
+            productPreflightResult.StandardOutput,
+            "product_preflight_invalid");
+        ValidatePreflight(
+            productPreflight,
+            target,
+            "standard",
+            target.ExpectedProductAccountSidSha256);
+
+        var nativeBefore = await ObserveNativeAsync(
+            target,
+            cancellationToken).ConfigureAwait(false);
 
         var runId = Guid.NewGuid().ToString("N");
         var remotePackageName = $"balls-smb-readiness-{runId}.zip";
@@ -111,7 +144,7 @@ internal sealed class WindowsSmbReadinessConformanceRunner(
         {
             cleanupRequired = true;
             var transfer = await processes.RunAsync(
-                ScpRequest(target, package.Path, remotePackageName),
+                ScpRequest(target.ProductTransport, package.Path, remotePackageName),
                 cancellationToken).ConfigureAwait(false);
             if (transfer.ExitCode != 0)
             {
@@ -122,7 +155,7 @@ internal sealed class WindowsSmbReadinessConformanceRunner(
             {
                 ["BALLS_CONFORMANCE_RUN_ID"] = runId,
                 ["BALLS_CONFORMANCE_EXPECTED_COMPUTER_NAME"] = target.ExpectedComputerName,
-                ["BALLS_CONFORMANCE_EXPECTED_ACCOUNT_KIND"] = target.ExpectedAccountKind,
+                ["BALLS_CONFORMANCE_EXPECTED_ACCOUNT_KIND"] = "standard",
                 ["BALLS_CONFORMANCE_STAGED_PACKAGE_NAME"] = remotePackageName,
                 ["BALLS_CONFORMANCE_PACKAGE_NAME"] = package.FileName,
                 ["BALLS_CONFORMANCE_PACKAGE_SHA256"] = package.Sha256,
@@ -131,6 +164,7 @@ internal sealed class WindowsSmbReadinessConformanceRunner(
             var run = await processes.RunAsync(
                 SshRequest(
                     target,
+                    target.ProductTransport,
                     RemoteCommand("run", values),
                     TimeSpan.FromMinutes(3),
                     guestScript),
@@ -143,7 +177,11 @@ internal sealed class WindowsSmbReadinessConformanceRunner(
             guestResult = ConformanceReceiptParser.Parse<GuestRunReceipt>(
                 run.StandardOutput,
                 "result_invalid");
-            ValidateGuestResult(guestResult, target, package, preflight);
+            ValidateGuestResult(
+                guestResult,
+                target,
+                package,
+                productPreflight);
         }
         catch (Exception exception)
         {
@@ -157,6 +195,7 @@ internal sealed class WindowsSmbReadinessConformanceRunner(
                 var cleanup = await processes.RunAsync(
                     SshRequest(
                         target,
+                        target.ProductTransport,
                         RemoteCommand(
                             "cleanup",
                             new Dictionary<string, string>(StringComparer.Ordinal)
@@ -183,7 +222,21 @@ internal sealed class WindowsSmbReadinessConformanceRunner(
             throw failure;
         }
 
+        var nativeAfter = await ObserveNativeAsync(
+            target,
+            cancellationToken).ConfigureAwait(false);
+        var nativeStateUnchanged = JsonSerializer.Serialize(nativeBefore)
+            == JsonSerializer.Serialize(nativeAfter);
+        if (!nativeStateUnchanged)
+        {
+            throw new ConformanceRefusalException("native_state_changed");
+        }
+
         var completed = guestResult!;
+        ValidateNativeCorroboration(
+            completed.ProductReadiness,
+            nativeAfter,
+            inspectionPreflight);
         var receipt = new WindowsSmbReadinessConformanceReceipt(
             "balls-windows-smb-readiness-conformance-v1",
             Operation,
@@ -197,10 +250,14 @@ internal sealed class WindowsSmbReadinessConformanceRunner(
                 package.Version,
                 package.Architecture,
                 completed.Product.DaemonPrivilege),
-            new ConformanceTargetReceipt(target.TargetId, target.ConnectivityPath, preflight),
+            new ConformanceTargetReceipt(
+                target.TargetId,
+                target.ConnectivityPath,
+                inspectionPreflight,
+                productPreflight),
             completed.ProductReadiness,
-            completed.NativeObservation,
-            completed.NativeStateUnchanged,
+            nativeAfter,
+            nativeStateUnchanged,
             completed.Cleanup,
             completed.Limitations);
         WriteReceipt(receiptPath, receipt);
@@ -209,7 +266,9 @@ internal sealed class WindowsSmbReadinessConformanceRunner(
 
     private static void ValidatePreflight(
         GuestPreflightReceipt receipt,
-        WindowsConformanceTargetProfile target)
+        WindowsConformanceTargetProfile target,
+        string expectedAccountKind,
+        string? expectedIdentitySha256)
     {
         if (receipt.Schema != "balls-windows-smb-readiness-preflight-v1"
             || receipt.Operation != Operation
@@ -218,8 +277,12 @@ internal sealed class WindowsSmbReadinessConformanceRunner(
                 receipt.ComputerName,
                 target.ExpectedComputerName,
                 StringComparison.OrdinalIgnoreCase)
-            || receipt.Account.Kind != target.ExpectedAccountKind
-            || (target.ExpectedAccountKind == "administrator" && !receipt.Account.Elevated)
+            || receipt.Account.Kind != expectedAccountKind
+            || (expectedAccountKind == "administrator" && !receipt.Account.Elevated)
+            || (expectedAccountKind == "standard" && receipt.Account.Elevated)
+            || (expectedIdentitySha256 is not null
+                && receipt.Account.IdentitySha256 != expectedIdentitySha256)
+            || receipt.Account.IdentitySha256.Length != 64
             || !receipt.DirtyState.Clean
             || receipt.DirtyState.ExistingBallsProcesses != 0
             || receipt.DirtyState.OwnedArtifacts != 0
@@ -237,14 +300,21 @@ internal sealed class WindowsSmbReadinessConformanceRunner(
         GuestRunReceipt receipt,
         WindowsConformanceTargetProfile target,
         WindowsPackageIdentity package,
-        GuestPreflightReceipt preflight)
+        GuestPreflightReceipt productPreflight)
     {
-        ValidatePreflight(receipt.Preflight, target);
+        ValidatePreflight(
+            receipt.Preflight,
+            target,
+            "standard",
+            target.ExpectedProductAccountSidSha256);
         var statuses = new[] { "ready", "not-ready", "unknown" };
         if (receipt.Schema != "balls-windows-smb-readiness-guest-v1"
             || receipt.Operation != Operation
             || receipt.Outcome != "passed"
-            || !string.Equals(receipt.Preflight.ComputerName, preflight.ComputerName, StringComparison.OrdinalIgnoreCase)
+            || !string.Equals(
+                receipt.Preflight.ComputerName,
+                productPreflight.ComputerName,
+                StringComparison.OrdinalIgnoreCase)
             || !string.Equals(receipt.Product.Commit, package.Commit, StringComparison.OrdinalIgnoreCase)
             || !string.Equals(receipt.Product.PackageSha256, package.Sha256, StringComparison.OrdinalIgnoreCase)
             || receipt.Product.PackageName != package.FileName
@@ -262,7 +332,6 @@ internal sealed class WindowsSmbReadinessConformanceRunner(
                 || !statuses.Contains(check.Status, StringComparer.Ordinal)
                 || string.IsNullOrWhiteSpace(check.Code)
                 || string.IsNullOrWhiteSpace(check.Summary))
-            || !receipt.NativeStateUnchanged
             || !receipt.Cleanup.Complete
             || !receipt.Cleanup.DaemonStopped
             || !receipt.Cleanup.StateRemoved
@@ -273,22 +342,23 @@ internal sealed class WindowsSmbReadinessConformanceRunner(
             throw new ConformanceRefusalException("result_identity_or_contract_mismatch");
         }
 
-        ValidateNativeCorroboration(receipt);
     }
 
-    private static void ValidateNativeCorroboration(GuestRunReceipt receipt)
+    private static void ValidateNativeCorroboration(
+        GuestProductReadiness productReadiness,
+        GuestNativeObservation native,
+        GuestPreflightReceipt inspectionPreflight)
     {
-        var checks = receipt.ProductReadiness.Checks.ToDictionary(
+        var checks = productReadiness.Checks.ToDictionary(
             check => check.Id,
             StringComparer.Ordinal);
-        var native = receipt.NativeObservation;
         var platformReady = int.TryParse(
-                receipt.Preflight.Windows.BuildNumber,
+                inspectionPreflight.Windows.BuildNumber,
                 System.Globalization.NumberStyles.None,
                 System.Globalization.CultureInfo.InvariantCulture,
                 out var buildNumber)
             && buildNumber >= 26100
-            && receipt.Preflight.Windows.InstallationType is "Client" or "Server" or "Server Core";
+            && inspectionPreflight.Windows.InstallationType is "Client" or "Server" or "Server Core";
         var corroborated = new Dictionary<string, bool>(StringComparer.Ordinal)
         {
             ["windows-platform"] = platformReady,
@@ -316,6 +386,38 @@ internal sealed class WindowsSmbReadinessConformanceRunner(
         {
             throw new ConformanceRefusalException("native_corroboration_mismatch");
         }
+    }
+
+    private async Task<GuestNativeObservation> ObserveNativeAsync(
+        WindowsConformanceTargetProfile target,
+        CancellationToken cancellationToken)
+    {
+        var result = await processes.RunAsync(
+            SshRequest(
+                target,
+                target.Transport,
+                RemoteCommand(
+                    "native",
+                    new Dictionary<string, string>(StringComparer.Ordinal)),
+                TimeSpan.FromSeconds(60),
+                guestScript),
+            cancellationToken).ConfigureAwait(false);
+        if (result.ExitCode != 0)
+        {
+            throw new ConformanceRefusalException("native_inspection_failed");
+        }
+
+        var receipt = ConformanceReceiptParser.Parse<GuestNativeReceipt>(
+            result.StandardOutput,
+            "native_inspection_invalid");
+        if (receipt.Schema != "balls-windows-smb-readiness-native-v1"
+            || receipt.Operation != Operation
+            || receipt.Outcome != "observed")
+        {
+            throw new ConformanceRefusalException("native_inspection_invalid");
+        }
+
+        return receipt.Observation;
     }
 
     private static string ParseGuestFailureCode(string json)
@@ -382,17 +484,18 @@ internal sealed class WindowsSmbReadinessConformanceRunner(
 
     private static ConformanceProcessRequest SshRequest(
         WindowsConformanceTargetProfile target,
+        WindowsConformanceSshTransport transport,
         string remoteCommand,
         TimeSpan timeout,
         string standardInput) =>
         new(
             "ssh",
             [
-                .. CommonTransportArguments(target),
+                .. CommonTransportArguments(transport),
                 "-p",
-                target.Transport.Port.ToString(System.Globalization.CultureInfo.InvariantCulture),
+                transport.Port.ToString(System.Globalization.CultureInfo.InvariantCulture),
                 "-T",
-                $"{target.Transport.User}@{target.Transport.Host}",
+                $"{transport.User}@{transport.Host}",
                 remoteCommand,
             ],
             timeout,
@@ -400,24 +503,25 @@ internal sealed class WindowsSmbReadinessConformanceRunner(
             standardInput);
 
     private static ConformanceProcessRequest ScpRequest(
-        WindowsConformanceTargetProfile target,
+        WindowsConformanceSshTransport transport,
         string packagePath,
         string remotePackageName) =>
         new(
             "scp",
             [
-                .. CommonTransportArguments(target),
+                .. CommonTransportArguments(transport),
                 "-q",
                 "-B",
                 "-P",
-                target.Transport.Port.ToString(System.Globalization.CultureInfo.InvariantCulture),
+                transport.Port.ToString(System.Globalization.CultureInfo.InvariantCulture),
                 packagePath,
-                $"{target.Transport.User}@{target.Transport.Host}:{remotePackageName}",
+                $"{transport.User}@{transport.Host}:{remotePackageName}",
             ],
             TimeSpan.FromMinutes(2),
             8192);
 
-    private static IEnumerable<string> CommonTransportArguments(WindowsConformanceTargetProfile target) =>
+    private static IEnumerable<string> CommonTransportArguments(
+        WindowsConformanceSshTransport transport) =>
     [
         "-F",
         "/dev/null",
@@ -428,11 +532,11 @@ internal sealed class WindowsSmbReadinessConformanceRunner(
         "-o",
         "StrictHostKeyChecking=yes",
         "-o",
-        $"UserKnownHostsFile={target.Transport.KnownHostsFile}",
+        $"UserKnownHostsFile={transport.KnownHostsFile}",
         "-o",
         "IdentitiesOnly=yes",
         "-o",
-        $"IdentityFile={target.Transport.PublicKeyFile}",
+        $"IdentityFile={transport.PublicKeyFile}",
         "-o",
         "ConnectTimeout=10",
         "-o",
