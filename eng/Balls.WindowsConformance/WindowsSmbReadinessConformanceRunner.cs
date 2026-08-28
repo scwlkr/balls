@@ -257,9 +257,29 @@ internal sealed class WindowsSmbReadinessConformanceRunner(
 
     private static string ParseGuestFailureCode(string json)
     {
-        var failure = ConformanceReceiptParser.Parse<GuestFailureReceipt>(
-            json,
-            "product_execution_failed");
+        if (string.IsNullOrWhiteSpace(json))
+        {
+            return "guest_failure_output_empty";
+        }
+
+        if (json.Split(['\r', '\n'], StringSplitOptions.RemoveEmptyEntries).Length != 1)
+        {
+            return "guest_failure_output_contaminated";
+        }
+
+        GuestFailureReceipt failure;
+        try
+        {
+            failure = ConformanceReceiptParser.Parse<GuestFailureReceipt>(
+                json,
+                "product_execution_failed");
+        }
+        catch (ConformanceRefusalException exception)
+            when (exception.Code == "product_execution_failed")
+        {
+            return "guest_failure_output_invalid";
+        }
+
         if (failure.Schema != "balls-windows-smb-readiness-guest-v1"
             || failure.Operation != Operation
             || failure.Outcome != "failed"
