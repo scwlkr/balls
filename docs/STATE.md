@@ -34,9 +34,17 @@ object IDs, plan tokens, provider language, or manual drive selection.
 
 [#122](https://github.com/scwlkr/balls/issues/122) remains blocked by #118.
 [#124 — Provision and remove one Circle Files host headlessly from Linux](https://github.com/scwlkr/balls/issues/124)
-is in progress in the completed #123 conformance lane. Its implementation remains incomplete until
-the exact final commit passes the Linux fast gate and one authorized native Windows run proves
-product-driven provision, rollback, retry, removal, and seed-byte preservation. Preserve the
+is in progress in the completed #123 conformance lane. The Linux fast gate passes at
+`283403230b48`. The authorized disposable Windows target refused before host mutation because its
+high-integrity SSH administrator cannot use CurrentUser DPAPI, while its DPAPI-capable standard
+product identity is not an administrator. Cleanup was independently confirmed; only the
+harness-created 28-byte seed fixture initially remained, then its exact path, sole-file inventory,
+and expected hash were reverified before the fixture was removed and the path restored to absent.
+Do not change accounts, UAC, credentials, DPAPI, or policy to force a pass. Its implementation
+remains incomplete until the exact final commit passes one
+authorized native Windows run on a target whose administrative product token can start the normal
+daemon and launch the typed helper, proving product-driven provision, rollback, retry, removal, and
+seed-byte preservation. Preserve the
 two-lane limit.
 
 ## Private-pilot delivery posture

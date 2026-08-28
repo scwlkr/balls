@@ -133,7 +133,10 @@ Run the repository-owned host lifecycle scenario when a change touches any of th
 
 This scenario requires one pre-existing, independently authorized OpenSSH inspection identity and
 one pre-existing, independently authorized administrative product identity on the same disposable
-Windows target. The product identity must already be high-integrity. The runner does not install
+Windows target. The product identity must already be high-integrity and its noninteractive token
+must be able to use the account's existing CurrentUser DPAPI state so the normal daemon can create
+and reopen its local Node identity. The runner proves that full-daemon precondition before it
+creates the disposable folder or seed. The runner does not install
 SSH, elevate an account, accept a password or private-key path, disable UAC, or change policy. An
 administrative SSH run is not evidence that a person saw or accepted UAC consent.
 

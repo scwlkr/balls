@@ -279,7 +279,20 @@ function Start-BallsDaemon {
     $deadline = [DateTimeOffset]::UtcNow.AddSeconds(45)
     Start-Sleep -Seconds 2
     while ([DateTimeOffset]::UtcNow -lt $deadline) {
-        if ($process.HasExited) { throw 'daemon_exited_before_ready' }
+        if ($process.HasExited) {
+            [string]$errorText = ''
+            if (Test-Path -LiteralPath $Paths.stderr -PathType Leaf) {
+                $errorText = [string](Get-Content -LiteralPath $Paths.stderr -Raw -ErrorAction SilentlyContinue)
+            }
+            if ([Text.Encoding]::UTF8.GetByteCount($errorText) -gt 65536) {
+                throw 'daemon_output_oversized'
+            }
+            if ($errorText -match 'System\.Security\.Cryptography\.CryptographicException' `
+                    -and $errorText -match 'ProtectedData\.Protect') {
+                throw 'daemon_private_material_unavailable'
+            }
+            throw 'daemon_exited_before_ready'
+        }
         $status = Invoke-BallsBoundedProcess -FilePath $cli -Arguments "--output json --pipe-name $PipeName status" -WorkingDirectory $Paths.extract -TimeoutMilliseconds 15000 -TimeoutCode 'daemon_poll_timeout'
         if ($status.exitCode -eq 0) { return }
         Start-Sleep -Milliseconds 250
@@ -581,6 +594,9 @@ try {
         $cliVersion = (Invoke-BallsBoundedProcess -FilePath $cli -Arguments '--version' -WorkingDirectory $paths.extract -TimeoutMilliseconds 10000 -TimeoutCode 'package_probe_timeout').standardOutput.Trim()
         $daemonVersion = (Invoke-BallsBoundedProcess -FilePath $daemon -Arguments '--version' -WorkingDirectory $paths.extract -TimeoutMilliseconds 10000 -TimeoutCode 'package_probe_timeout').standardOutput.Trim()
         if ([string]::IsNullOrWhiteSpace($cliVersion) -or [string]::IsNullOrWhiteSpace($daemonVersion)) { throw 'package_identity_mismatch' }
+        $pipeName = "balls-host-$runId"
+        $script:Stage = 'daemon-start'
+        Start-BallsDaemon -Paths $paths -PipeName $pipeName
         $script:Stage = 'seed-setup'
         $parent = Split-Path -Parent $disposablePath
         if (-not (Test-Path -LiteralPath $parent -PathType Container)) { New-Item -ItemType Directory -Path $parent -ErrorAction Stop | Out-Null }
@@ -589,9 +605,6 @@ try {
         $seedBytes = [Text.Encoding]::UTF8.GetBytes("Balls issue 124 seed bytes`r`n")
         [IO.File]::WriteAllBytes((Join-Path $disposablePath 'before-balls.txt'), $seedBytes)
         $seed = Get-BallsSeedObservation -DisposablePath $disposablePath
-        $pipeName = "balls-host-$runId"
-        $script:Stage = 'daemon-start'
-        Start-BallsDaemon -Paths $paths -PipeName $pipeName
         $script:Stage = 'circle-create'
         $circleRequest = [Guid]::NewGuid().ToString('D')
         $circle = ConvertFrom-BallsCliResult -ProcessResult (Invoke-BallsCli -Paths $paths -PipeName $pipeName -Arguments "circle create Balls-Host-$runId --owner Conformance-Owner --request-id $circleRequest" -TimeoutCode 'circle_create_timeout') -FailureCode 'circle_create_failed'

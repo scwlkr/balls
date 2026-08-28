@@ -49,6 +49,21 @@ public sealed class HostGuestOperationBoundaryTests
     }
 
     [TestMethod]
+    public void Full_daemon_viability_is_proved_before_the_disposable_fixture_is_created()
+    {
+        var script = File.ReadAllText(GuestScriptPath());
+
+        var daemonStart = script.IndexOf("$script:Stage = 'daemon-start'", StringComparison.Ordinal);
+        var seedSetup = script.IndexOf("$script:Stage = 'seed-setup'", StringComparison.Ordinal);
+
+        Assert.IsGreaterThanOrEqualTo(0, daemonStart);
+        Assert.IsGreaterThan(daemonStart, seedSetup);
+        StringAssert.Contains(script, "daemon_private_material_unavailable");
+        StringAssert.Contains(script, "ProtectedData\\.Protect");
+        Assert.IsFalse(script.Contains("Access is denied", StringComparison.OrdinalIgnoreCase));
+    }
+
+    [TestMethod]
     public void Windows_PowerShell_parses_the_fixed_host_guest_operation()
     {
         if (!OperatingSystem.IsWindows())
