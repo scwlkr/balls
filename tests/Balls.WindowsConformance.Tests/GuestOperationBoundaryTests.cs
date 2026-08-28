@@ -26,6 +26,10 @@ public sealed class GuestOperationBoundaryTests
         StringAssert.Contains(script, "$readinessEnvelope.outputVersion -ne 1");
         StringAssert.Contains(script, "Get-SmbServerConfiguration");
         StringAssert.Contains(script, "Get-NetFirewallRule");
+        StringAssert.Contains(script, "Get-NetFirewallApplicationFilter");
+        StringAssert.Contains(script, "Get-NetFirewallServiceFilter");
+        StringAssert.Contains(script, "Get-NetFirewallSecurityFilter");
+        StringAssert.Contains(script, "OverrideBlockRules");
         StringAssert.Contains(script, "BallsSmbReadiness-$RunId");
         Assert.IsFalse(Regex.IsMatch(
             script,

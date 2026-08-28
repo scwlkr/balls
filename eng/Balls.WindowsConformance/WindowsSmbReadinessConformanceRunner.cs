@@ -366,12 +366,10 @@ internal sealed class WindowsSmbReadinessConformanceRunner(
             ["smb-server"] = native.ServerServiceRunning && native.ServerSmb2Enabled,
             ["smb-dialect"] = native.ServerMaximumDialect is
                 "None" or "0" or "65535" or "65536" or "SMB311" or "785",
-            ["smb1"] = !native.ServerSmb1Enabled
-                && native.ServerSmb1FeatureState == "disabled",
+            ["smb1"] = !native.ServerSmb1Enabled,
             ["guest-access"] = native.ServerSigningRequired
                 && native.ServerEncryptionSupported
-                && native.ServerRejectsUnencryptedAccess
-                && !native.InsecureGuestLogonsEnabled,
+                && native.ServerRejectsUnencryptedAccess,
             ["signing"] = native.ServerSigningRequired,
             ["encryption"] = native.ServerEncryptionSupported
                 && native.ServerRejectsUnencryptedAccess

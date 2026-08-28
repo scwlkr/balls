@@ -248,28 +248,138 @@ function Get-BallsPreflight {
     }
 }
 
+function Test-BallsNativeFirewallApplicability {
+    param([AllowNull()][string] $Program, [AllowNull()][string] $Service)
+
+    if (-not [string]::IsNullOrWhiteSpace($Service) `
+            -and $Service -notin @('Any', 'LanmanServer')) {
+        return $false
+    }
+    if ([string]::IsNullOrWhiteSpace($Program) -or $Program -in @('Any', 'System')) {
+        return $true
+    }
+    try {
+        $expanded = [Environment]::ExpandEnvironmentVariables($Program)
+        if (-not [IO.Path]::IsPathRooted($expanded) `
+                -or $expanded.Contains('*') `
+                -or $expanded.Contains('?') `
+                -or $expanded.Contains('%')) {
+            return $true
+        }
+        $name = [IO.Path]::GetFileName($expanded)
+        return [string]::IsNullOrWhiteSpace($name) `
+            -or $name -eq 'svchost.exe' `
+            -or -not $name.EndsWith('.exe', [StringComparison]::OrdinalIgnoreCase)
+    }
+    catch {
+        return $true
+    }
+}
+
+function Test-BallsNativeUnrestrictedFirewallValue {
+    param(
+        [AllowNull()][object] $Value,
+        [switch] $AllowEmpty,
+        [switch] $AllowZero)
+
+    $values = @($Value)
+    if ($values.Count -eq 0) { return [bool]$AllowEmpty }
+    if ($values.Count -ne 1) { return $false }
+    $text = [string]$values[0]
+    return $text -eq 'Any' `
+        -or ($AllowEmpty -and [string]::IsNullOrWhiteSpace($text)) `
+        -or ($AllowZero -and $text -eq '0')
+}
+
+function Test-BallsNativeBroadPublicBlock {
+    param([Parameter(Mandatory = $true)] $Rule)
+
+    if ([string]$Rule.Profile -ne 'Public' `
+            -or [string]$Rule.Enabled -ne 'True' `
+            -or [string]$Rule.Direction -ne 'Inbound' `
+            -or [string]$Rule.Action -ne 'Block') {
+        return $false
+    }
+    $primaryStatus = [string]$Rule.PrimaryStatus
+    if ($primaryStatus -ne 'OK' `
+            -and ($primaryStatus -ne 'Inactive' `
+                -or @($Rule.EnforcementStatus).Count -ne 1 `
+                -or [string]@($Rule.EnforcementStatus)[0] -ne 'ProfileInactive')) {
+        return $false
+    }
+    if (-not (Test-BallsNativeUnrestrictedFirewallValue -Value $Rule.Owner -AllowEmpty) `
+            -or -not (Test-BallsNativeUnrestrictedFirewallValue `
+                -Value $Rule.RemoteDynamicKeywordAddresses `
+                -AllowEmpty)) {
+        return $false
+    }
+
+    $port = @($Rule | Get-NetFirewallPortFilter -ErrorAction Stop)
+    $application = @($Rule | Get-NetFirewallApplicationFilter -ErrorAction Stop)
+    $service = @($Rule | Get-NetFirewallServiceFilter -ErrorAction Stop)
+    $address = @($Rule | Get-NetFirewallAddressFilter -ErrorAction Stop)
+    $interface = @($Rule | Get-NetFirewallInterfaceFilter -ErrorAction Stop)
+    $interfaceType = @($Rule | Get-NetFirewallInterfaceTypeFilter -ErrorAction Stop)
+    $security = @($Rule | Get-NetFirewallSecurityFilter -ErrorAction Stop)
+    if ($port.Count -ne 1 `
+            -or $application.Count -ne 1 `
+            -or $service.Count -ne 1 `
+            -or $address.Count -ne 1 `
+            -or $interface.Count -ne 1 `
+            -or $interfaceType.Count -ne 1 `
+            -or $security.Count -ne 1) {
+        return $false
+    }
+    if ([string]$port[0].Protocol -notin @('TCP', '6') `
+            -or @($port[0].LocalPort).Count -ne 1 `
+            -or [string]@($port[0].LocalPort)[0] -ne '445' `
+            -or -not (Test-BallsNativeUnrestrictedFirewallValue -Value $port[0].RemotePort) `
+            -or -not (Test-BallsNativeUnrestrictedFirewallValue -Value $port[0].DynamicTarget -AllowEmpty) `
+            -or -not (Test-BallsNativeUnrestrictedFirewallValue -Value $application[0].Program) `
+            -or -not (Test-BallsNativeUnrestrictedFirewallValue -Value $application[0].Package -AllowEmpty) `
+            -or -not (Test-BallsNativeUnrestrictedFirewallValue -Value $service[0].Service) `
+            -or -not (Test-BallsNativeUnrestrictedFirewallValue -Value $address[0].LocalAddress) `
+            -or -not (Test-BallsNativeUnrestrictedFirewallValue -Value $address[0].RemoteAddress) `
+            -or -not (Test-BallsNativeUnrestrictedFirewallValue -Value $address[0].RemoteDynamicKeywordAddresses -AllowEmpty) `
+            -or -not (Test-BallsNativeUnrestrictedFirewallValue -Value $interface[0].InterfaceAlias) `
+            -or -not (Test-BallsNativeUnrestrictedFirewallValue -Value $interfaceType[0].InterfaceType -AllowZero)) {
+        return $false
+    }
+    if ([string]$security[0].Authentication -ne 'NotRequired' `
+            -or [string]$security[0].Encryption -ne 'NotRequired' `
+            -or [string]$security[0].OverrideBlockRules -ne 'False' `
+            -or -not (Test-BallsNativeUnrestrictedFirewallValue -Value $security[0].LocalUser -AllowEmpty) `
+            -or -not (Test-BallsNativeUnrestrictedFirewallValue -Value $security[0].RemoteUser -AllowEmpty) `
+            -or -not (Test-BallsNativeUnrestrictedFirewallValue -Value $security[0].RemoteMachine -AllowEmpty)) {
+        return $false
+    }
+    return $true
+}
+
 function Get-BallsPublicSmbRuleCounts {
+    $rules = @(Get-NetFirewallRule `
+        -PolicyStore ActiveStore `
+        -Enabled True `
+        -Direction Inbound `
+        -ErrorAction Stop)
     $allow = 0
-    $block = 0
-    foreach ($rule in @(Get-NetFirewallRule `
-            -PolicyStore ActiveStore `
-            -Enabled True `
-            -Direction Inbound `
-            -ErrorAction Stop)) {
+    $blockBypass = $false
+    foreach ($rule in $rules) {
+        $action = [string]$rule.Action
+        if ($action -notin @('Allow', 'Block')) { throw 'native_firewall_action_unknown' }
+        if ($action -ne 'Allow') { continue }
         $profiles = @(([string]$rule.Profile -split ',') | ForEach-Object { $_.Trim() })
         if (($profiles -notcontains 'Any') -and ($profiles -notcontains 'Public')) { continue }
+
         $matchesPort = $false
         foreach ($filter in @($rule | Get-NetFirewallPortFilter -ErrorAction Stop)) {
             if ([string]$filter.Protocol -notin @('Any', 'TCP', '6')) { continue }
             foreach ($port in @($filter.LocalPort)) {
                 $portText = [string]$port
-                if ($portText -in @('Any', '445')) {
-                    $matchesPort = $true
-                    break
-                }
-                if ($portText -match '^(\d+)-(\d+)$' `
-                        -and [int]$Matches[1] -le 445 `
-                        -and [int]$Matches[2] -ge 445) {
+                if ($portText -in @('Any', '445') `
+                        -or ($portText -match '^(\d+)-(\d+)$' `
+                            -and [int]$Matches[1] -le 445 `
+                            -and [int]$Matches[2] -ge 445)) {
                     $matchesPort = $true
                     break
                 }
@@ -277,10 +387,39 @@ function Get-BallsPublicSmbRuleCounts {
             if ($matchesPort) { break }
         }
         if (-not $matchesPort) { continue }
-        if ([string]$rule.Action -eq 'Allow') { $allow++ }
-        if ([string]$rule.Action -eq 'Block') { $block++ }
+
+        $application = @($rule | Get-NetFirewallApplicationFilter -ErrorAction Stop)
+        $service = @($rule | Get-NetFirewallServiceFilter -ErrorAction Stop)
+        if ($application.Count -ne 1 -or $service.Count -ne 1) {
+            $allow++
+            $blockBypass = $true
+            continue
+        }
+        if (-not (Test-BallsNativeFirewallApplicability `
+                -Program ([string]$application[0].Program) `
+                -Service ([string]$service[0].Service))) {
+            continue
+        }
+
+        $allow++
+        $security = @($rule | Get-NetFirewallSecurityFilter -ErrorAction Stop)
+        if ($security.Count -ne 1 `
+                -or [string]$security[0].OverrideBlockRules -ne 'False') {
+            $blockBypass = $true
+        }
     }
-    return [ordered]@{ allow = $allow; block = $block }
+
+    $broadBlocks = 0
+    if ($allow -gt 0 -and -not $blockBypass) {
+        foreach ($rule in $rules) {
+            if ([string]$rule.Action -eq 'Block' `
+                    -and (Test-BallsNativeBroadPublicBlock -Rule $rule)) {
+                $broadBlocks++
+            }
+        }
+        if ($broadBlocks -eq 1) { $allow = 0 }
+    }
+    return [ordered]@{ allow = $allow; block = $broadBlocks }
 }
 
 function Get-BallsNativeObservation {
@@ -373,6 +512,9 @@ function Invoke-BallsBoundedNativeObservation {
         '$ErrorActionPreference = ''Stop''',
         '$ProgressPreference = ''SilentlyContinue''',
         "function Get-BallsFeatureState {`n$(${function:Get-BallsFeatureState}.ToString())`n}",
+        "function Test-BallsNativeFirewallApplicability {`n$(${function:Test-BallsNativeFirewallApplicability}.ToString())`n}",
+        "function Test-BallsNativeUnrestrictedFirewallValue {`n$(${function:Test-BallsNativeUnrestrictedFirewallValue}.ToString())`n}",
+        "function Test-BallsNativeBroadPublicBlock {`n$(${function:Test-BallsNativeBroadPublicBlock}.ToString())`n}",
         "function Get-BallsPublicSmbRuleCounts {`n$(${function:Get-BallsPublicSmbRuleCounts}.ToString())`n}",
         "function Get-BallsNativeObservation {`n$(${function:Get-BallsNativeObservation}.ToString())`n}",
         'Get-BallsNativeObservation | ConvertTo-Json -Compress -Depth 8') -join "`n"

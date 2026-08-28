@@ -377,6 +377,7 @@ public sealed class ConformanceRunnerTests
     [DataRow("firewall-service")]
     [DataRow("private-default-inbound")]
     [DataRow("public-default-inbound")]
+    [DataRow("public-smb-allow")]
     public async Task Ready_product_result_cannot_contradict_independent_native_evidence(
         string contradiction)
     {
@@ -399,6 +400,7 @@ public sealed class ConformanceRunnerTests
             "firewall-service" => NativeJson(firewallServiceRunning: false),
             "private-default-inbound" => NativeJson(privateDefaultInboundAction: "Allow"),
             "public-default-inbound" => NativeJson(publicDefaultInboundAction: "Allow"),
+            "public-smb-allow" => NativeJson(publicSmbAllowRules: 1),
             _ => throw new ArgumentOutOfRangeException(nameof(contradiction)),
         };
         var runner = new WindowsSmbReadinessConformanceRunner(
@@ -420,6 +422,38 @@ public sealed class ConformanceRunnerTests
                 CancellationToken.None));
 
         Assert.AreEqual("native_corroboration_mismatch", exception.Code);
+    }
+
+    [TestMethod]
+    public async Task Extra_native_posture_does_not_overconstrain_the_product_contract()
+    {
+        using var targetFixture = TargetProfileFixture.Create();
+        using var packageFixture = PackageFixture.Create(Commit);
+        using var receiptDirectory = TemporaryDirectory.Create();
+        var target = WindowsConformanceTargetProfileLoader.Load(targetFixture.Path);
+        var package = WindowsPackageIdentityLoader.Load(
+            packageFixture.PackagePath,
+            packageFixture.ChecksumPath,
+            Commit);
+        var native = NativeJson(
+            insecureGuestLogonsEnabled: true,
+            serverSmb1FeatureState: "enabled");
+        var runner = new WindowsSmbReadinessConformanceRunner(
+            new FakeConformanceProcessRunner(
+                Result(PreflightJson()),
+                Result(PreflightJson(productAccount: true)),
+                Result(native),
+                Result(),
+                Result(RunJson(package)),
+                Result(),
+                Result(native)),
+            "Write-Output fixed");
+
+        await runner.RunAsync(
+            target,
+            package,
+            Path.Combine(receiptDirectory.Path, "receipt.json"),
+            CancellationToken.None);
     }
 
     private static ConformanceProcessResult Result(string output = "") => new(0, output, string.Empty);
@@ -536,7 +570,10 @@ public sealed class ConformanceRunnerTests
         string[]? serverEncryptionCiphers = null,
         int connectedPrivateProfiles = 1,
         string privateDefaultInboundAction = "Block",
-        string publicDefaultInboundAction = "Block") =>
+        string publicDefaultInboundAction = "Block",
+        bool insecureGuestLogonsEnabled = false,
+        string serverSmb1FeatureState = "disabled",
+        int publicSmbAllowRules = 0) =>
         JsonSerializer.Serialize(new
         {
             schema = "balls-windows-smb-readiness-native-v1",
@@ -555,8 +592,8 @@ public sealed class ConformanceRunnerTests
                 serverEncryptionCiphers = serverEncryptionCiphers ?? ["AES_128_GCM"],
                 clientSigningRequired = true,
                 clientEncryptionRequired = true,
-                insecureGuestLogonsEnabled = false,
-                serverSmb1FeatureState = "disabled",
+                insecureGuestLogonsEnabled,
+                serverSmb1FeatureState,
                 clientSmb1FeatureState = "disabled",
                 connectedPrivateProfiles,
                 networkCategories = new[] { "private" },
@@ -565,7 +602,7 @@ public sealed class ConformanceRunnerTests
                 publicFirewallEnabled = true,
                 publicDefaultInboundAction,
                 firewallProfiles = new[] { "domain", "private", "public" },
-                publicSmbAllowRules = 0,
+                publicSmbAllowRules,
                 publicSmbBlockRules = 1,
             },
         });
