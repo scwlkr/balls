@@ -239,7 +239,20 @@ function Get-BallsObjectHash {
 function Get-BallsDaemonExitFailure {
     param(
         [Parameter(Mandatory = $true)][Diagnostics.Process] $Process,
+        [Parameter(Mandatory = $true)][string] $StandardOutputPath,
         [Parameter(Mandatory = $true)][string] $StandardErrorPath)
+
+    if ($Process.ExitCode -eq 0) {
+        try {
+            $output = Get-Item -LiteralPath $StandardOutputPath -ErrorAction Stop
+            if ($output.Length -le 32768 `
+                    -and [IO.File]::ReadAllText($output.FullName).Contains('ballsd ready on')) {
+                return 'daemon_exited_after_ready'
+            }
+        }
+        catch {}
+        return 'daemon_exited_clean_before_ready'
+    }
 
     switch ($Process.ExitCode) {
         2 { return 'daemon_exited_usage' }
@@ -496,6 +509,7 @@ try {
         if ($daemonProcess.HasExited) {
             $failureCode = Get-BallsDaemonExitFailure `
                 -Process $daemonProcess `
+                -StandardOutputPath (Join-Path $root 'daemon.stdout.log') `
                 -StandardErrorPath (Join-Path $root 'daemon.stderr.log')
         }
         else {

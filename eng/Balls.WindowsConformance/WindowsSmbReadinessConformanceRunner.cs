@@ -36,6 +36,8 @@ internal sealed class WindowsSmbReadinessConformanceRunner(
         "daemon_exited_startup",
         "daemon_exited_unsupported",
         "daemon_exited_unexpected",
+        "daemon_exited_after_ready",
+        "daemon_exited_clean_before_ready",
         "daemon_exited_dotnet_invalid_operation",
         "daemon_exited_dotnet_platform_unsupported",
         "daemon_exited_dotnet_cryptographic",
