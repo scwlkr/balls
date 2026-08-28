@@ -20,7 +20,8 @@ internal sealed record WindowsPackageManifest(
     string Commit,
     string Platform,
     string Architecture,
-    bool RuntimeSupported);
+    bool RuntimeSupported,
+    string Support);
 
 internal static partial class WindowsPackageIdentityLoader
 {
@@ -91,6 +92,7 @@ internal static partial class WindowsPackageIdentityLoader
             || manifest.Platform != "windows"
             || manifest.Architecture != "x64"
             || !manifest.RuntimeSupported
+            || manifest.Support != "Windows Canary for development use."
             || !CommitPattern().IsMatch(manifest.Commit)
             || !string.Equals(manifest.Commit, expectedCommit, StringComparison.OrdinalIgnoreCase)
             || string.IsNullOrWhiteSpace(manifest.Version)

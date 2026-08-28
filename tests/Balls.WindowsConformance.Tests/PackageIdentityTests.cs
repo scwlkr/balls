@@ -100,6 +100,7 @@ internal sealed class PackageFixture : IDisposable
                 platform = "windows",
                 architecture = "x64",
                 runtimeSupported = true,
+                support = "Windows Canary for development use.",
             });
         }
 
