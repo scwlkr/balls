@@ -50,6 +50,76 @@ Hosted Windows CI remains an automatic clean-platform build and fast-suite lane 
 request. It does not require a developer-operated VM, and it does not replace a triggered native
 effect check. Conversely, a focused lab check does not replace required hosted Windows CI.
 
+### Linux-triggered SMB readiness conformance
+
+Run the repository-owned SMB readiness scenario when a change touches the Windows Circle Files
+readiness contract, its real Windows adapter, or the identity/integrity of the Windows package used
+for that scenario. It is not a substitute for UAC, native folder-picker, File Explorer, physical-
+device, installer, or release acceptance.
+
+This entrypoint requires pre-existing, independently authorized OpenSSH paths for one inspection
+identity and one standard product identity on the same disposable Windows target. It does not
+install or configure SSH, accept a password or private-key path, expose
+a general remote command, or change Windows policy. Before setting `authorized` to `true`, perform
+the live inspection above and copy the example profile outside the repository:
+
+```bash
+cp eng/conformance/windows-target.example.json /tmp/balls-windows-target.json
+```
+
+Record the inspected target ID, exact computer name, inspection account kind, both loopback-only
+transports, connectivity boundary, one shared dedicated `known_hosts` file for the exact endpoint,
+corresponding public-key files,
+and the lowercase SHA-256 of the approved standard account's UTF-8 SID. Both SSH identities must be
+authorized before the run; the product identity must remain standard and have an existing profile.
+Keep the profile local and untracked. `authorized: true` authorizes only the fixed
+`windows-smb-readiness-v1` operation against that exact target; it is not reusable Member or
+machine-management authority.
+The loader requires both identities to use that same loopback host, port, and host-key allowlist so
+inspection and product execution cannot be combined across two machines with the same computer name.
+
+From a clean committed Linux checkout, choose a new receipt path and run the entire scenario with
+one command:
+
+```bash
+eng/conformance/Test-WindowsSmbReadiness.sh \
+  --target-profile /tmp/balls-windows-target.json \
+  --receipt /tmp/balls-windows-smb-readiness.json
+```
+
+The entrypoint builds a self-contained Windows CLI and daemon, packages those exact `HEAD` bytes
+with a commit-bound Canary manifest and checksum, verifies that identity on both sides of the
+transport, and invokes canonical `balls files readiness` against isolated disposable daemon state.
+The packaged daemon's Windows-only `--files-readiness-conformance` mode leases protected disposable
+state and exposes only the existing readiness endpoint; it does not open the normal database,
+initialize Node or Circle identity, use DPAPI private material, serve the browser application, or
+enable any mutation endpoint. Normal daemon startup is unchanged.
+The elevated inspection identity performs bounded read-only native snapshots before and after the
+product leg. The separately authorized standard identity stages the exact package and starts the
+readiness-only daemon and every canonical CLI probe; the daemon refuses to serve while elevated,
+and its existing `CurrentUserOnly` named-pipe boundary keeps daemon and CLI on that same standard
+identity. Every transport and product phase is bounded, including each CLI and independent native
+child process. Linux INT/TERM
+cancellation propagates into the runner and leaves a separate bounded remote cleanup attempt before
+the outer hard-kill deadline. Refusal, timeout, malformed or oversized output, identity mismatch,
+product/native contradiction, product failure, or unconfirmed cleanup returns nonzero. The owned
+staged package, daemon, and state are removed even after failure.
+
+The receipt is the evidence boundary. It contains stable outcome tokens, timestamps, exact commit,
+package name and SHA-256, bounded authorized-target context, the nine product readiness checks,
+the daemon's `unelevated` privilege result, independent native observations, cleanup, and explicit
+limitations. A ready product check must be corroborated by the corresponding independent native
+observation. The receipt intentionally excludes
+credentials, invitation material, private keys, passwords, DPAPI material, provider secrets, raw
+command output, and unrelated user state. Do not attach the target profile, SSH logs, daemon logs,
+or other raw guest output to a pull request.
+
+In the pull request, classify the run as `Headless Windows-triggered` and cite the receipt's exact
+commit and package SHA-256, target class and connectivity boundary, product outcome, native-state-
+unchanged result, cleanup result, timestamps, and limitations. A passing result proves only
+headless read-only SMB readiness conformance on that authorized target. A required failed run
+blocks the change even if the Linux fast gate and hosted checks pass.
+
 ## Current Linux-hosted company-pilot lab
 
 The current workstation runs the working Windows environment through the existing Docker/KVM

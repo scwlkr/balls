@@ -7,6 +7,13 @@ namespace Balls.Daemon.Tests;
 public sealed class DaemonCommandTests
 {
     [TestMethod]
+    public void Files_readiness_conformance_refuses_an_elevated_serving_process()
+    {
+        Assert.ThrowsExactly<UnauthorizedAccessException>(() =>
+            CircleFilesReadinessConformanceHost.EnsureUnelevated(isElevated: true));
+    }
+
+    [TestMethod]
     public async Task Unsupported_host_fails_closed_through_the_typed_platform_result()
     {
         if (OperatingSystem.IsWindows() || OperatingSystem.IsLinux() || OperatingSystem.IsMacOS())
@@ -180,6 +187,35 @@ public sealed class DaemonCommandTests
         Assert.IsFalse(error.ToString().Contains(
             "unknown argument '--advertised-private-address'",
             StringComparison.Ordinal));
+    }
+
+    [TestMethod]
+    public async Task Files_readiness_conformance_is_a_Windows_only_daemon_mode()
+    {
+        if (OperatingSystem.IsWindows())
+        {
+            Assert.Inconclusive("The real Windows mode is exercised by triggered conformance.");
+            return;
+        }
+
+        using var directory = new TemporaryDirectory();
+        var stateDirectory = Path.Combine(directory.Path, "state");
+        var output = new StringWriter();
+        var error = new StringWriter();
+
+        var exitCode = await DaemonCommand.RunAsync(
+            [
+                "--data-directory",
+                stateDirectory,
+                "--files-readiness-conformance",
+            ],
+            output,
+            error);
+
+        Assert.AreEqual(DaemonExitCodes.PlatformUnsupported, exitCode);
+        Assert.AreEqual(string.Empty, output.ToString());
+        StringAssert.Contains(error.ToString(), "files readiness conformance requires Windows");
+        Assert.IsFalse(Directory.Exists(stateDirectory));
     }
 
     private sealed class TemporaryDirectory : IDisposable

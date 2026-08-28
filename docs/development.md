@@ -74,6 +74,35 @@ the workspace and lockfile remain authoritative.
 Package lock files are committed per project. Change dependencies deliberately, regenerate the
 affected lock files, and then rerun the full sequence.
 
+## Trigger Windows SMB readiness from Linux
+
+When a change touches the Windows Circle Files readiness contract, its native adapter, or the exact
+Windows package used for that scenario, run the bounded headless conformance entrypoint from a
+clean committed Linux checkout:
+
+```bash
+eng/conformance/Test-WindowsSmbReadiness.sh \
+  --target-profile /absolute/path/to/local-authorized-target.json \
+  --receipt /absolute/path/to/new-receipt.json
+```
+
+Create the local untracked target profile from
+[`windows-target.example.json`](../eng/conformance/windows-target.example.json) only after the live
+target inspection and explicit authorization required by the
+[`Windows lab runbook`](windows-development-lab.md#linux-triggered-smb-readiness-conformance).
+The command packages exact `HEAD` Windows bytes, runs the real daemon and canonical
+`files readiness` CLI operation with a Windows-only, readiness-only daemon mode and disposable
+leased state, performs an independent read-only native inspection, and returns a bounded redacted
+receipt. The daemon mode creates no Node/Circle/DPAPI identity and exposes no mutation or browser
+endpoint. The target profile authorizes separate inspection and product SSH identities on the same
+Windows target: the elevated identity performs only the independent read-only native snapshots,
+while the approved standard identity runs the readiness-only daemon and canonical CLI. The daemon
+refuses to serve if that product identity is elevated. CLI and independent-native child processes
+have their own bounds; Linux
+interrupt or timeout cancellation leaves a separate bounded cleanup attempt. The Linux receipt
+rejects a ready product check that contradicts the independent native observation. This does not
+establish GUI, UAC, File Explorer, physical-device, installer, or release acceptance.
+
 ## Run the local slice on macOS
 
 Use the pinned .NET, Node, and pnpm versions. After a locked restore/build, run the daemon with its

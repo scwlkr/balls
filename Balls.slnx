@@ -4,6 +4,7 @@
     <Project Path="eng/Balls.Canary/Balls.Canary.csproj" />
     <Project Path="eng/Balls.Verify/Balls.Verify.csproj" />
     <Project Path="eng/Balls.RemoteHarness/Balls.RemoteHarness.csproj" />
+    <Project Path="eng/Balls.WindowsConformance/Balls.WindowsConformance.csproj" />
   </Folder>
   <Folder Name="/src/">
     <Project Path="src/Balls.Bootstrap.Windows/Balls.Bootstrap.Windows.csproj" />
@@ -38,5 +39,6 @@
     <Project Path="tests/Balls.Transport.Lan.Tests/Balls.Transport.Lan.Tests.csproj" />
     <Project Path="tests/Balls.Canary.Tests/Balls.Canary.Tests.csproj" />
     <Project Path="tests/Balls.Verify.Tests/Balls.Verify.Tests.csproj" />
+    <Project Path="tests/Balls.WindowsConformance.Tests/Balls.WindowsConformance.Tests.csproj" />
   </Folder>
 </Solution>

@@ -1,13 +1,13 @@
 # Current State
 
-**Updated:** 2026-08-27
+**Updated:** 2026-08-28
 
 This is the compact execution entry point. Read [`AGENTS.md`](../AGENTS.md), this file, and the one
 active issue before loading deeper design or verification records.
 
-## Urgent outcome
+## Achieved private-boss-demo outcome
 
-The owner needs one boss-visible private Windows workflow working today:
+The boss-visible private Windows workflow was completed through #92 and #103:
 
 ```text
 balls.wlkrlabs.com
@@ -24,19 +24,17 @@ object IDs, plan tokens, provider language, or manual drive selection.
 
 ## Active frontier
 
-**Milestone:** [Private Boss Demo](https://github.com/scwlkr/balls/milestone/8)
+**Active process initiative:**
+[#120 — Make Linux the development authority with CLI-first Windows conformance](https://github.com/scwlkr/balls/issues/120)
 
-**Active parent:**
-[#92 — Deliver the private boss demo from official download to shared Explorer file](https://github.com/scwlkr/balls/issues/92)
+**In-progress lanes:**
 
-**Only ready child:**
-[#103 — Promote the rehearsed assets to Alpha and verify live startup](https://github.com/scwlkr/balls/issues/103)
+- [#118 — Install and use the local Balls Wizard product guide](https://github.com/scwlkr/balls/issues/118)
+  in [PR #119](https://github.com/scwlkr/balls/pull/119).
 
-**Executable specification:**
-[`specs/private-boss-demo-v1.md`](specs/private-boss-demo-v1.md)
-
-Do not create or begin another feature issue until #92 is observed end to end or a concrete blocker
-is split from it.
+[#122](https://github.com/scwlkr/balls/issues/122) remains blocked by #118.
+[#124 — Provision and remove one Circle Files host headlessly from Linux](https://github.com/scwlkr/balls/issues/124)
+is the ready child in the completed #123 conformance lane. Preserve the two-lane limit.
 
 ## Private-pilot delivery posture
 
@@ -116,8 +114,7 @@ evidence and completes #92 without making a physical-device claim. Follow the
 
 ## Continue
 
-1. Complete #103 without rebuilding or replacing the rehearsed assets.
-2. Merge the Alpha-pointer change after one required PR CI cycle.
-3. Deploy the exact merged download site, then read back the live pointer and asset identities.
-4. Verify copied Alpha install and normal shortcut startup on an authorized Windows profile.
-5. Record the observed evidence and limitations, then close #103 and #92.
+1. Implement #124 using #123's target, transport, identity, timeout, cleanup, redaction, and
+   evidence contracts.
+2. Let PR #119 complete independently, then unblock #122 without interrupting the #124 lane.
+3. Close #120 only after #122 and #124 land with their required evidence.
