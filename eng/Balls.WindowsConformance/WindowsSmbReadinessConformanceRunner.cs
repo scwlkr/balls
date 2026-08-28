@@ -70,6 +70,20 @@ internal sealed class WindowsSmbReadinessConformanceRunner(
         "guest_operation_unhandled_cleanup",
         "guest_operation_unhandled_receipt",
     };
+    private static readonly HashSet<string> NativeFailureCodes = new(StringComparer.Ordinal)
+    {
+        "native_inspection_failed",
+        "native_inspection_timeout",
+        "native_inspection_child_failed",
+        "native_inspection_child_parse_failed",
+        "native_inspection_execute_failed",
+        "native_inspection_smb_failed",
+        "native_inspection_services_failed",
+        "native_inspection_firewall_rules_failed",
+        "native_inspection_network_failed",
+        "native_inspection_firewall_profiles_failed",
+        "native_inspection_receipt_failed",
+    };
     private readonly TimeProvider clock = timeProvider ?? TimeProvider.System;
 
     public async Task<WindowsSmbReadinessConformanceReceipt> RunAsync(
@@ -363,16 +377,17 @@ internal sealed class WindowsSmbReadinessConformanceRunner(
         var corroborated = new Dictionary<string, bool>(StringComparer.Ordinal)
         {
             ["windows-platform"] = platformReady,
-            ["smb-server"] = native.ServerServiceRunning && native.ServerSmb2Enabled,
+            ["smb-server"] = native.ServerServiceRunning
+                && native.ServerSmb2Enabled is true,
             ["smb-dialect"] = native.ServerMaximumDialect is
                 "None" or "0" or "65535" or "65536" or "SMB311" or "785",
-            ["smb1"] = !native.ServerSmb1Enabled,
-            ["guest-access"] = native.ServerSigningRequired
+            ["smb1"] = native.ServerSmb1Enabled is false,
+            ["guest-access"] = native.ServerSigningRequired is true
                 && native.ServerEncryptionSupported
-                && native.ServerRejectsUnencryptedAccess,
-            ["signing"] = native.ServerSigningRequired,
+                && native.ServerRejectsUnencryptedAccess is true,
+            ["signing"] = native.ServerSigningRequired is true,
             ["encryption"] = native.ServerEncryptionSupported
-                && native.ServerRejectsUnencryptedAccess
+                && native.ServerRejectsUnencryptedAccess is true
                 && native.ServerEncryptionCiphers.Any(cipher =>
                     cipher is "AES_128_GCM" or "AES_256_GCM"),
             ["private-network"] = native.ConnectedPrivateProfiles > 0,
@@ -406,7 +421,18 @@ internal sealed class WindowsSmbReadinessConformanceRunner(
             cancellationToken).ConfigureAwait(false);
         if (result.ExitCode != 0)
         {
-            throw new ConformanceRefusalException("native_inspection_failed");
+            var failure = ConformanceReceiptParser.Parse<GuestFailureReceipt>(
+                result.StandardOutput,
+                "native_inspection_failed");
+            if (failure.Schema != "balls-windows-smb-readiness-native-v1"
+                || failure.Operation != Operation
+                || failure.Outcome != "failed"
+                || !NativeFailureCodes.Contains(failure.Code))
+            {
+                throw new ConformanceRefusalException("native_inspection_failed");
+            }
+
+            throw new ConformanceRefusalException(failure.Code);
         }
 
         var receipt = ConformanceReceiptParser.Parse<GuestNativeReceipt>(

@@ -21,7 +21,10 @@ public sealed class GuestOperationBoundaryTests
         Assert.IsFalse(script.Contains("DuplicateTokenEx", StringComparison.Ordinal));
         Assert.IsFalse(script.Contains("SaferComputeTokenFromLevel", StringComparison.Ordinal));
         Assert.IsFalse(script.Contains("$env:ComSpec", StringComparison.OrdinalIgnoreCase));
-        StringAssert.Contains(script, ".WaitForExit($TimeoutMilliseconds)");
+        StringAssert.Contains(script, ".WaitForExit($remaining)");
+        StringAssert.Contains(script, "RedirectStandardInput");
+        StringAssert.Contains(script, "[Console]::In.ReadToEnd()");
+        StringAssert.Contains(script, "-EncodedCommand");
         StringAssert.Contains(script, "native_inspection_timeout");
         StringAssert.Contains(script, "$readinessEnvelope.outputVersion -ne 1");
         StringAssert.Contains(script, "Get-SmbServerConfiguration");

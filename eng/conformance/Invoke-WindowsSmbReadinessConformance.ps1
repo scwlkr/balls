@@ -17,7 +17,8 @@ function Invoke-BallsBoundedProcess {
         [Parameter(Mandatory = $true)][string] $Arguments,
         [Parameter(Mandatory = $true)][string] $WorkingDirectory,
         [Parameter(Mandatory = $true)][int] $TimeoutMilliseconds,
-        [Parameter(Mandatory = $true)][string] $TimeoutCode)
+        [Parameter(Mandatory = $true)][string] $TimeoutCode,
+        [AllowNull()][string] $StandardInput = $null)
 
     $startInfo = [Diagnostics.ProcessStartInfo]::new()
     $startInfo.FileName = $FilePath
@@ -25,15 +26,29 @@ function Invoke-BallsBoundedProcess {
     $startInfo.WorkingDirectory = $WorkingDirectory
     $startInfo.UseShellExecute = $false
     $startInfo.CreateNoWindow = $true
+    $startInfo.RedirectStandardInput = $null -ne $StandardInput
     $startInfo.RedirectStandardOutput = $true
     $startInfo.RedirectStandardError = $true
     $process = [Diagnostics.Process]::new()
     $process.StartInfo = $startInfo
+    $stopwatch = [Diagnostics.Stopwatch]::StartNew()
     try {
         if (-not $process.Start()) { throw 'process_start_failed' }
         $standardOutputTask = $process.StandardOutput.ReadToEndAsync()
         $standardErrorTask = $process.StandardError.ReadToEndAsync()
-        if (-not $process.WaitForExit($TimeoutMilliseconds)) {
+        if ($null -ne $StandardInput) {
+            $inputTask = $process.StandardInput.WriteAsync($StandardInput)
+            $remaining = [Math]::Max(1, $TimeoutMilliseconds - [int]$stopwatch.ElapsedMilliseconds)
+            if (-not $inputTask.Wait($remaining)) {
+                try { $process.Kill() } catch {}
+                [void]$process.WaitForExit(5000)
+                throw $TimeoutCode
+            }
+            [void]$inputTask.GetAwaiter().GetResult()
+            $process.StandardInput.Close()
+        }
+        $remaining = [Math]::Max(1, $TimeoutMilliseconds - [int]$stopwatch.ElapsedMilliseconds)
+        if (-not $process.WaitForExit($remaining)) {
             try { $process.Kill() } catch {}
             [void]$process.WaitForExit(5000)
             throw $TimeoutCode
@@ -356,7 +371,7 @@ function Test-BallsNativeBroadPublicBlock {
     return $true
 }
 
-function Get-BallsPublicSmbRuleCounts {
+function Get-BallsPublicSmbRuleCountsCore {
     $rules = @(Get-NetFirewallRule `
         -PolicyStore ActiveStore `
         -Enabled True `
@@ -366,7 +381,11 @@ function Get-BallsPublicSmbRuleCounts {
     $blockBypass = $false
     foreach ($rule in $rules) {
         $action = [string]$rule.Action
-        if ($action -notin @('Allow', 'Block')) { throw 'native_firewall_action_unknown' }
+        if ($action -notin @('Allow', 'Block')) {
+            $allow = -1
+            $blockBypass = $true
+            continue
+        }
         if ($action -ne 'Allow') { continue }
         $profiles = @(([string]$rule.Profile -split ',') | ForEach-Object { $_.Trim() })
         if (($profiles -notcontains 'Any') -and ($profiles -notcontains 'Public')) { continue }
@@ -422,23 +441,45 @@ function Get-BallsPublicSmbRuleCounts {
     return [ordered]@{ allow = $allow; block = $broadBlocks }
 }
 
+function Get-BallsPublicSmbRuleCounts {
+    try {
+        return Get-BallsPublicSmbRuleCountsCore
+    }
+    catch {
+        return [ordered]@{ allow = -1; block = -1 }
+    }
+}
+
 function Get-BallsNativeObservation {
+    $global:BallsNativeStage = 'smb'
     $server = Get-SmbServerConfiguration -ErrorAction Stop
     $client = Get-SmbClientConfiguration -ErrorAction Stop
-    foreach ($property in @(
-            'EnableSMB1Protocol',
-            'EnableSMB2Protocol',
-            'RequireSecuritySignature',
-            'RejectUnencryptedAccess')) {
-        if ($server.PSObject.Properties.Name -notcontains $property `
-                -or $null -eq $server.$property) {
-            throw 'native_inspection_incomplete'
-        }
+    $serverSmb2Enabled = $null
+    if ($server.PSObject.Properties.Name -contains 'EnableSMB2Protocol' `
+            -and $null -ne $server.EnableSMB2Protocol) {
+        $serverSmb2Enabled = [bool]$server.EnableSMB2Protocol
     }
-    if ($client.PSObject.Properties.Name -notcontains 'EnableInsecureGuestLogons' `
-            -or $null -eq $client.EnableInsecureGuestLogons) {
-        throw 'native_inspection_incomplete'
+    $serverSigningRequired = $null
+    if ($server.PSObject.Properties.Name -contains 'RequireSecuritySignature' `
+            -and $null -ne $server.RequireSecuritySignature) {
+        $serverSigningRequired = [bool]$server.RequireSecuritySignature
     }
+    $serverRejectsUnencryptedAccess = $null
+    if ($server.PSObject.Properties.Name -contains 'RejectUnencryptedAccess' `
+            -and $null -ne $server.RejectUnencryptedAccess) {
+        $serverRejectsUnencryptedAccess = [bool]$server.RejectUnencryptedAccess
+    }
+    $serverSmb1Enabled = $null
+    if ($server.PSObject.Properties.Name -contains 'EnableSMB1Protocol' `
+            -and $null -ne $server.EnableSMB1Protocol) {
+        $serverSmb1Enabled = [bool]$server.EnableSMB1Protocol
+    }
+    $insecureGuestLogonsEnabled = $null
+    if ($client.PSObject.Properties.Name -contains 'EnableInsecureGuestLogons' `
+            -and $null -ne $client.EnableInsecureGuestLogons) {
+        $insecureGuestLogonsEnabled = [bool]$client.EnableInsecureGuestLogons
+    }
+    $global:BallsNativeStage = 'services'
     $serverService = Get-Service -Name 'LanmanServer' -ErrorAction Stop
     $firewallService = Get-Service -Name 'MpsSvc' -ErrorAction Stop
     $shareCommand = @(Get-Command -Name New-SmbShare -CommandType Function, Cmdlet -ErrorAction Stop)[0]
@@ -454,7 +495,9 @@ function Get-BallsNativeObservation {
     if ($client.PSObject.Properties.Name -contains 'RequireEncryption') {
         $clientEncryptionRequired = [bool]$client.RequireEncryption
     }
+    $global:BallsNativeStage = 'firewall_rules'
     $rules = Get-BallsPublicSmbRuleCounts
+    $global:BallsNativeStage = 'network'
     $networkCategories = @(
         Get-NetConnectionProfile -ErrorAction Stop |
             ForEach-Object { ([string]$_.NetworkCategory).ToLowerInvariant() } |
@@ -466,6 +509,7 @@ function Get-BallsNativeObservation {
                     -or ([string]$_.IPv6Connectivity -ne 'Disconnected')) `
                     -and ([string]$_.NetworkCategory -eq 'Private')
             }).Count
+    $global:BallsNativeStage = 'firewall_profiles'
     $privateFirewall = Get-NetFirewallProfile `
         -Name 'Private' `
         -PolicyStore ActiveStore `
@@ -480,19 +524,20 @@ function Get-BallsNativeObservation {
             ForEach-Object { ([string]$_.Name).ToLowerInvariant() } |
             Sort-Object -Unique)
 
+    $global:BallsNativeStage = 'receipt'
     return [ordered]@{
         serverServiceRunning = [string]$serverService.Status -eq 'Running'
         firewallServiceRunning = [string]$firewallService.Status -eq 'Running'
-        serverSmb1Enabled = [bool]$server.EnableSMB1Protocol
-        serverSmb2Enabled = [bool]$server.EnableSMB2Protocol
+        serverSmb1Enabled = $serverSmb1Enabled
+        serverSmb2Enabled = $serverSmb2Enabled
         serverMaximumDialect = [string]$server.Smb2DialectMax
-        serverSigningRequired = [bool]$server.RequireSecuritySignature
+        serverSigningRequired = $serverSigningRequired
         serverEncryptionSupported = [bool]($null -ne $shareCommand.Parameters['EncryptData'])
-        serverRejectsUnencryptedAccess = [bool]$server.RejectUnencryptedAccess
+        serverRejectsUnencryptedAccess = $serverRejectsUnencryptedAccess
         serverEncryptionCiphers = @($serverEncryptionCiphers)
         clientSigningRequired = $clientSigningRequired
         clientEncryptionRequired = $clientEncryptionRequired
-        insecureGuestLogonsEnabled = [bool]$client.EnableInsecureGuestLogons
+        insecureGuestLogonsEnabled = $insecureGuestLogonsEnabled
         serverSmb1FeatureState = Get-BallsFeatureState -Name 'SMB1Protocol-Server'
         clientSmb1FeatureState = Get-BallsFeatureState -Name 'SMB1Protocol-Client'
         connectedPrivateProfiles = [int]$connectedPrivateProfiles
@@ -515,18 +560,39 @@ function Invoke-BallsBoundedNativeObservation {
         "function Test-BallsNativeFirewallApplicability {`n$(${function:Test-BallsNativeFirewallApplicability}.ToString())`n}",
         "function Test-BallsNativeUnrestrictedFirewallValue {`n$(${function:Test-BallsNativeUnrestrictedFirewallValue}.ToString())`n}",
         "function Test-BallsNativeBroadPublicBlock {`n$(${function:Test-BallsNativeBroadPublicBlock}.ToString())`n}",
+        "function Get-BallsPublicSmbRuleCountsCore {`n$(${function:Get-BallsPublicSmbRuleCountsCore}.ToString())`n}",
         "function Get-BallsPublicSmbRuleCounts {`n$(${function:Get-BallsPublicSmbRuleCounts}.ToString())`n}",
         "function Get-BallsNativeObservation {`n$(${function:Get-BallsNativeObservation}.ToString())`n}",
-        'Get-BallsNativeObservation | ConvertTo-Json -Compress -Depth 8') -join "`n"
-    $encoded = [Convert]::ToBase64String([Text.Encoding]::Unicode.GetBytes($script))
+        '$global:BallsNativeStage = ''execute''',
+        'try { Get-BallsNativeObservation | ConvertTo-Json -Compress -Depth 8 } catch { [Console]::Error.WriteLine(''balls_native_stage:'' + $global:BallsNativeStage); exit 1 }') -join "`n"
+    $parseTokens = $null
+    $parseErrors = $null
+    [void][Management.Automation.Language.Parser]::ParseInput(
+        $script,
+        [ref]$parseTokens,
+        [ref]$parseErrors)
+    if ($parseErrors.Count -ne 0) {
+        throw 'native_inspection_child_parse_failed'
+    }
+    $bootstrap = '$source=[Console]::In.ReadToEnd(); & ([ScriptBlock]::Create($source))'
+    $encodedBootstrap = [Convert]::ToBase64String(
+        [Text.Encoding]::Unicode.GetBytes($bootstrap))
     $result = Invoke-BallsBoundedProcess `
         -FilePath (Join-Path $PSHOME 'powershell.exe') `
-        -Arguments "-NoLogo -NoProfile -NonInteractive -EncodedCommand $encoded" `
+        -Arguments "-NoLogo -NoProfile -NonInteractive -EncodedCommand $encodedBootstrap" `
         -WorkingDirectory $env:TEMP `
         -TimeoutMilliseconds 30000 `
-        -TimeoutCode 'native_inspection_timeout'
+        -TimeoutCode 'native_inspection_timeout' `
+        -StandardInput ($script + [Environment]::NewLine)
     if ($result.exitCode -ne 0 -or [string]::IsNullOrWhiteSpace($result.standardOutput)) {
-        throw 'native_inspection_failed'
+        $code = 'native_inspection_child_failed'
+        foreach ($stage in @('execute', 'smb', 'services', 'firewall_rules', 'network', 'firewall_profiles', 'receipt')) {
+            if ($result.standardError.Contains("balls_native_stage:$stage")) {
+                $code = "native_inspection_$($stage)_failed"
+                break
+            }
+        }
+        throw $code
     }
     return $result.standardOutput | ConvertFrom-Json -ErrorAction Stop
 }
@@ -695,11 +761,16 @@ if ($mode -eq 'native') {
         }) -ExitCode 0
     }
     catch {
+        $code = [string]$_.Exception.Message
+        if ($code -notmatch '^native_inspection_(child|child_parse|execute|smb|services|firewall_rules|network|firewall_profiles|receipt)_failed$' `
+                -and $code -ne 'native_inspection_timeout') {
+            $code = 'native_inspection_failed'
+        }
         Write-BallsConformanceResult -Value ([ordered]@{
             schema = 'balls-windows-smb-readiness-native-v1'
             operation = 'windows-smb-readiness-v1'
             outcome = 'failed'
-            code = 'native_inspection_failed'
+            code = $code
         }) -ExitCode 1
     }
 }

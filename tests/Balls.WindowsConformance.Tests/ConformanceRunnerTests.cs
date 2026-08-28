@@ -300,6 +300,37 @@ public sealed class ConformanceRunnerTests
     }
 
     [TestMethod]
+    [DataRow("native_inspection_firewall_rules_failed", "native_inspection_firewall_rules_failed")]
+    [DataRow("native_inspection_private_identifier_failed", "native_inspection_failed")]
+    public async Task Native_failure_output_is_limited_to_approved_shape_codes(
+        string code,
+        string expected)
+    {
+        using var targetFixture = TargetProfileFixture.Create();
+        using var packageFixture = PackageFixture.Create(Commit);
+        using var receiptDirectory = TemporaryDirectory.Create();
+        var runner = new WindowsSmbReadinessConformanceRunner(
+            new FakeConformanceProcessRunner(
+                Result(PreflightJson()),
+                Result(PreflightJson(productAccount: true)),
+                new ConformanceProcessResult(1, NativeFailureJson(code), "discarded raw error")),
+            "Write-Output fixed");
+
+        var exception = await Assert.ThrowsExactlyAsync<ConformanceRefusalException>(() =>
+            runner.RunAsync(
+                WindowsConformanceTargetProfileLoader.Load(targetFixture.Path),
+                WindowsPackageIdentityLoader.Load(
+                    packageFixture.PackagePath,
+                    packageFixture.ChecksumPath,
+                    Commit),
+                Path.Combine(receiptDirectory.Path, "receipt.json"),
+                CancellationToken.None));
+
+        Assert.AreEqual(expected, exception.Code);
+        Assert.IsFalse(exception.Message.Contains("discarded", StringComparison.Ordinal));
+    }
+
+    [TestMethod]
     public async Task Incomplete_guest_cleanup_is_not_a_pass()
     {
         using var targetFixture = TargetProfileFixture.Create();
@@ -605,6 +636,15 @@ public sealed class ConformanceRunnerTests
                 publicSmbAllowRules,
                 publicSmbBlockRules = 1,
             },
+        });
+
+    private static string NativeFailureJson(string code) =>
+        JsonSerializer.Serialize(new
+        {
+            schema = "balls-windows-smb-readiness-native-v1",
+            operation = "windows-smb-readiness-v1",
+            outcome = "failed",
+            code,
         });
 
     private static string ReadGuestScript()
