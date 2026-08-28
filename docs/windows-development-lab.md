@@ -120,6 +120,87 @@ unchanged result, cleanup result, timestamps, and limitations. A passing result 
 headless read-only SMB readiness conformance on that authorized target. A required failed run
 blocks the change even if the Linux fast gate and hosted checks pass.
 
+### Linux-triggered Circle Files host conformance
+
+Run the repository-owned host lifecycle scenario when a change touches any of these native seams:
+
+- the Windows Circle Files host provisioner or local-path validation;
+- the adjacent privileged helper, its process/pipe authentication, or authorization revalidation;
+- folder ACL protection, ownership marker, operation journal, or rollback behavior;
+- encrypted SMB share or Private/LocalSubnet firewall creation;
+- apply retry/idempotency or ownership-proven host removal; or
+- the identity or integrity of the Windows package used for this scenario.
+
+This scenario requires one pre-existing, independently authorized OpenSSH inspection identity and
+one pre-existing, independently authorized administrative product identity on the same disposable
+Windows target. The product identity must already be high-integrity. The runner does not install
+SSH, elevate an account, accept a password or private-key path, disable UAC, or change policy. An
+administrative SSH run is not evidence that a person saw or accepted UAC consent.
+
+Perform the required live inspection at the top of this runbook. In addition, verify that the
+exact proposed path is absent, is below `C:\BallsConformance`, is on a fixed local Windows volume,
+and has no reparse point in its existing ancestry. A production, general-purpose, network-backed,
+mapped, host-mounted, ambiguous, already-present, or unexpected path is not authorized. Then copy
+the host-specific example outside the repository:
+
+```bash
+cp eng/conformance/windows-host-target.example.json /tmp/balls-windows-host-target.json
+```
+
+Record the exact target ID, computer name, loopback-only endpoint, shared dedicated `known_hosts`
+file, corresponding public-key files, inspected account kinds, lowercase SHA-256 of the approved
+administrative product account's UTF-8 SID, connectivity boundary, and one fresh exact disposable
+path. Set `authorized` to `true` only for that target, path, and
+`windows-circle-files-host-v1`. The read-only `windows-smb-readiness-v1` profile never authorizes
+host mutation. Keep both profiles untracked and never attach them to a pull request.
+
+From a clean committed Linux checkout, choose a new receipt path and run:
+
+```bash
+eng/conformance/Test-WindowsCircleFilesHost.sh \
+  --target-profile /tmp/balls-windows-host-target.json \
+  --receipt /tmp/balls-windows-circle-files-host.json
+```
+
+The entrypoint reuses the readiness runner's exact-package verification, pinned dual-identity
+transport, fixed remote operation framing, process bounds, cancellation, strict structured parsing,
+redaction, and partial-receipt contract. It packages exact `HEAD` as a self-contained,
+non-distributable Debug conformance build. Debug is required only to activate the existing bounded
+`EncryptedShare` fault injection; the receipt says `debug-conformance`, and those bytes must not be
+published or promoted.
+
+The product identity creates the fixed seed bytes before starting the product. The normal packaged
+daemon and canonical JSON CLI then create the Circle and Contribution, preview the exact host plan,
+prove wrong-plan refusal, inject a failure after partial owned state, prove rollback, apply the
+approved plan, retry it for `already-applied`, and remove it through the canonical lifecycle. The
+driver never invokes `balls-windows-helper.exe`, PowerShell SMB/firewall mutation, ACL mutation, or
+product persistence as a substitute. Emergency cleanup retries removal through the daemon and CLI;
+if ownership-proven product cleanup cannot complete, the state and package remain explicitly
+retryable and the run fails with `cleanup_unconfirmed`.
+
+The separate inspection identity observes four bounded snapshots: prepared, rolled back,
+provisioned, and final. A pass requires the exact seed hash and length throughout; an exact restored
+folder ACL; one protected Owner/System ACL while hosted; matching marker and journal; one exact
+encrypted, Owner-only share; one exact Private, TCP 445, LocalSubnet, LanmanServer firewall rule;
+no recovery witness; no duplicate resources after retry; no Balls-owned infrastructure after
+removal; and an unchanged fingerprint for unrelated shares, firewall rules, accounts, credentials,
+mappings, services, execution/UAC/application-control policy, and firewall-profile policy.
+Raw SDDL, marker/journal contents, SIDs, CLI errors, logs, credentials, and unrelated inventory are
+not evidence and must not leave the guest.
+
+The receipt intentionally leaves the exact disposable folder and `before-balls.txt` in place after
+product cleanup so preservation can be observed. A later human may delete that exact disposable
+test folder only after retaining the receipt and independently confirming the path; that deletion
+is lab teardown, not Circle Files lifecycle behavior.
+
+In the pull request, classify the run as `Headless Windows-triggered` and cite the exact commit,
+package SHA-256, target class/connectivity boundary, exact disposable path identity, administrative
+precondition, product refusal/apply/retry/removal outcomes, independent native observations,
+cleanup, timestamps, interventions, and limitations. A pass proves only headless native host
+conformance on that authorized target. It does not prove visible UAC consent, the native picker,
+GUI, File Explorer, Member mapping, a physical device, or release acceptance. Any required failure
+blocks the affected change.
+
 ## Current Linux-hosted company-pilot lab
 
 The current workstation runs the working Windows environment through the existing Docker/KVM

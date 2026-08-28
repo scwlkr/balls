@@ -34,7 +34,10 @@ object IDs, plan tokens, provider language, or manual drive selection.
 
 [#122](https://github.com/scwlkr/balls/issues/122) remains blocked by #118.
 [#124 — Provision and remove one Circle Files host headlessly from Linux](https://github.com/scwlkr/balls/issues/124)
-is the ready child in the completed #123 conformance lane. Preserve the two-lane limit.
+is in progress in the completed #123 conformance lane. Its implementation remains incomplete until
+the exact final commit passes the Linux fast gate and one authorized native Windows run proves
+product-driven provision, rollback, retry, removal, and seed-byte preservation. Preserve the
+two-lane limit.
 
 ## Private-pilot delivery posture
 

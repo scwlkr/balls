@@ -103,6 +103,43 @@ interrupt or timeout cancellation leaves a separate bounded cleanup attempt. The
 rejects a ready product check that contradicts the independent native observation. This does not
 establish GUI, UAC, File Explorer, physical-device, installer, or release acceptance.
 
+## Provision and remove a Windows Circle Files host from Linux
+
+Run the focused host lifecycle conformance scenario when a change touches the Windows Circle Files
+host provisioner, path validation, privileged helper, folder ACL or ownership evidence, SMB share,
+firewall rule, operation journal, rollback, idempotent retry, or host-removal lifecycle. From a
+clean committed Linux checkout:
+
+```bash
+eng/conformance/Test-WindowsCircleFilesHost.sh \
+  --target-profile /tmp/balls-windows-host-target.json \
+  --receipt /tmp/balls-windows-circle-files-host.json
+```
+
+Create the local untracked profile from
+[`windows-host-target.example.json`](../eng/conformance/windows-host-target.example.json) only
+after the live target inspection and authorization in the
+[`Windows lab runbook`](windows-development-lab.md#linux-triggered-circle-files-host-conformance).
+The profile authorizes only `windows-circle-files-host-v1` on one exact loopback-pinned target and
+one exact absent `C:\BallsConformance\Issue124-*` local path. A readiness profile cannot authorize
+this mutation.
+
+The entrypoint packages exact `HEAD` Windows CLI, daemon, and adjacent helper bytes. It deliberately
+uses a non-distributable Debug build so the existing bounded hosting fault injection can prove real
+rollback; the receipt labels that configuration and the package is never a release candidate. The
+driver creates a fixed seed file before product mutation, then drives the normal daemon and
+canonical CLI through Circle and Contribution creation, host preview, wrong-plan refusal,
+injected partial failure, apply, exact retry, removal preview, and removal apply. Independent
+administrative inspection observes the prepared, rolled-back, provisioned, and final native state.
+No conformance script calls the helper, SMB mutation, firewall mutation, ACL mutation, or product
+persistence directly.
+
+Success proves one headless administrative Windows host lifecycle with exact seed-byte
+preservation, restored folder ACL, and unchanged unrelated native inventory. It does not prove a
+user-visible UAC prompt, the native picker, GUI, File Explorer, Member mapping, a physical device,
+or release acceptance. The exact disposable folder and seed remain after product cleanup so the
+final preservation claim is observable.
+
 ## Run the local slice on macOS
 
 Use the pinned .NET, Node, and pnpm versions. After a locked restore/build, run the daemon with its

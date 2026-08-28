@@ -115,6 +115,12 @@ function Get-BallsIdentitySha256 {
     return Get-BallsSha256Text -Value $identity.User.Value
 }
 
+function ConvertTo-BallsSidValue {
+    param([Parameter(Mandatory = $true)][string] $Identity)
+    try { return ([Security.Principal.SecurityIdentifier]::new($Identity)).Value }
+    catch { return ([Security.Principal.NTAccount]::new($Identity)).Translate([Security.Principal.SecurityIdentifier]).Value }
+}
+
 function Get-BallsApplicationControlState {
     try {
         $value = (Get-ItemProperty -LiteralPath 'HKLM:\SYSTEM\CurrentControlSet\Control\CI\Policy' -ErrorAction Stop).VerifiedAndReputablePolicyState
@@ -231,13 +237,21 @@ function Stop-BallsDaemon {
         $value = Get-Content -LiteralPath $Paths.pid -Raw -ErrorAction SilentlyContinue
         $pidValue = 0
         if ([int]::TryParse($value, [ref]$pidValue) -and $pidValue -gt 0) {
-            $process = Get-Process -Id $pidValue -ErrorAction SilentlyContinue
-            if ($null -ne $process) {
-                try { Stop-Process -Id $pidValue -Force -ErrorAction Stop } catch {}
-                try { [void]$process.WaitForExit(10000) } catch {}
+            $owned = Get-CimInstance -ClassName Win32_Process -Filter "ProcessId=$pidValue" -ErrorAction SilentlyContinue
+            if ($null -ne $owned `
+                    -and [string]$owned.Name -ieq 'ballsd.exe' `
+                    -and [string]$owned.CommandLine -like "*$($Paths.root)*") {
+                $process = Get-Process -Id $pidValue -ErrorAction SilentlyContinue
+                if ($null -ne $process) {
+                    try { Stop-Process -Id $pidValue -Force -ErrorAction Stop } catch {}
+                    try { [void]$process.WaitForExit(10000) } catch {}
+                }
             }
         }
-        Remove-Item -LiteralPath $Paths.pid -Force -ErrorAction SilentlyContinue
+        $stillOwned = @(Get-CimInstance -ClassName Win32_Process -ErrorAction SilentlyContinue | Where-Object {
+            [string]$_.Name -ieq 'ballsd.exe' -and [string]$_.CommandLine -like "*$($Paths.root)*"
+        }).Count -gt 0
+        if (-not $stillOwned) { Remove-Item -LiteralPath $Paths.pid -Force -ErrorAction SilentlyContinue }
     }
 }
 
@@ -347,7 +361,29 @@ function Get-BallsUnrelatedFingerprint {
     $mappings = @(Get-SmbMapping -ErrorAction SilentlyContinue | Sort-Object LocalPath,RemotePath | ForEach-Object {
         [ordered]@{ local = [string]$_.LocalPath; remote = [string]$_.RemotePath; status = [string]$_.Status }
     })
-    return Get-BallsSha256Text -Value (([ordered]@{ shares = $shares; rules = $rules; users = $users; mappings = $mappings } | ConvertTo-Json -Compress -Depth 8))
+    $services = @(Get-CimInstance -ClassName Win32_Service -ErrorAction Stop | Sort-Object Name | ForEach-Object {
+        [ordered]@{ name = [string]$_.Name; state = [string]$_.State; startMode = [string]$_.StartMode }
+    })
+    $firewallProfiles = @(Get-NetFirewallProfile -PolicyStore ActiveStore -ErrorAction Stop | Sort-Object Name | ForEach-Object {
+        [ordered]@{ name = [string]$_.Name; enabled = [bool]$_.Enabled; inbound = [string]$_.DefaultInboundAction; outbound = [string]$_.DefaultOutboundAction }
+    })
+    $executionPolicy = @(Get-ExecutionPolicy -List -ErrorAction Stop | Sort-Object Scope | ForEach-Object {
+        [ordered]@{ scope = [string]$_.Scope; policy = [string]$_.ExecutionPolicy }
+    })
+    $enableLua = $null
+    try { $enableLua = (Get-ItemProperty -LiteralPath 'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\System' -Name EnableLUA -ErrorAction Stop).EnableLUA }
+    catch {}
+    $credentialOutput = [string]((& "$env:SystemRoot\System32\cmdkey.exe" /list 2>$null) -join "`n")
+    $policy = [ordered]@{
+        execution = $executionPolicy
+        enableLua = $enableLua
+        applicationControl = Get-BallsApplicationControlState
+        firewallProfiles = $firewallProfiles
+        credentialInventorySha256 = Get-BallsSha256Text -Value $credentialOutput
+    }
+    return Get-BallsSha256Text -Value (([ordered]@{
+        shares = $shares; rules = $rules; users = $users; mappings = $mappings; services = $services; policy = $policy
+    } | ConvertTo-Json -Compress -Depth 8))
 }
 
 function Get-BallsNativeObservation {
@@ -370,7 +406,7 @@ function Get-BallsNativeObservation {
     if ($seed.sha256 -ne $ExpectedSeedHash -or $seed.length -ne $ExpectedSeedLength) { throw 'seed_bytes_changed' }
     $acl = Get-Acl -LiteralPath $DisposablePath -ErrorAction Stop
     $aclSddl = $acl.Sddl
-    $ownerSid = ([Security.Principal.NTAccount]$acl.Owner).Translate([Security.Principal.SecurityIdentifier]).Value
+    $ownerSid = ConvertTo-BallsSidValue -Identity ([string]$acl.Owner)
     $ownerSidHash = Get-BallsSha256Text -Value $ownerSid
     $ownerFull = $false
     $systemFull = $false
@@ -422,7 +458,7 @@ function Get-BallsNativeObservation {
     if ($shares.Count -eq 1) { $shareAccess = @(Get-SmbShareAccess -Name $ShareName -ErrorAction Stop) }
     $restricted = $false
     if ($shareAccess.Count -eq 1) {
-        try { $accessSid = ([Security.Principal.NTAccount]$shareAccess[0].AccountName).Translate([Security.Principal.SecurityIdentifier]).Value }
+        try { $accessSid = ConvertTo-BallsSidValue -Identity ([string]$shareAccess[0].AccountName) }
         catch { $accessSid = '' }
         $restricted = (Get-BallsSha256Text -Value $accessSid) -eq $ExpectedOwnerSha256 `
             -and [string]$shareAccess[0].AccessControlType -eq 'Allow' `
@@ -479,15 +515,18 @@ function Remove-BallsProductArtifacts {
         [Parameter(Mandatory = $true)][string] $StagedPackageName,
         [Parameter(Mandatory = $true)][bool] $ProductResourcesRemoved)
     Stop-BallsDaemon -Paths $Paths
-    if ($ProductResourcesRemoved) {
+    $daemonStopped = @(Get-CimInstance -ClassName Win32_Process -ErrorAction SilentlyContinue | Where-Object {
+        [string]$_.Name -ieq 'ballsd.exe' -and [string]$_.CommandLine -like "*$($Paths.root)*"
+    }).Count -eq 0
+    if ($ProductResourcesRemoved -and $daemonStopped) {
         Remove-Item -LiteralPath $Paths.root -Recurse -Force -ErrorAction SilentlyContinue
         Remove-Item -LiteralPath (Join-Path ([Environment]::CurrentDirectory) $StagedPackageName) -Force -ErrorAction SilentlyContinue
     }
     return [ordered]@{
-        daemonStopped = -not (Test-Path -LiteralPath $Paths.pid)
-        stateRemoved = $ProductResourcesRemoved -and -not (Test-Path -LiteralPath $Paths.root)
-        packageRemoved = $ProductResourcesRemoved -and -not (Test-Path -LiteralPath (Join-Path ([Environment]::CurrentDirectory) $StagedPackageName))
-        complete = $ProductResourcesRemoved `
+        daemonStopped = $daemonStopped
+        stateRemoved = $ProductResourcesRemoved -and $daemonStopped -and -not (Test-Path -LiteralPath $Paths.root)
+        packageRemoved = $ProductResourcesRemoved -and $daemonStopped -and -not (Test-Path -LiteralPath (Join-Path ([Environment]::CurrentDirectory) $StagedPackageName))
+        complete = $ProductResourcesRemoved -and $daemonStopped `
             -and -not (Test-Path -LiteralPath $Paths.root) `
             -and -not (Test-Path -LiteralPath (Join-Path ([Environment]::CurrentDirectory) $StagedPackageName))
     }
