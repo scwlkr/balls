@@ -66,6 +66,17 @@ internal sealed record GuestHostCleanupReceipt(
     GuestCleanupObservation Cleanup,
     string Code);
 
+internal sealed record GuestUnrelatedStateFingerprint(
+    string RootInventorySha256,
+    string ShareConfigurationSha256,
+    string FirewallConfigurationSha256,
+    string AccountConfigurationSha256,
+    string SecureStoreInventorySha256,
+    string MappingConfigurationSha256,
+    string ServiceConfigurationSha256,
+    string PolicyConfigurationSha256,
+    string CombinedSha256);
+
 internal sealed record GuestHostNativeObservation(
     string State,
     string PathIdentitySha256,
@@ -77,6 +88,10 @@ internal sealed record GuestHostNativeObservation(
     string OwnerSidSha256,
     bool OwnerFullControl,
     bool SystemFullControl,
+    int AclAccessRuleCount,
+    int AclApplicableRuleCount,
+    int AclDenyRuleCount,
+    bool AclShapeExact,
     bool MarkerExists,
     bool MarkerMatches,
     bool JournalExists,
@@ -92,7 +107,7 @@ internal sealed record GuestHostNativeObservation(
     bool FirewallLocalSubnetOnly,
     bool FirewallTcp445Only,
     bool FirewallLanmanServerOnly,
-    string UnrelatedInfrastructureSha256);
+    GuestUnrelatedStateFingerprint UnrelatedState);
 
 internal sealed record GuestHostNativeReceipt(
     string Schema,
@@ -142,4 +157,5 @@ internal sealed record WindowsCircleFilesHostConformanceReceipt(
     HostConformanceProductOutcomes? ProductOutcomes,
     HostConformanceNativeEvidence? NativeEvidence,
     HostConformanceCleanup Cleanup,
+    IReadOnlyList<string> Interventions,
     IReadOnlyList<string> Limitations);

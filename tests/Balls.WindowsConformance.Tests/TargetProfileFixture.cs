@@ -20,7 +20,9 @@ internal sealed class TargetProfileFixture : IDisposable
         string? productHost = null,
         int productPort = 22264,
         string operation = "windows-smb-readiness-v1",
-        string? disposablePath = null)
+        string? disposablePath = null,
+        string? expectedVolumeIdentitySha256 = null,
+        string? expectedDiskIdentitySha256 = null)
     {
         var directory = System.IO.Path.Combine(
             System.IO.Path.GetTempPath(),
@@ -44,6 +46,12 @@ internal sealed class TargetProfileFixture : IDisposable
                 expectedProductAccountSidSha256 = new string('a', 64),
                 connectivityPath = "loopback-only OpenSSH forward to private disposable guest",
                 disposablePath,
+                expectedVolumeIdentitySha256 = operation == "windows-circle-files-host-v1"
+                    ? expectedVolumeIdentitySha256 ?? new string('b', 64)
+                    : null,
+                expectedDiskIdentitySha256 = operation == "windows-circle-files-host-v1"
+                    ? expectedDiskIdentitySha256 ?? new string('c', 64)
+                    : null,
                 transport = new
                 {
                     host,

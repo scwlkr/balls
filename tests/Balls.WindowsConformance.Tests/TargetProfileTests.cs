@@ -66,13 +66,34 @@ public sealed class TargetProfileTests
     [TestMethod]
     public void Host_operation_requires_an_exact_authorized_disposable_path()
     {
+        var expectedVolumeIdentity = new string('b', 64);
+        var expectedDiskIdentity = new string('c', 64);
         using var profile = TargetProfileFixture.Create(
             operation: "windows-circle-files-host-v1",
-            disposablePath: @"C:\BallsConformance\Issue124-clean-a");
+            disposablePath: @"C:\BallsConformance\Issue124-clean-a",
+            expectedVolumeIdentitySha256: expectedVolumeIdentity,
+            expectedDiskIdentitySha256: expectedDiskIdentity);
 
         var result = WindowsConformanceTargetProfileLoader.Load(profile.Path);
 
         Assert.AreEqual(@"C:\BallsConformance\Issue124-clean-a", result.DisposablePath);
+        Assert.AreEqual(expectedVolumeIdentity, result.ExpectedVolumeIdentitySha256);
+        Assert.AreEqual(expectedDiskIdentity, result.ExpectedDiskIdentitySha256);
+    }
+
+    [TestMethod]
+    public void Host_operation_requires_exact_volume_and_disk_identities()
+    {
+        using var profile = TargetProfileFixture.Create(
+            operation: "windows-circle-files-host-v1",
+            disposablePath: @"C:\BallsConformance\Issue124-clean-a",
+            expectedVolumeIdentitySha256: "missing",
+            expectedDiskIdentitySha256: new string('c', 64));
+
+        var exception = Assert.ThrowsExactly<ConformanceRefusalException>(
+            () => WindowsConformanceTargetProfileLoader.Load(profile.Path));
+
+        Assert.AreEqual("disposable_storage_not_authorized", exception.Code);
     }
 
     [TestMethod]

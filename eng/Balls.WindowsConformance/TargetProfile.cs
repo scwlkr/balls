@@ -16,7 +16,9 @@ internal sealed record WindowsConformanceTargetProfile(
     string ConnectivityPath,
     WindowsConformanceSshTransport Transport,
     WindowsConformanceSshTransport ProductTransport,
-    string? DisposablePath = null);
+    string? DisposablePath = null,
+    string? ExpectedVolumeIdentitySha256 = null,
+    string? ExpectedDiskIdentitySha256 = null);
 
 internal sealed record WindowsConformanceSshTransport(
     string Host,
@@ -88,7 +90,9 @@ internal static partial class WindowsConformanceTargetProfileLoader
         }
 
         if (profile.Operation == "windows-smb-readiness-v1"
-            && profile.DisposablePath is not null)
+            && (profile.DisposablePath is not null
+                || profile.ExpectedVolumeIdentitySha256 is not null
+                || profile.ExpectedDiskIdentitySha256 is not null))
         {
             throw new ConformanceRefusalException("target_profile_invalid");
         }
@@ -98,6 +102,13 @@ internal static partial class WindowsConformanceTargetProfileLoader
                 || !DisposableHostPathPattern().IsMatch(profile.DisposablePath ?? string.Empty)))
         {
             throw new ConformanceRefusalException("disposable_path_not_authorized");
+        }
+
+        if (profile.Operation == "windows-circle-files-host-v1"
+            && (!Sha256Pattern().IsMatch(profile.ExpectedVolumeIdentitySha256 ?? string.Empty)
+                || !Sha256Pattern().IsMatch(profile.ExpectedDiskIdentitySha256 ?? string.Empty)))
+        {
+            throw new ConformanceRefusalException("disposable_storage_not_authorized");
         }
 
         var profileDirectory = Path.GetDirectoryName(profilePath)!;

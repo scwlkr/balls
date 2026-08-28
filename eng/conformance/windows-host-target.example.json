@@ -8,6 +8,8 @@
   "expectedProductAccountSidSha256": "replace-with-lowercase-sha256-of-approved-administrative-account-sid",
   "connectivityPath": "loopback-only OpenSSH forward to an approved private disposable guest",
   "disposablePath": "C:\\BallsConformance\\Issue124-replace-me",
+  "expectedVolumeIdentitySha256": "replace-with-lowercase-sha256-of-inspected-volume-identity",
+  "expectedDiskIdentitySha256": "replace-with-lowercase-sha256-of-inspected-disk-identity",
   "transport": {
     "host": "127.0.0.1",
     "port": 22264,

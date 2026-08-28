@@ -21,7 +21,10 @@ internal sealed class WindowsCircleFilesHostConformanceRunner(
         CancellationToken cancellationToken)
     {
         EnsureReceiptPathSafe(receiptPath);
-        if (target.Operation != Operation || target.DisposablePath is null)
+        if (target.Operation != Operation
+            || target.DisposablePath is null
+            || target.ExpectedVolumeIdentitySha256 is null
+            || target.ExpectedDiskIdentitySha256 is null)
         {
             throw new ConformanceRefusalException("operation_not_allowed");
         }
@@ -110,8 +113,7 @@ internal sealed class WindowsCircleFilesHostConformanceRunner(
                 cancellationToken).ConfigureAwait(false);
             ValidateUnprovisionedNative(nativeRolledBack, target, prepared, "rolled-back");
             if (nativeRolledBack.AclSha256 != nativePrepared.AclSha256
-                || nativeRolledBack.UnrelatedInfrastructureSha256
-                    != nativePrepared.UnrelatedInfrastructureSha256)
+                || nativeRolledBack.UnrelatedState != nativePrepared.UnrelatedState)
             {
                 throw new ConformanceRefusalException("injected_failure_rollback_mismatch");
             }
@@ -153,8 +155,7 @@ internal sealed class WindowsCircleFilesHostConformanceRunner(
                 cancellationToken).ConfigureAwait(false);
             ValidateUnprovisionedNative(nativeFinal, target, prepared, "final");
 
-            var unchanged = nativeFinal.UnrelatedInfrastructureSha256
-                == nativePrepared.UnrelatedInfrastructureSha256;
+            var unchanged = nativeFinal.UnrelatedState == nativePrepared.UnrelatedState;
             var seedPreserved = SeedsEqual(nativeFinal.Seed, prepared.Seed);
             var aclRestored = nativeFinal.AclSha256 == nativePrepared.AclSha256;
             if (!unchanged || !seedPreserved || !aclRestored || !cleanup.Complete)
@@ -244,6 +245,8 @@ internal sealed class WindowsCircleFilesHostConformanceRunner(
                 RemoteCommand(mode, new Dictionary<string, string>(StringComparer.Ordinal)
                 {
                     ["BALLS_CONFORMANCE_DISPOSABLE_PATH_B64"] = EncodeValue(target.DisposablePath!),
+                    ["BALLS_CONFORMANCE_EXPECTED_VOLUME_SHA256"] = target.ExpectedVolumeIdentitySha256!,
+                    ["BALLS_CONFORMANCE_EXPECTED_DISK_SHA256"] = target.ExpectedDiskIdentitySha256!,
                 }),
                 TimeSpan.FromSeconds(45)),
             cancellationToken).ConfigureAwait(false);
@@ -269,6 +272,7 @@ internal sealed class WindowsCircleFilesHostConformanceRunner(
             || !receipt.DirtyState.Clean
             || receipt.DirtyState.ExistingBallsProcesses != 0
             || receipt.DirtyState.OwnedArtifacts != 0
+            || !StorageMatches(receipt.Storage, target)
             || string.IsNullOrWhiteSpace(receipt.Policy.ExecutionPolicy)
             || receipt.Network.Categories.Count == 0
             || receipt.Network.FirewallProfiles.Count == 0)
@@ -375,6 +379,8 @@ internal sealed class WindowsCircleFilesHostConformanceRunner(
             ["BALLS_CONFORMANCE_EXPECTED_COMPUTER_NAME"] = target.ExpectedComputerName,
             ["BALLS_CONFORMANCE_EXPECTED_PRODUCT_SID_SHA256"] = target.ExpectedProductAccountSidSha256,
             ["BALLS_CONFORMANCE_DISPOSABLE_PATH_B64"] = EncodeValue(target.DisposablePath!),
+            ["BALLS_CONFORMANCE_EXPECTED_VOLUME_SHA256"] = target.ExpectedVolumeIdentitySha256!,
+            ["BALLS_CONFORMANCE_EXPECTED_DISK_SHA256"] = target.ExpectedDiskIdentitySha256!,
             ["BALLS_CONFORMANCE_STAGED_PACKAGE_NAME"] = remotePackageName,
             ["BALLS_CONFORMANCE_PACKAGE_NAME"] = package.FileName,
             ["BALLS_CONFORMANCE_PACKAGE_SHA256"] = package.Sha256,
@@ -390,6 +396,8 @@ internal sealed class WindowsCircleFilesHostConformanceRunner(
         {
             ["BALLS_CONFORMANCE_RUN_ID"] = runId,
             ["BALLS_CONFORMANCE_DISPOSABLE_PATH_B64"] = EncodeValue(target.DisposablePath!),
+            ["BALLS_CONFORMANCE_EXPECTED_VOLUME_SHA256"] = target.ExpectedVolumeIdentitySha256!,
+            ["BALLS_CONFORMANCE_EXPECTED_DISK_SHA256"] = target.ExpectedDiskIdentitySha256!,
             ["BALLS_CONFORMANCE_EXPECTED_PRODUCT_SID_SHA256"] = target.ExpectedProductAccountSidSha256,
             ["BALLS_CONFORMANCE_CIRCLE_ID"] = context.CircleId,
             ["BALLS_CONFORMANCE_CONTRIBUTION_ID"] = context.ContributionId,
@@ -500,6 +508,10 @@ internal sealed class WindowsCircleFilesHostConformanceRunner(
             || native.OwnerSidSha256 != target.ExpectedProductAccountSidSha256
             || !native.OwnerFullControl
             || !native.SystemFullControl
+            || native.AclAccessRuleCount != 2
+            || native.AclApplicableRuleCount != 2
+            || native.AclDenyRuleCount != 0
+            || !native.AclShapeExact
             || !native.MarkerExists
             || !native.MarkerMatches
             || !native.JournalExists
@@ -533,7 +545,7 @@ internal sealed class WindowsCircleFilesHostConformanceRunner(
             || !SeedsEqual(native.Seed, prepared.Seed)
             || !IsSha256(native.AclSha256)
             || !IsSha256(native.OwnerSidSha256)
-            || !IsSha256(native.UnrelatedInfrastructureSha256))
+            || !UnrelatedStateValid(native.UnrelatedState))
         {
             throw new ConformanceRefusalException("native_identity_mismatch");
         }
@@ -582,7 +594,7 @@ internal sealed class WindowsCircleFilesHostConformanceRunner(
                 nativeRolledBack,
                 nativeProvisioned,
                 nativeFinal,
-                nativePrepared.UnrelatedInfrastructureSha256 == nativeFinal.UnrelatedInfrastructureSha256,
+                nativePrepared.UnrelatedState == nativeFinal.UnrelatedState,
                 prepared is not null && SeedsEqual(prepared.Seed, nativeFinal.Seed),
                 nativePrepared.AclSha256 == nativeFinal.AclSha256)
             : null;
@@ -609,6 +621,7 @@ internal sealed class WindowsCircleFilesHostConformanceRunner(
             outcomes,
             native,
             cleanup,
+            [],
             [
                 "headless administrative context was independently authorized before execution",
                 "does not prove user-visible UAC consent",
@@ -637,6 +650,29 @@ internal sealed class WindowsCircleFilesHostConformanceRunner(
 
     private static bool IsSha256(string value) =>
         value.Length == 64 && value.All(character => character is >= '0' and <= '9' or >= 'a' and <= 'f');
+
+    private static bool StorageMatches(
+        GuestStorageObservation? storage,
+        WindowsConformanceTargetProfile target) =>
+        storage is
+        {
+            LocalDiskBacked: true,
+            FileSystem: "NTFS" or "ReFS",
+        }
+        && storage.VolumeIdentitySha256 == target.ExpectedVolumeIdentitySha256
+        && storage.DiskIdentitySha256 == target.ExpectedDiskIdentitySha256
+        && !string.IsNullOrWhiteSpace(storage.BusType);
+
+    private static bool UnrelatedStateValid(GuestUnrelatedStateFingerprint state) =>
+        IsSha256(state.RootInventorySha256)
+        && IsSha256(state.ShareConfigurationSha256)
+        && IsSha256(state.FirewallConfigurationSha256)
+        && IsSha256(state.AccountConfigurationSha256)
+        && IsSha256(state.SecureStoreInventorySha256)
+        && IsSha256(state.MappingConfigurationSha256)
+        && IsSha256(state.ServiceConfigurationSha256)
+        && IsSha256(state.PolicyConfigurationSha256)
+        && IsSha256(state.CombinedSha256);
 
     private static string PathIdentity(string path) =>
         Convert.ToHexStringLower(SHA256.HashData(Encoding.UTF8.GetBytes(path.ToUpperInvariant())));
@@ -753,6 +789,10 @@ internal sealed class WindowsCircleFilesHostConformanceRunner(
 
     private static void WriteReceipt(string receiptPath, WindowsCircleFilesHostConformanceReceipt receipt)
     {
+        if (receipt.Interventions.Count != 0)
+        {
+            throw new ConformanceRefusalException("intervention_contract_mismatch");
+        }
         var path = Path.GetFullPath(receiptPath);
         var temporary = Path.Combine(
             Path.GetDirectoryName(path)!,

@@ -7,6 +7,21 @@ namespace Balls.WindowsConformance.Tests;
 public sealed class ConformanceCommandTests
 {
     [TestMethod]
+    public void Operation_strategy_owns_command_profile_script_and_runner_selection()
+    {
+        var host = ConformanceOperationStrategy.Resolve("host-run");
+        var readiness = ConformanceOperationStrategy.Resolve("run");
+
+        Assert.IsNotNull(host);
+        Assert.IsNotNull(readiness);
+        Assert.AreEqual("windows-circle-files-host-v1", host.ProfileOperation);
+        Assert.AreEqual("Invoke-WindowsCircleFilesHostConformance.ps1", host.GuestScriptFileName);
+        Assert.AreEqual("windows-smb-readiness-v1", readiness.ProfileOperation);
+        Assert.AreEqual("Invoke-WindowsSmbReadinessConformance.ps1", readiness.GuestScriptFileName);
+        Assert.IsNull(ConformanceOperationStrategy.Resolve("unknown"));
+    }
+
+    [TestMethod]
     public async Task Unknown_command_is_a_usage_error()
     {
         using var output = new StringWriter();

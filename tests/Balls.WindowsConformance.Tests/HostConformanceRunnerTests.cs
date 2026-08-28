@@ -19,6 +19,14 @@ public sealed class HostConformanceRunnerTests
     private static readonly string BaselineAcl = new('4', 64);
     private static readonly string HostedAcl = new('5', 64);
     private static readonly string Infrastructure = new('6', 64);
+    private static readonly string RootInventory = new('7', 64);
+    private static readonly string ShareConfiguration = new('8', 64);
+    private static readonly string FirewallConfiguration = new('9', 64);
+    private static readonly string AccountConfiguration = new('a', 64);
+    private static readonly string SecureStoreInventory = new('b', 64);
+    private static readonly string MappingConfiguration = new('c', 64);
+    private static readonly string ServiceConfiguration = new('d', 64);
+    private static readonly string PolicyConfiguration = new('e', 64);
 
     [TestMethod]
     public async Task Complete_product_driven_lifecycle_returns_exact_redacted_evidence()
@@ -43,6 +51,7 @@ public sealed class HostConformanceRunnerTests
         Assert.IsTrue(receipt.NativeEvidence?.FolderAclRestored);
         Assert.IsTrue(receipt.NativeEvidence?.UnrelatedInfrastructureUnchanged);
         Assert.IsTrue(receipt.Cleanup.Complete);
+        Assert.IsEmpty(receipt.Interventions);
         Assert.HasCount(11, processes.Requests);
         Assert.AreEqual("scp", processes.Requests[2].FileName);
         Assert.IsTrue(processes.Requests
@@ -57,6 +66,7 @@ public sealed class HostConformanceRunnerTests
         Assert.IsFalse(json.Contains("privateKey", StringComparison.OrdinalIgnoreCase));
         Assert.IsFalse(json.Contains("S-1-5-", StringComparison.Ordinal));
         Assert.IsFalse(json.Contains("preMutationSddl", StringComparison.OrdinalIgnoreCase));
+        StringAssert.Contains(json, "\"interventions\": []");
     }
 
     [TestMethod]
@@ -204,6 +214,14 @@ public sealed class HostConformanceRunnerTests
         policy = new { executionPolicy = "Restricted", uacEnabled = true, applicationControl = "off" },
         network = new { categories = new[] { "private" }, firewallProfiles = new[] { "private", "public" } },
         dirtyState = new { existingBallsProcesses = 0, ownedArtifacts = 0, clean = true },
+        storage = new
+        {
+            localDiskBacked = true,
+            volumeIdentitySha256 = new string('b', 64),
+            diskIdentitySha256 = new string('c', 64),
+            fileSystem = "NTFS",
+            busType = "SCSI",
+        },
     });
 
     private static string PrepareJson(WindowsPackageIdentity package) => JsonSerializer.Serialize(new
@@ -310,6 +328,10 @@ public sealed class HostConformanceRunnerTests
             ownerSidSha256 = new string('a', 64),
             ownerFullControl = provisioned,
             systemFullControl = provisioned,
+            aclAccessRuleCount = provisioned ? 2 : 4,
+            aclApplicableRuleCount = provisioned ? 2 : 4,
+            aclDenyRuleCount = 0,
+            aclShapeExact = provisioned,
             markerExists = provisioned,
             markerMatches = provisioned,
             journalExists = provisioned,
@@ -325,7 +347,18 @@ public sealed class HostConformanceRunnerTests
             firewallLocalSubnetOnly = provisioned,
             firewallTcp445Only = provisioned,
             firewallLanmanServerOnly = provisioned,
-            unrelatedInfrastructureSha256 = Infrastructure,
+            unrelatedState = new
+            {
+                rootInventorySha256 = RootInventory,
+                shareConfigurationSha256 = ShareConfiguration,
+                firewallConfigurationSha256 = FirewallConfiguration,
+                accountConfigurationSha256 = AccountConfiguration,
+                secureStoreInventorySha256 = SecureStoreInventory,
+                mappingConfigurationSha256 = MappingConfiguration,
+                serviceConfigurationSha256 = ServiceConfiguration,
+                policyConfigurationSha256 = PolicyConfiguration,
+                combinedSha256 = Infrastructure,
+            },
         },
     });
 
