@@ -3,4 +3,5 @@ Balls
 This distribution is licensed under the Apache License, Version 2.0.
 See LICENSE for the complete terms.
 
-No third-party attribution notices are required for the current source distribution.
+Balls Wizard can download optional third-party model and runtime artifacts. Their notices and
+licenses are recorded in docs/wizard/THIRD-PARTY-NOTICES.md.

@@ -36,6 +36,12 @@ object IDs, plan tokens, provider language, or manual drive selection.
 [#124 — Provision and remove one Circle Files host headlessly from Linux](https://github.com/scwlkr/balls/issues/124)
 is the ready child in the completed #123 conformance lane. Preserve the two-lane limit.
 
+**Owner-authorized isolated exception:**
+[#118 — Install and use the local Balls Wizard product guide](https://github.com/scwlkr/balls/issues/118)
+may proceed in `/home/scwlkr/Dev/balls-wizard` without modifying or operating the active delivery
+worktrees or lab. It remains an optional lane, does not replace the urgent frontier, and stops
+before merge. See [`specs/balls-wizard-v0.md`](specs/balls-wizard-v0.md).
+
 ## Private-pilot delivery posture
 
 Balls currently serves approximately two or three personally trusted people over a private LAN or

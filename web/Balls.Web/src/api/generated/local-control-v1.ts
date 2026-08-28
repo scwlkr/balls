@@ -1822,6 +1822,214 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  "/browser/v1/wizard": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path?: never;
+        cookie?: never;
+      };
+      requestBody?: never;
+      responses: {
+        /** @description OK */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["BrowserBallsWizardStatusResponse"];
+          };
+        };
+      };
+    };
+    put?: never;
+    post?: never;
+    delete: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path?: never;
+        cookie?: never;
+      };
+      requestBody?: never;
+      responses: {
+        /** @description OK */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["BrowserBallsWizardStatusResponse"];
+          };
+        };
+        /** @description Conflict */
+        409: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["ErrorResponse"];
+          };
+        };
+      };
+    };
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/browser/v1/wizard/install": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    post: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path?: never;
+        cookie?: never;
+      };
+      requestBody?: never;
+      responses: {
+        /** @description Accepted */
+        202: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["BrowserBallsWizardStatusResponse"];
+          };
+        };
+        /** @description Bad Request */
+        400: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["ErrorResponse"];
+          };
+        };
+      };
+    };
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/browser/v1/wizard/cancel": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    post: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path?: never;
+        cookie?: never;
+      };
+      requestBody?: never;
+      responses: {
+        /** @description OK */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["BrowserBallsWizardStatusResponse"];
+          };
+        };
+      };
+    };
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/browser/v1/wizard/chat": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    post: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path?: never;
+        cookie?: never;
+      };
+      requestBody: {
+        content: {
+          "application/json": components["schemas"]["BrowserBallsWizardChatRequest"];
+        };
+      };
+      responses: {
+        /** @description OK */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["BrowserBallsWizardChatResponse"];
+          };
+        };
+        /** @description Bad Request */
+        400: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["ErrorResponse"];
+          };
+        };
+        /** @description Conflict */
+        409: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["ErrorResponse"];
+          };
+        };
+        /** @description Bad Gateway */
+        502: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["ErrorResponse"];
+          };
+        };
+      };
+    };
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   "/browser/v1/status": {
     parameters: {
       query?: never;
@@ -2828,6 +3036,65 @@ export interface components {
       endpoint: string;
       driveLetter: string;
       planId: string;
+    };
+    BrowserBallsWizardArtifactResponse: {
+      id: string;
+      displayName: string;
+      version: string;
+      source: string;
+      /** Format: int64 */
+      sizeBytes: number | string;
+      sha256: string;
+      license: string;
+    };
+    BrowserBallsWizardChatMessageRequest: {
+      role: string;
+      content: string;
+    };
+    BrowserBallsWizardChatRequest: {
+      circleId: null | string;
+      messages: components["schemas"]["BrowserBallsWizardChatMessageRequest"][];
+    };
+    BrowserBallsWizardChatResponse: {
+      answer: string;
+      sources: components["schemas"]["BrowserBallsWizardSourceResponse"][];
+    };
+    BrowserBallsWizardSourceResponse: {
+      id: string;
+      title: string;
+    };
+    BrowserBallsWizardStatusResponse: {
+      support: string;
+      installation: string;
+      stage: string;
+      code: string;
+      message: string;
+      wizardVersion: string;
+      /** Format: int64 */
+      downloadedBytes: number | string;
+      /** Format: int64 */
+      totalDownloadBytes: number | string;
+      /** Format: int64 */
+      requiredStorageBytes: number | string;
+      canInstall: boolean;
+      canCancel: boolean;
+      canChat: boolean;
+      canRemove: boolean;
+      systemContext: components["schemas"]["BrowserBallsWizardSystemContextResponse"];
+      artifacts: components["schemas"]["BrowserBallsWizardArtifactResponse"][];
+    };
+    BrowserBallsWizardSystemContextResponse: {
+      operatingSystem: string;
+      operatingSystemArchitecture: string;
+      processArchitecture: string;
+      cpu: string;
+      gpus: string[];
+      /** Format: int64 */
+      totalMemoryBytes: number | string;
+      /** Format: int64 */
+      availableMemoryBytes: number | string;
+      /** Format: int64 */
+      freeStorageBytes: number | string;
     };
     BrowserCircleFilesContributionResponse: {
       status: string;
