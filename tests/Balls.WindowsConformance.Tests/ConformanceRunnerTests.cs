@@ -182,6 +182,37 @@ public sealed class ConformanceRunnerTests
     }
 
     [TestMethod]
+    public async Task Fixed_guest_failure_returns_only_its_whitelisted_code()
+    {
+        using var targetFixture = TargetProfileFixture.Create();
+        using var packageFixture = PackageFixture.Create(Commit);
+        using var receiptDirectory = TemporaryDirectory.Create();
+        var processes = new FakeConformanceProcessRunner(
+            Result(PreflightJson()),
+            Result(),
+            new ConformanceProcessResult(
+                1,
+                "{\"schema\":\"balls-windows-smb-readiness-guest-v1\",\"operation\":\"windows-smb-readiness-v1\",\"outcome\":\"failed\",\"code\":\"readiness_cli_failed\"}",
+                "untrusted raw detail"),
+            Result());
+        var runner = new WindowsSmbReadinessConformanceRunner(processes, "Write-Output fixed");
+
+        var exception = await Assert.ThrowsExactlyAsync<ConformanceRefusalException>(() =>
+            runner.RunAsync(
+                WindowsConformanceTargetProfileLoader.Load(targetFixture.Path),
+                WindowsPackageIdentityLoader.Load(
+                    packageFixture.PackagePath,
+                    packageFixture.ChecksumPath,
+                    Commit),
+                Path.Combine(receiptDirectory.Path, "receipt.json"),
+                CancellationToken.None));
+
+        Assert.AreEqual("guest_readiness_cli_failed", exception.Code);
+        Assert.IsFalse(exception.Message.Contains("untrusted", StringComparison.Ordinal));
+        Assert.HasCount(4, processes.Requests);
+    }
+
+    [TestMethod]
     public async Task Incomplete_guest_cleanup_is_not_a_pass()
     {
         using var targetFixture = TargetProfileFixture.Create();

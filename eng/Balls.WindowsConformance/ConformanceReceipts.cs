@@ -76,6 +76,12 @@ internal sealed record GuestCleanupObservation(
     bool PackageRemoved,
     bool Complete);
 
+internal sealed record GuestFailureReceipt(
+    string Schema,
+    string Operation,
+    string Outcome,
+    string Code);
+
 internal sealed record GuestRunReceipt(
     string Schema,
     string Operation,

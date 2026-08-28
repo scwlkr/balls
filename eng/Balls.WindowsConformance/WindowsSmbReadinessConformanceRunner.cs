@@ -23,6 +23,14 @@ internal sealed class WindowsSmbReadinessConformanceRunner(
         "private-network",
         "firewall-scope",
     ];
+    private static readonly HashSet<string> GuestFailureCodes = new(StringComparer.Ordinal)
+    {
+        "target_precondition_mismatch",
+        "package_identity_mismatch",
+        "daemon_start_failed",
+        "readiness_cli_failed",
+        "cleanup_incomplete",
+    };
     private readonly TimeProvider clock = timeProvider ?? TimeProvider.System;
 
     public async Task<WindowsSmbReadinessConformanceReceipt> RunAsync(
@@ -88,7 +96,7 @@ internal sealed class WindowsSmbReadinessConformanceRunner(
                 cancellationToken).ConfigureAwait(false);
             if (run.ExitCode != 0)
             {
-                throw new ConformanceRefusalException("product_execution_failed");
+                throw new ConformanceRefusalException(ParseGuestFailureCode(run.StandardOutput));
             }
 
             guestResult = ConformanceReceiptParser.Parse<GuestRunReceipt>(
@@ -220,6 +228,22 @@ internal sealed class WindowsSmbReadinessConformanceRunner(
         {
             throw new ConformanceRefusalException("result_identity_or_contract_mismatch");
         }
+    }
+
+    private static string ParseGuestFailureCode(string json)
+    {
+        var failure = ConformanceReceiptParser.Parse<GuestFailureReceipt>(
+            json,
+            "product_execution_failed");
+        if (failure.Schema != "balls-windows-smb-readiness-guest-v1"
+            || failure.Operation != Operation
+            || failure.Outcome != "failed"
+            || !GuestFailureCodes.Contains(failure.Code))
+        {
+            throw new ConformanceRefusalException("product_execution_failed");
+        }
+
+        return $"guest_{failure.Code}";
     }
 
     private static ConformanceProcessRequest SshRequest(
