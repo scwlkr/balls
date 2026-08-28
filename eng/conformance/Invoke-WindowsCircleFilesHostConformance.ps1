@@ -3,6 +3,7 @@ $ProgressPreference = 'SilentlyContinue'
 Set-StrictMode -Version Latest
 
 $script:Operation = 'windows-circle-files-host-v1'
+$script:StorageInspectionOperation = 'windows-circle-files-host-storage-inspection-v1'
 $script:Stage = 'initializing'
 $script:MaximumUnrelatedInventoryEntries = 4096
 $script:MaximumUnrelatedFileBytes = 4 * 1024 * 1024
@@ -13,6 +14,26 @@ $script:MaximumUnrelatedAccounts = 512
 $script:MaximumUnrelatedGroupMembers = 4096
 $script:MaximumUnrelatedMappings = 512
 $script:MaximumUnrelatedServices = 2048
+$script:HostRemovalPolicies = @{
+    remove = [pscustomobject][ordered]@{
+        previewStage = 'remove-preview'
+        applyStage = 'remove-apply'
+        previewTimeoutCode = 'remove_preview_timeout'
+        previewFailureCode = 'remove_preview_failed'
+        applyTimeoutCode = 'remove_apply_timeout'
+        applyFailureCode = 'remove_apply_failed'
+        incompleteCode = 'remove_incomplete'
+    }
+    cleanup = [pscustomobject][ordered]@{
+        previewStage = 'cleanup-preview'
+        applyStage = 'cleanup-apply'
+        previewTimeoutCode = 'cleanup_preview_timeout'
+        previewFailureCode = 'cleanup_preview_failed'
+        applyTimeoutCode = 'cleanup_apply_timeout'
+        applyFailureCode = 'cleanup_apply_failed'
+        incompleteCode = 'cleanup_remove_incomplete'
+    }
+}
 
 function Write-BallsResult {
     param(
@@ -164,11 +185,8 @@ function Get-BallsApplicationControlState {
     catch { return 'unknown' }
 }
 
-function Get-BallsAuthorizedStorage {
-    param(
-        [Parameter(Mandatory = $true)][string] $Path,
-        [Parameter(Mandatory = $true)][string] $ExpectedVolumeSha256,
-        [Parameter(Mandatory = $true)][string] $ExpectedDiskSha256)
+function Get-BallsStorageObservation {
+    param([Parameter(Mandatory = $true)][string] $Path)
     $root = [IO.Path]::GetPathRoot($Path)
     if ($root -notmatch '^[C-Z]:\\$') { throw 'disposable_path_not_local_disk' }
     $driveLetter = $root.Substring(0, 1)
@@ -224,9 +242,6 @@ function Get-BallsAuthorizedStorage {
     }
     $volumeIdentity = Get-BallsFingerprintHash -Value $volumeEvidence
     $diskIdentity = Get-BallsFingerprintHash -Value $diskEvidence
-    if ($volumeIdentity -ne $ExpectedVolumeSha256 -or $diskIdentity -ne $ExpectedDiskSha256) {
-        throw 'disposable_storage_identity_mismatch'
-    }
     return [ordered]@{
         localDiskBacked = $true
         volumeIdentitySha256 = $volumeIdentity
@@ -236,26 +251,46 @@ function Get-BallsAuthorizedStorage {
     }
 }
 
-function Test-BallsPathSafe {
+function Get-BallsAuthorizedStorage {
     param(
         [Parameter(Mandatory = $true)][string] $Path,
         [Parameter(Mandatory = $true)][string] $ExpectedVolumeSha256,
-        [Parameter(Mandatory = $true)][string] $ExpectedDiskSha256,
+        [Parameter(Mandatory = $true)][string] $ExpectedDiskSha256)
+    $storage = Get-BallsStorageObservation -Path $Path
+    if ($storage.volumeIdentitySha256 -ne $ExpectedVolumeSha256 `
+            -or $storage.diskIdentitySha256 -ne $ExpectedDiskSha256) {
+        throw 'disposable_storage_identity_mismatch'
+    }
+    return $storage
+}
+
+function Test-BallsDisposablePathShape {
+    param(
+        [Parameter(Mandatory = $true)][string] $Path,
         [switch] $RequireMissing)
     if ($Path -notmatch '^[C-Z]:\\BallsConformance\\Issue124-[A-Za-z0-9][A-Za-z0-9-]{2,39}$' `
             -or $Path -ne [IO.Path]::GetFullPath($Path).TrimEnd('\')) {
         throw 'disposable_path_invalid'
     }
-    $storage = Get-BallsAuthorizedStorage `
-        -Path $Path `
-        -ExpectedVolumeSha256 $ExpectedVolumeSha256 `
-        -ExpectedDiskSha256 $ExpectedDiskSha256
     for ($item = [IO.DirectoryInfo]::new($Path); $null -ne $item; $item = $item.Parent) {
         if ($item.Exists -and (($item.Attributes -band [IO.FileAttributes]::ReparsePoint) -ne 0)) {
             throw 'disposable_path_reparse'
         }
     }
     if ($RequireMissing -and (Test-Path -LiteralPath $Path)) { throw 'disposable_path_not_clean' }
+}
+
+function Test-BallsPathSafe {
+    param(
+        [Parameter(Mandatory = $true)][string] $Path,
+        [Parameter(Mandatory = $true)][string] $ExpectedVolumeSha256,
+        [Parameter(Mandatory = $true)][string] $ExpectedDiskSha256,
+        [switch] $RequireMissing)
+    Test-BallsDisposablePathShape -Path $Path -RequireMissing:$RequireMissing
+    $storage = Get-BallsAuthorizedStorage `
+        -Path $Path `
+        -ExpectedVolumeSha256 $ExpectedVolumeSha256 `
+        -ExpectedDiskSha256 $ExpectedDiskSha256
     return $storage
 }
 
@@ -323,6 +358,29 @@ function Get-BallsPreflight {
             clean = $clean
         }
         storage = $storage
+    }
+}
+
+function Get-BallsStorageInspection {
+    param([Parameter(Mandatory = $true)][string] $DisposablePath)
+    if ($env:OS -ne 'Windows_NT') { throw 'windows_required' }
+    Test-BallsDisposablePathShape -Path $DisposablePath -RequireMissing
+    $identity = [Security.Principal.WindowsIdentity]::GetCurrent()
+    $principal = [Security.Principal.WindowsPrincipal]::new($identity)
+    $elevated = $principal.IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)
+    return [ordered]@{
+        schema = 'balls-windows-host-storage-inspection-v1'
+        operation = $script:StorageInspectionOperation
+        outcome = 'observed'
+        computerName = [Environment]::MachineName
+        account = [ordered]@{
+            kind = $(if ($elevated) { 'administrator' } else { 'standard' })
+            elevated = $elevated
+            integrity = $(if ($elevated) { 'high' } else { 'medium' })
+            identitySha256 = Get-BallsIdentitySha256
+        }
+        pathIdentitySha256 = Get-BallsSha256Text -Value $DisposablePath.ToUpperInvariant()
+        storage = Get-BallsStorageObservation -Path $DisposablePath
     }
 }
 
@@ -507,23 +565,33 @@ function Get-BallsSeedObservation {
     }
 }
 
-function Get-BallsConformanceRootInventory {
-    param([Parameter(Mandatory = $true)][string] $DisposablePath)
-    $root = Split-Path -Parent $DisposablePath
-    if (-not (Test-Path -LiteralPath $root -PathType Container)) {
-        return Get-BallsFingerprintHash -Value @()
+function Get-BallsBoundedFileSystemInventory {
+    param(
+        [Parameter(Mandatory = $true)][string] $RootPath,
+        [AllowEmptyString()][string] $ExcludedPath = '')
+    if (-not (Test-Path -LiteralPath $RootPath -PathType Container)) {
+        $emptyEntries = @()
+        return [ordered]@{
+            entries = $emptyEntries
+            sha256 = Get-BallsFingerprintHash -Value ([ordered]@{ entries = $emptyEntries })
+        }
     }
-    $rootPrefix = [IO.Path]::GetFullPath($root).TrimEnd('\') + '\'
-    $disposablePrefix = [IO.Path]::GetFullPath($DisposablePath).TrimEnd('\') + '\'
+    $rootPrefix = [IO.Path]::GetFullPath($RootPath).TrimEnd('\') + '\'
+    $excludedPrefix = ''
+    if (-not [string]::IsNullOrWhiteSpace($ExcludedPath)) {
+        $excludedPrefix = [IO.Path]::GetFullPath($ExcludedPath).TrimEnd('\') + '\'
+    }
     $queue = [Collections.Queue]::new()
-    $queue.Enqueue((Get-Item -LiteralPath $root -Force -ErrorAction Stop))
+    $queue.Enqueue((Get-Item -LiteralPath $RootPath -Force -ErrorAction Stop))
     $entries = [Collections.Generic.List[object]]::new()
     [long]$totalFileBytes = 0
     while ($queue.Count -gt 0) {
         $directory = $queue.Dequeue()
         foreach ($item in @(Get-ChildItem -LiteralPath $directory.FullName -Force -ErrorAction Stop | Sort-Object FullName)) {
             $fullName = [IO.Path]::GetFullPath($item.FullName)
-            if ($fullName -ieq $DisposablePath -or $fullName.StartsWith($disposablePrefix, [StringComparison]::OrdinalIgnoreCase)) {
+            if (-not [string]::IsNullOrWhiteSpace($ExcludedPath) `
+                    -and ($fullName -ieq $ExcludedPath `
+                        -or $fullName.StartsWith($excludedPrefix, [StringComparison]::OrdinalIgnoreCase))) {
                 continue
             }
             if (-not $fullName.StartsWith($rootPrefix, [StringComparison]::OrdinalIgnoreCase)) {
@@ -562,7 +630,41 @@ function Get-BallsConformanceRootInventory {
             })
         }
     }
-    return Get-BallsFingerprintHash -Value @($entries | Sort-Object { $_.path })
+    $sortedEntries = @($entries | Sort-Object { $_.path })
+    return [ordered]@{
+        entries = $sortedEntries
+        sha256 = Get-BallsFingerprintHash -Value ([ordered]@{ entries = $sortedEntries })
+    }
+}
+
+function Get-BallsConformanceRootInventory {
+    param([Parameter(Mandatory = $true)][string] $DisposablePath)
+    $inventory = Get-BallsBoundedFileSystemInventory `
+        -RootPath (Split-Path -Parent $DisposablePath) `
+        -ExcludedPath $DisposablePath
+    return $inventory.sha256
+}
+
+function Get-BallsContributedFolderInventory {
+    param(
+        [Parameter(Mandatory = $true)][string] $State,
+        [Parameter(Mandatory = $true)][string] $DisposablePath)
+    $inventory = Get-BallsBoundedFileSystemInventory -RootPath $DisposablePath
+    $expectedPaths = @('before-balls.txt')
+    if ($State -eq 'provisioned') {
+        $expectedPaths += @('.balls-operation-v1.json', '.balls-owned-v1.json')
+    }
+    $actualPaths = @($inventory.entries | ForEach-Object { [string]$_.path } | Sort-Object)
+    $unexpectedKinds = @($inventory.entries | Where-Object kind -ne 'file').Count
+    $difference = @(Compare-Object `
+        -ReferenceObject @($expectedPaths | Sort-Object) `
+        -DifferenceObject $actualPaths `
+        -CaseSensitive)
+    return [ordered]@{
+        sha256 = $inventory.sha256
+        count = $inventory.entries.Count
+        exact = $unexpectedKinds -eq 0 -and $difference.Count -eq 0
+    }
 }
 
 function Get-BallsShareConfigurationFingerprint {
@@ -775,6 +877,7 @@ function Get-BallsServiceConfigurationFingerprint {
     return Get-BallsFingerprintHash -Value @($services | ForEach-Object {
         [ordered]@{
             name = Get-BallsPropertyText -Value $_ -Name 'Name'
+            state = Get-BallsPropertyText -Value $_ -Name 'State'
             startMode = Get-BallsPropertyText -Value $_ -Name 'StartMode'
             startName = Get-BallsPropertyText -Value $_ -Name 'StartName'
             pathName = Get-BallsPropertyText -Value $_ -Name 'PathName'
@@ -870,6 +973,9 @@ function Get-BallsNativeObservation {
     $reparse = ($folder.Attributes -band [IO.FileAttributes]::ReparsePoint) -ne 0
     $seed = Get-BallsSeedObservation -DisposablePath $DisposablePath
     if ($seed.sha256 -ne $ExpectedSeedHash -or $seed.length -ne $ExpectedSeedLength) { throw 'seed_bytes_changed' }
+    $folderInventory = Get-BallsContributedFolderInventory `
+        -State $State `
+        -DisposablePath $DisposablePath
     $acl = Get-Acl -LiteralPath $DisposablePath -ErrorAction Stop
     $aclSddl = $acl.Sddl
     $ownerSid = ConvertTo-BallsSidValue -Identity ([string]$acl.Owner)
@@ -884,6 +990,8 @@ function Get-BallsNativeObservation {
     [int]$ownerFullCount = 0
     [int]$systemFullCount = 0
     [int]$otherApplicableCount = 0
+    $requiredInheritance = [Security.AccessControl.InheritanceFlags]::ContainerInherit `
+        -bor [Security.AccessControl.InheritanceFlags]::ObjectInherit
     foreach ($rule in $applicableRules) {
         $sid = $null
         try { $sid = $rule.IdentityReference.Translate([Security.Principal.SecurityIdentifier]).Value }
@@ -891,10 +999,14 @@ function Get-BallsNativeObservation {
         $full = ($rule.FileSystemRights -band [Security.AccessControl.FileSystemRights]::FullControl) `
             -eq [Security.AccessControl.FileSystemRights]::FullControl
         $allow = $rule.AccessControlType -eq [Security.AccessControl.AccessControlType]::Allow
-        if ($allow -and $full -and (Get-BallsSha256Text -Value $sid) -eq $ExpectedOwnerSha256) {
+        $inheritable = -not $rule.IsInherited `
+            -and $rule.InheritanceFlags -eq $requiredInheritance `
+            -and $rule.PropagationFlags -eq [Security.AccessControl.PropagationFlags]::None
+        if ($allow -and $full -and $inheritable `
+                -and (Get-BallsSha256Text -Value $sid) -eq $ExpectedOwnerSha256) {
             $ownerFullCount++
         }
-        elseif ($allow -and $full -and $sid -eq 'S-1-5-18') {
+        elseif ($allow -and $full -and $inheritable -and $sid -eq 'S-1-5-18') {
             $systemFullCount++
         }
         else { $otherApplicableCount++ }
@@ -973,6 +1085,9 @@ function Get-BallsNativeObservation {
         pathIdentitySha256 = Get-BallsSha256Text -Value $DisposablePath.ToUpperInvariant()
         folderExists = $true
         folderReparsePoint = $reparse
+        folderInventorySha256 = $folderInventory.sha256
+        folderInventoryCount = $folderInventory.count
+        folderInventoryExact = $folderInventory.exact
         seed = $seed
         aclProtected = [bool]$acl.AreAccessRulesProtected
         aclSha256 = Get-BallsSha256Text -Value $aclSddl
@@ -1010,26 +1125,22 @@ function Invoke-BallsHostRemoval {
         [Parameter(Mandatory = $true)][object] $Paths,
         [Parameter(Mandatory = $true)][object] $Context,
         [Parameter(Mandatory = $true)][string] $DisposablePath,
-        [Parameter(Mandatory = $true)][string] $PreviewStage,
-        [Parameter(Mandatory = $true)][string] $ApplyStage,
-        [Parameter(Mandatory = $true)][string] $PreviewTimeoutCode,
-        [Parameter(Mandatory = $true)][string] $PreviewFailureCode,
-        [Parameter(Mandatory = $true)][string] $ApplyTimeoutCode,
-        [Parameter(Mandatory = $true)][string] $ApplyFailureCode,
-        [Parameter(Mandatory = $true)][string] $IncompleteCode)
-    $script:Stage = $PreviewStage
+        [Parameter(Mandatory = $true)][object] $Policy)
+    $script:Stage = $Policy.previewStage
     $preview = ConvertFrom-BallsCliResult -ProcessResult (Invoke-BallsCli `
         -Paths $Paths `
         -PipeName ([string]$Context.pipeName) `
         -Arguments "files host remove-preview --circle $($Context.circleId) --contribution $($Context.contributionId) --path `"$DisposablePath`"" `
-        -TimeoutCode $PreviewTimeoutCode) -FailureCode $PreviewFailureCode
-    $script:Stage = $ApplyStage
+        -TimeoutCode $Policy.previewTimeoutCode) -FailureCode $Policy.previewFailureCode
+    $script:Stage = $Policy.applyStage
     $result = ConvertFrom-BallsCliResult -ProcessResult (Invoke-BallsCli `
         -Paths $Paths `
         -PipeName ([string]$Context.pipeName) `
         -Arguments "files host remove-apply --circle $($Context.circleId) --contribution $($Context.contributionId) --path `"$DisposablePath`" --plan $($preview.planId)" `
-        -TimeoutCode $ApplyTimeoutCode) -FailureCode $ApplyFailureCode
-    if ([string]$result.status -notin @('removed', 'already-removed')) { throw $IncompleteCode }
+        -TimeoutCode $Policy.applyTimeoutCode) -FailureCode $Policy.applyFailureCode
+    if ([string]$result.status -notin @('removed', 'already-removed')) {
+        throw ([string]$Policy.incompleteCode)
+    }
     return $result
 }
 
@@ -1057,8 +1168,13 @@ function Remove-BallsProductArtifacts {
 }
 
 try {
-    $mode = Get-BallsEnvironmentValue -Name 'BALLS_CONFORMANCE_MODE' -Pattern '^(preflight|product-preflight|prepare|inject-failure|apply|native|remove|cleanup)$'
+    $mode = Get-BallsEnvironmentValue -Name 'BALLS_CONFORMANCE_MODE' -Pattern '^(storage-inspect|preflight|product-preflight|prepare|inject-failure|apply|native|remove|cleanup)$'
     $disposablePath = ConvertFrom-BallsBase64Url (Get-BallsEnvironmentValue -Name 'BALLS_CONFORMANCE_DISPOSABLE_PATH_B64' -Pattern '^[A-Za-z0-9_-]{16,256}$')
+    if ($mode -eq 'storage-inspect') {
+        $script:Operation = $script:StorageInspectionOperation
+        $script:Stage = 'storage-inspect'
+        Write-BallsResult -Value (Get-BallsStorageInspection -DisposablePath $disposablePath) -ExitCode 0
+    }
     $expectedVolumeSha256 = Get-BallsEnvironmentValue -Name 'BALLS_CONFORMANCE_EXPECTED_VOLUME_SHA256' -Pattern '^[0-9a-f]{64}$'
     $expectedDiskSha256 = Get-BallsEnvironmentValue -Name 'BALLS_CONFORMANCE_EXPECTED_DISK_SHA256' -Pattern '^[0-9a-f]{64}$'
     if ($mode -in @('preflight','product-preflight')) {
@@ -1231,13 +1347,7 @@ try {
             -Paths $paths `
             -Context $context `
             -DisposablePath $disposablePath `
-            -PreviewStage 'remove-preview' `
-            -ApplyStage 'remove-apply' `
-            -PreviewTimeoutCode 'remove_preview_timeout' `
-            -PreviewFailureCode 'remove_preview_failed' `
-            -ApplyTimeoutCode 'remove_apply_timeout' `
-            -ApplyFailureCode 'remove_apply_failed' `
-            -IncompleteCode 'remove_incomplete'
+            -Policy $script:HostRemovalPolicies.remove
         $cleanup = Remove-BallsProductArtifacts -Paths $paths -StagedPackageName $stagedPackageName -ProductResourcesRemoved $true
         Write-BallsResult -Value ([ordered]@{
             schema = 'balls-windows-host-removal-v1'; operation = $script:Operation; outcome = 'removed'
@@ -1256,13 +1366,7 @@ try {
                 -Paths $paths `
                 -Context $context `
                 -DisposablePath $disposablePath `
-                -PreviewStage 'cleanup-preview' `
-                -ApplyStage 'cleanup-apply' `
-                -PreviewTimeoutCode 'cleanup_preview_timeout' `
-                -PreviewFailureCode 'cleanup_preview_failed' `
-                -ApplyTimeoutCode 'cleanup_apply_timeout' `
-                -ApplyFailureCode 'cleanup_apply_failed' `
-                -IncompleteCode 'cleanup_remove_incomplete'
+                -Policy $script:HostRemovalPolicies.cleanup
             $resourcesRemoved = [string]$removed.status -in @('removed', 'already-removed')
         }
         catch { $resourcesRemoved = $false }

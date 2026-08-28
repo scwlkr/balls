@@ -12,10 +12,10 @@ internal sealed record WindowsConformanceTargetProfile(
     string TargetId,
     string ExpectedComputerName,
     string ExpectedAccountKind,
-    string ExpectedProductAccountSidSha256,
     string ConnectivityPath,
     WindowsConformanceSshTransport Transport,
-    WindowsConformanceSshTransport ProductTransport,
+    string ExpectedProductAccountSidSha256 = "",
+    WindowsConformanceSshTransport ProductTransport = null!,
     string? DisposablePath = null,
     string? ExpectedVolumeIdentitySha256 = null,
     string? ExpectedDiskIdentitySha256 = null);
@@ -68,7 +68,10 @@ internal static partial class WindowsConformanceTargetProfileLoader
             throw new ConformanceRefusalException("target_profile_invalid");
         }
 
-        if (profile.Operation is not ("windows-smb-readiness-v1" or "windows-circle-files-host-v1"))
+        if (profile.Operation is not (
+            "windows-smb-readiness-v1"
+            or "windows-circle-files-host-v1"
+            or "windows-circle-files-host-storage-inspection-v1"))
         {
             throw new ConformanceRefusalException("operation_not_allowed");
         }
@@ -81,10 +84,15 @@ internal static partial class WindowsConformanceTargetProfileLoader
         if (!TargetIdPattern().IsMatch(profile.TargetId)
             || !ComputerNamePattern().IsMatch(profile.ExpectedComputerName)
             || profile.ExpectedAccountKind is not ("administrator" or "standard")
-            || !Sha256Pattern().IsMatch(profile.ExpectedProductAccountSidSha256)
             || string.IsNullOrWhiteSpace(profile.ConnectivityPath)
             || profile.ConnectivityPath.Length > 160
             || profile.ConnectivityPath.Any(character => char.IsControl(character)))
+        {
+            throw new ConformanceRefusalException("target_profile_invalid");
+        }
+
+        if (profile.Operation != "windows-circle-files-host-storage-inspection-v1"
+            && !Sha256Pattern().IsMatch(profile.ExpectedProductAccountSidSha256))
         {
             throw new ConformanceRefusalException("target_profile_invalid");
         }
@@ -97,7 +105,8 @@ internal static partial class WindowsConformanceTargetProfileLoader
             throw new ConformanceRefusalException("target_profile_invalid");
         }
 
-        if (profile.Operation == "windows-circle-files-host-v1"
+        if ((profile.Operation is "windows-circle-files-host-v1"
+                or "windows-circle-files-host-storage-inspection-v1")
             && (profile.ExpectedAccountKind != "administrator"
                 || !DisposableHostPathPattern().IsMatch(profile.DisposablePath ?? string.Empty)))
         {
@@ -111,15 +120,28 @@ internal static partial class WindowsConformanceTargetProfileLoader
             throw new ConformanceRefusalException("disposable_storage_not_authorized");
         }
 
+        if (profile.Operation == "windows-circle-files-host-storage-inspection-v1"
+            && (profile.ExpectedVolumeIdentitySha256 is not null
+                || profile.ExpectedDiskIdentitySha256 is not null))
+        {
+            throw new ConformanceRefusalException("target_profile_invalid");
+        }
+
         var profileDirectory = Path.GetDirectoryName(profilePath)!;
         var transport = ValidateTransport(profileDirectory, profile.Transport);
-        var productTransport = ValidateTransport(profileDirectory, profile.ProductTransport);
-        if (!string.Equals(transport.Host, productTransport.Host, StringComparison.OrdinalIgnoreCase)
+        var productTransport = profile.Operation == "windows-circle-files-host-storage-inspection-v1"
+            ? transport
+            : ValidateTransport(
+                profileDirectory,
+                profile.ProductTransport
+                    ?? throw new ConformanceRefusalException("target_profile_invalid"));
+        if (profile.Operation != "windows-circle-files-host-storage-inspection-v1"
+            && (!string.Equals(transport.Host, productTransport.Host, StringComparison.OrdinalIgnoreCase)
             || transport.Port != productTransport.Port
             || !string.Equals(
                 transport.KnownHostsFile,
                 productTransport.KnownHostsFile,
-                StringComparison.Ordinal))
+                StringComparison.Ordinal)))
         {
             throw new ConformanceRefusalException("transport_target_mismatch");
         }

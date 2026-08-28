@@ -125,6 +125,10 @@ one exact absent `C:\BallsConformance\Issue124-*` local path. A readiness profil
 this mutation. The profile also pins SHA-256 identities for one inspected native volume/partition
 and disk chain; fixed drive type alone is insufficient, and the guest refuses ambiguous,
 host-mounted, network-backed, virtual/file-backed, iSCSI, unknown, offline, or read-only storage.
+Derive those two hashes only through the documented read-only
+`Inspect-WindowsCircleFilesHostStorage.sh` entrypoint and its separate
+`windows-circle-files-host-storage-inspection-v1` profile; its receipt exposes hashes and safe
+classifications, never raw disk identifiers, and does not authorize mutation.
 
 The entrypoint packages exact `HEAD` Windows CLI, daemon, and adjacent helper bytes. It deliberately
 uses a non-distributable Debug build so the existing bounded hosting fault injection can prove real
@@ -140,8 +144,10 @@ persistence directly.
 
 Success proves one headless administrative Windows host lifecycle with exact seed-byte
 preservation, an exact applicable protected Owner/System FullControl ACL without deny or inherit-
-only ambiguity, and unchanged bounded component fingerprints for unrelated root inventory, share
-access/control, firewall filters/rules, accounts/groups, credentials, mappings, services, and
+only, inherited, or folder-only ambiguity; an exact per-phase contributed-folder inventory; and
+unchanged bounded component fingerprints for unrelated root inventory, share
+access/control, firewall filters/rules, accounts/groups, credentials, mappings, service
+configuration/runtime state, and
 policy. The structured receipt records an empty `interventions` array when no assistance occurred.
 It does not prove a
 user-visible UAC prompt, the native picker, GUI, File Explorer, Member mapping, a physical device,

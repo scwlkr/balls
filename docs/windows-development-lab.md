@@ -155,6 +155,27 @@ already-present, or unexpected path is not authorized. Then copy the host-specif
 the repository:
 
 ```bash
+cp eng/conformance/windows-host-storage-target.example.json \
+  /tmp/balls-windows-host-storage-target.json
+```
+
+Fill that inspection profile with the already authorized inspection identity, exact loopback
+target, exact absent path, and `windows-circle-files-host-storage-inspection-v1`; leave both storage
+hashes absent. From a clean committed checkout, use the repository-owned read-only derivation path:
+
+```bash
+eng/conformance/Inspect-WindowsCircleFilesHostStorage.sh \
+  --target-profile /tmp/balls-windows-host-storage-target.json \
+  --receipt /tmp/balls-windows-host-storage.json
+```
+
+The bounded receipt contains the exact source commit, target/path identities, account identity
+hash, filesystem and bus classifications, and only the two SHA-256 storage identities needed for
+authorization. It never emits the underlying volume/disk unique ID, serial, location, or other raw
+device evidence, and it cannot invoke product or host mutation. Copy those two observed hashes into
+the separate mutation profile created from:
+
+```bash
 cp eng/conformance/windows-host-target.example.json /tmp/balls-windows-host-target.json
 ```
 
@@ -200,9 +221,16 @@ no recovery witness; no duplicate resources after retry; no Balls-owned infrastr
 removal; and unchanged bounded component fingerprints for unrelated conformance-root paths, file
 bytes, and ACLs; complete unrelated share configuration/access shape; firewall rules and all
 associated filters; relevant local account/group properties and membership; credentials, mappings,
-service configuration, execution/UAC/application-control policy, registry policy, and firewall-
+service configuration and runtime state, execution/UAC/application-control policy, registry policy, and firewall-
 profile policy. The receipt records these component hashes plus their combined hash and an explicit
 `interventions` array, which must be empty for an unassisted run.
+Each native snapshot also inventories the exact contributed-folder subtree within the same bounds:
+prepared, rolled-back, and final may contain only `before-balls.txt`; provisioned may additionally
+contain only the expected ownership marker and operation journal. Any extra file, directory,
+reparse point, or leftover refuses the run. The provisioned ACL must contain exactly two explicit,
+non-inherited FullControl allow ACEs for Owner and SYSTEM, both applying to the folder and inheriting
+to containers and objects with no propagation flags; denies, inherit-only rules, folder-only rules,
+or any other applicable ACE refuse the run.
 Raw SDDL, marker/journal contents, SIDs, CLI errors, logs, credentials, and unrelated inventory are
 not evidence and must not leave the guest.
 

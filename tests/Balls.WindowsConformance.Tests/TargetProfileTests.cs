@@ -1,3 +1,4 @@
+using System.Text.Json.Nodes;
 using Balls.WindowsConformance;
 
 namespace Balls.WindowsConformance.Tests;
@@ -94,6 +95,40 @@ public sealed class TargetProfileTests
             () => WindowsConformanceTargetProfileLoader.Load(profile.Path));
 
         Assert.AreEqual("disposable_storage_not_authorized", exception.Code);
+    }
+
+    [TestMethod]
+    public void Storage_inspection_authorizes_one_exact_path_without_predeclared_hashes()
+    {
+        using var profile = TargetProfileFixture.Create(
+            operation: "windows-circle-files-host-storage-inspection-v1",
+            disposablePath: @"C:\BallsConformance\Issue124-inspect-a");
+        var json = JsonNode.Parse(File.ReadAllText(profile.Path))!.AsObject();
+        json.Remove("expectedProductAccountSidSha256");
+        json.Remove("productTransport");
+        File.WriteAllText(profile.Path, json.ToJsonString());
+
+        var result = WindowsConformanceTargetProfileLoader.Load(profile.Path);
+
+        Assert.AreEqual(
+            "windows-circle-files-host-storage-inspection-v1",
+            result.Operation);
+        Assert.IsNull(result.ExpectedVolumeIdentitySha256);
+        Assert.IsNull(result.ExpectedDiskIdentitySha256);
+    }
+
+    [TestMethod]
+    public void Storage_inspection_refuses_predeclared_storage_hashes()
+    {
+        using var profile = TargetProfileFixture.Create(
+            operation: "windows-circle-files-host-storage-inspection-v1",
+            disposablePath: @"C:\BallsConformance\Issue124-inspect-a",
+            expectedVolumeIdentitySha256: new string('b', 64));
+
+        var exception = Assert.ThrowsExactly<ConformanceRefusalException>(
+            () => WindowsConformanceTargetProfileLoader.Load(profile.Path));
+
+        Assert.AreEqual("target_profile_invalid", exception.Code);
     }
 
     [TestMethod]

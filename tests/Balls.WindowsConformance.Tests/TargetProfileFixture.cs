@@ -48,10 +48,10 @@ internal sealed class TargetProfileFixture : IDisposable
                 disposablePath,
                 expectedVolumeIdentitySha256 = operation == "windows-circle-files-host-v1"
                     ? expectedVolumeIdentitySha256 ?? new string('b', 64)
-                    : null,
+                    : expectedVolumeIdentitySha256,
                 expectedDiskIdentitySha256 = operation == "windows-circle-files-host-v1"
                     ? expectedDiskIdentitySha256 ?? new string('c', 64)
-                    : null,
+                    : expectedDiskIdentitySha256,
                 transport = new
                 {
                     host,

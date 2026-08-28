@@ -10,14 +10,20 @@ public sealed class ConformanceCommandTests
     public void Operation_strategy_owns_command_profile_script_and_runner_selection()
     {
         var host = ConformanceOperationStrategy.Resolve("host-run");
+        var storage = ConformanceOperationStrategy.Resolve("host-storage-inspect");
         var readiness = ConformanceOperationStrategy.Resolve("run");
 
         Assert.IsNotNull(host);
         Assert.IsNotNull(readiness);
+        Assert.IsNotNull(storage);
         Assert.AreEqual("windows-circle-files-host-v1", host.ProfileOperation);
         Assert.AreEqual("Invoke-WindowsCircleFilesHostConformance.ps1", host.GuestScriptFileName);
         Assert.AreEqual("windows-smb-readiness-v1", readiness.ProfileOperation);
         Assert.AreEqual("Invoke-WindowsSmbReadinessConformance.ps1", readiness.GuestScriptFileName);
+        Assert.AreEqual(
+            "windows-circle-files-host-storage-inspection-v1",
+            storage.ProfileOperation);
+        Assert.IsFalse(storage.PackageRequired);
         Assert.IsNull(ConformanceOperationStrategy.Resolve("unknown"));
     }
 
@@ -36,6 +42,27 @@ public sealed class ConformanceCommandTests
         Assert.AreEqual(string.Empty, output.ToString());
         StringAssert.StartsWith(error.ToString(), "Usage: Balls.WindowsConformance <run|host-run>");
         Assert.IsFalse(error.ToString().Contains("whoami", StringComparison.Ordinal));
+    }
+
+    [TestMethod]
+    public async Task Storage_inspection_accepts_the_commit_bound_package_free_command_shape()
+    {
+        using var output = new StringWriter();
+        using var error = new StringWriter();
+
+        var exitCode = await ConformanceCommand.RunAsync(
+            [
+                "host-storage-inspect",
+                "--target-profile", "missing.json",
+                "--expected-commit", "0123456789abcdef0123456789abcdef01234567",
+                "--receipt", "missing-receipt.json",
+            ],
+            output,
+            error);
+
+        Assert.AreEqual(ConformanceCommand.Refused, exitCode);
+        StringAssert.Contains(error.ToString(), "target_profile_invalid");
+        Assert.IsFalse(error.ToString().Contains("Usage:", StringComparison.Ordinal));
     }
 
     [TestMethod]

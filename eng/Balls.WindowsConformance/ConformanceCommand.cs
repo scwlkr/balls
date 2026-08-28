@@ -20,10 +20,12 @@ internal static partial class ConformanceCommand
         {
             var request = Parse(arguments);
             var target = WindowsConformanceTargetProfileLoader.Load(request.TargetProfile);
-            var package = WindowsPackageIdentityLoader.Load(
-                request.Package,
-                request.Checksum,
-                request.ExpectedCommit);
+            var package = request.Operation.PackageRequired
+                ? WindowsPackageIdentityLoader.Load(
+                    request.Package!,
+                    request.Checksum!,
+                    request.ExpectedCommit!)
+                : null;
             var repositoryRoot = FindRepositoryRoot(Environment.CurrentDirectory);
             var guestScriptPath = Path.Combine(
                 repositoryRoot,
@@ -45,6 +47,7 @@ internal static partial class ConformanceCommand
                     guestScript,
                     target,
                     package,
+                    request.ExpectedCommit,
                     request.Receipt,
                     cancellationToken)
                 .ConfigureAwait(false);
@@ -78,19 +81,24 @@ internal static partial class ConformanceCommand
     {
         const string usage =
             "Usage: Balls.WindowsConformance <run|host-run> --target-profile <json> --package <zip> " +
-            "--checksum <sha256> --expected-commit <full-sha> --receipt <json>";
-        var known = new HashSet<string>(StringComparer.Ordinal)
-        {
-            "--target-profile",
-            "--package",
-            "--checksum",
-            "--expected-commit",
-            "--receipt",
-        };
-        var operation = arguments.Count == 11
+            "--checksum <sha256> --expected-commit <full-sha> --receipt <json>\n" +
+            "   or: Balls.WindowsConformance host-storage-inspect --target-profile <json> " +
+            "--expected-commit <full-sha> --receipt <json>";
+        var operation = arguments.Count > 0
             ? ConformanceOperationStrategy.Resolve(arguments[0])
             : null;
         if (operation is null)
+        {
+            throw new ConformanceUsageException(usage);
+        }
+        var known = operation.PackageRequired
+            ? new HashSet<string>(
+                ["--target-profile", "--package", "--checksum", "--expected-commit", "--receipt"],
+                StringComparer.Ordinal)
+            : new HashSet<string>(
+                ["--target-profile", "--expected-commit", "--receipt"],
+                StringComparer.Ordinal);
+        if (arguments.Count != 1 + (known.Count * 2))
         {
             throw new ConformanceUsageException(usage);
         }
@@ -107,7 +115,8 @@ internal static partial class ConformanceCommand
         }
 
         if (values.Count != known.Count
-            || !CommitPattern().IsMatch(values["--expected-commit"]))
+            || (operation.CommitRequired
+                && !CommitPattern().IsMatch(values["--expected-commit"])))
         {
             throw new ConformanceUsageException(usage);
         }
@@ -115,9 +124,9 @@ internal static partial class ConformanceCommand
         return new ConformanceRequest(
             operation,
             values["--target-profile"],
-            values["--package"],
-            values["--checksum"],
-            values["--expected-commit"],
+            values.GetValueOrDefault("--package"),
+            values.GetValueOrDefault("--checksum"),
+            values.GetValueOrDefault("--expected-commit"),
             values["--receipt"]);
     }
 
@@ -157,9 +166,9 @@ internal static partial class ConformanceCommand
 internal sealed record ConformanceRequest(
     ConformanceOperationDescriptor Operation,
     string TargetProfile,
-    string Package,
-    string Checksum,
-    string ExpectedCommit,
+    string? Package,
+    string? Checksum,
+    string? ExpectedCommit,
     string Receipt);
 
 internal sealed class ConformanceUsageException(string message) : Exception(message);
@@ -168,8 +177,10 @@ internal sealed record ConformanceOperationDescriptor(
     string CommandName,
     string ProfileOperation,
     string GuestScriptFileName,
-    Func<IConformanceProcessRunner, string, WindowsConformanceTargetProfile, WindowsPackageIdentity,
-        string, CancellationToken, Task<string>> RunAsync);
+    bool PackageRequired,
+    bool CommitRequired,
+    Func<IConformanceProcessRunner, string, WindowsConformanceTargetProfile, WindowsPackageIdentity?,
+        string?, string, CancellationToken, Task<string>> RunAsync);
 
 internal static class ConformanceOperationStrategy
 {
@@ -180,12 +191,23 @@ internal static class ConformanceOperationStrategy
                 "run",
                 "windows-smb-readiness-v1",
                 "Invoke-WindowsSmbReadinessConformance.ps1",
+                true,
+                true,
                 RunReadinessAsync),
             new ConformanceOperationDescriptor(
                 "host-run",
                 "windows-circle-files-host-v1",
                 "Invoke-WindowsCircleFilesHostConformance.ps1",
+                true,
+                true,
                 RunHostAsync),
+            new ConformanceOperationDescriptor(
+                "host-storage-inspect",
+                "windows-circle-files-host-storage-inspection-v1",
+                "Invoke-WindowsCircleFilesHostConformance.ps1",
+                false,
+                true,
+                RunHostStorageInspectionAsync),
         }.ToDictionary(operation => operation.CommandName, StringComparer.Ordinal);
 
     public static ConformanceOperationDescriptor? Resolve(string command) =>
@@ -195,21 +217,42 @@ internal static class ConformanceOperationStrategy
         IConformanceProcessRunner processes,
         string guestScript,
         WindowsConformanceTargetProfile target,
-        WindowsPackageIdentity package,
+        WindowsPackageIdentity? package,
+        string? expectedCommit,
         string receiptPath,
         CancellationToken cancellationToken) =>
         (await new WindowsSmbReadinessConformanceRunner(processes, guestScript)
-            .RunAsync(target, package, receiptPath, cancellationToken)
+            .RunAsync(target, RequirePackage(package), receiptPath, cancellationToken)
             .ConfigureAwait(false)).Outcome;
 
     private static async Task<string> RunHostAsync(
         IConformanceProcessRunner processes,
         string guestScript,
         WindowsConformanceTargetProfile target,
-        WindowsPackageIdentity package,
+        WindowsPackageIdentity? package,
+        string? expectedCommit,
         string receiptPath,
         CancellationToken cancellationToken) =>
         (await new WindowsCircleFilesHostConformanceRunner(processes, guestScript)
-            .RunAsync(target, package, receiptPath, cancellationToken)
+            .RunAsync(target, RequirePackage(package), receiptPath, cancellationToken)
             .ConfigureAwait(false)).Outcome;
+
+    private static async Task<string> RunHostStorageInspectionAsync(
+        IConformanceProcessRunner processes,
+        string guestScript,
+        WindowsConformanceTargetProfile target,
+        WindowsPackageIdentity? package,
+        string? expectedCommit,
+        string receiptPath,
+        CancellationToken cancellationToken) =>
+        (await new WindowsCircleFilesHostConformanceRunner(processes, guestScript)
+            .InspectStorageAsync(
+                target,
+                expectedCommit ?? throw new ConformanceRefusalException("expected_commit_invalid"),
+                receiptPath,
+                cancellationToken)
+            .ConfigureAwait(false)).Outcome;
+
+    private static WindowsPackageIdentity RequirePackage(WindowsPackageIdentity? package) =>
+        package ?? throw new ConformanceRefusalException("package_required");
 }

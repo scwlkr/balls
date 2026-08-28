@@ -10,9 +10,81 @@ internal sealed class WindowsCircleFilesHostConformanceRunner(
     TimeProvider? timeProvider = null)
 {
     private const string Operation = "windows-circle-files-host-v1";
+    private const string StorageInspectionOperation =
+        "windows-circle-files-host-storage-inspection-v1";
     private const string ScriptEndMarker = "__BALLS_HOST_CONFORMANCE_OPERATION_END__";
     private const int MaximumOutputBytes = 64 * 1024;
     private readonly TimeProvider clock = timeProvider ?? TimeProvider.System;
+
+    public async Task<WindowsCircleFilesHostStorageInspectionReceipt> InspectStorageAsync(
+        WindowsConformanceTargetProfile target,
+        string sourceCommit,
+        string receiptPath,
+        CancellationToken cancellationToken)
+    {
+        EnsureReceiptPathSafe(receiptPath);
+        if (target.Operation != StorageInspectionOperation
+            || target.DisposablePath is null
+            || target.ExpectedVolumeIdentitySha256 is not null
+            || target.ExpectedDiskIdentitySha256 is not null
+            || !IsCommit(sourceCommit))
+        {
+            throw new ConformanceRefusalException("operation_not_allowed");
+        }
+
+        var startedAt = clock.GetUtcNow();
+        var result = await processes.RunAsync(
+            SshRequest(
+                target.Transport,
+                RemoteCommand("storage-inspect", new Dictionary<string, string>(StringComparer.Ordinal)
+                {
+                    ["BALLS_CONFORMANCE_DISPOSABLE_PATH_B64"] = EncodeValue(target.DisposablePath),
+                }),
+                TimeSpan.FromSeconds(45)),
+            cancellationToken).ConfigureAwait(false);
+        if (result.ExitCode != 0)
+        {
+            throw new ConformanceRefusalException("storage_inspection_failed");
+        }
+
+        var guest = ConformanceReceiptParser.Parse<GuestHostStorageInspectionReceipt>(
+            result.StandardOutput,
+            "storage_inspection_invalid");
+        if (guest.Schema != "balls-windows-host-storage-inspection-v1"
+            || guest.Operation != StorageInspectionOperation
+            || guest.Outcome != "observed"
+            || !string.Equals(guest.ComputerName, target.ExpectedComputerName, StringComparison.OrdinalIgnoreCase)
+            || guest.Account.Kind != target.ExpectedAccountKind
+            || !guest.Account.Elevated
+            || guest.Account.Integrity != "high"
+            || !IsSha256(guest.Account.IdentitySha256)
+            || guest.PathIdentitySha256 != PathIdentity(target.DisposablePath)
+            || !StorageSafe(guest.Storage))
+        {
+            throw new ConformanceRefusalException("storage_inspection_invalid");
+        }
+
+        var receipt = new WindowsCircleFilesHostStorageInspectionReceipt(
+            "balls-windows-circle-files-host-storage-inspection-v1",
+            StorageInspectionOperation,
+            "observed",
+            startedAt,
+            clock.GetUtcNow(),
+            sourceCommit,
+            target.TargetId,
+            target.ConnectivityPath,
+            guest.PathIdentitySha256,
+            guest.ComputerName,
+            guest.Account,
+            guest.Storage,
+            [],
+            [
+                "read-only hash derivation for one exact absent authorized path",
+                "does not authorize host mutation or prove a lifecycle",
+            ]);
+        WriteStorageReceipt(receiptPath, receipt);
+        return receipt;
+    }
 
     public async Task<WindowsCircleFilesHostConformanceReceipt> RunAsync(
         WindowsConformanceTargetProfile target,
@@ -548,6 +620,9 @@ internal sealed class WindowsCircleFilesHostConformanceRunner(
             || native.PathIdentitySha256 != PathIdentity(target.DisposablePath!)
             || !native.FolderExists
             || native.FolderReparsePoint
+            || !IsSha256(native.FolderInventorySha256)
+            || native.FolderInventoryCount != (state == "provisioned" ? 3 : 1)
+            || !native.FolderInventoryExact
             || !SeedsEqual(native.Seed, prepared.Seed)
             || !IsSha256(native.AclSha256)
             || !IsSha256(native.OwnerSidSha256)
@@ -659,6 +734,9 @@ internal sealed class WindowsCircleFilesHostConformanceRunner(
     private static bool IsSha256(string value) =>
         value.Length == 64 && value.All(character => character is >= '0' and <= '9' or >= 'a' and <= 'f');
 
+    private static bool IsCommit(string value) =>
+        value.Length == 40 && value.All(character => character is >= '0' and <= '9' or >= 'a' and <= 'f');
+
     private static bool StorageMatches(
         GuestStorageObservation? storage,
         WindowsConformanceTargetProfile target) =>
@@ -670,6 +748,16 @@ internal sealed class WindowsCircleFilesHostConformanceRunner(
         && storage.VolumeIdentitySha256 == target.ExpectedVolumeIdentitySha256
         && storage.DiskIdentitySha256 == target.ExpectedDiskIdentitySha256
         && !string.IsNullOrWhiteSpace(storage.BusType);
+
+    private static bool StorageSafe(GuestStorageObservation storage) =>
+        storage is
+        {
+            LocalDiskBacked: true,
+            FileSystem: "NTFS" or "ReFS",
+            BusType: "ATA" or "NVMe" or "RAID" or "SAS" or "SATA" or "SCSI",
+        }
+        && IsSha256(storage.VolumeIdentitySha256)
+        && IsSha256(storage.DiskIdentitySha256);
 
     private static bool UnrelatedStateValid(GuestUnrelatedStateFingerprint state) =>
         IsSha256(state.RootInventorySha256)
@@ -801,6 +889,22 @@ internal sealed class WindowsCircleFilesHostConformanceRunner(
         {
             throw new ConformanceRefusalException("intervention_contract_mismatch");
         }
+        WriteJsonReceipt(receiptPath, receipt);
+    }
+
+    private static void WriteStorageReceipt(
+        string receiptPath,
+        WindowsCircleFilesHostStorageInspectionReceipt receipt)
+    {
+        if (receipt.Interventions.Count != 0)
+        {
+            throw new ConformanceRefusalException("intervention_contract_mismatch");
+        }
+        WriteJsonReceipt(receiptPath, receipt);
+    }
+
+    private static void WriteJsonReceipt<T>(string receiptPath, T receipt)
+    {
         var path = Path.GetFullPath(receiptPath);
         var temporary = Path.Combine(
             Path.GetDirectoryName(path)!,

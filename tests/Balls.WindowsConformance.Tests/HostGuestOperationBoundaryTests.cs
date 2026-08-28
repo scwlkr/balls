@@ -42,6 +42,8 @@ public sealed class HostGuestOperationBoundaryTests
         StringAssert.Contains(script, "$script:MaximumUnrelatedFileBytes");
         StringAssert.Contains(script, "$script:MaximumUnrelatedTotalFileBytes");
         StringAssert.Contains(script, "Get-BallsConformanceRootInventory");
+        StringAssert.Contains(script, "Get-BallsContributedFolderInventory");
+        StringAssert.Contains(script, "folderInventoryExact");
         StringAssert.Contains(script, "Get-FileHash -LiteralPath");
         StringAssert.Contains(script, "Get-BallsSeedObservation");
         StringAssert.Contains(script, "Get-SmbShareAccess");
@@ -60,6 +62,7 @@ public sealed class HostGuestOperationBoundaryTests
         StringAssert.Contains(script, "firewallConfigurationSha256");
         StringAssert.Contains(script, "accountConfigurationSha256");
         StringAssert.Contains(script, "secureStoreInventorySha256");
+        StringAssert.Contains(script, "state = Get-BallsPropertyText -Value $_ -Name 'State'");
         Assert.IsFalse(script.Contains("preMutationSddl =", StringComparison.OrdinalIgnoreCase));
         Assert.IsFalse(script.Contains("authorizationDigest =", StringComparison.OrdinalIgnoreCase));
     }
@@ -77,6 +80,30 @@ public sealed class HostGuestOperationBoundaryTests
         StringAssert.Contains(script, "volumeIdentitySha256");
         StringAssert.Contains(script, "diskIdentitySha256");
         StringAssert.Contains(script, "disposable_path_not_local_disk");
+        StringAssert.Contains(script, "storage-inspect");
+        StringAssert.Contains(script, "$script:StorageInspectionOperation");
+    }
+
+    [TestMethod]
+    public void Storage_hash_authorization_has_a_separate_read_only_repository_entrypoint()
+    {
+        var entrypoint = File.ReadAllText(RepositoryPath(
+            "eng",
+            "conformance",
+            "Inspect-WindowsCircleFilesHostStorage.sh"));
+        var profile = File.ReadAllText(RepositoryPath(
+            "eng",
+            "conformance",
+            "windows-host-storage-target.example.json"));
+
+        StringAssert.Contains(entrypoint, "host-storage-inspect");
+        StringAssert.Contains(entrypoint, "--expected-commit");
+        Assert.IsFalse(entrypoint.Contains("--package", StringComparison.Ordinal));
+        StringAssert.Contains(
+            profile,
+            "\"operation\": \"windows-circle-files-host-storage-inspection-v1\"");
+        Assert.IsFalse(profile.Contains("expectedVolumeIdentitySha256", StringComparison.Ordinal));
+        Assert.IsFalse(profile.Contains("expectedDiskIdentitySha256", StringComparison.Ordinal));
     }
 
     [TestMethod]
@@ -107,6 +134,10 @@ public sealed class HostGuestOperationBoundaryTests
 
         StringAssert.Contains(script, "PropagationFlags]::InheritOnly");
         StringAssert.Contains(script, "AccessControlType]::Deny");
+        StringAssert.Contains(script, "InheritanceFlags]::ContainerInherit");
+        StringAssert.Contains(script, "InheritanceFlags]::ObjectInherit");
+        StringAssert.Contains(script, "PropagationFlags]::None");
+        StringAssert.Contains(script, "$rule.IsInherited");
         StringAssert.Contains(script, "aclApplicableRuleCount");
         StringAssert.Contains(script, "aclDenyRuleCount");
         StringAssert.Contains(script, "aclShapeExact");
@@ -118,6 +149,9 @@ public sealed class HostGuestOperationBoundaryTests
         var script = File.ReadAllText(GuestScriptPath());
 
         StringAssert.Contains(script, "function Invoke-BallsHostRemoval");
+        StringAssert.Contains(script, "$script:HostRemovalPolicies");
+        StringAssert.Contains(script, "-Policy $script:HostRemovalPolicies.remove");
+        StringAssert.Contains(script, "-Policy $script:HostRemovalPolicies.cleanup");
         Assert.AreEqual(1, Regex.Matches(script, "files host remove-preview").Count);
         Assert.AreEqual(1, Regex.Matches(script, "files host remove-apply").Count);
     }

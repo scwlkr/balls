@@ -29,6 +29,35 @@ public sealed class HostConformanceRunnerTests
     private static readonly string PolicyConfiguration = new('e', 64);
 
     [TestMethod]
+    public async Task Storage_inspection_returns_only_authorization_safe_hashes()
+    {
+        var expectedVolumeIdentity = new string('b', 64);
+        var expectedDiskIdentity = new string('c', 64);
+        using var profile = TargetProfileFixture.Create(
+            operation: "windows-circle-files-host-storage-inspection-v1",
+            disposablePath: Folder);
+        using var receiptDirectory = TemporaryDirectory.Create();
+        var receiptPath = Path.Combine(receiptDirectory.Path, "storage-inspection.json");
+        var processes = new FakeConformanceProcessRunner(Result(StorageInspectionJson()));
+
+        var receipt = await new WindowsCircleFilesHostConformanceRunner(processes, "fixed")
+            .InspectStorageAsync(
+                WindowsConformanceTargetProfileLoader.Load(profile.Path),
+                Commit,
+                receiptPath,
+                CancellationToken.None);
+
+        Assert.AreEqual("observed", receipt.Outcome);
+        Assert.AreEqual(expectedVolumeIdentity, receipt.Storage.VolumeIdentitySha256);
+        Assert.AreEqual(expectedDiskIdentity, receipt.Storage.DiskIdentitySha256);
+        Assert.IsEmpty(receipt.Interventions);
+        var json = File.ReadAllText(receiptPath);
+        Assert.IsFalse(json.Contains("uniqueId", StringComparison.OrdinalIgnoreCase));
+        Assert.IsFalse(json.Contains("serialNumber", StringComparison.OrdinalIgnoreCase));
+        Assert.IsFalse(json.Contains(Folder, StringComparison.OrdinalIgnoreCase));
+    }
+
+    [TestMethod]
     public async Task Complete_product_driven_lifecycle_returns_exact_redacted_evidence()
     {
         using var context = HostContext.Create();
@@ -284,6 +313,39 @@ public sealed class HostConformanceRunnerTests
         Assert.AreEqual("final_cleanup_mismatch", error.Code);
     }
 
+    [TestMethod]
+    public async Task Final_native_state_refuses_any_unexpected_contributed_folder_leftover()
+    {
+        using var context = HostContext.Create();
+        var finalWithLeftover = NativeJson(
+            "final",
+            folderInventoryExact: false,
+            folderInventoryCount: 2);
+        var processes = new FakeConformanceProcessRunner(
+            Result(PreflightJson()),
+            Result(PreflightJson(product: true)),
+            Result(),
+            Result(PrepareJson(context.Package)),
+            Result(NativeJson("prepared")),
+            Result(RefusalJson()),
+            Result(NativeJson("rolled-back")),
+            Result(ApplyJson()),
+            Result(NativeJson("provisioned", provisioned: true)),
+            Result(RemovalJson()),
+            Result(finalWithLeftover),
+            Result(CleanupJson()));
+
+        var error = await Assert.ThrowsExactlyAsync<ConformanceRefusalException>(() =>
+            new WindowsCircleFilesHostConformanceRunner(processes, "fixed")
+                .RunAsync(
+                    context.Target,
+                    context.Package,
+                    Path.Combine(context.ReceiptDirectory.Path, "folder-leftover.json"),
+                    CancellationToken.None));
+
+        Assert.AreEqual("native_identity_mismatch", error.Code);
+    }
+
     private static FakeConformanceProcessRunner SuccessfulProcesses(WindowsPackageIdentity package) =>
         new(
             Result(PreflightJson()),
@@ -334,6 +396,31 @@ public sealed class HostConformanceRunnerTests
                 busType = "SCSI",
             },
         });
+
+    private static string StorageInspectionJson() => JsonSerializer.Serialize(new
+    {
+        schema = "balls-windows-host-storage-inspection-v1",
+        operation = "windows-circle-files-host-storage-inspection-v1",
+        outcome = "observed",
+        computerName = "BALLS-LAB",
+        account = new
+        {
+            kind = "administrator",
+            elevated = true,
+            integrity = "high",
+            identitySha256 = new string('b', 64),
+        },
+        pathIdentitySha256 = Convert.ToHexStringLower(
+            SHA256.HashData(Encoding.UTF8.GetBytes(Folder.ToUpperInvariant()))),
+        storage = new
+        {
+            localDiskBacked = true,
+            volumeIdentitySha256 = new string('b', 64),
+            diskIdentitySha256 = new string('c', 64),
+            fileSystem = "NTFS",
+            busType = "SAS",
+        },
+    });
 
     private static string PrepareJson(WindowsPackageIdentity package) => JsonSerializer.Serialize(new
     {
@@ -424,7 +511,9 @@ public sealed class HostConformanceRunnerTests
     private static string NativeJson(
         string state,
         bool provisioned = false,
-        string? rootInventory = null) => JsonSerializer.Serialize(new
+        string? rootInventory = null,
+        bool folderInventoryExact = true,
+        int? folderInventoryCount = null) => JsonSerializer.Serialize(new
         {
             schema = "balls-windows-host-native-v1",
             operation = "windows-circle-files-host-v1",
@@ -436,6 +525,9 @@ public sealed class HostConformanceRunnerTests
                 SHA256.HashData(Encoding.UTF8.GetBytes(Folder.ToUpperInvariant()))),
                 folderExists = true,
                 folderReparsePoint = false,
+                folderInventorySha256 = new string(provisioned ? 'f' : '0', 64),
+                folderInventoryCount = folderInventoryCount ?? (provisioned ? 3 : 1),
+                folderInventoryExact,
                 seed = Seed(),
                 aclProtected = provisioned,
                 aclSha256 = provisioned ? HostedAcl : BaselineAcl,
