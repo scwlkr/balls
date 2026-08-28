@@ -247,7 +247,10 @@ function Get-BallsDaemonExitFailure {
         5 { return 'daemon_exited_unsupported' }
     }
     if ($Process.ExitCode -ne -532462766) {
-        return 'daemon_exited_unexpected'
+        $status = [BitConverter]::ToUInt32(
+            [BitConverter]::GetBytes([int]$Process.ExitCode),
+            0)
+        return "daemon_exited_status_$($status.ToString('X8'))"
     }
 
     try {

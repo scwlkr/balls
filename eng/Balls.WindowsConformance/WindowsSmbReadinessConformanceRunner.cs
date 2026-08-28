@@ -260,12 +260,38 @@ internal sealed class WindowsSmbReadinessConformanceRunner(
         if (failure.Schema != "balls-windows-smb-readiness-guest-v1"
             || failure.Operation != Operation
             || failure.Outcome != "failed"
-            || !GuestFailureCodes.Contains(failure.Code))
+            || !IsGuestFailureCode(failure.Code))
         {
             throw new ConformanceRefusalException("product_execution_failed");
         }
 
         return $"guest_{failure.Code}";
+    }
+
+    private static bool IsGuestFailureCode(string code)
+    {
+        const string statusPrefix = "daemon_exited_status_";
+        if (GuestFailureCodes.Contains(code))
+        {
+            return true;
+        }
+
+        if (code.Length != statusPrefix.Length + 8
+            || !code.StartsWith(statusPrefix, StringComparison.Ordinal))
+        {
+            return false;
+        }
+
+        foreach (var character in code.AsSpan(statusPrefix.Length))
+        {
+            if (character is not (>= '0' and <= '9')
+                and not (>= 'A' and <= 'F'))
+            {
+                return false;
+            }
+        }
+
+        return true;
     }
 
     private static ConformanceProcessRequest SshRequest(
