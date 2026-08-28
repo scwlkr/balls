@@ -39,6 +39,7 @@ Use this directory for ADRs, threat models, protocol specifications, milestone d
 - [`decisions/0008-company-first-lan-pilot.md`](decisions/0008-company-first-lan-pilot.md) — prioritize one privately verified two-person company LAN workflow without abandoning open source or the Circle vision.
 - [`decisions/0009-reset-around-private-shared-ecosystem-proof.md`](decisions/0009-reset-around-private-shared-ecosystem-proof.md) — urgent boss demo, shared-ecosystem proof, proportional pilot security, and issue reset.
 - [`decisions/0010-public-development-download-channel.md`](decisions/0010-public-development-download-channel.md) — warned public Development packages, bounded publication authority, immutable history, and exact-asset Alpha promotion.
+- [`decisions/0011-linux-development-authority.md`](decisions/0011-linux-development-authority.md) — Linux-owned inner loop, CLI-first verification, and risk-triggered native Windows conformance.
 
 ## Contracts and state
 

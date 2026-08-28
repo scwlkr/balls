@@ -2,11 +2,11 @@
 
 ## Objective
 
-Optimize Balls for safe, extremely fast AI-assisted development from one Windows laptop and one
-Apple-Silicon Mac while
-keeping every green `main` promotable. Speed comes from short feedback loops, small vertical
-outcomes, deterministic automation, and rare high-cost evidence—not from skipping known
-security, data-integrity, or system-mutation risks.
+Optimize Balls for safe, extremely fast AI-assisted development from the Owner's Linux
+workstation while keeping every green `main` promotable across supported platforms. Speed comes
+from a Linux-owned inner loop, small vertical outcomes, deterministic automation, and
+risk-triggered native evidence—not from skipping known security, data-integrity, or
+system-mutation risks.
 
 ## Technology selection
 
@@ -53,11 +53,13 @@ highest ready issue
       ↓
 short-lived codex/ branch
       ↓
-fast local feedback
+focused Linux feedback + fast gate
+      ↓
+smallest triggered native conformance
       ↓
 one pull request + automated review
       ↓
-required Windows/Linux/macOS gate
+automatic hosted Windows/Linux/macOS gate
       ↓
 squash merge to main
       ↓
@@ -72,14 +74,49 @@ next ready issue
 - Delete merged branches.
 - Never rebuild artifacts for promotion. Promote the exact files produced from the accepted commit.
 
+## Development authority and conformance
+
+Linux is the **Development Authority**: it owns source editing, local builds, focused tests, the
+fast gate, native `ballsd` and `balls` execution, and development of the shared browser application.
+Portable behavior runs at the highest practical Linux seam, using the real Core, daemon, local API,
+persistence, CLI, and browser application. A deterministic test adapter may replace only the typed
+native boundary and must remain structurally unavailable to production composition and packages.
+
+Windows is a **Triggered Conformance Target**. It owns native Windows truth when a change touches a
+Windows contract or effect; it is not the default interactive development environment. Before
+using a Windows VM, determine whether the required evidence can be obtained through the canonical
+CLI, a typed local API, a headless browser, or a bounded repository-owned conformance script. If it
+can, that path is mandatory. This **CLI-first verification** rule makes the product automatable; it
+does not make the Owner or Member experience CLI-first.
+
+Classify the change before choosing a test environment:
+
+| Representative change | Classification | Minimum developer evidence |
+| --- | --- | --- |
+| Portable Core or application behavior; protocol; persistence; LAN transport; daemon; CLI; or any portable change that leaves platform contracts unchanged | Linux-only | Focused Linux test at the affected public seam, then the Linux fast gate at the mergeable checkpoint |
+| Shared browser layout, copy, state rendering, or portable interaction | Linux-only | Component or headless Chromium coverage on Linux; use the real daemon/browser seam when the journey crosses it |
+| Windows platform contract, adapter, privileged helper, security implementation, Capability Provider, packaging, bootstrap, launcher, or Windows-specific error translation | Headless Windows-triggered | Smallest repository-owned native scenario through the compiled CLI or typed API, plus independent Windows-state inspection |
+| UAC presentation, native folder picker, File Explorer presentation or location, application-control prompt, or final graphical release acceptance | Interactive Windows-triggered | Smallest observed Windows desktop journey that establishes the visual or consent-bound claim |
+
+A required Windows conformance failure blocks the affected change. Linux success cannot override
+it. Run only the scenario triggered by the changed risk; do not expand a focused provider check into
+a full packaged journey unless packaging, distribution, OS mutation, or release acceptance changed.
+
+Automatic hosted Windows CI and developer-operated Windows conformance serve different purposes.
+Every pull request retains the fixed Windows clean-platform build and fast suite without a
+developer opening a VM. A developer-operated Windows run occurs only for a native risk identified
+in the table and follows [`windows-development-lab.md`](windows-development-lab.md). Passing hosted
+CI does not replace a triggered native effect check, and reducing desktop time does not remove
+clean-platform coverage.
+
 ## Feedback loops
 
 | Loop | Target | Runs | Contents |
 | --- | ---: | --- | --- |
-| Focused | `<15s` | During edits | directly affected unit, contract, or component tests |
-| Local fast gate | `<60s` | Before push | format/analyzers, incremental build, unit/contract/process smoke |
+| Focused | `<15s` | During edits on Linux | directly affected unit, contract, or component tests |
+| Local fast gate | `<60s` | Mergeable checkpoint on Linux | format/analyzers, incremental build, unit/contract/process smoke |
 | Pull request | `<5m` wall time | Every PR | parallel fixed Windows/Linux/macOS build and fast suites; Chromium UI smoke when present |
-| Risk gate | No calendar target | Only when triggered | relevant VM, OS mutation, migration, installer, recovery, networking, or full UI scenario |
+| Native risk gate | No calendar target | Only when triggered | smallest headless Windows conformance scenario, or interactive Windows evidence when the claim requires it |
 | Release candidate | Outcome-driven | Before promotion | exact packaged bits and the minimum environment evidence for the release claim |
 
 Do not schedule a nightly or weekly heavyweight suite until actual failures demonstrate that its
@@ -113,13 +150,14 @@ the same visible orchestration for locked install, generated-client drift, forma
 component tests, and production build. Focused web verification accepts only named repository
 scripts rather than arbitrary shell input.
 
-## Two-workstation GitHub loop
+## GitHub loop
 
-GitHub is the shared state; the computers never share a working directory. Keep one issue and one
-branch per outcome, and do not edit the same ticket from both machines. Windows owns Windows/Files/
-release tickets. The Mac owns macOS, portable code, browser UI, interaction, and brand tickets.
+GitHub is the shared state; computers never share a working directory. Keep one issue and one
+branch per outcome, and do not edit the same ticket from multiple workstations. Linux owns the
+ordinary development loop for portable and shared-browser work. Another operating system may
+supply triggered native evidence without becoming a second implementation owner.
 
-At the start of work on either computer:
+At the start of work:
 
 ```bash
 git fetch origin
@@ -151,13 +189,14 @@ A focused filter must fail rather than silently run zero expected tests.
 
 ## Development lab
 
-The initial lab is intentionally one-laptop:
+The current lab is intentionally Linux-hosted:
 
-- Windows host: primary development machine and Windows Node;
-- WSL2 Ubuntu: optional sub-minute Linux development executor, never the product runtime definition;
-- dedicated Ubuntu Hyper-V VM: separate Linux Node on a dedicated internal/NAT lab network;
-- optional small Windows VM: started serially for installer, upgrade, and Windows-to-Windows checks;
-- GitHub-hosted Windows, Ubuntu, and Apple-Silicon macOS runners: clean pull-request evidence.
+- Linux workstation: Development Authority, source tree, native Linux Node, and default daemon,
+  CLI, browser, focused-test, and fast-gate environment;
+- authorized Windows guests or machines: Triggered Conformance Targets used only for the smallest
+  relevant native provider, security, package, launcher, or graphical check;
+- GitHub-hosted Windows, Ubuntu, and Apple-Silicon macOS runners: automatic clean pull-request
+  evidence, independent of whether developer-operated Windows conformance was triggered.
 
 Create clean checkpoints before Balls persists Node identity. Never clone a VM after enrollment
 without regenerating its Node identity. Existing unrelated VMs and switches remain untouched.
@@ -248,4 +287,5 @@ a later recorded business need changes that policy.
 Every important use case must be reachable through the CLI or a typed API with deterministic exit
 codes and structured output. The browser UI is one React/TypeScript application served locally by
 `ballsd`; it does not own product logic. Native shells are added only for a proven OS-specific UX
-need. This keeps AI verification fast and avoids separate GUI implementations per operating system.
+need. This keeps verification fast and avoids separate GUI implementations per operating system
+while preserving the graphical product contract and final graphical release acceptance.

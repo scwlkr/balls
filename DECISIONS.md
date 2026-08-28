@@ -107,6 +107,11 @@ credentials.
 
 ## Recommended technical choices
 
+- Use Linux as the Development Authority for editing, builds, focused tests, the fast gate, daemon
+  and CLI execution, and shared browser development. Treat Windows as a Triggered Conformance
+  Target whenever Windows contracts or native behavior change, and require CLI-first verification
+  before interactive VM work. See
+  [`ADR 0011`](docs/decisions/0011-linux-development-authority.md).
 - Keep the native cross-platform `ballsd` service, one typed application core, the local browser UI,
   and the first-class `balls` CLI.
 - Keep platform-specific mutations behind narrow typed adapters; do not put raw OS commands in Core.

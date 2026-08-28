@@ -1,9 +1,54 @@
 # Windows development lab
 
 Read this runbook before Windows VM automation, manual two-VM acceptance, unsigned product
-execution, browser UI acceptance, installer, Development/Canary testing, or recovery of a dedicated
-Windows guest. The lab accelerates risky Windows checks without weakening security controls on the
-physical host.
+execution, Windows-specific browser UI acceptance, installer, Development/Canary testing, or
+recovery of a dedicated Windows guest. The lab accelerates triggered native checks without
+weakening security controls on the physical host.
+
+## Entry rule and required preflight
+
+Linux is the Development Authority. Before starting or opening a Windows VM, determine whether the
+claim can be proved through the canonical CLI, a typed local API, a headless browser, or a bounded
+repository-owned conformance script. If it can, use that path. Shared browser layout, copy, state,
+and portable interaction remain Linux work unless the change also triggers a Windows-native seam.
+See the classification table in the
+[`development process`](development-process.md#development-authority-and-conformance).
+
+Do not run headless or interactive Windows work until a live inspection has resolved and recorded:
+
+1. the exact guest or physical target and its current availability;
+2. the Windows account, privilege level, and whether human consent is part of the claim;
+3. relevant application-control, execution-policy, UAC, firewall, and network-profile state;
+4. the live network and exposure boundary;
+5. the exact source commit or immutable package identity and hash under test;
+6. explicit authorization for that target and scenario; and
+7. guest, repository, package, Balls-state, and lab dirty state that could make the result
+   ambiguous or put unrelated work at risk.
+
+Refuse an unavailable, ambiguous, unauthorized, or unexpectedly dirty target. Historical names,
+mounts, accounts, network routes, policies, and results are hints only; never treat them as current
+state. Inspection must not print or copy credentials, invitations, private keys, passwords, DPAPI
+material, provider secrets, or unrelated user data.
+
+## Headless and interactive conformance
+
+A headless Windows check uses the smallest repository-owned entrypoint for the changed risk. It
+invokes the exact compiled product or package through the CLI or typed API and independently
+inspects the resulting native state. Give every run a bounded timeout and cancellation path; make
+setup and cleanup idempotent or explicitly disposable. Return a stable exit status plus structured,
+redacted evidence containing the target context, exact commit or artifact, scenario, timestamps,
+product result, native observation, cleanup result, and limitations. Preserve unrelated user and
+lab state. A required failure blocks the affected change even when Linux and hosted CI pass.
+
+Use an interactive Windows desktop only when the acceptance claim is user-visible UAC consent,
+native folder-picker behavior, File Explorer presentation or location, an application-control
+prompt, or final graphical release acceptance. Administrative or remote execution is not evidence
+that a person saw or accepted a prompt. State why the headless paths cannot establish the claim
+before beginning the interactive step.
+
+Hosted Windows CI remains an automatic clean-platform build and fast-suite lane on every pull
+request. It does not require a developer-operated VM, and it does not replace a triggered native
+effect check. Conversely, a focused lab check does not replace required hosted Windows CI.
 
 ## Current Linux-hosted company-pilot lab
 
@@ -251,15 +296,15 @@ if repository content changes.
 
 Invoke each applicable script through `Invoke-BallsDevGuestScript.ps1`:
 
-| Outcome | Guest script | Completion evidence in the guest |
-| --- | --- | --- |
-| Restore, format, Release build, unsigned execution, Circle create/list, restart persistence | `Test-BallsVmSourceBuild.Guest.ps1` | `C:\BallsLab\source-smoke\latest-result.json` |
-| Generated client, component tests, real Playwright Chromium journey | `Test-BallsVmBrowser.Guest.ps1` | `C:\BallsLab\browser-smoke\latest-result.json` |
-| Read-only Windows SMB readiness contracts, real adapter, structured CLI, and no-mutation snapshot | `Test-BallsVmSmbReadiness.Guest.ps1` | `C:\BallsLab\smb-readiness\latest-result.json` |
-| Dedicated Circle folder clean apply/retry, hostile paths, collisions, and injected rollback | machine-local `Test-BallsCircleFilesHelper.Guest.ps1` | structured PowerShell Direct result captured in the dated verification record |
-| Circle Files revoke/cleanup, future-auth denial, busy confirmation, partial retry, hostile substitution, and byte preservation | machine-local `Test-BallsCircleFilesRevocation.Guest.ps1` | structured PowerShell Direct result plus before/after hashes captured in the dated verification record |
-| Launch the unsigned Balls browser UI for interactive review | `Launch-BallsVmUi.Guest.ps1` | `Get-BallsVmUiLaunchStatus.Guest.ps1` reports daemon and Chrome state |
-| Historical `0.2.0-alpha.1` release download and installer proof | `Test-BallsVmReleaseInstaller.Guest.ps1` | `C:\BallsLab\release-installer\0.2.0-alpha.1\installer-result.json` |
+| Outcome | Mode | Guest script | Completion evidence in the guest |
+| --- | --- | --- | --- |
+| Restore, format, Release build, unsigned execution, Circle create/list, restart persistence | Headless | `Test-BallsVmSourceBuild.Guest.ps1` | `C:\BallsLab\source-smoke\latest-result.json` |
+| Generated client, component tests, real Playwright Chromium journey for a Windows-specific browser trigger | Headless | `Test-BallsVmBrowser.Guest.ps1` | `C:\BallsLab\browser-smoke\latest-result.json` |
+| Read-only Windows SMB readiness contracts, real adapter, structured CLI, and no-mutation snapshot | Headless | `Test-BallsVmSmbReadiness.Guest.ps1` | `C:\BallsLab\smb-readiness\latest-result.json` |
+| Dedicated Circle folder clean apply/retry, hostile paths, collisions, and injected rollback | Headless | machine-local `Test-BallsCircleFilesHelper.Guest.ps1` | structured PowerShell Direct result captured in the dated verification record |
+| Circle Files revoke/cleanup, future-auth denial, busy confirmation, partial retry, hostile substitution, and byte preservation | Headless | machine-local `Test-BallsCircleFilesRevocation.Guest.ps1` | structured PowerShell Direct result plus before/after hashes captured in the dated verification record |
+| Launch the unsigned Balls browser UI for a visual or consent-bound claim | Interactive | `Launch-BallsVmUi.Guest.ps1` | `Get-BallsVmUiLaunchStatus.Guest.ps1` reports daemon and Chrome state, followed by the recorded observation |
+| Historical `0.2.0-alpha.1` release download and installer proof | Headless | `Test-BallsVmReleaseInstaller.Guest.ps1` | `C:\BallsLab\release-installer\0.2.0-alpha.1\installer-result.json` |
 
 For interactive UI review, sign in at the VM console first, invoke the launch script, open the
 console with `vmconnect.exe localhost Balls.Dev.Windows11`, and verify the rendered behavior.
