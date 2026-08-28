@@ -17,6 +17,23 @@ public sealed class EntrypointContractTests
     }
 
     [TestMethod]
+    public void Host_entrypoint_builds_exact_non_distributable_product_bytes_and_one_bounded_operation()
+    {
+        var script = File.ReadAllText(RepositoryPath(
+            "eng",
+            "conformance",
+            "Test-WindowsCircleFilesHost.sh"));
+
+        StringAssert.Contains(script, "--configuration Debug");
+        StringAssert.Contains(script, "host-run");
+        StringAssert.Contains(script, "--expected-commit \"$commit\"");
+        StringAssert.Contains(script, "--signal=INT");
+        StringAssert.Contains(script, "--kill-after=195s");
+        StringAssert.Contains(script, "repository_dirty");
+        Assert.IsFalse(script.Contains("-ExecutionPolicy", StringComparison.OrdinalIgnoreCase));
+    }
+
+    [TestMethod]
     public void Managed_entrypoint_converts_interrupts_to_runner_cancellation()
     {
         var program = File.ReadAllText(RepositoryPath(
