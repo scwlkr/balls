@@ -31,9 +31,9 @@ public sealed class ConformanceProcessTests
         var exception = await Assert.ThrowsExactlyAsync<ConformanceRefusalException>(() =>
             runner.RunAsync(
                 new ConformanceProcessRequest(
-                    "/usr/bin/sleep",
-                    ["10"],
-                    TimeSpan.FromMilliseconds(100),
+                    "dotnet",
+                    ["--info"],
+                    TimeSpan.FromTicks(1),
                     1024),
                 CancellationToken.None));
 
@@ -48,9 +48,9 @@ public sealed class ConformanceProcessTests
         var exception = await Assert.ThrowsExactlyAsync<ConformanceRefusalException>(() =>
             runner.RunAsync(
                 new ConformanceProcessRequest(
-                    "/usr/bin/printf",
-                    [new string('x', 128)],
-                    TimeSpan.FromSeconds(1),
+                    "dotnet",
+                    ["--info"],
+                    TimeSpan.FromSeconds(10),
                     32),
                 CancellationToken.None));
 
@@ -64,14 +64,16 @@ public sealed class ConformanceProcessTests
 
         var result = await runner.RunAsync(
             new ConformanceProcessRequest(
-                "/usr/bin/wc",
-                ["-c"],
-                TimeSpan.FromSeconds(1),
+                "git",
+                ["hash-object", "--stdin"],
+                TimeSpan.FromSeconds(10),
                 1024,
                 "fixed-operation"),
             CancellationToken.None);
 
         Assert.AreEqual(0, result.ExitCode);
-        Assert.AreEqual("15", result.StandardOutput.Trim());
+        Assert.AreEqual(
+            "6323aac6c3d9afea25beec80a4f3f6f57f7d829f",
+            result.StandardOutput.Trim());
     }
 }

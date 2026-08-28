@@ -31,6 +31,11 @@ internal static partial class ConformanceCommand
                 "conformance",
                 "Invoke-WindowsSmbReadinessConformance.ps1");
             var guestScript = ReadGuestScript(guestScriptPath);
+            if (!OperatingSystem.IsLinux())
+            {
+                throw new ConformanceRefusalException("linux_required");
+            }
+
             var runner = new WindowsSmbReadinessConformanceRunner(
                 new SystemConformanceProcessRunner(),
                 guestScript);

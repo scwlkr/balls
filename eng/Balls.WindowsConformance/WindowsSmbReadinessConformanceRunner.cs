@@ -92,11 +92,6 @@ internal sealed class WindowsSmbReadinessConformanceRunner(
         string receiptPath,
         CancellationToken cancellationToken)
     {
-        if (!OperatingSystem.IsLinux())
-        {
-            throw new ConformanceRefusalException("linux_required");
-        }
-
         var startedAt = clock.GetUtcNow();
         var preflightResult = await processes.RunAsync(
             SshRequest(
