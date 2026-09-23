@@ -138,3 +138,12 @@ checks, or lab recovery, read
 `scwlkr/balls-server` is archived prior research. Inspect it only for a specific
 Windows/networking/security problem. Port concepts deliberately; do not transplant its
 server-first architecture.
+
+## Linear work queue
+
+- Team: **WLKR LABS**.
+- Project: [Balls](https://linear.app/wlkr-labs/project/balls-e22cb5f6a953).
+- Linear is the task source of truth. Existing GitHub issues and Markdown plans are historical context; this section supersedes older tracker or backlog guidance.
+- Before starting substantive work, read the Linear issue and discussion and check for existing work. Find or create a Linear issue for substantive user-requested work, not every question or minor action.
+- Keep status current, include the issue ID in branches and PRs, and post concise outcomes or blockers. Mark Done only when completion criteria are met.
+- Do not maintain a competing Markdown backlog or import or sync GitHub issues.
