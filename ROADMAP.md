@@ -87,6 +87,11 @@ remain fully usable when Balls Wizard is absent or unsupported by the local hard
 This lane starts only after the boss demo unless a tiny non-model visual placeholder directly helps
 that demo.
 
+The Owner authorized [issue #118](https://github.com/scwlkr/balls/issues/118) as one isolated
+parallel exception on 2026-08-27. Its Windows 11 x64 executable contract is
+[`Balls Wizard v0`](docs/specs/balls-wizard-v0.md). It must not interrupt the active Revit lab,
+claim Circle AI, or merge without its own real local-model evidence and ordinary pull-request gate.
+
 ## Later horizons
 
 After the shared-ecosystem proof:

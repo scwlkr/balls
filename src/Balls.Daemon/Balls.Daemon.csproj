@@ -12,6 +12,9 @@
     <ProjectReference Include="..\Balls.Windows.Helper\Balls.Windows.Helper.csproj" ReferenceOutputAssembly="false" />
   </ItemGroup>
   <ItemGroup>
+    <EmbeddedResource Include="..\..\docs\wizard\guide.md" LogicalName="Balls.Wizard.Guide.md" />
+  </ItemGroup>
+  <ItemGroup>
     <PackageReference Include="Microsoft.AspNetCore.OpenApi" />
   </ItemGroup>
   <Target Name="BuildBrowserBundle" BeforeTargets="CoreCompile" Condition="'$(DesignTimeBuild)' != 'true'">

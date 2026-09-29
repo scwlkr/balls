@@ -162,6 +162,21 @@ wizard hat, retrieves version-matched Balls user documentation, and explains how
 Balls Wizard runs locally on the requesting Node and is installed only after the user selects its
 download prompt. It is not Circle AI and is not an authority for Circle administration.
 
+## Wizard Guide
+
+The version-matched, locally packaged Balls product guidance from which Balls Wizard grounds
+actionable answers and identifies optional Sources.
+
+The Wizard Guide is not Circle content, a model training set, or permission to inspect source code.
+
+## Wizard System Context
+
+The fresh, ephemeral, non-identifying operating-system and hardware facts Balls provides to the
+local Wizard so that product guidance can match the requesting Node.
+
+Wizard System Context excludes Circle content, user and machine identifiers, arbitrary paths, and
+conversation history.
+
 ## Circle Messaging
 
 Human communication among Circle Members. Protocol traffic between Nodes, apps, and services is

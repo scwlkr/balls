@@ -88,8 +88,14 @@ download. See [`ADR 0010`](docs/decisions/0010-public-development-download-chann
 **Balls Wizard** is an optional local product guide represented by a floating brand-violet ball
 wearing a wizard hat. The local browser UI offers its download; Balls never downloads the model
 automatically. The intended model is a pinned quantized instruction-tuned Gemma 4 E2B. Balls Wizard
-retrieves documentation matching the installed Balls version, cites the relevant user guidance,
-and begins as read-only help. Core Balls remains usable without it.
+uses a version-matched local Wizard Guide, exposes relevant guidance under optional Sources, and
+begins as read-only help. Its playful local system prompt receives only bounded ephemeral system
+facts and never receives tools or Circle content. Core Balls remains usable without it.
+
+Windows 11 x64 v0 uses the exact text-only Google Gemma 4 E2B QAT Q4 GGUF behind a Balls-managed,
+hash-pinned llama.cpp sidecar. Both are downloaded only after consent from immutable official
+sources and remain replaceable behind typed platform/application boundaries. See
+[`Balls Wizard v0`](docs/specs/balls-wizard-v0.md).
 
 **Circle AI** is different: it is an explicitly contributed AI capability running on one approved
 Node and made available to other authorized Circle Members without exposing runtime addresses or
@@ -131,9 +137,8 @@ available to reuse; they no longer define the active roadmap. See
 
 ## Intentionally open questions
 
-- Which runtime and quantized artifact best deliver Gemma 4 E2B for Balls Wizard on supported
-  Windows, Linux, and macOS hardware?
-- How should version-matched user documentation be packaged and retrieved by Balls Wizard?
+- Which measured runtime/artifact should follow the Windows 11 x64 llama.cpp and QAT Q4 Wizard v0
+  on Linux, macOS, Windows Arm64, or accelerator-specific hardware?
 - Which existing runtime first provides shared Circle AI?
 - How far should the existing minimal Circle message protocol grow before an external messaging
   provider is preferable?

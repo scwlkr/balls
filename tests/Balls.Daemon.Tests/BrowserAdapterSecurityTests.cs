@@ -166,6 +166,15 @@ public sealed partial class BrowserAdapterSecurityTests
         using var missingSyncAntiforgeryResponse = await browserClient.SendAsync(
             missingSyncAntiforgery);
 
+        using var missingWizardAntiforgery = CreateJsonRequest(
+            HttpMethod.Post,
+            BrowserRoutes.WizardInstall,
+            new { },
+            GetOrigin(browserBaseUri),
+            authenticated.Cookie);
+        using var missingWizardAntiforgeryResponse = await browserClient.SendAsync(
+            missingWizardAntiforgery);
+
         using var missingConnectionSync = CreateJsonRequest(
             HttpMethod.Post,
             BrowserRoutes.CircleFilesSync(created.Circle.Id),
@@ -186,6 +195,7 @@ public sealed partial class BrowserAdapterSecurityTests
         Assert.AreEqual(HttpStatusCode.Created, createResponse.StatusCode);
         Assert.AreEqual("Secure Circle", created.Circle.Name);
         Assert.AreEqual(HttpStatusCode.Forbidden, missingSyncAntiforgeryResponse.StatusCode);
+        Assert.AreEqual(HttpStatusCode.Forbidden, missingWizardAntiforgeryResponse.StatusCode);
         Assert.AreEqual(HttpStatusCode.Conflict, missingConnectionSyncResponse.StatusCode);
         Assert.AreEqual(HttpStatusCode.OK, statusResponse.StatusCode);
     }

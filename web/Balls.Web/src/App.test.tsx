@@ -11,6 +11,7 @@ import type {
   CircleListDto,
   CircleMessageListDto,
   StatusDto,
+  BrowserBallsWizardStatusDto,
 } from "./api/localControl";
 
 const status = {
@@ -72,6 +73,33 @@ const messages = {
     },
   ],
 } satisfies CircleMessageListDto;
+
+const wizardUnavailable = {
+  support: "unsupported",
+  installation: "absent",
+  stage: "idle",
+  code: "windows_11_x64_required",
+  message: "Balls Wizard v0 needs Windows 11 x64; this Node is Linux.",
+  wizardVersion: "wizard-v0",
+  downloadedBytes: 0,
+  totalDownloadBytes: 0,
+  requiredStorageBytes: 0,
+  canInstall: false,
+  canCancel: false,
+  canChat: false,
+  canRemove: false,
+  systemContext: {
+    operatingSystem: "Linux",
+    operatingSystemArchitecture: "X64",
+    processArchitecture: "X64",
+    cpu: "Unavailable",
+    gpus: [],
+    totalMemoryBytes: 0,
+    availableMemoryBytes: 0,
+    freeStorageBytes: 0,
+  },
+  artifacts: [],
+} satisfies BrowserBallsWizardStatusDto;
 
 describe("Balls browser workspace", () => {
   beforeEach(() => {
@@ -878,6 +906,13 @@ function createApi(circleList: CircleListDto): BrowserApi {
     },
     openFiles: async () => {
       throw new Error("No shared-folder open test configured.");
+    },
+    getWizardStatus: async () => wizardUnavailable,
+    installWizard: async () => wizardUnavailable,
+    cancelWizardInstall: async () => wizardUnavailable,
+    removeWizard: async () => wizardUnavailable,
+    chatWithWizard: async () => {
+      throw new Error("No Wizard chat test configured.");
     },
   };
 }

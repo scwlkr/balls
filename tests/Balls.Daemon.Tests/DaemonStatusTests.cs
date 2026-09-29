@@ -222,6 +222,13 @@ public sealed class DaemonStatusTests
             document,
             "/browser/v1/circles/{circleId}/files/open");
         StringAssert.Contains(document, nameof(BrowserCircleFilesOpenResponse));
+        StringAssert.Contains(document, BrowserRoutes.Wizard);
+        StringAssert.Contains(document, BrowserRoutes.WizardInstall);
+        StringAssert.Contains(document, BrowserRoutes.WizardCancel);
+        StringAssert.Contains(document, BrowserRoutes.WizardChat);
+        StringAssert.Contains(document, nameof(BrowserBallsWizardStatusResponse));
+        StringAssert.Contains(document, nameof(BrowserBallsWizardChatRequest));
+        StringAssert.Contains(document, nameof(BrowserBallsWizardChatResponse));
         Assert.IsFalse(document.Contains(
             "/browser/v1/circles/{circleId}/files/contributions/{contributionId}/grants/{grantId}/mapping",
             StringComparison.Ordinal));
