@@ -29,6 +29,13 @@ internal sealed record GuestDirtyStateObservation(
     int OwnedArtifacts,
     bool Clean);
 
+internal sealed record GuestStorageObservation(
+    bool LocalDiskBacked,
+    string VolumeIdentitySha256,
+    string DiskIdentitySha256,
+    string FileSystem,
+    string BusType);
+
 internal sealed record GuestPreflightReceipt(
     string Schema,
     string Operation,
@@ -38,7 +45,8 @@ internal sealed record GuestPreflightReceipt(
     GuestWindowsObservation Windows,
     GuestPolicyObservation Policy,
     GuestNetworkObservation Network,
-    GuestDirtyStateObservation DirtyState);
+    GuestDirtyStateObservation DirtyState,
+    GuestStorageObservation? Storage = null);
 
 internal sealed record GuestProductIdentity(
     string Commit,
