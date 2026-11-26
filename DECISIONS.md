@@ -22,7 +22,7 @@ The urgent proving ground is approximately two or three personally trusted peopl
 or owner-managed Tailscale network. The immediate boss demo is:
 
 ```text
-balls.wlkrlabs.com
+balls.wlkr.si
   → paste one Windows install command
   → join one Circle through the local browser
   → open the approved project folder in File Explorer
@@ -74,7 +74,7 @@ risk, observed failure, or accepted release requirement.
 
 ### Software distribution
 
-[`balls.wlkrlabs.com`](https://balls.wlkrlabs.com) is the sole official human-facing software and
+[`balls.wlkr.si`](https://balls.wlkr.si) is the sole official human-facing software and
 update entrypoint. Alpha is the primary recommended download. A lower Development section may point
 to incomplete or broken immutable GitHub prereleases after package-integrity checks; agents may
 publish that channel for an active issue without per-build approval. Previous versions remain

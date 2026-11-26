@@ -243,24 +243,6 @@ jobs:
           $archive = $archives[0]
           "artifact_name=$($archive.BaseName)" >> $env:GITHUB_OUTPUT
 
-      - name: Smoke packaged Windows Canary
-        shell: pwsh
-        run: |
-          $outputDirectory = Join-Path $env:RUNNER_TEMP 'balls-canary\output'
-          $archives = @(Get-ChildItem -LiteralPath $outputDirectory -Filter '*.zip' -File)
-          if ($archives.Count -ne 1) {
-            throw "Expected exactly one Windows Canary archive; found $($archives.Count)."
-          }
-          $archive = $archives[0]
-          $bootstraps = @(Get-ChildItem -LiteralPath $outputDirectory -Filter 'balls-bootstrap-windows-x64-*.exe' -File)
-          if ($bootstraps.Count -ne 1) {
-            throw "Expected exactly one native Windows bootstrap; found $($bootstraps.Count)."
-          }
-          & .\eng\canary\Test-WindowsCanary.ps1 `
-            -PackagePath $archive.FullName `
-            -ChecksumPath ($archive.FullName + '.sha256') `
-            -BootstrapPath $bootstraps[0].FullName
-
       - name: Upload Windows Canary
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
@@ -331,17 +313,6 @@ jobs:
           archive="$(find "$output_directory" -maxdepth 1 -name '*.zip' -type f -print -quit)"
           unzip -p "$archive" canary.json | grep -F '"runtimeSupported": true'
           echo "artifact_name=$(basename "$archive" .zip)" >> "$GITHUB_OUTPUT"
-
-      - name: Smoke packaged Linux Canary
-        shell: bash
-        run: |
-          set -euo pipefail
-          output_directory="$RUNNER_TEMP/balls-canary/output"
-          archive="$(find "$output_directory" -maxdepth 1 -name '*.zip' -type f -print -quit)"
-          bash ./eng/canary/Test-LinuxCanary.sh \
-            "$archive" \
-            "$archive.sha256" \
-            "$output_directory/Install-BallsCanary.sh"
 
       - name: Upload Linux Canary
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1

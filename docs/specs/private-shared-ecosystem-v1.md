@@ -156,7 +156,7 @@ reconsidered.
 - **Safety floor:** Preserve operating-system protections, private-service boundaries, credential
   confidentiality, contributed user data, and explicit access approval. Additional security work
   must answer a concrete pilot risk, observed failure, or accepted release requirement.
-- **Distribution:** `balls.wlkrlabs.com` is the only official human entrypoint for software and
+- **Distribution:** `balls.wlkr.si` is the only official human entrypoint for software and
   updates. It presents accepted Alpha first, warned Development builds below it, and exact previous
   versions. Every lane links to immutable GitHub Release assets and the site does not host a second
   copy. Invitations are private Circle data and never pass through the public download channel.

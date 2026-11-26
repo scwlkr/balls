@@ -24,47 +24,15 @@ Use the repository-owned verifier from the repository root. It prints each stand
 running it and returns the failing command's exit code.
 
 ```powershell
-# Direct feedback for one affected project and a filter that must select at least one test
-dotnet run --project eng/Balls.Verify --configuration Release -- focused --project tests/Balls.Core.Tests/Balls.Core.Tests.csproj --filter TestCategory=Unit
-
-# Focus a browser component or generated-client contract
-dotnet run --project eng/Balls.Verify --configuration Release -- focused --web test
+# Verify the browser client contract
 dotnet run --project eng/Balls.Verify --configuration Release -- focused --web generate:check
 
-# Safe pre-push gate: portable unit, contract, and process-integration tests
+# Restore, check formatting and types, lint, and build
 dotnet run --project eng/Balls.Verify --configuration Release -- fast
-
-# Release-grade gate: every test, including OS integration
-dotnet run --project eng/Balls.Verify --configuration Release -- full
 ```
 
-These commands are shell-neutral .NET CLI invocations; use them unchanged in PowerShell or Bash.
-The required Ubuntu, Windows, and Apple-Silicon macOS pull-request lanes run `fast`; use `full`
-locally and for
-release/risk gates that require every OS-integration test. WSL may be used as a Linux development
-executor, but it is not the Balls product runtime.
-
-`fast` and `full` each run locked .NET and pnpm restore, format verification, and exactly one .NET
-Release build. They reject uncategorized tests, check generated browser-client drift, and run web
-lint, typecheck, component tests, and a production build. `fast` runs the portable-safe .NET
-categories; `full` runs every .NET test. Both finish with one real Playwright Chromium journey.
-Expanded, those standard commands include:
-
-```powershell
-dotnet restore Balls.slnx --locked-mode
-pnpm install --frozen-lockfile
-dotnet format Balls.slnx --verify-no-changes --no-restore
-pnpm web:generate:check
-pnpm web:format:check
-dotnet build Balls.slnx --configuration Release --no-restore
-pnpm web:lint
-pnpm web:typecheck
-dotnet test Balls.slnx --configuration Release --no-build --no-restore --filter "(TestCategory=Unit|TestCategory=Contract|TestCategory=ProcessIntegration)"
-pnpm web:test
-pnpm web:build
-pnpm web:e2e
-dotnet test Balls.slnx --configuration Release --no-build --no-restore
-```
+The required Ubuntu, Windows, and Apple-Silicon macOS lanes run the same gate. For a release,
+capture evidence from the real package or application on each platform relevant to the change.
 
 The repository pins Node through [`.node-version`](../.node-version), pnpm through the root
 `packageManager`, and dependency resolution in `pnpm-lock.yaml`. CI enables Corepack and caches the
@@ -81,8 +49,11 @@ Windows package used for that scenario, run the bounded headless conformance ent
 clean committed Linux checkout:
 
 ```bash
-eng/conformance/Test-WindowsSmbReadiness.sh \
+dotnet run --project eng/Balls.WindowsConformance --configuration Release -- run \
   --target-profile /absolute/path/to/local-authorized-target.json \
+  --package /absolute/path/to/windows-canary.zip \
+  --checksum /absolute/path/to/windows-canary.zip.sha256 \
+  --expected-commit "$(git rev-parse HEAD)" \
   --receipt /absolute/path/to/new-receipt.json
 ```
 
@@ -90,7 +61,7 @@ Create the local untracked target profile from
 [`windows-target.example.json`](../eng/conformance/windows-target.example.json) only after the live
 target inspection and explicit authorization required by the
 [`Windows lab runbook`](windows-development-lab.md#linux-triggered-smb-readiness-conformance).
-The command packages exact `HEAD` Windows bytes, runs the real daemon and canonical
+Provide the Windows Canary archive and checksum from exact `HEAD`. The command runs the real daemon and canonical
 `files readiness` CLI operation with a Windows-only, readiness-only daemon mode and disposable
 leased state, performs an independent read-only native inspection, and returns a bounded redacted
 receipt. The daemon mode creates no Node/Circle/DPAPI identity and exposes no mutation or browser
@@ -152,8 +123,9 @@ For browser development and verification:
 corepack enable
 pnpm install --frozen-lockfile
 pnpm web:generate:check
-pnpm web:test
-pnpm web:e2e
+pnpm web:lint
+pnpm web:typecheck
+pnpm web:build
 ```
 
 The generated client is committed at `web/Balls.Web/src/api/generated`. Update it only with

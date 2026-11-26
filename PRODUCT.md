@@ -15,7 +15,7 @@ Balls is people-first. Nodes matter because of what they make possible for the C
 Design the immediate private pilot obsessively for:
 
 - approximately two or three personally trusted people in one small company;
-- software obtained only through [`balls.wlkrlabs.com`](https://balls.wlkrlabs.com), pointing to an
+- software obtained only through [`balls.wlkr.si`](https://balls.wlkr.si), pointing to an
   exact owner-accepted GitHub Release;
 - a newly created project folder hosted by one Windows Node on the private LAN;
 - one invitation that makes the approved folder usable from the boss's separate Windows PC;

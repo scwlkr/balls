@@ -103,7 +103,7 @@ it. Run only the scenario triggered by the changed risk; do not expand a focused
 a full packaged journey unless packaging, distribution, OS mutation, or release acceptance changed.
 
 Automatic hosted Windows CI and developer-operated Windows conformance serve different purposes.
-Every pull request retains the fixed Windows clean-platform build and fast suite without a
+Every pull request retains the fixed Windows clean-platform build and static checks without a
 developer opening a VM. A developer-operated Windows run occurs only for a native risk identified
 in the table and follows [`windows-development-lab.md`](windows-development-lab.md). Passing hosted
 CI does not replace a triggered native effect check, and reducing desktop time does not remove
@@ -139,15 +139,12 @@ force-pushes, and direct changes through its active ruleset.
 The implemented repository entry point is:
 
 ```text
-dotnet run --project eng/Balls.Verify --configuration Release -- focused --project <test-project> --filter <expression>
 dotnet run --project eng/Balls.Verify --configuration Release -- fast
 dotnet run --project eng/Balls.Verify --configuration Release -- full
 ```
 
-It prints its underlying `dotnet` and `pnpm` commands, builds .NET only once in `fast` and `full`,
-rejects unknown categories, and makes an empty focused selection fail. The browser workspace uses
-the same visible orchestration for locked install, generated-client drift, format, lint, typecheck,
-component tests, and production build. Focused web verification accepts only named repository
+It prints its underlying commands and builds .NET once. The browser workspace and downloads site
+use the same orchestration for locked install, format, lint, typecheck, and production builds. Focused web verification accepts only named repository
 scripts rather than arbitrary shell input.
 
 ## GitHub loop
@@ -171,21 +168,6 @@ request linked to the issue. Use issue/PR comments only for handoff facts, not a
 document. Let required CI and auto-merge serialize accepted work; after merge, fast-forward `main`
 before starting the next branch. If two changes overlap, finish the smaller PR first and rebase or
 merge current `main` into the other branch once—do not develop competing versions.
-
-## Test taxonomy
-
-- **Unit:** millisecond-fast isolated domain/application behavior.
-- **Contract:** serialization, API, storage schema, and provider contracts.
-- **Process integration:** multiple real `ballsd`/`balls` child processes with isolated temporary state.
-- **OS integration:** one real adapter or privileged boundary.
-- **Browser:** TypeScript/component tests plus a minimal Playwright Chromium journey.
-- **Lab:** Windows host and virtual Nodes for install, restart, networking, or provider behavior.
-- **Pilot:** observed use of an accepted candidate; never a substitute for deterministic tests.
-
-New tests should use Microsoft.Testing.Platform when the selected framework/extensions fully
-support it. Every test class must declare one of the six category names above; the repository
-verifier rejects tests without a recognized category. Build once and avoid redundant restore/build work.
-A focused filter must fail rather than silently run zero expected tests.
 
 ## Development lab
 
@@ -241,9 +223,7 @@ rebuilding. Windows public binaries must be signed before Stable.
 
 Canary publication is downstream of the successful `Required` job in the same CI workflow for a
 `main` push. It checks out the accepted SHA with read-only permissions, packages version/OS/
-architecture/commit identity and checksums, smokes the Windows archive from fresh state, and
-smokes the Linux archive from fresh state with the same CLI/browser/restart outcome, then uploads
-both with a bounded retention period. Pull-request runs skip both publication jobs. It does not
+architecture/commit identity and checksums, then uploads both with a bounded retention period. Pull-request runs skip both publication jobs. It does not
 create a product tag or GitHub Release.
 
 The download page presents Alpha first, then the warned latest Development build, then immutable

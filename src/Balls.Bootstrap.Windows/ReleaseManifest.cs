@@ -140,7 +140,7 @@ internal static partial class ReleaseManifestReader
     public static void ValidateOfficialManifestUri(Uri uri)
     {
         if (!string.Equals(uri.Scheme, Uri.UriSchemeHttps, StringComparison.Ordinal) ||
-            !string.Equals(uri.Host, "balls.wlkrlabs.com", StringComparison.Ordinal) ||
+            !string.Equals(uri.Host, "balls.wlkr.si", StringComparison.Ordinal) ||
             !string.IsNullOrEmpty(uri.Query) || !string.IsNullOrEmpty(uri.Fragment) ||
             !ManifestPathPattern().IsMatch(uri.AbsolutePath))
         {

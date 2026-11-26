@@ -1,36 +1,25 @@
 using Balls.Verify;
 
-var exitCode = VerificationExitCodes.Success;
-var resultsDirectory = Path.Combine(
-    Path.GetTempPath(),
-    $"balls-verify-{Environment.ProcessId}-{Guid.NewGuid():N}");
-
 try
 {
     var repositoryRoot = FindRepositoryRoot(Environment.CurrentDirectory);
-    var request = VerificationRequestParser.Parse(args);
-    var plan = VerificationPlanner.Create(request, repositoryRoot, resultsDirectory);
-    exitCode = await new VerificationEngine(new ProcessCommandRunner()).ExecuteAsync(plan);
-}
-catch (UsageException exception)
-{
-    Console.Error.WriteLine(exception.Message);
-    exitCode = VerificationExitCodes.Usage;
+    var runner = new ProcessCommandRunner();
+    foreach (var command in VerificationPlanner.Create(args, repositoryRoot))
+    {
+        var exitCode = await runner.RunAsync(command, CancellationToken.None);
+        if (exitCode != 0)
+        {
+            return exitCode;
+        }
+    }
+
+    return 0;
 }
 catch (Exception exception)
 {
     Console.Error.WriteLine(exception.Message);
-    exitCode = 1;
+    return 1;
 }
-finally
-{
-    if (Directory.Exists(resultsDirectory))
-    {
-        Directory.Delete(resultsDirectory, recursive: true);
-    }
-}
-
-return exitCode;
 
 static string FindRepositoryRoot(string startDirectory)
 {

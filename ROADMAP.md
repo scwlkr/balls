@@ -18,7 +18,7 @@ simulated boss joins through the local browser, opens the approved project folde
 and edits a real ordinary work file.
 
 ```text
-balls.wlkrlabs.com
+balls.wlkr.si
   → paste one Windows install command
   → join Circle
   → open shared folder

@@ -3,7 +3,7 @@
 - **Status:** Accepted
 - **Date:** 2026-08-26
 
-Balls package testing must begin at [`balls.wlkrlabs.com`](https://balls.wlkrlabs.com), including
+Balls package testing must begin at [`balls.wlkr.si`](https://balls.wlkr.si), including
 before a candidate is good enough for Alpha. Add a public **Development** channel beneath the
 recommended Alpha and previous-version sections. Development may publish incomplete or broken
 builds from an identified issue branch or `main` commit, but every build remains an immutable
