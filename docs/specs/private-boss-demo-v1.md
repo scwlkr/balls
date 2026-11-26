@@ -31,7 +31,7 @@ hardware and is not required for this issue.
 
 ## Solution
 
-`balls.wlkrlabs.com` keeps the latest accepted Alpha as its primary download. Beneath the main
+`balls.wlkr.si` keeps the latest accepted Alpha as its primary download. Beneath the main
 section it presents clearly warned Development builds and a conventional previous-versions list.
 Development packages may be incomplete or broken, but every published package is an immutable,
 identity-verified GitHub prerelease asset. An agent may publish a Development package needed by an
@@ -61,7 +61,7 @@ website identity and startup readback.
 
 ## User Stories
 
-1. As the Owner, I want `balls.wlkrlabs.com` to remain the only human software entrypoint, so that
+1. As the Owner, I want `balls.wlkr.si` to remain the only human software entrypoint, so that
    every test and demonstration begins from the real distribution path.
 2. As a prospective user, I want the latest accepted Alpha shown first, so that the recommended
    package is unmistakable.
@@ -313,7 +313,7 @@ website identity and startup readback.
 ## Further Notes
 
 The Development channel is a public testing lane, not a quality claim. It exists because all human
-package testing must begin at `balls.wlkrlabs.com`; it does not weaken artifact identity or package
+package testing must begin at `balls.wlkr.si`; it does not weaken artifact identity or package
 integrity requirements.
 
 The current Alpha predates Circle Files, the site requires PowerShell 7, and the earlier assisted

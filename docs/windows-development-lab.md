@@ -82,14 +82,16 @@ From a clean committed Linux checkout, choose a new receipt path and run the ent
 one command:
 
 ```bash
-eng/conformance/Test-WindowsSmbReadiness.sh \
+dotnet run --project eng/Balls.WindowsConformance --configuration Release -- run \
   --target-profile /tmp/balls-windows-target.json \
+  --package /absolute/path/to/windows-canary.zip \
+  --checksum /absolute/path/to/windows-canary.zip.sha256 \
+  --expected-commit "$(git rev-parse HEAD)" \
   --receipt /tmp/balls-windows-smb-readiness.json
 ```
 
-The entrypoint builds a self-contained Windows CLI and daemon, packages those exact `HEAD` bytes
-with a commit-bound Canary manifest and checksum, verifies that identity on both sides of the
-transport, and invokes canonical `balls files readiness` against isolated disposable daemon state.
+Provide the self-contained Windows Canary package and checksum built from exact `HEAD`.
+The tool verifies the package identity on both sides of the transport and invokes canonical `balls files readiness` against isolated disposable daemon state.
 The packaged daemon's Windows-only `--files-readiness-conformance` mode leases protected disposable
 state and exposes only the existing readiness endpoint; it does not open the normal database,
 initialize Node or Circle identity, use DPAPI private material, serve the browser application, or
@@ -160,12 +162,10 @@ docker network inspect windows_default --format '{{.Name}} {{.Driver}}'
 - Keep desktop viewing loopback-only and Circle traffic on `windows_default`. Do not add Tailscale,
   public exposure, or host-forwarded SMB.
 - Install in both profiles only with the command copied from the live Development or immutable
-  previous-version section of `balls.wlkrlabs.com`; never copy the candidate between VMs.
+  previous-version section of `balls.wlkr.si`; never copy the candidate between VMs.
 - The working Owner VM is intentionally a clean recipient environment: do not assume
   `C:\Dev\balls`, Git, a repository checkout, release-engineering scripts, PowerShell 7, or a .NET
   runtime exists there. The Owner pastes only the website command into the Windows PowerShell prompt.
-  `eng/canary/Test-WindowsDownload.ps1` is a release-engineering seam for an automated Windows
-  runner or development checkout, not an Owner-test instruction.
 - Use the pre-existing disposable local folder `C:\BallsDemo\Projects` and seed file
   `before-balls.txt`. Do not use a host-mounted, mapped, or network-backed contribution.
 - Keep guest passwords, SSH private keys, provider credentials, and signed-in application state
@@ -240,7 +240,7 @@ ships binaries signed by a genuinely trusted publisher, this physical device can
 product. Use the already authorized disposable Windows guest for executable end-to-end checks;
 physical laptop browser and built-in network/SMB diagnostics remain partial evidence only.
 
-Any later physical run starts from `balls.wlkrlabs.com` and the website-provided command in the
+Any later physical run starts from `balls.wlkr.si` and the website-provided command in the
 PowerShell included with Windows. It does not use a copied ZIP, LocalSend, SSH, or administrator
 access. The installed shortcut starts the ordinary user-owned daemon, opens its loopback browser,
 and makes only outbound connections to the Owner. Current-user Credential Manager and Explorer

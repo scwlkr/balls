@@ -30,7 +30,7 @@ their computers contribute without configuring the underlying machines or provid
 ## Initial target
 
 The urgent proving ground is **one small company and two trusted people**. One person installs Balls
-with the Windows command from [`balls.wlkrlabs.com`](https://balls.wlkrlabs.com), contributes an
+with the Windows command from [`balls.wlkr.si`](https://balls.wlkr.si), contributes an
 existing Windows project folder on the private LAN, and sends the other person a private Circle
 invitation. The invited person uses the same official page, joins in the local browser, and opens
 the approved folder in Windows File Explorer.
@@ -80,7 +80,7 @@ honestly in [`docs/STATE.md`](docs/STATE.md).
 
 ## Official download
 
-Use [`balls.wlkrlabs.com`](https://balls.wlkrlabs.com) for every official Balls install or update.
+Use [`balls.wlkr.si`](https://balls.wlkr.si) for every official Balls install or update.
 The current site points to the latest accepted Alpha. Issue #92 adds warned Development builds
 beneath it and exact previous versions; every lane points to immutable GitHub Release assets rather
 than manually copied binaries. Private Circle invitations are exchanged separately.

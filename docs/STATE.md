@@ -10,7 +10,7 @@ active issue before loading deeper design or verification records.
 The boss-visible private Windows workflow was completed through #92 and #103:
 
 ```text
-balls.wlkrlabs.com
+balls.wlkr.si
   → paste one Windows install command
   → paste one private Circle invitation
   → join in the local browser
@@ -96,7 +96,7 @@ separate optional local guide and is not on today's critical path. See
 
 ## Distribution boundary
 
-[`balls.wlkrlabs.com`](https://balls.wlkrlabs.com) is the official human-facing software and update
+[`balls.wlkr.si`](https://balls.wlkr.si) is the official human-facing software and update
 entrypoint. Alpha remains the primary recommended package. A lower Development section may point to
 incomplete or broken immutable GitHub prereleases and list older exact versions; it does not host
 manually copied binaries. Active issue work may publish Development after package-integrity checks

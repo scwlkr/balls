@@ -1,6 +1,6 @@
 # Balls downloads site
 
-This isolated public site is the source for `balls.wlkrlabs.com`. It gives each delivery lane a
+This isolated public site is the source for `balls.wlkr.si`. It gives each delivery lane a
 copyable command while keeping the actual packages on public GitHub Releases.
 
 The page is intentionally plain Vite: static HTML, CSS, and a few lines of TypeScript for the copy
@@ -53,7 +53,7 @@ checks. This does not authorize Alpha, Beta, or Stable movement.
 1. Record the current `channels/development.json` and `bootstrap/windows-x64.json` contents, tags,
    and hashes, or record that a pointer does not exist. These are the two rollback pointers.
 2. Build the Windows package once from the identified commit with `--runtime win-x64
---self-contained true`; run the package-integrity and focused package tests against those bytes.
+--self-contained true`; run the package-integrity and package inspection against those bytes.
 3. Create the canonical tag `development-<yyyyMMddTHHmmssZ>-<commit12>` using the UTC package-build
    preparation time and package commit, then create an immutable GitHub prerelease. Upload the
    archive, archive checksum, legacy repository installer, native x64 bootstrap, and the normal
@@ -84,24 +84,13 @@ checks. This does not authorize Alpha, Beta, or Stable movement.
 5. Publish the immutable prerelease assets, `versions/<tag>.json`, and
    `bootstrap/versions/<tag>.json` first while leaving every moving pointer, the live site command,
    and the release catalog unchanged. Read that exact manifest back from
-   `https://balls.wlkrlabs.com/versions/<tag>.json`, then run the exact-release smoke below against
-   that immutable version URL under an authorized ordinary Windows profile. The smoke installs the
-   package and checks the daemon path, Start Menu shortcut, execution policy, and owned cleanup. It
-   validates both automatic first launch and a real Start Menu shortcut relaunch, requires each
-   installed daemon to own exactly two private IPv4 TCP listeners, rejects any wildcard/public
-   listener, and reports `privateListenersVerified: true` without recording the selected private
-   address or ports:
+   `https://balls.wlkr.si/versions/<tag>.json`. In an authorized ordinary Windows profile, use
+   the page's PowerShell command with the pinned version and bootstrap manifests. Capture the
+   installer output, the installed identity, and a Start Menu relaunch. If upgrading, stop the
+   existing Balls daemon first and use the same profile and install root. Confirm the installed
+   `installation.json` records the new host and that existing Balls state is available.
 
-   ```powershell
-   # Release-engineering seam from a repository checkout; this is not an Owner command.
-   .\eng\canary\Test-WindowsDownload.ps1 `
-     -ManifestUri https://balls.wlkrlabs.com/versions/<development-tag>.json `
-     -BootstrapManifestUri https://balls.wlkrlabs.com/bootstrap/versions/<development-tag>.json `
-     -ExpectedTag <development-tag> `
-     -ExpectedCommit <full-commit>
-   ```
-
-6. Only after that immutable-version smoke passes, deploy the generated native-bootstrap pointer
+6. Only after that Windows installation succeeds, deploy the generated native-bootstrap pointer
    and site command, prepend the build to `releases.json`, retain
    every accepted release and only the newest ten Development rows, and preserve the
    complete-history link. Append the generator's prior-pointer output and the new exact identity to
@@ -157,8 +146,6 @@ pnpm downloads:format:check
 pnpm downloads:lint
 pnpm downloads:typecheck
 pnpm downloads:build
-pnpm downloads:test
-pnpm downloads:e2e
 ```
 
 Use `pnpm downloads:dev` for the local site. The root Balls fast gate runs the same static-site

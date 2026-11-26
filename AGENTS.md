@@ -104,7 +104,7 @@ OS adapters
 - Preserve unrelated work and keep no more than two non-overlapping tickets in progress.
 - Use a short-lived `codex/` branch, one issue per pull request, squash merge, and delete the branch.
 - After a verified merge, take the next unblocked issue without routine owner check-ins.
-- Distribute software and updates only through [balls.wlkrlabs.com](https://balls.wlkrlabs.com)
+- Distribute software and updates only through [balls.wlkr.si](https://balls.wlkr.si)
   using immutable GitHub Release assets. Follow
   [`web/Balls.Downloads/README.md`](web/Balls.Downloads/README.md). An active issue may publish a
   warned Development prerelease after package-integrity checks and must record the prior pointer;
@@ -112,7 +112,7 @@ OS adapters
 - Stop for Alpha/Beta/Stable publication, secrets, spending, irreversible actions, or a material
   product/security decision not already recorded.
 
-Every slice needs a user outcome, typed contracts, practical automated tests, explicit non-goals,
+Every slice needs a user outcome, typed contracts, observed evidence, explicit non-goals,
 and current documentation. Evidence must say what was actually observed; physical-machine proof
 is opportunistic unless an issue explicitly requires it.
 

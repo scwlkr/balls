@@ -10,7 +10,7 @@
 
 This file records a completed assisted pilot. It is not a current installation or distribution
 runbook. Balls software and updates now come only from an owner-accepted GitHub Release through
-`balls.wlkrlabs.com`; a private Circle invitation is transferred separately.
+`balls.wlkr.si`; a private Circle invitation is transferred separately.
 
 ## Result
 
