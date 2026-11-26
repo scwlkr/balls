@@ -32,7 +32,7 @@ export function FilesMappingPanel({
 
   useEffect(() => {
     let active = true;
-    let timer: ReturnType<typeof window.setTimeout> | undefined;
+    let timer: number | undefined;
     let attempt = 0;
     const shouldSynchronize = viewer.role === "member";
 
